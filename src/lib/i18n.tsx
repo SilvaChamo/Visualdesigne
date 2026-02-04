@@ -57,6 +57,20 @@ const dict: Record<Lang, Dict> = {
     'banner.card.sub.3': 'Estratégias que geram crescimento',
 
     'banner.button.portfolio': 'Ver Portfolio',
+
+    'contact.name': 'Nome',
+    'contact.email': 'Email',
+    'contact.phone': 'Telefone',
+    'contact.message': 'Mensagem',
+    'contact.service': 'Serviço de Interesse',
+    'contact.selectService': 'Selecione um serviço',
+    'contact.send': 'Enviar Mensagem',
+    'contact.sending': 'Enviando...',
+    'contact.success': 'Mensagem enviada com sucesso!',
+    'contact.successMessage': 'Entraremos em contato em breve.',
+    'contact.title': 'Entre em Contato',
+    'contact.subtitle': 'Estamos prontos para transformar suas ideias em realidade digital.',
+    'contact.formTitle': 'Envie-nos uma mensagem'
   },
   en: {
     'nav.home': 'Home',
@@ -100,6 +114,20 @@ const dict: Record<Lang, Dict> = {
     'banner.card.sub.3': 'Strategies that drive growth',
 
     'banner.button.portfolio': 'View Portfolio',
+
+    'contact.name': 'Name',
+    'contact.email': 'Email',
+    'contact.phone': 'Phone',
+    'contact.message': 'Message',
+    'contact.service': 'Service of Interest',
+    'contact.selectService': 'Select a service',
+    'contact.send': 'Send Message',
+    'contact.sending': 'Sending...',
+    'contact.success': 'Message sent successfully!',
+    'contact.successMessage': 'We will get in touch shortly.',
+    'contact.title': 'Get in Touch',
+    'contact.subtitle': 'We are ready to transform your ideas into digital reality.',
+    'contact.formTitle': 'Send us a message'
   },
 }
 
