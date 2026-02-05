@@ -10,16 +10,16 @@ import { useI18n } from '@/lib/i18n'
 
 const navigation = [
   { nameKey: 'nav.home', href: '/' },
-  { nameKey: 'nav.about', href: '/sobre' },
   { nameKey: 'nav.services', href: '/servicos', dropdown: [
     { nameKey: 'services.web', href: '/servicos/web-design' },
     { nameKey: 'services.graphic', href: '/servicos/design-grafico' },
     { nameKey: 'services.marketing', href: '/servicos/marketing-digital' },
-    { nameKey: 'services.dev', href: '/servicos/desenvolvimento-web' },
+    { nameKey: 'services.dev', href: '/servicos/desenvolvimento-web' }
   ]},
   { nameKey: 'nav.portfolio', href: '/portfolio' },
+  { nameKey: 'nav.about', href: '/sobre-nos' },
   { nameKey: 'nav.courses', href: '/cursos' },
-  { nameKey: 'nav.contact', href: '/contacto' },
+  { nameKey: 'nav.contact', href: '/contacto' }
 ]
 
 export function Header() {
@@ -93,13 +93,13 @@ export function Header() {
         scrolled ? 'bg-black/30 backdrop-blur-md shadow-lg' : 'bg-black/30 backdrop-blur-sm'
       )}
     >
-      <div className="container mx-auto px-4">
+      <div className="relative max-w-[1380px] mx-auto">
         <div className="flex items-center h-16 lg:h-20 relative">
-          {/* Red Blur Line Below Header */}
+          {/* Red Blur Line Below Header - Full Width */}
           <div className="absolute bottom-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-red-600 to-transparent" />
           
           {/* Left Section - Logo */}
-          <div className="flex items-center flex-shrink-0">
+          <div className="flex items-center flex-shrink-0 px-4 lg:px-8">
             <Link href="/" className="flex items-center">
               <motion.div
                 whileHover={{ scale: 1.05 }}
@@ -172,7 +172,7 @@ export function Header() {
           </div>
 
           {/* Right Section - Buttons */}
-          <div className="flex items-center flex-shrink-0 space-x-2">
+          <div className="flex items-center flex-shrink-0 space-x-2 px-4 lg:px-8">
             <Button asChild className="hidden lg:flex">
               <Link href="/contacto">{t('cta.quote')}</Link>
             </Button>

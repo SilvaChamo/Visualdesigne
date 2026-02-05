@@ -233,7 +233,7 @@ export function BannerSlider() {
           {/* Previous Button */}
           <button
             onClick={prevSlide}
-            className="w-10 h-10 bg-white/20 backdrop-blur-sm rounded-full flex items-center justify-center text-white hover:bg-white/30 transition-colors"
+            className="w-10 h-10 rounded-full flex items-center justify-center text-white hover:text-red-500 transition-colors"
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
@@ -267,7 +267,7 @@ export function BannerSlider() {
           {/* Next Button */}
           <button
             onClick={nextSlide}
-            className="w-10 h-10 bg-white/20 backdrop-blur-sm rounded-full flex items-center justify-center text-white hover:bg-white/30 transition-colors"
+            className="w-10 h-10 rounded-full flex items-center justify-center text-white hover:text-red-500 transition-colors"
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
