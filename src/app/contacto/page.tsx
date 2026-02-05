@@ -1,5 +1,6 @@
+'use client'
+
 import { ContactFormComponent } from '@/components/forms/ContactForm'
-import { useI18n } from '@/lib/i18n'
 import { Metadata } from 'next'
 
 export const metadata: Metadata = {
