@@ -57,7 +57,7 @@ export default function MarketingDigital() {
   ]
 
   return (
-    <div className="min-h-screen bg-black/15">
+    <div className="min-h-screen bg-black/10">
       {/* Top Menu Bar */}
       {!isScrolled && (
         <div className="fixed top-0 left-0 right-0 z-[60] bg-black h-[40px] flex items-center transition-all duration-300 shadow-lg">
@@ -119,7 +119,7 @@ export default function MarketingDigital() {
                 
                 <div className="mb-6">
                   <h4 className="font-medium mb-3 text-sm">Serviços incluídos:</h4>
-                  <ul className="space-y-2">
+                  <ul className="space-y-0">
                     {servico.servicos.map((item, idx) => (
                       <li key={idx} className="flex items-center text-black/70 text-sm">
                         <span className="w-2 h-2 bg-red-500 rounded-full mr-3"></span>

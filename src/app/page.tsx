@@ -72,7 +72,7 @@ export default function Inicio() {
   }, [])
 
   return (
-    <div className="min-h-screen bg-black/15">
+    <div className="min-h-screen bg-black/10">
       {/* Top Menu Bar - Aparece apenas sem scroll */}
       {!isScrolled && (
         <div className="fixed top-0 left-0 right-0 z-[60] bg-black h-[40px] flex items-center transition-all duration-300 shadow-lg">
@@ -194,7 +194,7 @@ export default function Inicio() {
       </div>
 
       {/* Content Section */}
-      <div className="py-16">
+      <div>
         <div className="container mx-auto max-w-7xl px-6 py-8">
           {/* Design Services */}
           <div className="text-center">
