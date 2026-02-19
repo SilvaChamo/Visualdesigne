@@ -1,11 +1,13 @@
 'use client'
 
 import { Header } from '@/components/layout/Header'
+import { I18nProvider, useI18n } from '@/lib/i18n'
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { ArrowLeft, Camera, Calendar, MapPin, Users, Heart } from 'lucide-react'
 
 export default function Fotografia() {
+  const { t } = useI18n()
   const [isScrolled, setIsScrolled] = useState(false)
 
   useEffect(() => {
@@ -52,50 +54,26 @@ export default function Fotografia() {
 
   return (
     <div className="min-h-screen bg-black/10">
-      {/* Top Menu Bar */}
-      {!isScrolled && (
-        <div className="fixed top-0 left-0 right-0 z-[60] bg-black h-[40px] flex items-center transition-all duration-300 shadow-lg">
-          <div className="container mx-auto max-w-7xl px-6 grid grid-cols-3 items-center h-full">
-            <div className="flex justify-start">
-              <a href="#faq" className="text-white text-sm hover:text-red-500 transition-colors">Ajuda</a>
-            </div>
-            <div className="flex justify-center">
-              <a href="#faq" className="text-white text-sm hover:text-red-500 transition-colors">FAQ</a>
-            </div>
-            <div className="flex justify-end">
-              <a href="#faq" className="text-white text-sm hover:text-red-500 transition-colors">Perguntas e Respostas</a>
-            </div>
-          </div>
-        </div>
-      )}
-      
-      <Header isScrolled={isScrolled} />
-      
-      <div className="bg-[#404040] relative overflow-hidden">
-        <div 
-          className="absolute inset-0 bg-cover bg-center bg-no-repeat opacity-20"
-          style={{ backgroundImage: "url('/assets/BG.jpg')" }}
-        />
-        <div className="absolute inset-0 bg-black/50" />
-        <div className="container mx-auto max-w-7xl px-6 pt-[150px] pb-[80px] flex items-center justify-center min-h-[300px] relative z-10">
-          <div className="text-center">
-            <div className="flex items-center justify-center mb-4">
-              <Link href="/" className="text-white hover:text-red-500 transition-colors flex items-center">
-                <ArrowLeft className="w-5 h-5 mr-2" />
-                Voltar para Home
-              </Link>
-            </div>
-            <h1 className="text-3xl font-bold text-white mb-2">Fotografia Profissional</h1>
-            <p className="text-base text-white font-normal">
-              Capturamos seus melhores momentos com qualidade e criatividade
-            </p>
+      {/* Breadcrumb Navigation */}
+      <div className="bg-white border-b border-gray-200">
+        <div className="container mx-auto max-w-7xl px-6 py-3">
+          <div className="flex items-center space-x-2 text-sm">
+            <Link href="/" className="text-black hover:text-red-600 transition-colors">
+              Home
+            </Link>
+            <span className="text-gray-400">/</span>
+            <span className="text-black font-medium">Fotografia</span>
           </div>
         </div>
       </div>
 
+      {/* Header */}
+      <Header isScrolled={isScrolled} />
+      
+      {/* Content Section */}
       <div className="py-16">
         <div className="container mx-auto max-w-7xl px-6">
-          <h2 className="text-2xl font-bold text-black mb-8 text-center">Nossos Serviços Fotográficos</h2>
+          <h2 className="text-2xl font-bold text-black mb-8 text-center">Fotografia Profissional</h2>
           
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
             {eventosFotograficos.map((evento, index) => (

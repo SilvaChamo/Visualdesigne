@@ -1,16 +1,19 @@
 'use client'
 
 import { Header } from '@/components/layout/Header'
+import { I18nProvider, useI18n } from '@/lib/i18n'
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { Search, ArrowRight, Sparkles } from 'lucide-react'
+import DomainSearch from '@/components/DomainSearch'
 
-export default function Inicio() {
-  const [activeTab, setActiveTab] = useState('Domínios')
+function HomePage() {
+  const { t } = useI18n()
+  const [activeTab, setActiveTab] = useState('home.tabs.domains')
   const [searchQuery, setSearchQuery] = useState('')
   const [isScrolled, setIsScrolled] = useState(false)
 
-  const tabs = ['Domínios', 'Hospedagem', 'SSL', 'Email', 'Suporte']
+  const tabs = ['home.tabs.domains', 'home.tabs.hosting', 'home.tabs.ssl', 'home.tabs.email', 'home.tabs.support']
 
   const frequentQuestions = [
     {
@@ -78,13 +81,13 @@ export default function Inicio() {
         <div className="fixed top-0 left-0 right-0 z-[60] bg-black h-[40px] flex items-center transition-all duration-300 shadow-lg">
           <div className="container mx-auto max-w-7xl px-6 grid grid-cols-3 items-center h-full">
             <div className="flex justify-start">
-              <a href="#faq" className="text-white text-sm hover:text-red-500 transition-colors">Ajuda</a>
+              <a href="#faq" className="text-white text-sm hover:text-red-500 transition-colors">{t('nav.help')}</a>
             </div>
             <div className="flex justify-center">
-              <a href="#faq" className="text-white text-sm hover:text-red-500 transition-colors">FAQ</a>
+              <a href="#faq" className="text-white text-sm hover:text-red-500 transition-colors">{t('nav.faq')}</a>
             </div>
             <div className="flex justify-end">
-              <a href="#faq" className="text-white text-sm hover:text-red-500 transition-colors">Perguntas e Respostas</a>
+              <a href="#faq" className="text-white text-sm hover:text-red-500 transition-colors">{t('nav.questions')}</a>
             </div>
           </div>
         </div>
@@ -100,61 +103,42 @@ export default function Inicio() {
           style={{ backgroundImage: "url('/assets/BG.jpg')" }}
         />
         <div className="absolute inset-0 bg-black/50" />
-        <div className="container mx-auto max-w-7xl px-6 pt-[150px] pb-[20px] flex flex-col justify-between items-center min-h-[400px] relative z-10">
+        <div className="container mx-auto max-w-7xl px-6 pt-[80px] sm:pt-[100px] md:pt-[120px] lg:pt-[150px] pb-[20px] sm:pb-[30px] flex flex-col justify-between items-center min-h-[300px] sm:min-h-[350px] md:min-h-[400px] relative z-10">
           <div className="w-full max-w-4xl text-center">
-            <h1 className="text-3xl font-bold text-white mb-2">
-              Encontre o domínio perfeito para seu negócio
+            <h1 className="text-xl sm:text-2xl md:text-3xl lg:text-4xl font-bold text-white mb-2 sm:mb-3 md:mb-4 whitespace-nowrap">
+              {t('home.title')}
             </h1>
-            <p className="text-base text-white mb-[30px] font-normal">
-              Registre seu domínio com confiança. Hospedagem rápida e segura para seu site.
+            <p className="text-sm sm:text-base md:text-lg lg:text-xl text-white mb-[20px] sm:mb-[25px] md:mb-[30px] font-normal text-center max-w-3xl sm:max-w-4xl md:max-w-5xl lg:max-w-6xl mx-auto">
+              {t('home.subtitle')}
             </p>
             
             {/* Domain Search Box */}
             <div className="flex justify-center mb-[40px]">
-              <div className="flex flex-col sm:flex-row gap-3 w-full max-w-2xl">
-                <input
-                  type="text"
-                  placeholder="Digite seu domínio..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="flex-1 px-4 py-[6px] rounded-[6px] bg-white text-black border border-gray-300 focus:outline-none focus:ring-2 focus:ring-red-500"
-                />
-                <select className="px-4 py-[6px] rounded-[6px] bg-white text-black border border-gray-300 focus:outline-none focus:ring-2 focus:ring-red-500 w-32">
-                  <option value="todos">Todos</option>
-                  <option value=".mz">.mz</option>
-                  <option value=".com">.com</option>
-                  <option value=".org">.org</option>
-                  <option value=".net">.net</option>
-                </select>
-                <button className="bg-red-600 hover:bg-red-700 text-white px-6 py-[6px] rounded-[6px] flex items-center gap-2 transition-colors">
-                  <Search className="w-5 h-5" />
-                  Verificar
-                </button>
-              </div>
+              <DomainSearch />
             </div>
 
             {/* Tabs */}
             <div className="flex justify-center pb-0 mb-0">
-              <div className="flex flex-wrap justify-center gap-2 mb-0">
-                {tabs.map((tab) => (
+              <div className="flex flex-wrap justify-center gap-1 sm:gap-2 mb-0 px-2 sm:px-0">
+                {tabs.map((tabKey) => (
                   <button
-                    key={tab}
+                    key={tabKey}
                     onClick={() => {
-                      setActiveTab(tab)
+                      setActiveTab(tabKey)
                       // Redirecionar para página específica
-                      if (tab === 'Domínios') window.location.href = '/precos/dominios'
-                      else if (tab === 'Hospedagem') window.location.href = '/precos/hospedagem'
-                      else if (tab === 'SSL') window.location.href = '/precos/ssl'
-                      else if (tab === 'Email') window.location.href = '/precos/email'
-                      else if (tab === 'Suporte') window.location.href = '/precos/suporte'
+                      if (tabKey === 'home.tabs.domains') window.location.href = '/precos/dominios'
+                      else if (tabKey === 'home.tabs.hosting') window.location.href = '/precos/hospedagem'
+                      else if (tabKey === 'home.tabs.ssl') window.location.href = '/precos/ssl'
+                      else if (tabKey === 'home.tabs.email') window.location.href = '/precos/email'
+                      else if (tabKey === 'home.tabs.support') window.location.href = '/precos/suporte'
                     }}
-                    className={`px-6 py-3 rounded-lg font-medium transition-all py-[5px] relative ${
-                      activeTab === tab
+                    className={`px-2 sm:px-3 md:px-4 py-[5px] rounded-lg font-medium text-xs sm:text-sm transition-all relative ${
+                      activeTab === tabKey
                         ? 'bg-red-600 text-white'
                         : 'bg-black text-white hover:bg-red-600'
                     }`}
                   >
-                    {tab}
+                    {t(tabKey)}
                   </button>
                 ))}
               </div>
@@ -195,64 +179,64 @@ export default function Inicio() {
 
       {/* Content Section */}
       <div>
-        <div className="container mx-auto max-w-7xl px-6 py-8">
+        <div className="container mx-auto max-w-7xl px-4 sm:px-6 py-8">
           {/* Design Services */}
           <div className="text-center">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-              <div className="bg-white text-black/70 p-4 rounded-lg">
-                <h4 className="font-medium mb-2">Design Gráfico</h4>
-                <div className="text-black/70 text-sm mb-4">Criação de identidade visual, logos, banners e materiais gráficos</div>
-                <Link href="/servicos/design-grafico" className="bg-black text-white px-4 py-2 rounded text-sm font-medium hover:bg-red-600 hover:text-white transition-colors inline-block cursor-pointer">
-                  Ver Serviços
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4 md:gap-6">
+              <div className="bg-white text-black/70 p-3 sm:p-4 rounded-lg">
+                <h4 className="font-bold mb-2">{t('services.graphic')}</h4>
+                <div className="text-black/70 text-sm mb-4">{t('services.graphic.desc')}</div>
+                <Link href="/servicos/design-grafico" className="bg-black text-white px-3 sm:px-4 py-2 rounded text-xs sm:text-sm font-medium hover:bg-red-600 hover:text-white transition-colors inline-block cursor-pointer">
+                  {t('services.view')}
                 </Link>
               </div>
-              <div className="bg-white text-black/70 p-4 rounded-lg">
-                <h4 className="font-medium mb-2">Web Design</h4>
-                <p className="text-black/70 text-sm mb-4">Desenvolvimento de sites modernos, aplicativos e sistemas de gestão</p>
-                <Link href="/servicos/webdesign" className="bg-black text-white px-4 py-2 rounded text-sm font-medium hover:bg-red-600 hover:text-white transition-colors inline-block cursor-pointer">
-                  Ver Serviços
+              <div className="bg-white text-black/70 p-3 sm:p-4 rounded-lg">
+                <h4 className="font-bold mb-2">{t('services.web')}</h4>
+                <p className="text-black/70 text-sm mb-4">{t('services.web.desc')}</p>
+                <Link href="/servicos/webdesign" className="bg-black text-white px-3 sm:px-4 py-2 rounded text-xs sm:text-sm font-medium hover:bg-red-600 hover:text-white transition-colors inline-block cursor-pointer">
+                  {t('services.view')}
                 </Link>
               </div>
-              <div className="bg-white text-black/70 p-4 rounded-lg">
-                <h4 className="font-medium mb-2">Marketing Digital</h4>
-                <p className="text-black/70 text-sm mb-4">Campanhas online, SEO, anúncios e gestão de redes sociais</p>
-                <Link href="/servicos/marketing-digital" className="bg-black text-white px-4 py-2 rounded text-sm font-medium hover:bg-red-600 hover:text-white transition-colors inline-block cursor-pointer">
-                  Ver Serviços
+              <div className="bg-white text-black/70 p-3 sm:p-4 rounded-lg">
+                <h4 className="font-bold mb-2">{t('services.marketing')}</h4>
+                <p className="text-black/70 text-sm mb-4">{t('services.marketing.desc')}</p>
+                <Link href="/servicos/marketing-digital" className="bg-black text-white px-3 sm:px-4 py-2 rounded text-xs sm:text-sm font-medium hover:bg-red-600 hover:text-white transition-colors inline-block cursor-pointer">
+                  {t('services.view')}
                 </Link>
               </div>
-              <div className="bg-white text-black/70 p-4 rounded-lg">
-                <h4 className="font-medium mb-2">Branding</h4>
-                <p className="text-black/70 text-sm mb-4">Construção e layouts de marcas fortes, memoráveis e impactantes</p>
-                <Link href="/servicos/branding" className="bg-black text-white px-4 py-2 rounded text-sm font-medium hover:bg-red-600 hover:text-white transition-colors inline-block cursor-pointer">
-                  Ver Serviços
+              <div className="bg-white text-black/70 p-3 sm:p-4 rounded-lg">
+                <h4 className="font-bold mb-2">{t('services.branding')}</h4>
+                <p className="text-black/70 text-sm mb-4">{t('services.branding.desc')}</p>
+                <Link href="/servicos/branding" className="bg-black text-white px-3 sm:px-4 py-2 rounded text-xs sm:text-sm font-medium hover:bg-red-600 hover:text-white transition-colors inline-block cursor-pointer">
+                  {t('services.view')}
                 </Link>
               </div>
-              <div className="bg-white text-black/70 p-4 rounded-lg">
-                <h4 className="font-medium mb-2">SEO</h4>
-                <p className="text-black/70 text-sm mb-4">Otimização para buscadores e ranking orgânico</p>
-                <Link href="/servicos/seo" className="bg-black text-white px-4 py-2 rounded text-sm font-medium hover:bg-red-600 hover:text-white transition-colors inline-block cursor-pointer">
-                  Ver Serviços
+              <div className="bg-white text-black/70 p-3 sm:p-4 rounded-lg">
+                <h4 className="font-bold mb-2">{t('services.seo')}</h4>
+                <p className="text-black/70 text-sm mb-4">{t('services.seo.desc')}</p>
+                <Link href="/servicos/seo" className="bg-black text-white px-3 sm:px-4 py-2 rounded text-xs sm:text-sm font-medium hover:bg-red-600 hover:text-white transition-colors inline-block cursor-pointer">
+                  {t('services.view')}
                 </Link>
               </div>
-              <div className="bg-white text-black/70 p-4 rounded-lg">
-                <h4 className="font-medium mb-2">Redes Sociais</h4>
-                <p className="text-black/70 text-sm mb-4">Gestão de conteúdo e engajamento em redes sociais</p>
-                <Link href="/servicos/redes-sociais" className="bg-black text-white px-4 py-2 rounded text-sm font-medium hover:bg-red-600 hover:text-white transition-colors inline-block cursor-pointer">
-                  Ver Serviços
+              <div className="bg-white text-black/70 p-3 sm:p-4 rounded-lg">
+                <h4 className="font-bold mb-2">{t('services.social')}</h4>
+                <p className="text-black/70 text-sm mb-4">{t('services.social.desc')}</p>
+                <Link href="/servicos/redes-sociais" className="bg-black text-white px-3 sm:px-4 py-2 rounded text-xs sm:text-sm font-medium hover:bg-red-600 hover:text-white transition-colors inline-block cursor-pointer">
+                  {t('services.view')}
                 </Link>
               </div>
-              <div className="bg-white text-black/70 p-4 rounded-lg">
-                <h4 className="font-medium mb-2">Produção de Vídeo</h4>
-                <p className="text-black/70 text-sm mb-4">Vídeos institucionais, comerciais e conteúdo audiovisual</p>
-                <Link href="/servicos/video-producao" className="bg-black text-white px-4 py-2 rounded text-sm font-medium hover:bg-red-600 hover:text-white transition-colors inline-block cursor-pointer">
-                  Ver Serviços
+              <div className="bg-white text-black/70 p-3 sm:p-4 rounded-lg">
+                <h4 className="font-bold mb-2">{t('services.video')}</h4>
+                <p className="text-black/70 text-sm mb-4">{t('services.video.desc')}</p>
+                <Link href="/servicos/video-producao" className="bg-black text-white px-3 sm:px-4 py-2 rounded text-xs sm:text-sm font-medium hover:bg-red-600 hover:text-white transition-colors inline-block cursor-pointer">
+                  {t('services.view')}
                 </Link>
               </div>
-              <div className="bg-white text-black/70 p-4 rounded-lg">
-                <h4 className="font-medium mb-2">Fotografia</h4>
-                <p className="text-black/70 text-sm mb-4">Ensaios fotográficos, festas e eventos, casamentos e produtos</p>
-                <Link href="/servicos/fotografia" className="bg-black text-white px-4 py-2 rounded text-sm font-medium hover:bg-red-600 hover:text-white transition-colors inline-block cursor-pointer">
-                  Ver Serviços
+              <div className="bg-white text-black/70 p-3 sm:p-4 rounded-lg">
+                <h4 className="font-bold mb-2">{t('services.photography')}</h4>
+                <p className="text-black/70 text-sm mb-4">{t('services.photography.desc')}</p>
+                <Link href="/servicos/fotografia" className="bg-black text-white px-3 sm:px-4 py-2 rounded text-xs sm:text-sm font-medium hover:bg-red-600 hover:text-white transition-colors inline-block cursor-pointer">
+                  {t('services.view')}
                 </Link>
               </div>
             </div>
@@ -260,5 +244,13 @@ export default function Inicio() {
         </div>
       </div>
     </div>
+  )
+}
+
+export default function Inicio() {
+  return (
+    <I18nProvider>
+      <HomePage />
+    </I18nProvider>
   )
 }
