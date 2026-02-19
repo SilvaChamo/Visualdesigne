@@ -57,12 +57,8 @@ export function BannerSlider() {
 
   return (
     <section className="relative h-[800px] overflow-hidden">
-      {/* Fixed Background Image */}
-      <div 
-        className="absolute inset-0 bg-cover bg-center bg-no-repeat"
-        style={{ backgroundImage: "url('/assets/BG.jpg')" }}
-      />
-      <div className="absolute inset-0 bg-black/80" />
+      {/* Background cinza 95% */}
+      <div className="absolute inset-0 bg-[#f2f2f2]" />
 
       <AnimatePresence mode="wait">
         <motion.div
@@ -99,7 +95,7 @@ export function BannerSlider() {
                       initial={{ opacity: 0, y: 20 }}
                       animate={{ opacity: 1, y: 0 }}
                       transition={{ delay: 0.3 }}
-                      className="text-3xl md:text-4xl lg:text-5xl font-bold text-white leading-tight mb-6 text-left"
+                      className="text-3xl md:text-4xl lg:text-5xl font-bold text-gray-900 leading-tight mb-6 text-left"
                     >
                       {t(slides[currentSlide].titleKey).split('\n').map((line, index) => (
                         <span key={index}>
@@ -114,7 +110,7 @@ export function BannerSlider() {
                       initial={{ opacity: 0, y: 20 }}
                       animate={{ opacity: 1, y: 0 }}
                       transition={{ delay: 0.4 }}
-                      className="text-xl text-gray-200 mb-8 text-left"
+                      className="text-xl text-gray-700 mb-8 text-left"
                     >
                       {t(slides[currentSlide].descKey)}
                     </motion.p>
@@ -143,13 +139,13 @@ export function BannerSlider() {
                       initial={{ opacity: 0, y: 20 }}
                       animate={{ opacity: 1, y: 0 }}
                       transition={{ delay: 0.6 }}
-                      className="flex flex-col sm:flex-row gap-4 lg:justify-start justify-center text-gray-300"
+                      className="flex flex-col sm:flex-row gap-4 lg:justify-start justify-center text-gray-600"
                     >
-                      <a href="tel:+258821234567" className="flex items-center space-x-2 hover:text-white transition-colors">
+                      <a href="tel:+258821234567" className="flex items-center space-x-2 hover:text-gray-900 transition-colors">
                         <Phone className="w-4 h-4" />
                         <span>+258 821 234 567</span>
                       </a>
-                      <a href="mailto:info@visualdesign.co.mz" className="flex items-center space-x-2 hover:text-white transition-colors">
+                      <a href="mailto:info@visualdesign.co.mz" className="flex items-center space-x-2 hover:text-gray-900 transition-colors">
                         <Mail className="w-4 h-4" />
                         <span>info@visualdesign.co.mz</span>
                       </a>
@@ -164,11 +160,11 @@ export function BannerSlider() {
                     className="relative hidden lg:block flex items-center justify-center h-full"
                   >
                     {/* Card */}
-                    <div className="relative rounded-2xl overflow-hidden shadow-2xl bg-white/10 backdrop-blur-sm p-8">
+                    <div className="relative rounded-2xl overflow-hidden shadow-2xl bg-white p-8">
                       <div className="text-8xl mb-6 text-center">
                         {slides[currentSlide].icon}
                       </div>
-                      <div className="text-white text-center">
+                      <div className="text-gray-900 text-center">
                         <h3 className="text-2xl font-bold mb-3">
                           {currentSlide === 0 && t('banner.card.title.1')}
                           {currentSlide === 1 && t('banner.card.title.2')}
@@ -186,12 +182,12 @@ export function BannerSlider() {
                     <motion.div
                       animate={{ y: [-10, 10, -10] }}
                       transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
-                      className="absolute -top-4 -right-4 w-16 h-16 bg-red-600/20 rounded-full backdrop-blur-sm"
+                      className="absolute -top-4 -right-4 w-16 h-16 bg-red-600/30 rounded-full"
                     />
                     <motion.div
                       animate={{ y: [10, -10, 10] }}
                       transition={{ duration: 3, repeat: Infinity, ease: "easeInOut", delay: 1 }}
-                      className="absolute -bottom-4 -left-4 w-12 h-12 bg-red-600/20 rounded-full backdrop-blur-sm"
+                      className="absolute -bottom-4 -left-4 w-12 h-12 bg-red-600/30 rounded-full"
                     />
                   </motion.div>
               </div>
@@ -202,27 +198,27 @@ export function BannerSlider() {
           <motion.div
             animate={{ y: [-10, 10, -10] }}
             transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
-            className="absolute top-20 right-10 w-20 h-20 bg-red-600/20 rounded-full backdrop-blur-sm"
+            className="absolute top-20 right-10 w-20 h-20 bg-red-600/30 rounded-full"
           />
           <motion.div
             animate={{ y: [10, -10, 10] }}
             transition={{ duration: 3, repeat: Infinity, ease: "easeInOut", delay: 1 }}
-            className="absolute bottom-20 right-32 w-16 h-16 bg-red-600/20 rounded-full backdrop-blur-sm"
+            className="absolute bottom-20 right-32 w-16 h-16 bg-red-600/30 rounded-full"
           />
           <motion.div
             animate={{ rotate: 360 }}
             transition={{ duration: 20, repeat: Infinity, ease: "linear" }}
-            className="absolute top-1/2 -left-8 w-12 h-12 bg-red-600/20 rounded-full backdrop-blur-sm"
+            className="absolute top-1/2 -left-8 w-12 h-12 bg-red-600/30 rounded-full"
           />
           <motion.div
             animate={{ scale: [1, 1.2, 1] }}
             transition={{ duration: 2, repeat: Infinity, ease: "easeInOut", delay: 0.5 }}
-            className="absolute top-32 left-20 w-8 h-8 bg-red-600/30 rounded-full"
+            className="absolute top-32 left-20 w-8 h-8 bg-red-600/40 rounded-full"
           />
           <motion.div
             animate={{ x: [0, 30, 0] }}
             transition={{ duration: 5, repeat: Infinity, ease: "easeInOut", delay: 1.5 }}
-            className="absolute bottom-32 left-40 w-6 h-6 bg-red-600/25 rounded-full"
+            className="absolute bottom-32 left-40 w-6 h-6 bg-red-600/35 rounded-full"
           />
         </motion.div>
       </AnimatePresence>
@@ -233,7 +229,7 @@ export function BannerSlider() {
           {/* Previous Button */}
           <button
             onClick={prevSlide}
-            className="w-10 h-10 rounded-full flex items-center justify-center text-white hover:text-red-500 transition-colors"
+            className="w-10 h-10 rounded-full flex items-center justify-center text-gray-600 hover:text-red-500 transition-colors"
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
@@ -249,7 +245,7 @@ export function BannerSlider() {
                 className={`h-3 rounded-full transition-all duration-300 relative overflow-hidden`}
                 style={{
                   width: currentSlide === index ? '32px' : '12px',
-                  backgroundColor: currentSlide === index ? '#FF0000' : 'rgba(255, 255, 255, 0.3)'
+                  backgroundColor: currentSlide === index ? '#FF0000' : 'rgba(0, 0, 0, 0.3)'
                 }}
                 whileHover={{ scale: 1.1 }}
                 whileTap={{ scale: 0.95 }}
@@ -267,7 +263,7 @@ export function BannerSlider() {
           {/* Next Button */}
           <button
             onClick={nextSlide}
-            className="w-10 h-10 rounded-full flex items-center justify-center text-white hover:text-red-500 transition-colors"
+            className="w-10 h-10 rounded-full flex items-center justify-center text-gray-600 hover:text-red-500 transition-colors"
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />

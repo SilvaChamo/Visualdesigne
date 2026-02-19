@@ -1,5 +1,3 @@
-'use client'
-
 import { ContactFormComponent } from '@/components/forms/ContactForm'
 import { Metadata } from 'next'
 

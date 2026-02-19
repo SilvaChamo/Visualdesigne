@@ -1,45 +1,41 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import Link from 'next/link'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Menu, X, ChevronDown, Sun, Moon } from 'lucide-react'
+import Link from 'next/link'
+import { usePathname } from 'next/navigation'
+import { Menu, X, ChevronDown } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { useI18n } from '@/lib/i18n'
 
 const navigation = [
   { nameKey: 'nav.home', href: '/' },
+  { nameKey: 'nav.about', href: '/sobre-nos' },
   { nameKey: 'nav.services', href: '/servicos', dropdown: [
     { nameKey: 'services.web', href: '/servicos/web-design' },
     { nameKey: 'services.graphic', href: '/servicos/design-grafico' },
-    { nameKey: 'services.marketing', href: '/servicos/marketing-digital' },
-    { nameKey: 'services.dev', href: '/servicos/desenvolvimento-web' }
+    { nameKey: 'services.fairs', href: '/servicos/feiras-eventos' },
+    { nameKey: 'services.products', href: '/servicos/produtos' },
+    { nameKey: 'services.domains', href: '/servicos/dominios' },
+    { nameKey: 'services.hosting', href: '/servicos/hospedagem' },
+    { nameKey: 'services.ssl', href: '/servicos/ssl' },
+    { nameKey: 'services.email', href: '/servicos/email' },
+    { nameKey: 'services.support', href: '/servicos/suporte' }
   ]},
   { nameKey: 'nav.portfolio', href: '/portfolio' },
-  { nameKey: 'nav.about', href: '/sobre-nos' },
   { nameKey: 'nav.courses', href: '/cursos' },
   { nameKey: 'nav.contact', href: '/contacto' }
 ]
 
-export function Header() {
+export function Header({ isScrolled = false }: { isScrolled?: boolean }) {
   const { lang, t, toggleLang } = useI18n()
   const [isOpen, setIsOpen] = useState(false)
-  const [scrolled, setScrolled] = useState(false)
   const [activeDropdown, setActiveDropdown] = useState<string | null>(null)
-  const [theme, setTheme] = useState<'dark' | 'light'>('dark')
+  const [scrolled, setScrolled] = useState(false)
+  const pathname = usePathname()
 
   useEffect(() => {
-    const savedTheme = typeof window !== 'undefined' ? localStorage.getItem('vd-theme') : null
-    const initialTheme = savedTheme === 'light' ? 'light' : 'dark'
-
-    setTheme(initialTheme)
-    if (initialTheme === 'light') {
-      document.documentElement.classList.add('theme-light')
-    } else {
-      document.documentElement.classList.remove('theme-light')
-    }
-
     const handleScroll = () => {
       setScrolled(window.scrollY > 20)
     }
@@ -68,139 +64,114 @@ export function Header() {
 
   const otherLangLabel = lang === 'pt' ? 'EN' : 'PT'
 
-  const toggleTheme = (e: React.MouseEvent) => {
-    e.stopPropagation()
-    setTheme((prev) => {
-      const next = prev === 'dark' ? 'light' : 'dark'
-
-      if (next === 'light') {
-        document.documentElement.classList.add('theme-light')
-      } else {
-        document.documentElement.classList.remove('theme-light')
-      }
-
-      localStorage.setItem('vd-theme', next)
-      return next
-    })
-  }
-
   return (
     <motion.header
       initial={{ y: -100 }}
       animate={{ y: 0 }}
-      className={cn(
-        'fixed top-0 left-0 right-0 z-50 transition-all duration-300',
-        scrolled ? 'bg-black/30 backdrop-blur-md shadow-lg' : 'bg-black/30 backdrop-blur-sm'
-      )}
+      className={`fixed ${isScrolled ? 'top-0' : 'top-[40px]'} left-0 right-0 z-50 transition-all duration-300 bg-white shadow-lg`}
     >
-      <div className="relative max-w-[1380px] mx-auto">
-        <div className="flex items-center h-16 lg:h-20 relative">
-          {/* Red Blur Line Below Header - Full Width */}
-          <div className="absolute bottom-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-red-600 to-transparent" />
-          
-          {/* Left Section - Logo */}
-          <div className="flex items-center flex-shrink-0 px-4 lg:px-8">
-            <Link href="/" className="flex items-center">
-              <motion.div
-                whileHover={{ scale: 1.05 }}
-                className="w-12 h-12 lg:w-14 lg:h-14 rounded-lg flex items-center justify-center overflow-hidden"
-              >
-                <img 
-                  src="/assets/Logo.png" 
-                  alt="Visual Design Logo" 
-                  className="w-full h-full object-contain"
-                />
-              </motion.div>
-              <span className="font-normal text-sm lg:text-base text-white ml-0.5">
-                Visual<span className="text-red-600 font-bold">Design</span>
-              </span>
-            </Link>
-          </div>
+      <div className="relative">
+        <div className="max-w-7xl mx-auto px-6">
+          <div className="grid grid-cols-[1fr_2fr_1fr] items-center h-[70px] relative">
+            {/* Left Column - Logo (1fr) */}
+            <div className="flex items-center justify-start">
+              <Link href="/" className="flex items-center">
+                <motion.div
+                  whileHover={{ scale: 1.05 }}
+                  className="w-12 h-12 lg:w-14 lg:h-14 rounded-lg flex items-center justify-center overflow-hidden"
+                >
+                  <img 
+                    src="/assets/Logo.png" 
+                    alt="Visual Design Logo" 
+                    className="w-full h-full object-contain"
+                  />
+                </motion.div>
+                <span className="font-normal text-sm lg:text-base text-black ml-0.5">
+                  Visual<span className="text-red-600 font-bold">Design</span>
+                </span>
+              </Link>
+            </div>
 
-          {/* Center Section - Navigation */}
-          <div className="flex-1 flex items-center justify-center">
-            <nav className="hidden lg:flex items-center space-x-8">
-              {navigation.map((item) => (
-                <div key={item.nameKey} className="relative">
-                  {item.dropdown ? (
-                    <div>
-                      <button
-                        onClick={(e) => handleDropdownClick(e, item.nameKey)}
-                        className="flex items-center space-x-1 text-gray-300 hover:text-red-500 font-medium transition-colors py-2"
-                      >
-                        <span>{t(item.nameKey)}</span>
-                        <ChevronDown className={cn(
-                          'w-4 h-4 transition-transform',
-                          activeDropdown === item.nameKey ? 'rotate-180' : ''
-                        )} />
-                      </button>
-                      
-                      <AnimatePresence>
-                        {activeDropdown === item.nameKey && (
-                          <motion.div
-                            initial={{ opacity: 0, y: -10 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            exit={{ opacity: 0, y: -10 }}
-                            className="absolute top-full left-0 mt-2 w-64 bg-black rounded-lg shadow-xl border border-gray-800 z-50"
+            {/* Center Column - Navigation (2fr) */}
+            <div className="flex items-center justify-center">
+              <nav className="hidden lg:flex items-center justify-center w-full">
+                <div className="flex items-center space-x-6">
+                  {navigation.map((item) => (
+                    <div key={item.nameKey} className="relative">
+                      {item.dropdown ? (
+                        <div>
+                          <button
+                            onClick={(e) => handleDropdownClick(e, item.nameKey)}
+                            className="flex items-center space-x-1 text-black hover:text-red-600 font-medium transition-colors py-2"
                           >
-                            <div className="p-4">
-                              {item.dropdown?.map((subItem) => (
-                                <Link
-                                  key={subItem.nameKey}
-                                  href={subItem.href}
-                                  className="block px-4 py-3 text-gray-300 hover:text-red-500 hover:bg-white/5 rounded-lg transition-colors"
-                                >
-                                  {t(subItem.nameKey)}
-                                </Link>
-                              ))}
-                            </div>
-                          </motion.div>
-                        )}
-                      </AnimatePresence>
+                            <span>{t(item.nameKey)}</span>
+                            <ChevronDown className={cn(
+                              'w-4 h-4 transition-transform',
+                              activeDropdown === item.nameKey ? 'rotate-180' : ''
+                            )} />
+                          </button>
+                          
+                          <AnimatePresence>
+                            {activeDropdown === item.nameKey && (
+                              <motion.div
+                                initial={{ opacity: 0, y: -10 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                exit={{ opacity: 0, y: -10 }}
+                                className="absolute top-full left-0 mt-2 w-64 bg-white rounded-lg shadow-xl border border-gray-300 z-50"
+                              >
+                                <div className="p-4">
+                                  {item.dropdown?.map((subItem) => (
+                                    <Link
+                                      key={subItem.nameKey}
+                                      href={subItem.href}
+                                      className="block px-4 py-3 text-black hover:text-red-600 hover:bg-gray-100 rounded-lg transition-colors"
+                                    >
+                                      {t(subItem.nameKey)}
+                                    </Link>
+                                  ))}
+                                </div>
+                              </motion.div>
+                            )}
+                          </AnimatePresence>
+                        </div>
+                      ) : (
+                        <Link
+                          href={item.href}
+                          className={cn(
+                            "text-black hover:text-red-600 font-medium transition-colors py-2",
+                            pathname === item.href && "text-red-600"
+                          )}
+                          onClick={() => setActiveDropdown(null)}
+                        >
+                          {t(item.nameKey)}
+                        </Link>
+                      )}
                     </div>
-                  ) : (
-                    <Link
-                      href={item.href}
-                      className="text-gray-300 hover:text-red-500 font-medium transition-colors py-2"
-                    >
-                      {t(item.nameKey)}
-                    </Link>
-                  )}
+                  ))}
                 </div>
-              ))}
-            </nav>
-          </div>
+              </nav>
+            </div>
 
-          {/* Right Section - Buttons */}
-          <div className="flex items-center flex-shrink-0 space-x-2 px-4 lg:px-8">
-            <Button asChild className="hidden lg:flex">
-              <Link href="/contacto">{t('cta.quote')}</Link>
-            </Button>
-            {/* Theme & Language Toggle Buttons */}
+            {/* Right Column - Buttons (1fr) */}
+            <div className="flex items-center justify-end">
+              {/* Language Toggle Button */}
+              <button
+                onClick={toggleLang}
+                className="h-8 w-10 rounded-lg bg-black hover:bg-red-600 border border-gray-600 flex items-center justify-center text-white transition-colors text-xs font-extrabold"
+                type="button"
+              >
+                {otherLangLabel}
+              </button>
+            </div>
+
+            {/* Mobile Menu Button */}
             <button
-              onClick={toggleTheme}
-              className="w-8 h-8 rounded-lg bg-white/10 hover:bg-white/15 flex items-center justify-center text-white transition-colors"
-              aria-label="Alternar tema"
-              type="button"
+              onClick={toggleMobileMenu}
+              className="lg:hidden p-2 rounded-lg hover:bg-gray-700 transition-colors absolute right-4"
             >
-              {theme === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
-            </button>
-            <button
-              onClick={toggleLang}
-              className="h-8 w-10 rounded-lg bg-white/10 hover:bg-red-600 border border-white/10 flex items-center justify-center text-white transition-colors text-xs font-extrabold"
-              type="button"
-            >
-              {otherLangLabel}
+              {isOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
             </button>
           </div>
-
-          {/* Mobile Menu Button */}
-          <button
-            onClick={toggleMobileMenu}
-            className="lg:hidden p-2 rounded-lg hover:bg-gray-900 transition-colors ml-2"
-          >
-            {isOpen ? <X className="w-6 h-6 text-white" /> : <Menu className="w-6 h-6 text-white" />}
-          </button>
         </div>
       </div>
 
@@ -211,7 +182,7 @@ export function Header() {
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: 'auto' }}
             exit={{ opacity: 0, height: 0 }}
-            className="lg:hidden bg-black border-t border-gray-800"
+            className="lg:hidden bg-black border-t border-gray-300 absolute top-full left-0 right-0 z-50"
           >
             <div className="container mx-auto px-4 py-4 space-y-4">
               {navigation.map((item) => (
@@ -220,7 +191,7 @@ export function Header() {
                     <div>
                       <button
                         onClick={(e) => handleDropdownClick(e, item.nameKey)}
-                        className="flex items-center justify-between w-full text-left text-gray-300 hover:text-red-500 font-medium transition-colors py-2"
+                        className="flex items-center justify-between w-full text-left text-white hover:text-white hover:bg-red-600 font-medium transition-colors py-2"
                       >
                         <span>{t(item.nameKey)}</span>
                         <ChevronDown className={cn(
@@ -235,13 +206,13 @@ export function Header() {
                             initial={{ opacity: 0, height: 0 }}
                             animate={{ opacity: 1, height: 'auto' }}
                             exit={{ opacity: 0, height: 0 }}
-                            className="pl-4 space-y-2"
+                            className="mt-2 space-y-2"
                           >
-                            {item.dropdown.map((dropdownItem) => (
+                            {item.dropdown?.map((dropdownItem) => (
                               <Link
-                                key={dropdownItem.href}
+                                key={dropdownItem.nameKey}
                                 href={dropdownItem.href}
-                                className="block py-2 text-gray-400 hover:text-red-500 transition-colors"
+                                className="block px-4 py-3 text-white hover:text-white hover:bg-red-600 rounded-lg transition-colors"
                                 onClick={() => setIsOpen(false)}
                               >
                                 {t(dropdownItem.nameKey)}
@@ -254,8 +225,11 @@ export function Header() {
                   ) : (
                     <Link
                       href={item.href}
-                      className="block text-gray-300 hover:text-red-500 font-medium transition-colors py-2"
-                      onClick={() => setIsOpen(false)}
+                      className={cn(
+                        "text-black hover:text-red-600 font-medium transition-colors py-2",
+                        pathname === item.href && "text-red-600"
+                      )}
+                      onClick={() => setActiveDropdown(null)}
                     >
                       {t(item.nameKey)}
                     </Link>
@@ -263,36 +237,14 @@ export function Header() {
                 </div>
               ))}
               
-              <div className="pt-4 border-t border-gray-800 space-y-3">
-                <button
-                  onClick={toggleTheme}
-                  className="w-full flex items-center justify-center gap-2 py-3 rounded-lg bg-white/10 hover:bg-white/15 border border-white/10 text-white transition-colors"
-                  type="button"
-                >
-                  {theme === 'dark' ? (
-                    <>
-                      <Sun className="w-4 h-4" />
-                      <span>{t('theme.light')}</span>
-                    </>
-                  ) : (
-                    <>
-                      <Moon className="w-4 h-4" />
-                      <span>{t('theme.dark')}</span>
-                    </>
-                  )}
-                </button>
+              <div className="pt-4 border-t border-gray-300 space-y-3">
                 <button
                   onClick={toggleLang}
-                  className="w-full flex items-center justify-center py-3 rounded-lg bg-white/10 hover:bg-red-600 border border-white/10 text-white transition-colors font-extrabold"
+                  className="w-full flex items-center justify-center py-3 rounded-lg bg-black hover:bg-red-600 border border-gray-600 text-white transition-colors font-extrabold"
                   type="button"
                 >
                   {otherLangLabel}
                 </button>
-                <Button asChild className="w-full">
-                  <Link href="/contacto" onClick={() => setIsOpen(false)}>
-                    {t('cta.quote')}
-                  </Link>
-                </Button>
               </div>
             </div>
           </motion.div>

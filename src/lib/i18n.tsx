@@ -22,6 +22,7 @@ const dict: Record<Lang, Dict> = {
     'nav.about': 'Sobre Nós',
     'nav.courses': 'Cursos',
     'nav.contact': 'Contacto',
+    'nav.help': 'Ajuda',
 
     'services.web': 'Web Design',
     'services.graphic': 'Design Gráfico',
@@ -42,7 +43,7 @@ const dict: Record<Lang, Dict> = {
 
     'banner.title.1': 'Transformamos suas\nIdeias em Realidade Digital',
     'banner.title.2': 'Design Inovador\nPara o Seu Negócio',
-    'banner.title.3': 'Resultados que\nImpulsionam o\nCrescimento',
+    'banner.title.3': 'Resultados que\nImpulsionam o Crescimento',
 
     'banner.desc.1': 'Criamos experiências digitais excepcionais que impulsionam seu negócio. Web design, desenvolvimento e marketing digital que geram resultados.',
     'banner.desc.2': 'Soluções criativas e modernas que destacam sua marca no mercado digital. Transformamos sua visão em realidade.',
@@ -79,6 +80,7 @@ const dict: Record<Lang, Dict> = {
     'nav.about': 'About Us',
     'nav.courses': 'Courses',
     'nav.contact': 'Contact',
+    'nav.help': 'Help',
 
     'services.web': 'Web Design',
     'services.graphic': 'Graphic Design',
@@ -99,7 +101,7 @@ const dict: Record<Lang, Dict> = {
 
     'banner.title.1': 'We turn your\nIdeas into Digital Reality',
     'banner.title.2': 'Innovative Design\nFor Your Business',
-    'banner.title.3': 'Results that\nDrive\nGrowth',
+    'banner.title.3': 'Results that\nDrive Growth',
 
     'banner.desc.1': 'We create exceptional digital experiences that grow your business. Web design, development, and digital marketing that deliver results.',
     'banner.desc.2': 'Creative and modern solutions that make your brand stand out in the digital market. We turn your vision into reality.',

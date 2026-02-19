@@ -8,8 +8,8 @@
 }
 
 body {
-  background: var(--background);
+  background: white;
   color: var(--foreground);
   font-family: var(--font-exo-2), system-ui, -apple-system, sans-serif !important;
-  font-weight: 900 !important;
+  font-weight: 400 !important;
 }

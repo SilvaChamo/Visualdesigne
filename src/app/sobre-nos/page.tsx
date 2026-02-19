@@ -1,7 +1,4 @@
-'use client'
-
 import { Metadata } from 'next'
-import { useI18n } from '@/lib/i18n'
 
 export const metadata: Metadata = {
   title: 'Sobre Nós | Visual Design',
@@ -9,8 +6,6 @@ export const metadata: Metadata = {
 }
 
 export default function AboutPage() {
-  const { t } = useI18n()
-
   return (
     <div className="min-h-screen bg-black">
       {/* Breadcrumb */}
@@ -19,11 +14,11 @@ export default function AboutPage() {
           <ol className="flex items-center space-x-2 py-4 text-sm">
             <li>
               <a href="/" className="text-gray-400 hover:text-white transition-colors">
-                {t('nav.home')}
+                Início
               </a>
             </li>
             <li className="text-gray-600">/</li>
-            <li className="text-white font-medium">{t('nav.about')}</li>
+            <li className="text-white font-medium">Sobre Nós</li>
           </ol>
         </div>
       </nav>
