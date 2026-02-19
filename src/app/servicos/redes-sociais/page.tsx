@@ -3,9 +3,9 @@
 import { Header } from '@/components/layout/Header'
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
-import { ArrowLeft, Palette, PenTool, Layers, Download } from 'lucide-react'
+import { ArrowLeft, Share2, Calendar, TrendingUp, Users, MessageSquare, Target } from 'lucide-react'
 
-export default function DesignGrafico() {
+export default function RedesSociais() {
   const [isScrolled, setIsScrolled] = useState(false)
 
   useEffect(() => {
@@ -17,30 +17,42 @@ export default function DesignGrafico() {
     return () => window.removeEventListener('scroll', handleScroll)
   }, [])
 
-  const servicosDesign = [
+  const servicosRedesSociais = [
     {
-      icone: <Palette className="w-8 h-8" />,
-      titulo: "Identidade Visual",
-      descricao: "Criação completa da identidade visual da sua marca com logo, cores e tipografia",
-      servicos: ["Logo design", "Paleta de cores", "Tipografia", "Manual de marca"]
+      icone: <Share2 className="w-8 h-8" />,
+      titulo: "Gestão de Conteúdo",
+      descricao: "Criação e publicação estratégica de conteúdo para todas as redes",
+      servicos: ["Content calendar", "Post creation", "Copywriting", "Visual design", "Hashtag strategy"]
     },
     {
-      icone: <PenTool className="w-8 h-8" />,
-      titulo: "Materiais Gráficos",
-      descricao: "Desenvolvimento de todos os materiais gráficos para sua comunicação visual",
-      servicos: ["Cartões de visita", "Papeteria", "Brindes", "Material de escritório"]
+      icone: <Calendar className="w-8 h-8" />,
+      titulo: "Planejamento Estratégico",
+      descricao: "Desenvolvimento de estratégias personalizadas para cada plataforma",
+      servicos: ["Social media strategy", "Platform selection", "Content pillars", "Campaign planning", "Goal setting"]
     },
     {
-      icone: <Layers className="w-8 h-8" />,
-      titulo: "Design para Redes Sociais",
-      descricao: "Criação de posts, stories e banners para suas redes sociais",
-      servicos: ["Posts para Instagram", "Banners Facebook", "Capas YouTube", "Templates LinkedIn"]
+      icone: <TrendingUp className="w-8 h-8" />,
+      titulo: "Análise e Métricas",
+      descricao: "Monitoramento completo de performance e relatórios detalhados",
+      servicos: ["Performance tracking", "Engagement analysis", "Follower growth", "ROI analysis", "Monthly reports"]
     },
     {
-      icone: <Download className="w-8 h-8" />,
-      titulo: "Design para Impressão",
-      descricao: "Arquivos prontos para impressão em diversos formatos e materiais",
-      servicos: ["Flyers e folhetos", "Outdoors", "Banner impressos", "Material POP"]
+      icone: <Users className="w-8 h-8" />,
+      titulo: "Community Management",
+      descricao: "Gestão ativa da comunidade e engajamento com seguidores",
+      servicos: ["Comment moderation", "Customer service", "Community engagement", "Crisis management", "Brand voice consistency"]
+    },
+    {
+      icone: <MessageSquare className="w-8 h-8" />,
+      titulo: "Social Ads",
+      descricao: "Campanhas pagas em redes sociais para aumentar alcance e conversões",
+      servicos: ["Facebook Ads", "Instagram Ads", "LinkedIn Ads", "Twitter Ads", "TikTok Ads"]
+    },
+    {
+      icone: <Target className="w-8 h-8" />,
+      titulo: "Influencer Marketing",
+      descricao: "Parcerias estratégicas com influenciadores para amplificar sua marca",
+      servicos: ["Influencer identification", "Campaign management", "Partnership negotiation", "Content collaboration", "Performance tracking"]
     }
   ]
 
@@ -79,9 +91,9 @@ export default function DesignGrafico() {
                 Voltar para Home
               </Link>
             </div>
-            <h1 className="text-3xl font-bold text-white mb-2">Design Gráfico Profissional</h1>
+            <h1 className="text-3xl font-bold text-white mb-2">Gestão de Redes Sociais</h1>
             <p className="text-base text-white font-normal">
-              Criamos identidades visuais marcantes e materiais gráficos de impacto
+              Gerenciamos suas redes sociais para aumentar engajamento e resultados
             </p>
           </div>
         </div>
@@ -89,10 +101,10 @@ export default function DesignGrafico() {
 
       <div className="py-16">
         <div className="container mx-auto max-w-7xl px-6">
-          <h2 className="text-2xl font-bold text-black mb-8 text-center">Nossos Serviços de Design Gráfico</h2>
+          <h2 className="text-2xl font-bold text-black mb-8 text-center">Nossos Serviços de Redes Sociais</h2>
           
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-8">
-            {servicosDesign.map((servico, index) => (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+            {servicosRedesSociais.map((servico, index) => (
               <div key={index} className="bg-white text-black/70 p-6 rounded-lg">
                 <div className="flex items-center mb-4">
                   <div className="text-red-500 mr-3">
@@ -128,16 +140,16 @@ export default function DesignGrafico() {
             <h3 className="text-xl font-bold text-black mb-4">Nossa Metodologia de Trabalho</h3>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               <div className="bg-gray-50 p-6 rounded-lg">
-                <h4 className="font-medium text-black mb-3">Briefing Completo</h4>
-                <p className="text-gray-600 text-sm">Análise detalhada do seu negócio e público-alvo</p>
+                <h4 className="font-medium text-black mb-3">Diagnóstico e Estratégia</h4>
+                <p className="text-gray-600 text-sm">Análise completa das suas redes sociais e definição de objetivos</p>
               </div>
               <div className="bg-gray-50 p-6 rounded-lg">
-                <h4 className="font-medium text-black mb-3">Apresentação de Mockups</h4>
-                <p className="text-gray-600 text-sm">Visualização do projeto antes da finalização</p>
+                <h4 className="font-medium text-black mb-3">Criação e Gestão</h4>
+                <p className="text-gray-600 text-sm">Produção de conteúdo e gerenciamento diário das redes</p>
               </div>
               <div className="bg-gray-50 p-6 rounded-lg">
-                <h4 className="font-medium text-black mb-3">Entrega de Arquivos</h4>
-                <p className="text-gray-600 text-sm">Formatos profissionais para impressão e uso digital</p>
+                <h4 className="font-medium text-black mb-3">Análise e Otimização</h4>
+                <p className="text-gray-600 text-sm">Monitoramento de resultados e ajustes estratégicos</p>
               </div>
             </div>
           </div>

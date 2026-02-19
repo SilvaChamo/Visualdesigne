@@ -3,9 +3,9 @@
 import { Header } from '@/components/layout/Header'
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
-import { ArrowLeft, Palette, PenTool, Layers, Download } from 'lucide-react'
+import { ArrowLeft, TrendingUp, Target, Megaphone, BarChart3, Users, Search } from 'lucide-react'
 
-export default function DesignGrafico() {
+export default function MarketingDigital() {
   const [isScrolled, setIsScrolled] = useState(false)
 
   useEffect(() => {
@@ -17,30 +17,42 @@ export default function DesignGrafico() {
     return () => window.removeEventListener('scroll', handleScroll)
   }, [])
 
-  const servicosDesign = [
+  const servicosMarketing = [
     {
-      icone: <Palette className="w-8 h-8" />,
-      titulo: "Identidade Visual",
-      descricao: "Criação completa da identidade visual da sua marca com logo, cores e tipografia",
-      servicos: ["Logo design", "Paleta de cores", "Tipografia", "Manual de marca"]
+      icone: <TrendingUp className="w-8 h-8" />,
+      titulo: "SEO Marketing",
+      descricao: "Otimização completa para buscadores e aumento de tráfego orgânico",
+      servicos: ["SEO on-page", "SEO técnico", "Link building", "SEO local", "SEO de conteúdo"]
     },
     {
-      icone: <PenTool className="w-8 h-8" />,
-      titulo: "Materiais Gráficos",
-      descricao: "Desenvolvimento de todos os materiais gráficos para sua comunicação visual",
-      servicos: ["Cartões de visita", "Papeteria", "Brindes", "Material de escritório"]
+      icone: <Target className="w-8 h-8" />,
+      titulo: "Marketing de Conteúdo",
+      descricao: "Criação estratégica de conteúdo para engajar e converter",
+      servicos: ["Blog posts", "E-books", "Infográficos", "Vídeos", "Podcasts"]
     },
     {
-      icone: <Layers className="w-8 h-8" />,
-      titulo: "Design para Redes Sociais",
-      descricao: "Criação de posts, stories e banners para suas redes sociais",
-      servicos: ["Posts para Instagram", "Banners Facebook", "Capas YouTube", "Templates LinkedIn"]
+      icone: <Megaphone className="w-8 h-8" />,
+      titulo: "Anúncios Pagos",
+      descricao: "Campanhas em Google Ads, Facebook Ads e outras plataformas",
+      servicos: ["Google Ads", "Facebook Ads", "Instagram Ads", "LinkedIn Ads", "Display ads"]
     },
     {
-      icone: <Download className="w-8 h-8" />,
-      titulo: "Design para Impressão",
-      descricao: "Arquivos prontos para impressão em diversos formatos e materiais",
-      servicos: ["Flyers e folhetos", "Outdoors", "Banner impressos", "Material POP"]
+      icone: <BarChart3 className="w-8 h-8" />,
+      titulo: "Análise e Métricas",
+      descricao: "Monitoramento completo de performance e relatórios detalhados",
+      servicos: ["Google Analytics", "Heatmaps", "A/B testing", "Relatórios mensais", "KPIs tracking"]
+    },
+    {
+      icone: <Users className="w-8 h-8" />,
+      titulo: "Gestão de Redes Sociais",
+      descricao: "Administração completa de redes sociais com conteúdo estratégico",
+      servicos: ["Content calendar", "Community management", "Social ads", "Influencer marketing", "Social listening"]
+    },
+    {
+      icone: <Search className="w-8 h-8" />,
+      titulo: "Email Marketing",
+      descricao: "Campanhas de email automatizadas e segmentadas",
+      servicos: ["Newsletters", "Email automation", "Lead nurturing", "Segmentação", "Email design"]
     }
   ]
 
@@ -79,9 +91,9 @@ export default function DesignGrafico() {
                 Voltar para Home
               </Link>
             </div>
-            <h1 className="text-3xl font-bold text-white mb-2">Design Gráfico Profissional</h1>
+            <h1 className="text-3xl font-bold text-white mb-2">Marketing Digital</h1>
             <p className="text-base text-white font-normal">
-              Criamos identidades visuais marcantes e materiais gráficos de impacto
+              Estratégias digitais completas para aumentar sua visibilidade e vendas
             </p>
           </div>
         </div>
@@ -89,10 +101,10 @@ export default function DesignGrafico() {
 
       <div className="py-16">
         <div className="container mx-auto max-w-7xl px-6">
-          <h2 className="text-2xl font-bold text-black mb-8 text-center">Nossos Serviços de Design Gráfico</h2>
+          <h2 className="text-2xl font-bold text-black mb-8 text-center">Nossos Serviços de Marketing Digital</h2>
           
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-8">
-            {servicosDesign.map((servico, index) => (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+            {servicosMarketing.map((servico, index) => (
               <div key={index} className="bg-white text-black/70 p-6 rounded-lg">
                 <div className="flex items-center mb-4">
                   <div className="text-red-500 mr-3">
@@ -125,19 +137,19 @@ export default function DesignGrafico() {
           </div>
 
           <div className="mt-16 text-center">
-            <h3 className="text-xl font-bold text-black mb-4">Nossa Metodologia de Trabalho</h3>
+            <h3 className="text-xl font-bold text-black mb-4">Nossa Abordagem Estratégica</h3>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               <div className="bg-gray-50 p-6 rounded-lg">
-                <h4 className="font-medium text-black mb-3">Briefing Completo</h4>
-                <p className="text-gray-600 text-sm">Análise detalhada do seu negócio e público-alvo</p>
+                <h4 className="font-medium text-black mb-3">Análise de Mercado</h4>
+                <p className="text-gray-600 text-sm">Estudo completo do seu nicho e concorrentes</p>
               </div>
               <div className="bg-gray-50 p-6 rounded-lg">
-                <h4 className="font-medium text-black mb-3">Apresentação de Mockups</h4>
-                <p className="text-gray-600 text-sm">Visualização do projeto antes da finalização</p>
+                <h4 className="font-medium text-black mb-3">Estratégia Personalizada</h4>
+                <p className="text-gray-600 text-sm">Plano de ação customizado para seus objetivos</p>
               </div>
               <div className="bg-gray-50 p-6 rounded-lg">
-                <h4 className="font-medium text-black mb-3">Entrega de Arquivos</h4>
-                <p className="text-gray-600 text-sm">Formatos profissionais para impressão e uso digital</p>
+                <h4 className="font-medium text-black mb-3">Otimização Contínua</h4>
+                <p className="text-gray-600 text-sm">Monitoramento e ajustes constantes para melhores resultados</p>
               </div>
             </div>
           </div>

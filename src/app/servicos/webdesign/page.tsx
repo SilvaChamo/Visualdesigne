@@ -3,9 +3,9 @@
 import { Header } from '@/components/layout/Header'
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
-import { ArrowLeft, Palette, PenTool, Layers, Download } from 'lucide-react'
+import { ArrowLeft, Monitor, Smartphone, Globe, Code, Palette, Zap } from 'lucide-react'
 
-export default function DesignGrafico() {
+export default function WebDesign() {
   const [isScrolled, setIsScrolled] = useState(false)
 
   useEffect(() => {
@@ -17,30 +17,42 @@ export default function DesignGrafico() {
     return () => window.removeEventListener('scroll', handleScroll)
   }, [])
 
-  const servicosDesign = [
+  const servicosWebDesign = [
+    {
+      icone: <Monitor className="w-8 h-8" />,
+      titulo: "Sites Institucionais",
+      descricao: "Desenvolvimento de sites corporativos com design moderno e funcional",
+      servicos: ["Landing pages", "Sites empresariais", "Portais institucionais", "Sites governamentais"]
+    },
+    {
+      icone: <Smartphone className="w-8 h-8" />,
+      titulo: "Design Responsivo",
+      descricao: "Sites que se adaptam perfeitamente a todos os dispositivos e tamanhos de tela",
+      servicos: ["Mobile-first design", "Tablet adaptation", "Desktop optimization", "Cross-browser compatibility"]
+    },
+    {
+      icone: <Globe className="w-8 h-8" />,
+      titulo: "E-commerce",
+      descricao: "Lojas virtuais completas com sistema de pagamento e gestão de produtos",
+      servicos: ["Lojas online", "Catálogos digitais", "Sistemas de pagamento", "Gestão de estoque"]
+    },
+    {
+      icone: <Code className="w-8 h-8" />,
+      titulo: "Desenvolvimento Customizado",
+      descricao: "Soluções sob medida para necessidades específicas de negócio",
+      servicos: ["Aplicações web", "Sistemas customizados", "Integrações API", "Dashboards"]
+    },
     {
       icone: <Palette className="w-8 h-8" />,
-      titulo: "Identidade Visual",
-      descricao: "Criação completa da identidade visual da sua marca com logo, cores e tipografia",
-      servicos: ["Logo design", "Paleta de cores", "Tipografia", "Manual de marca"]
+      titulo: "UI/UX Design",
+      descricao: "Design de interface focado na experiência do usuário",
+      servicos: ["Wireframing", "Prototipagem", "Testes de usabilidade", "Design systems"]
     },
     {
-      icone: <PenTool className="w-8 h-8" />,
-      titulo: "Materiais Gráficos",
-      descricao: "Desenvolvimento de todos os materiais gráficos para sua comunicação visual",
-      servicos: ["Cartões de visita", "Papeteria", "Brindes", "Material de escritório"]
-    },
-    {
-      icone: <Layers className="w-8 h-8" />,
-      titulo: "Design para Redes Sociais",
-      descricao: "Criação de posts, stories e banners para suas redes sociais",
-      servicos: ["Posts para Instagram", "Banners Facebook", "Capas YouTube", "Templates LinkedIn"]
-    },
-    {
-      icone: <Download className="w-8 h-8" />,
-      titulo: "Design para Impressão",
-      descricao: "Arquivos prontos para impressão em diversos formatos e materiais",
-      servicos: ["Flyers e folhetos", "Outdoors", "Banner impressos", "Material POP"]
+      icone: <Zap className="w-8 h-8" />,
+      titulo: "Performance e SEO",
+      descricao: "Otimização de velocidade e posicionamento em buscadores",
+      servicos: ["SEO on-page", "Otimização de velocidade", "Core Web Vitals", "Analytics setup"]
     }
   ]
 
@@ -79,9 +91,9 @@ export default function DesignGrafico() {
                 Voltar para Home
               </Link>
             </div>
-            <h1 className="text-3xl font-bold text-white mb-2">Design Gráfico Profissional</h1>
+            <h1 className="text-3xl font-bold text-white mb-2">Web Design Profissional</h1>
             <p className="text-base text-white font-normal">
-              Criamos identidades visuais marcantes e materiais gráficos de impacto
+              Criamos sites modernos, responsivos e otimizados para conversão
             </p>
           </div>
         </div>
@@ -89,10 +101,10 @@ export default function DesignGrafico() {
 
       <div className="py-16">
         <div className="container mx-auto max-w-7xl px-6">
-          <h2 className="text-2xl font-bold text-black mb-8 text-center">Nossos Serviços de Design Gráfico</h2>
+          <h2 className="text-2xl font-bold text-black mb-8 text-center">Nossos Serviços de Web Design</h2>
           
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-8">
-            {servicosDesign.map((servico, index) => (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+            {servicosWebDesign.map((servico, index) => (
               <div key={index} className="bg-white text-black/70 p-6 rounded-lg">
                 <div className="flex items-center mb-4">
                   <div className="text-red-500 mr-3">
@@ -128,16 +140,16 @@ export default function DesignGrafico() {
             <h3 className="text-xl font-bold text-black mb-4">Nossa Metodologia de Trabalho</h3>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               <div className="bg-gray-50 p-6 rounded-lg">
-                <h4 className="font-medium text-black mb-3">Briefing Completo</h4>
-                <p className="text-gray-600 text-sm">Análise detalhada do seu negócio e público-alvo</p>
+                <h4 className="font-medium text-black mb-3">Descoberta e Planejamento</h4>
+                <p className="text-gray-600 text-sm">Análise completa do seu negócio e definição de objetivos</p>
               </div>
               <div className="bg-gray-50 p-6 rounded-lg">
-                <h4 className="font-medium text-black mb-3">Apresentação de Mockups</h4>
-                <p className="text-gray-600 text-sm">Visualização do projeto antes da finalização</p>
+                <h4 className="font-medium text-black mb-3">Design e Desenvolvimento</h4>
+                <p className="text-gray-600 text-sm">Criação iterativa com feedback constante do cliente</p>
               </div>
               <div className="bg-gray-50 p-6 rounded-lg">
-                <h4 className="font-medium text-black mb-3">Entrega de Arquivos</h4>
-                <p className="text-gray-600 text-sm">Formatos profissionais para impressão e uso digital</p>
+                <h4 className="font-medium text-black mb-3">Lançamento e Suporte</h4>
+                <p className="text-gray-600 text-sm">Deploy completo e manutenção contínua</p>
               </div>
             </div>
           </div>

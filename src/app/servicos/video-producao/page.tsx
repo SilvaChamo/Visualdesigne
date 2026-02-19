@@ -3,9 +3,9 @@
 import { Header } from '@/components/layout/Header'
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
-import { ArrowLeft, Palette, PenTool, Layers, Download } from 'lucide-react'
+import { ArrowLeft, Video, Camera, Film, Play, Edit3, Mic } from 'lucide-react'
 
-export default function DesignGrafico() {
+export default function VideoProducao() {
   const [isScrolled, setIsScrolled] = useState(false)
 
   useEffect(() => {
@@ -17,30 +17,42 @@ export default function DesignGrafico() {
     return () => window.removeEventListener('scroll', handleScroll)
   }, [])
 
-  const servicosDesign = [
+  const servicosVideo = [
     {
-      icone: <Palette className="w-8 h-8" />,
-      titulo: "Identidade Visual",
-      descricao: "Criação completa da identidade visual da sua marca com logo, cores e tipografia",
-      servicos: ["Logo design", "Paleta de cores", "Tipografia", "Manual de marca"]
+      icone: <Camera className="w-8 h-8" />,
+      titulo: "Vídeos Institucionais",
+      descricao: "Produção completa de vídeos corporativos para apresentar sua empresa",
+      servicos: ["Corporate videos", "Company presentations", "Brand videos", "Internal communications", "Annual reports"]
     },
     {
-      icone: <PenTool className="w-8 h-8" />,
-      titulo: "Materiais Gráficos",
-      descricao: "Desenvolvimento de todos os materiais gráficos para sua comunicação visual",
-      servicos: ["Cartões de visita", "Papeteria", "Brindes", "Material de escritório"]
+      icone: <Film className="w-8 h-8" />,
+      titulo: "Vídeos Comerciais",
+      descricao: "Comerciais publicitários para TV, internet e redes sociais",
+      servicos: ["TV commercials", "Social media ads", "Product videos", "Testimonials", "Before/after videos"]
     },
     {
-      icone: <Layers className="w-8 h-8" />,
-      titulo: "Design para Redes Sociais",
-      descricao: "Criação de posts, stories e banners para suas redes sociais",
-      servicos: ["Posts para Instagram", "Banners Facebook", "Capas YouTube", "Templates LinkedIn"]
+      icone: <Video className="w-8 h-8" />,
+      titulo: "Vídeos para Redes Sociais",
+      descricao: "Conteúdo otimizado para diferentes plataformas digitais",
+      servicos: ["Instagram Reels", "TikTok videos", "YouTube content", "LinkedIn videos", "Facebook content"]
     },
     {
-      icone: <Download className="w-8 h-8" />,
-      titulo: "Design para Impressão",
-      descricao: "Arquivos prontos para impressão em diversos formatos e materiais",
-      servicos: ["Flyers e folhetos", "Outdoors", "Banner impressos", "Material POP"]
+      icone: <Play className="w-8 h-8" />,
+      titulo: "Eventos e Coberturas",
+      descricao: "Registro profissional de eventos, conferências e cerimônias",
+      servicos: ["Event coverage", "Conferences", "Weddings", "Corporate events", "Live streaming"]
+    },
+    {
+      icone: <Edit3 className="w-8 h-8" />,
+      titulo: "Pós-produção e Edição",
+      descricao: "Edição profissional, efeitos especiais e finalização",
+      servicos: ["Video editing", "Color grading", "Motion graphics", "Special effects", "Audio mixing"]
+    },
+    {
+      icone: <Mic className="w-8 h-8" />,
+      titulo: "Produção de Áudio",
+      descricao: "Gravação e mixagem de áudio para vídeos e podcasts",
+      servicos: ["Voice over", "Podcast production", "Sound design", "Music licensing", "Audio cleaning"]
     }
   ]
 
@@ -79,9 +91,9 @@ export default function DesignGrafico() {
                 Voltar para Home
               </Link>
             </div>
-            <h1 className="text-3xl font-bold text-white mb-2">Design Gráfico Profissional</h1>
+            <h1 className="text-3xl font-bold text-white mb-2">Produção de Vídeo</h1>
             <p className="text-base text-white font-normal">
-              Criamos identidades visuais marcantes e materiais gráficos de impacto
+              Criamos vídeos profissionais que comunicam sua mensagem com impacto
             </p>
           </div>
         </div>
@@ -89,10 +101,10 @@ export default function DesignGrafico() {
 
       <div className="py-16">
         <div className="container mx-auto max-w-7xl px-6">
-          <h2 className="text-2xl font-bold text-black mb-8 text-center">Nossos Serviços de Design Gráfico</h2>
+          <h2 className="text-2xl font-bold text-black mb-8 text-center">Nossos Serviços de Produção de Vídeo</h2>
           
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-8">
-            {servicosDesign.map((servico, index) => (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+            {servicosVideo.map((servico, index) => (
               <div key={index} className="bg-white text-black/70 p-6 rounded-lg">
                 <div className="flex items-center mb-4">
                   <div className="text-red-500 mr-3">
@@ -125,19 +137,19 @@ export default function DesignGrafico() {
           </div>
 
           <div className="mt-16 text-center">
-            <h3 className="text-xl font-bold text-black mb-4">Nossa Metodologia de Trabalho</h3>
+            <h3 className="text-xl font-bold text-black mb-4">Nosso Processo de Produção</h3>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               <div className="bg-gray-50 p-6 rounded-lg">
-                <h4 className="font-medium text-black mb-3">Briefing Completo</h4>
-                <p className="text-gray-600 text-sm">Análise detalhada do seu negócio e público-alvo</p>
+                <h4 className="font-medium text-black mb-3">Pré-produção</h4>
+                <p className="text-gray-600 text-sm">Planejamento, roteiro e preparação completa</p>
               </div>
               <div className="bg-gray-50 p-6 rounded-lg">
-                <h4 className="font-medium text-black mb-3">Apresentação de Mockups</h4>
-                <p className="text-gray-600 text-sm">Visualização do projeto antes da finalização</p>
+                <h4 className="font-medium text-black mb-3">Produção</h4>
+                <p className="text-gray-600 text-sm">Gravação profissional com equipamento de alta qualidade</p>
               </div>
               <div className="bg-gray-50 p-6 rounded-lg">
-                <h4 className="font-medium text-black mb-3">Entrega de Arquivos</h4>
-                <p className="text-gray-600 text-sm">Formatos profissionais para impressão e uso digital</p>
+                <h4 className="font-medium text-black mb-3">Pós-produção</h4>
+                <p className="text-gray-600 text-sm">Edição, efeitos e finalização profissional</p>
               </div>
             </div>
           </div>

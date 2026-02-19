@@ -51,7 +51,7 @@ export default function Fotografia() {
   ]
 
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen bg-black/15">
       {/* Top Menu Bar */}
       {!isScrolled && (
         <div className="fixed top-0 left-0 right-0 z-[60] bg-black h-[40px] flex items-center transition-all duration-300 shadow-lg">
@@ -93,13 +93,13 @@ export default function Fotografia() {
         </div>
       </div>
 
-      <div className="bg-white py-16">
+      <div className="py-16">
         <div className="container mx-auto max-w-7xl px-6">
           <h2 className="text-2xl font-bold text-black mb-8 text-center">Nossos Serviços Fotográficos</h2>
           
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
             {eventosFotograficos.map((evento, index) => (
-              <div key={index} className="bg-black text-white p-6 rounded-lg hover:bg-red-600 transition-colors">
+              <div key={index} className="bg-white text-black/70 p-6 rounded-lg">
                 <div className="flex items-center mb-4">
                   <div className="text-red-500 mr-3">
                     {evento.icone}
@@ -107,7 +107,7 @@ export default function Fotografia() {
                   <h3 className="text-xl font-bold">{evento.titulo}</h3>
                 </div>
                 
-                <p className="text-gray-300 mb-6 text-sm leading-relaxed">
+                <p className="text-black/70 mb-6 text-sm leading-relaxed">
                   {evento.descricao}
                 </p>
                 
@@ -115,7 +115,7 @@ export default function Fotografia() {
                   <h4 className="font-medium mb-3 text-sm">Serviços incluídos:</h4>
                   <ul className="space-y-2">
                     {evento.servicos.map((servico, idx) => (
-                      <li key={idx} className="flex items-center text-gray-300 text-sm">
+                      <li key={idx} className="flex items-center text-black/70 text-sm">
                         <span className="w-2 h-2 bg-red-500 rounded-full mr-3"></span>
                         {servico}
                       </li>
@@ -123,7 +123,7 @@ export default function Fotografia() {
                   </ul>
                 </div>
                 
-                <button className="w-full bg-white text-black px-4 py-3 rounded font-medium hover:bg-gray-100 transition-colors">
+                <button className="w-full bg-black text-white px-4 py-3 rounded font-medium hover:bg-red-600 hover:text-white transition-colors">
                   Solicitar Orçamento
                 </button>
               </div>

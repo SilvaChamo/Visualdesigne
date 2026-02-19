@@ -72,7 +72,7 @@ export default function Inicio() {
   }, [])
 
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen bg-black/15">
       {/* Top Menu Bar - Aparece apenas sem scroll */}
       {!isScrolled && (
         <div className="fixed top-0 left-0 right-0 z-[60] bg-black h-[40px] flex items-center transition-all duration-300 shadow-lg">
@@ -100,7 +100,7 @@ export default function Inicio() {
           style={{ backgroundImage: "url('/assets/BG.jpg')" }}
         />
         <div className="absolute inset-0 bg-black/50" />
-        <div className="container mx-auto max-w-7xl px-6 pt-[150px] pb-[20px] flex flex-col justify-between items-center min-h-[450px] relative z-10">
+        <div className="container mx-auto max-w-7xl px-6 pt-[150px] pb-[20px] flex flex-col justify-between items-center min-h-[400px] relative z-10">
           <div className="w-full max-w-4xl text-center">
             <h1 className="text-3xl font-bold text-white mb-2">
               Encontre o domínio perfeito para seu negócio
@@ -162,7 +162,7 @@ export default function Inicio() {
           </div>
           
           {/* Service Categories - Bottom Center */}
-          <div className="w-full max-w-4xl text-center mt-4">
+          {/* <div className="w-full max-w-4xl text-center mt-4">
             <div className="flex flex-wrap justify-center gap-4">
               <Link href="/servicos/design-grafico" className="text-white hover:text-red-500 transition-colors font-medium text-sm">
                 Design Gráfico
@@ -189,73 +189,72 @@ export default function Inicio() {
                 Fotografia
               </Link>
             </div>
-          </div>
+          </div> */}
         </div>
       </div>
 
-      {/* Content Section - White */}
-      <div className="bg-white">
+      {/* Content Section */}
+      <div className="py-16">
         <div className="container mx-auto max-w-7xl px-6 py-8">
           {/* Design Services */}
           <div className="text-center">
-            <h3 className="text-xl font-bold text-black mb-4">Nossos Serviços de Design</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-              <Link href="/servicos/design-grafico" className="bg-black text-white p-4 rounded-lg hover:bg-red-600 transition-colors cursor-pointer block">
+              <div className="bg-white text-black/70 p-4 rounded-lg">
                 <h4 className="font-medium mb-2">Design Gráfico</h4>
-                <p className="text-gray-300 text-sm mb-4">Criação de identidade visual, logos, banners e materiais gráficos</p>
-                <button className="bg-white text-black px-4 py-2 rounded text-sm font-medium hover:bg-gray-100 transition-colors">
+                <div className="text-black/70 text-sm mb-4">Criação de identidade visual, logos, banners e materiais gráficos</div>
+                <Link href="/servicos/design-grafico" className="bg-black text-white px-4 py-2 rounded text-sm font-medium hover:bg-red-600 hover:text-white transition-colors inline-block cursor-pointer">
                   Ver Serviços
-                </button>
-              </Link>
-              <div className="bg-black text-white p-4 rounded-lg hover:bg-red-600 transition-colors cursor-pointer">
+                </Link>
+              </div>
+              <div className="bg-white text-black/70 p-4 rounded-lg">
                 <h4 className="font-medium mb-2">Web Design</h4>
-                <p className="text-gray-300 text-sm mb-4">Desenvolvimento de sites responsivos e modernos</p>
-                <button className="bg-white text-black px-4 py-2 rounded text-sm font-medium hover:bg-gray-100 transition-colors">
-                  Em Breve
-                </button>
-              </div>
-              <div className="bg-black text-white p-4 rounded-lg hover:bg-red-600 transition-colors cursor-pointer">
-                <h4 className="font-medium mb-2">Marketing Digital</h4>
-                <p className="text-gray-300 text-sm mb-4">Campanhas online, SEO, anúncios e redes sociais</p>
-                <button className="bg-white text-black px-4 py-2 rounded text-sm font-medium hover:bg-gray-100 transition-colors">
-                  Em Breve
-                </button>
-              </div>
-              <div className="bg-black text-white p-4 rounded-lg hover:bg-red-600 transition-colors cursor-pointer">
-                <h4 className="font-medium mb-2">Branding</h4>
-                <p className="text-gray-300 text-sm mb-4">Construção de marca forte e memorável</p>
-                <button className="bg-white text-black px-4 py-2 rounded text-sm font-medium hover:bg-gray-100 transition-colors">
-                  Em Breve
-                </button>
-              </div>
-              <div className="bg-black text-white p-4 rounded-lg hover:bg-red-600 transition-colors cursor-pointer">
-                <h4 className="font-medium mb-2">SEO</h4>
-                <p className="text-gray-300 text-sm mb-4">Otimização para buscadores e ranking orgânico</p>
-                <button className="bg-white text-black px-4 py-2 rounded text-sm font-medium hover:bg-gray-100 transition-colors">
-                  Em Breve
-                </button>
-              </div>
-              <div className="bg-black text-white p-4 rounded-lg hover:bg-red-600 transition-colors cursor-pointer">
-                <h4 className="font-medium mb-2">Redes Sociais</h4>
-                <p className="text-gray-300 text-sm mb-4">Gestão de conteúdo e engajamento em redes sociais</p>
-                <button className="bg-white text-black px-4 py-2 rounded text-sm font-medium hover:bg-gray-100 transition-colors">
-                  Em Breve
-                </button>
-              </div>
-              <div className="bg-black text-white p-4 rounded-lg hover:bg-red-600 transition-colors cursor-pointer">
-                <h4 className="font-medium mb-2">Produção de Vídeo</h4>
-                <p className="text-gray-300 text-sm mb-4">Vídeos institucionais, comerciais e conteúdo audiovisual</p>
-                <button className="bg-white text-black px-4 py-2 rounded text-sm font-medium hover:bg-gray-100 transition-colors">
-                  Em Breve
-                </button>
-              </div>
-              <Link href="/servicos/fotografia" className="bg-black text-white p-4 rounded-lg hover:bg-red-600 transition-colors cursor-pointer block">
-                <h4 className="font-medium mb-2">Fotografia</h4>
-                <p className="text-gray-300 text-sm mb-4">Ensaios fotográficos, eventos e produtos</p>
-                <button className="bg-white text-black px-4 py-2 rounded text-sm font-medium hover:bg-gray-100 transition-colors">
+                <p className="text-black/70 text-sm mb-4">Desenvolvimento de sites modernos, aplicativos e sistemas de gestão</p>
+                <Link href="/servicos/webdesign" className="bg-black text-white px-4 py-2 rounded text-sm font-medium hover:bg-red-600 hover:text-white transition-colors inline-block cursor-pointer">
                   Ver Serviços
-                </button>
-              </Link>
+                </Link>
+              </div>
+              <div className="bg-white text-black/70 p-4 rounded-lg">
+                <h4 className="font-medium mb-2">Marketing Digital</h4>
+                <p className="text-black/70 text-sm mb-4">Campanhas online, SEO, anúncios e gestão de redes sociais</p>
+                <Link href="/servicos/marketing-digital" className="bg-black text-white px-4 py-2 rounded text-sm font-medium hover:bg-red-600 hover:text-white transition-colors inline-block cursor-pointer">
+                  Ver Serviços
+                </Link>
+              </div>
+              <div className="bg-white text-black/70 p-4 rounded-lg">
+                <h4 className="font-medium mb-2">Branding</h4>
+                <p className="text-black/70 text-sm mb-4">Construção e layouts de marcas fortes, memoráveis e impactantes</p>
+                <Link href="/servicos/branding" className="bg-black text-white px-4 py-2 rounded text-sm font-medium hover:bg-red-600 hover:text-white transition-colors inline-block cursor-pointer">
+                  Ver Serviços
+                </Link>
+              </div>
+              <div className="bg-white text-black/70 p-4 rounded-lg">
+                <h4 className="font-medium mb-2">SEO</h4>
+                <p className="text-black/70 text-sm mb-4">Otimização para buscadores e ranking orgânico</p>
+                <Link href="/servicos/seo" className="bg-black text-white px-4 py-2 rounded text-sm font-medium hover:bg-red-600 hover:text-white transition-colors inline-block cursor-pointer">
+                  Ver Serviços
+                </Link>
+              </div>
+              <div className="bg-white text-black/70 p-4 rounded-lg">
+                <h4 className="font-medium mb-2">Redes Sociais</h4>
+                <p className="text-black/70 text-sm mb-4">Gestão de conteúdo e engajamento em redes sociais</p>
+                <Link href="/servicos/redes-sociais" className="bg-black text-white px-4 py-2 rounded text-sm font-medium hover:bg-red-600 hover:text-white transition-colors inline-block cursor-pointer">
+                  Ver Serviços
+                </Link>
+              </div>
+              <div className="bg-white text-black/70 p-4 rounded-lg">
+                <h4 className="font-medium mb-2">Produção de Vídeo</h4>
+                <p className="text-black/70 text-sm mb-4">Vídeos institucionais, comerciais e conteúdo audiovisual</p>
+                <Link href="/servicos/video-producao" className="bg-black text-white px-4 py-2 rounded text-sm font-medium hover:bg-red-600 hover:text-white transition-colors inline-block cursor-pointer">
+                  Ver Serviços
+                </Link>
+              </div>
+              <div className="bg-white text-black/70 p-4 rounded-lg">
+                <h4 className="font-medium mb-2">Fotografia</h4>
+                <p className="text-black/70 text-sm mb-4">Ensaios fotográficos, festas e eventos, casamentos e produtos</p>
+                <Link href="/servicos/fotografia" className="bg-black text-white px-4 py-2 rounded text-sm font-medium hover:bg-red-600 hover:text-white transition-colors inline-block cursor-pointer">
+                  Ver Serviços
+                </Link>
+              </div>
             </div>
           </div>
         </div>
