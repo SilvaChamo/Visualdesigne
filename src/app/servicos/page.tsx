@@ -1,12 +1,5 @@
 'use client'
-
-import { Metadata } from 'next'
-import { useI18n } from '@/lib/i18n'
-
-export const metadata: Metadata = {
-  title: 'Serviços | Visual Design',
-  description: 'Conheça nossos serviços de web design, design gráfico, marketing digital e desenvolvimento web.',
-}
+import { useI18n } from "@/lib/i18n"
 
 export default function ServicesPage() {
   const { t } = useI18n()
