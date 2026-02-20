@@ -847,8 +847,21 @@ function AdminPanelContent() {
               )}
 
               {error && (
-                <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-md mb-6">
-                  Erro ao carregar dados do VHM: {error}
+                <div className="bg-amber-50 border border-amber-200 rounded-xl p-5 mb-6 flex items-start gap-4">
+                  <div className="w-10 h-10 bg-amber-100 rounded-full flex items-center justify-center shrink-0">
+                    <AlertCircle className="w-5 h-5 text-amber-600" />
+                  </div>
+                  <div className="flex-1">
+                    <p className="font-bold text-amber-800 text-sm">Servidor VHM Indisponível</p>
+                    <p className="text-xs text-amber-700 mt-1">{error}</p>
+                    <button
+                      onClick={() => loadVHMData()}
+                      className="mt-3 bg-amber-600 hover:bg-amber-700 text-white px-4 py-1.5 rounded-md text-xs font-bold transition-colors flex items-center gap-2"
+                    >
+                      <RefreshCw className="w-3.5 h-3.5" />
+                      Tentar Novamente
+                    </button>
+                  </div>
                 </div>
               )}
 

@@ -67,7 +67,7 @@ class VHMAPI {
         params
       }
 
-      console.log('Making VHM API request via proxy:', endpoint, params)
+      console.log('Making VHM API request via proxy:', endpoint)
 
       const response = await fetch(proxyUrl, {
         method: 'POST',
@@ -78,11 +78,23 @@ class VHMAPI {
       })
 
       if (!response.ok) {
-        throw new Error(`Proxy error! status: ${response.status}`);
+        // Try to extract the detailed error message from the proxy
+        let errorMessage = `Proxy error! status: ${response.status}`
+        try {
+          const errorBody = await response.json()
+          if (errorBody.details) {
+            errorMessage = errorBody.details
+          } else if (errorBody.error) {
+            errorMessage = errorBody.error
+          }
+        } catch {
+          // If we can't parse JSON, use the default message
+        }
+        throw new Error(errorMessage)
       }
 
       const data = await response.json();
-      console.log('VHM API Response via proxy:', data);
+      console.log('VHM API Response via proxy:', endpoint, '→ OK');
 
       // Check for error in response
       if (data.error) {
