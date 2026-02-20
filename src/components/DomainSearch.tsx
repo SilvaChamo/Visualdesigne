@@ -36,7 +36,7 @@ export default function DomainSearch() {
     // Verificar se a API está conectada antes de fazer a busca
     const apiConnected = await checkApiConnection()
     setIsApiConnected(apiConnected)
-    
+
     if (!apiConnected) {
       setResults([{
         domain: searchQuery.trim() + selectedTLD,
@@ -51,10 +51,10 @@ export default function DomainSearch() {
 
     setLoading(true)
     setShowResults(true)
-    
+
     try {
       const result = await checkDomainAvailability(searchQuery.trim(), selectedTLD)
-      
+
       const searchResult: SearchResult = {
         domain: searchQuery.trim() + selectedTLD,
         available: result.available,
@@ -62,7 +62,7 @@ export default function DomainSearch() {
         currency: result.currency,
         loading: false
       }
-      
+
       setResults([searchResult])
     } catch (error) {
       console.error('Search error:', error)
@@ -94,12 +94,12 @@ export default function DomainSearch() {
       const connected = await checkApiConnection()
       setIsApiConnected(connected)
     }
-    
+
     checkConnection()
   }, [])
 
   return (
-    <div className="w-full max-w-2xl">
+    <div className="w-full max-w-3xl">
       <div className="flex flex-col sm:flex-row gap-2">
         <div className="flex-1 relative">
           <input
@@ -122,11 +122,11 @@ export default function DomainSearch() {
             </div>
           </div>
         </div>
-        
-        <select 
-          value={selectedTLD} 
+
+        <select
+          value={selectedTLD}
           onChange={(e) => setSelectedTLD(e.target.value)}
-          className="px-4 py-2 rounded-lg bg-white text-black border border-gray-300 focus:outline-none focus:ring-2 focus:ring-red-500 w-24"
+          className="px-4 py-2 rounded-lg bg-white text-black border border-gray-300 focus:outline-none focus:ring-2 focus:ring-red-500 w-32"
         >
           {tlds.map(tld => (
             <option key={tld.value} value={tld.value}>
@@ -134,8 +134,8 @@ export default function DomainSearch() {
             </option>
           ))}
         </select>
-        
-        <button 
+
+        <button
           onClick={handleSearch}
           disabled={loading || !searchQuery.trim()}
           className="bg-black hover:bg-red-600 disabled:bg-gray-400 text-white px-6 py-2 rounded-lg flex items-center gap-2 transition-colors"
@@ -155,14 +155,14 @@ export default function DomainSearch() {
           <div className="p-4">
             <div className="flex justify-between items-center mb-3">
               <h3 className="font-semibold text-black">Resultados da Busca</h3>
-              <button 
+              <button
                 onClick={closeResults}
                 className="text-gray-400 hover:text-gray-600 transition-colors"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
-            
+
             {results.map((result, index) => (
               <div key={index} className="border-b border-gray-100 last:border-0 pb-3 mb-3 last:pb-0 last:mb-0">
                 <div className="flex items-center justify-between">
@@ -190,7 +190,7 @@ export default function DomainSearch() {
                       )}
                     </div>
                   </div>
-                  
+
                   {result.available && (
                     <button className="bg-red-600 hover:bg-black text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors">
                       Registrar
