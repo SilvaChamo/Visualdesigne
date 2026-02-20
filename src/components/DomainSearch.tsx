@@ -132,7 +132,7 @@ export default function DomainSearch() {
         <button
           onClick={handleSearch}
           disabled={loading || !searchQuery.trim()}
-          className="bg-black hover:bg-red-600 disabled:bg-gray-400 text-white px-6 py-2 rounded-lg flex items-center gap-2 transition-colors"
+          className="bg-red-600 hover:bg-red-500 disabled:bg-gray-400 text-white px-6 py-2 rounded-lg flex items-center gap-2 transition-colors font-medium"
         >
           {loading ? (
             <Loader2 className="w-5 h-5 animate-spin" />
