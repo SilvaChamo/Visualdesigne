@@ -115,12 +115,6 @@ export default function DomainSearch() {
               <Loader2 className="w-5 h-5 text-red-500 animate-spin" />
             </div>
           )}
-          {/* Indicador de status da API */}
-          <div className="absolute right-3 top-1/2 transform -translate-y-1/2 mr-10">
-            <div className={`w-3 h-3 rounded-full ${isApiConnected ? 'bg-green-500' : 'bg-red-500'}`} title={isApiConnected ? 'API conectada' : 'API desconectada'}>
-              <div className={`w-2 h-2 rounded-full ${isApiConnected ? 'bg-green-100' : 'bg-red-100'}`}></div>
-            </div>
-          </div>
         </div>
 
         <select

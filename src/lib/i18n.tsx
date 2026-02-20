@@ -46,7 +46,7 @@ const dict: Record<Lang, Dict> = {
 
     'home.title': 'Alojamento para nossos clientes',
     'home.subtitle': 'Encontre o domínio perfeito para seu negócio, hospedagem rápida e segura para seu site',
-    'home.search.placeholder': 'Buscar serviços, domínios, hospedagem...',
+    'home.search.placeholder': 'Digite o nome do seu dominio',
     'home.search.button': 'Buscar',
     'home.tabs.domains': 'Domínios',
     'home.tabs.hosting': 'Hospedagem',
@@ -133,7 +133,7 @@ const dict: Record<Lang, Dict> = {
 
     'home.title': 'Hosting for our clients',
     'home.subtitle': 'Find the perfect domain for your business, fast and secure hosting for your site',
-    'home.search.placeholder': 'Search services, domains, hosting...',
+    'home.search.placeholder': 'Enter your domain name',
     'home.search.button': 'Search',
     'home.tabs.domains': 'Domains',
     'home.tabs.hosting': 'Hosting',
