@@ -12,8 +12,12 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const { endpoint, params } = body
 
+    // Use token from header if provided, otherwise fallback to hardcoded
+    const clientToken = request.headers.get('X-VHM-Token')
+    const tokenToUse = clientToken || VHM_API_TOKEN
+
     // Use WHM API Token format: whm username:token
-    const authHeader = `whm ${VHM_USERNAME}:${VHM_API_TOKEN}`
+    const authHeader = `whm ${VHM_USERNAME}:${tokenToUse}`
 
     // Convert params to query string if they exist
     let url = `${VHM_URL}${endpoint}`

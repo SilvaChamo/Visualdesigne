@@ -50,6 +50,7 @@ class VHMAPI {
   private username: string;
   private password: string;
   private sessionId: string | null = null;
+  private apiToken: string | null = null;
 
   constructor() {
     this.baseUrl = 'https://za4.mozserver.com:2087';
@@ -69,11 +70,17 @@ class VHMAPI {
 
       console.log('Making VHM API request via proxy:', endpoint)
 
+      const headers: any = {
+        'Content-Type': 'application/json',
+      }
+
+      if (this.apiToken) {
+        headers['X-VHM-Token'] = this.apiToken
+      }
+
       const response = await fetch(proxyUrl, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers,
         body: JSON.stringify(requestBody),
       })
 
@@ -524,6 +531,10 @@ class VHMAPI {
       console.error(`Failed to create webmail session for ${email}:`, error);
       return null;
     }
+  }
+
+  setToken(token: string) {
+    this.apiToken = token;
   }
 }
 
