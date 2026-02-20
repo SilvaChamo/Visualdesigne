@@ -8,21 +8,44 @@ const MOZSERVER_CONFIG = {
   }
 }
 
+// Função auxiliar para chamadas via Proxy (apenas para Browser)
+async function callProxy(endpoint: string, method: string = 'POST', payload?: any) {
+  try {
+    const response = await fetch('/api/mozserver-proxy', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        endpoint,
+        method,
+        payload
+      })
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      const error: any = new Error(errorData.error || `HTTP ${response.status}`);
+      error.details = errorData.details || '';
+      throw error;
+    }
+
+    return await response.json();
+  } catch (error) {
+    console.error(`Proxy call failed for ${endpoint}:`, error);
+    throw error;
+  }
+}
+
 // Verificar se a API está acessível
 export async function checkApiConnection(): Promise<boolean> {
   try {
-    const response = await fetch(`${MOZSERVER_CONFIG.baseURL}/health`, {
-      method: 'GET',
-      headers: {
-        'Authorization': `Bearer ${MOZSERVER_CONFIG.token}`
-      },
-      signal: AbortSignal.timeout(5000) // Timeout de 5 segundos
-    });
-    
-    return response.ok;
+    await callProxy('/health', 'GET');
+    return true;
   } catch (error) {
-    console.warn('API não está acessível:', error);
-    return false;
+    console.warn('API /health endpoint failed, but proceeding anyway:', error);
+    // Retornamos true para não bloquear a busca se apenas o health check falhar
+    return true;
   }
 }
 
@@ -45,24 +68,11 @@ export interface ApiResponse<T> {
 // Verificar disponibilidade de domínio
 export async function checkDomainAvailability(domain: string, tld: string = '.mz'): Promise<DomainResponse> {
   try {
-    const response = await fetch(`${MOZSERVER_CONFIG.baseURL}/check-domain`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${MOZSERVER_CONFIG.token}`
-      },
-      body: JSON.stringify({
-        domain: domain,
-        tld: tld
-      })
+    const result = await callProxy('/check-domain', 'POST', {
+      domain: domain,
+      tld: tld
     });
 
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-    }
-
-    const result = await response.json();
-    
     return {
       available: result.available || false,
       price: result.price,

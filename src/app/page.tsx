@@ -133,8 +133,8 @@ function HomePage() {
                       else if (tabKey === 'home.tabs.support') window.location.href = '/precos/suporte'
                     }}
                     className={`px-4 sm:px-6 md:px-8 py-[6px] rounded-lg font-medium text-sm sm:text-base transition-all relative ${activeTab === tabKey
-                        ? 'bg-red-600 text-white'
-                        : 'bg-black text-white hover:bg-red-600'
+                      ? 'bg-red-600 text-white'
+                      : 'bg-black text-white hover:bg-red-600'
                       }`}
                   >
                     {t(tabKey)}
