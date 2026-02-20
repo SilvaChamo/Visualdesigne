@@ -410,8 +410,14 @@ class VHMAPI {
         user: cpanelUser,
         api_version: 1
       });
-      // Handle both result.data.pops and result.pops
-      return result.data?.pops || result.pops || [];
+      // Handle various response structures
+      const pops = result.data?.pops || result.pops || (Array.isArray(result.data) ? result.data : []);
+
+      // Normalize: Ensure each account has an 'email' field
+      return pops.map((acc: any) => ({
+        ...acc,
+        email: acc.email || (acc.user && acc.domain ? `${acc.user}@${acc.domain}` : acc.user)
+      }));
     } catch (error) {
       console.error(`Failed to list email accounts for ${cpanelUser}:`, error);
       throw error;
@@ -484,6 +490,24 @@ class VHMAPI {
     } catch (error) {
       console.error(`Failed to update quota for ${email}@${domain}:`, error);
       return false;
+    }
+  }
+
+  async createWebmailSession(cpanelUser: string, email: string): Promise<string | null> {
+    try {
+      const result = await this.makeRequest('/json-api/create_webmail_session_for_user', {
+        user: cpanelUser,
+        email: email,
+        api_version: 1
+      });
+
+      if (result.metadata?.result === 1 || result.status === 1) {
+        return result.data?.url || result.url || null;
+      }
+      return null;
+    } catch (error) {
+      console.error(`Failed to create webmail session for ${email}:`, error);
+      return null;
     }
   }
 }
