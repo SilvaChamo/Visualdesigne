@@ -12,9 +12,16 @@ interface SearchResult {
   currency?: string;
   loading?: boolean;
   error?: string;
+  details?: string;
 }
 
-export default function DomainSearch() {
+interface DomainSearchProps {
+  onResultsAction?: (results: SearchResult[]) => void;
+  onLoadingAction?: (loading: boolean) => void;
+  hideResultsInternal?: boolean;
+}
+
+export default function DomainSearch({ onResultsAction, onLoadingAction, hideResultsInternal = false }: DomainSearchProps) {
   const { t } = useI18n()
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedTLD, setSelectedTLD] = useState('.mz')
@@ -25,6 +32,7 @@ export default function DomainSearch() {
 
   const tlds = [
     { value: '.mz', label: '.mz', price: '1500 MT' },
+    { value: '.co.mz', label: '.co.mz', price: '1200 MT' },
     { value: '.com', label: '.com', price: '$15 USD' },
     { value: '.org', label: '.org', price: '$12 USD' },
     { value: '.net', label: '.net', price: '$13 USD' }
@@ -38,18 +46,21 @@ export default function DomainSearch() {
     setIsApiConnected(apiConnected)
 
     if (!apiConnected) {
-      setResults([{
+      const errorResult = {
         domain: searchQuery.trim() + selectedTLD,
         available: false,
         loading: false,
         error: 'API não está acessível. Tente novamente mais tarde.'
-      }])
+      }
+      setResults([errorResult])
+      if (onResultsAction) onResultsAction([errorResult])
       setLoading(false)
       setShowResults(true)
       return
     }
 
     setLoading(true)
+    if (onLoadingAction) onLoadingAction(true)
     setShowResults(true)
 
     try {
@@ -64,16 +75,21 @@ export default function DomainSearch() {
       }
 
       setResults([searchResult])
-    } catch (error) {
+      if (onResultsAction) onResultsAction([searchResult])
+    } catch (error: any) {
       console.error('Search error:', error)
-      setResults([{
+      const errorResult = {
         domain: searchQuery.trim() + selectedTLD,
         available: false,
         loading: false,
-        error: 'Erro ao verificar disponibilidade'
-      }])
+        error: error.message || 'Erro ao verificar disponibilidade',
+        details: error.details || ''
+      }
+      setResults([errorResult])
+      if (onResultsAction) onResultsAction([errorResult])
     } finally {
       setLoading(false)
+      if (onLoadingAction) onLoadingAction(false)
     }
   }
 
@@ -108,7 +124,7 @@ export default function DomainSearch() {
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             onKeyPress={handleKeyPress}
-            className="w-full px-4 py-2 rounded-lg bg-white text-black border border-gray-300 focus:outline-none focus:ring-2 focus:ring-red-500 pr-10"
+            className="w-full px-4 py-2 rounded-lg bg-white text-black border border-gray-300 focus:outline-none focus:ring-2 focus:ring-red-500 pr-4"
           />
           {loading && (
             <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
@@ -132,13 +148,11 @@ export default function DomainSearch() {
         <button
           onClick={handleSearch}
           disabled={loading || !searchQuery.trim()}
-          className="bg-red-600 hover:bg-red-500 disabled:bg-gray-400 text-white px-6 py-2 rounded-lg flex items-center gap-2 transition-colors font-medium"
+          className="bg-red-600 hover:bg-red-500 text-white px-6 py-2 rounded-lg flex items-center gap-2 transition-colors font-medium cursor-pointer disabled:cursor-not-allowed"
         >
           {loading ? (
             <Loader2 className="w-5 h-5 animate-spin" />
-          ) : (
-            <Search className="w-5 h-5" />
-          )}
+          ) : null}
           {t('home.search.button')}
         </button>
       </div>

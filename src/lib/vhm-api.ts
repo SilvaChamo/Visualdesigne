@@ -272,22 +272,38 @@ class VHMAPI {
     }
   }
 
-  async updateClient(username: string, updates: { email?: string; quota?: number }): Promise<boolean> {
+  async updateClient(username: string, updates: {
+    email?: string;
+    quota?: number;
+    plan?: string;
+    shell?: number;
+    cgi?: number;
+    bwlimit?: number;
+    newDomain?: string;
+  }): Promise<boolean> {
     try {
       console.log(`Updating client ${username}:`, updates);
 
       const results = [];
 
-      // 1. Update Email if provided
-      if (updates.email) {
-        results.push(await this.makeRequest('/json-api/modifyacct', {
-          user: username,
-          contactemail: updates.email,
-          api_version: 1
-        }));
+      // 1. Update Core Account Data (modifyacct covers most things)
+      const modifyParams: any = {
+        user: username,
+        api_version: 1
+      };
+
+      if (updates.email) modifyParams.contactemail = updates.email;
+      if (updates.plan) modifyParams.pkg = updates.plan;
+      if (updates.shell !== undefined) modifyParams.shell = updates.shell;
+      if (updates.cgi !== undefined) modifyParams.cgi = updates.cgi;
+      if (updates.bwlimit !== undefined) modifyParams.bwlimit = updates.bwlimit;
+      if (updates.newDomain) modifyParams.newdomain = updates.newDomain;
+
+      if (Object.keys(modifyParams).length > 2) {
+        results.push(await this.makeRequest('/json-api/modifyacct', modifyParams));
       }
 
-      // 2. Update Quota if provided
+      // 2. Update Quota if provided (separate endpoint usually)
       if (updates.quota !== undefined) {
         results.push(await this.makeRequest('/json-api/editquota', {
           user: username,
@@ -297,22 +313,32 @@ class VHMAPI {
       }
 
       // Check if all requests were successful
-      return results.every(res => res.metadata?.result === 1 || res.result?.[0]?.status === 1 || res.status === 1);
+      return results.every(res =>
+        res.metadata?.result === 1 ||
+        res.result?.[0]?.status === 1 ||
+        res.status === 1 ||
+        res.data?.result === 1
+      );
     } catch (error) {
       console.error('Failed to update client:', error);
       return false;
     }
   }
 
-  async changePassword(username: string, newPassword: string): Promise<boolean> {
+  async changePassword(username: string, password: string): Promise<boolean> {
     try {
-      console.log(`Simulating change password for: ${username}`);
-      return true;
+      const result = await this.makeRequest('/json-api/passwd', {
+        user: username,
+        pass: password,
+        api_version: 1
+      });
+      return result.metadata?.result === 1 || result.status === 1;
     } catch (error) {
       console.error('Failed to change password:', error);
       return false;
     }
   }
+
 
   async getAccountUsage(username: string): Promise<any> {
     try {
@@ -325,6 +351,127 @@ class VHMAPI {
     } catch (error) {
       console.error('Failed to get account usage:', error);
       throw error;
+    }
+  }
+
+  async getMailDeliveryReports(filters: {
+    recipient?: string;
+    sender?: string;
+    startTime?: number; // Unix timestamp
+    endTime?: number;   // Unix timestamp
+  } = {}): Promise<any[]> {
+    try {
+      const params: any = {
+        api_version: 1,
+        'api.filter.enable': 1,
+      };
+
+      let filterCount = 0;
+      const addFilter = (field: string, value: string | number, type: string = 'contains') => {
+        const prefix = `api.filter.${String.fromCharCode(97 + filterCount)}`; // a, b, c...
+        params[`${prefix}.field`] = field;
+        params[`${prefix}.arg0`] = value;
+        params[`${prefix}.type`] = type;
+        filterCount++;
+      };
+
+      if (filters.recipient) addFilter('recipient', filters.recipient);
+      if (filters.sender) addFilter('sender', filters.sender);
+      if (filters.startTime) addFilter('sendunixtime', filters.startTime, 'gt');
+      if (filters.endTime) addFilter('sendunixtime', filters.endTime, 'lt');
+
+      const result = await this.makeRequest('/json-api/emailtrack_search', params);
+
+      // The results are usually in result.data or result.data.emailtrack
+      return result.data || result.data?.emailtrack || result.emailtrack || [];
+    } catch (error) {
+      console.error('Failed to fetch mail delivery reports:', error);
+      throw error;
+    }
+  }
+
+  // --- Email Account Management (POP/IMAP) ---
+
+  async getEmailAccounts(cpanelUser: string): Promise<any[]> {
+    try {
+      const result = await this.makeRequest('/json-api/list_pops_for', {
+        user: cpanelUser,
+        api_version: 1
+      });
+      // Handle both result.data.pops and result.pops
+      return result.data?.pops || result.pops || [];
+    } catch (error) {
+      console.error(`Failed to list email accounts for ${cpanelUser}:`, error);
+      throw error;
+    }
+  }
+
+  async createEmailAccount(cpanelUser: string, params: {
+    email: string;
+    domain: string;
+    password: string;
+    quota: number;
+  }): Promise<boolean> {
+    try {
+      const result = await this.makeRequest('/json-api/addpop', {
+        user: cpanelUser,
+        email: params.email,
+        domain: params.domain,
+        password: params.password,
+        quota: params.quota,
+        api_version: 1
+      });
+      return result.metadata?.result === 1 || result.status === 1;
+    } catch (error) {
+      console.error(`Failed to create email account for ${cpanelUser}:`, error);
+      return false;
+    }
+  }
+
+  async deleteEmailAccount(cpanelUser: string, email: string, domain: string): Promise<boolean> {
+    try {
+      const result = await this.makeRequest('/json-api/delpop', {
+        user: cpanelUser,
+        email: email,
+        domain: domain,
+        api_version: 1
+      });
+      return result.metadata?.result === 1 || result.status === 1;
+    } catch (error) {
+      console.error(`Failed to delete email account ${email}@${domain}:`, error);
+      return false;
+    }
+  }
+
+  async updateEmailPassword(cpanelUser: string, email: string, domain: string, password: string): Promise<boolean> {
+    try {
+      const result = await this.makeRequest('/json-api/passwdpop', {
+        user: cpanelUser,
+        email: email,
+        domain: domain,
+        password: password,
+        api_version: 1
+      });
+      return result.metadata?.result === 1 || result.status === 1;
+    } catch (error) {
+      console.error(`Failed to update password for ${email}@${domain}:`, error);
+      return false;
+    }
+  }
+
+  async updateEmailQuota(cpanelUser: string, email: string, domain: string, quota: number): Promise<boolean> {
+    try {
+      const result = await this.makeRequest('/json-api/editpopquota', {
+        user: cpanelUser,
+        email: email,
+        domain: domain,
+        quota: quota,
+        api_version: 1
+      });
+      return result.metadata?.result === 1 || result.status === 1;
+    } catch (error) {
+      console.error(`Failed to update quota for ${email}@${domain}:`, error);
+      return false;
     }
   }
 }
