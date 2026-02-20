@@ -193,19 +193,34 @@ class VHMAPI {
 
   async getStats(): Promise<VHMStats> {
     try {
-      const result = await this.makeRequest('/json-api/showbw', { api_version: 1 });
+      // Fetch both listaccts and showbw for most accurate picture
+      const [acctsResult, bwResult] = await Promise.all([
+        this.makeRequest('/json-api/listaccts', { api_version: 1 }),
+        this.makeRequest('/json-api/showbw', { api_version: 1 })
+      ]);
 
-      const bandwidthList = result.bandwidth || result.data?.bandwidth || [];
-      const totalClients = bandwidthList.length;
-      const totalDisk = bandwidthList.reduce((acc: number, item: any) => acc + (parseFloat(item.totalusage) || 0), 0);
+      const accounts = acctsResult.acct || acctsResult.data?.acct || [];
+      const bandwidthList = bwResult.bandwidth || bwResult.data?.bandwidth || [];
+
+      const totalClients = accounts.length;
+      const activeClients = accounts.filter((a: any) => !a.suspended).length;
+      const suspendedClients = accounts.filter((a: any) => a.suspended).length;
+
+      // Calculate totals from account data (diskused is in MB)
+      const diskUsageTotal = accounts.reduce((acc: number, accnt: any) => {
+        const usedMB = accnt.diskused ? parseFloat(accnt.diskused.toString().replace(/[a-zA-Z]/g, '')) : 0;
+        return acc + usedMB;
+      }, 0) * 1024 * 1024; // Convert MB to Bytes for formatBytes()
+
+      const bandwidthUsageTotal = bandwidthList.reduce((acc: number, item: any) => acc + (parseFloat(item.bwused) || 0), 0);
 
       return {
         total_clients: totalClients,
-        active_clients: bandwidthList.filter((b: any) => !b.suspended).length,
-        suspended_clients: bandwidthList.filter((b: any) => b.suspended).length,
-        total_domains: totalClients,
-        disk_usage_total: totalDisk,
-        bandwidth_usage_total: bandwidthList.reduce((acc: number, item: any) => acc + (parseFloat(item.bwused) || 0), 0)
+        active_clients: activeClients,
+        suspended_clients: suspendedClients,
+        total_domains: totalClients, // Main domains
+        disk_usage_total: diskUsageTotal,
+        bandwidth_usage_total: bandwidthUsageTotal
       };
     } catch (error) {
       console.error('Failed to fetch VHM stats:', error);
