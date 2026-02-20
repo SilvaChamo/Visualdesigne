@@ -12,17 +12,19 @@ import { useI18n } from '@/lib/i18n'
 const navigation = [
   { nameKey: 'nav.home', href: '/' },
   { nameKey: 'nav.about', href: '/sobre-nos' },
-  { nameKey: 'nav.services', href: '/servicos', dropdown: [
-    { nameKey: 'services.web', href: '/servicos/web-design' },
-    { nameKey: 'services.graphic', href: '/servicos/design-grafico' },
-    { nameKey: 'services.fairs', href: '/servicos/feiras-eventos' },
-    { nameKey: 'services.products', href: '/servicos/produtos' },
-    { nameKey: 'services.domains', href: '/servicos/dominios' },
-    { nameKey: 'services.hosting', href: '/servicos/hospedagem' },
-    { nameKey: 'services.ssl', href: '/servicos/ssl' },
-    { nameKey: 'services.email', href: '/servicos/email' },
-    { nameKey: 'services.support', href: '/servicos/suporte' }
-  ]},
+  {
+    nameKey: 'nav.services', href: '/servicos', dropdown: [
+      { nameKey: 'services.web', href: '/servicos/web-design' },
+      { nameKey: 'services.graphic', href: '/servicos/design-grafico' },
+      { nameKey: 'services.fairs', href: '/servicos/feiras-eventos' },
+      { nameKey: 'services.products', href: '/servicos/produtos' },
+      { nameKey: 'services.domains', href: '/servicos/dominios' },
+      { nameKey: 'services.hosting', href: '/servicos/hospedagem' },
+      { nameKey: 'services.ssl', href: '/servicos/ssl' },
+      { nameKey: 'services.email', href: '/servicos/email' },
+      { nameKey: 'services.support', href: '/servicos/suporte' }
+    ]
+  },
   { nameKey: 'nav.portfolio', href: '/portfolio' },
   { nameKey: 'nav.courses', href: '/cursos' },
   { nameKey: 'nav.contact', href: '/contacto' }
@@ -78,17 +80,14 @@ export function Header({ isScrolled = false }: { isScrolled?: boolean }) {
               <Link href="/" className="flex items-center">
                 <motion.div
                   whileHover={{ scale: 1.05 }}
-                  className="w-12 h-12 lg:w-14 lg:h-14 rounded-lg flex items-center justify-center overflow-hidden"
+                  className="w-16 h-16 lg:w-56 lg:h-20 flex items-center justify-center overflow-hidden"
                 >
-                  <img 
-                    src="/assets/Logo.png" 
-                    alt="Visual Design Logo" 
+                  <img
+                    src="/assets/logotipo.png"
+                    alt="Visual Design Logo"
                     className="w-full h-full object-contain"
                   />
                 </motion.div>
-                <span className="font-normal text-sm lg:text-base text-black ml-0.5">
-                  Visual<span className="text-red-600 font-bold">Design</span>
-                </span>
               </Link>
             </div>
 
@@ -110,7 +109,7 @@ export function Header({ isScrolled = false }: { isScrolled?: boolean }) {
                               activeDropdown === item.nameKey ? 'rotate-180' : ''
                             )} />
                           </button>
-                          
+
                           <AnimatePresence>
                             {activeDropdown === item.nameKey && (
                               <motion.div
@@ -199,7 +198,7 @@ export function Header({ isScrolled = false }: { isScrolled?: boolean }) {
                           activeDropdown === item.nameKey ? 'rotate-180' : ''
                         )} />
                       </button>
-                      
+
                       <AnimatePresence>
                         {activeDropdown === item.nameKey && (
                           <motion.div
@@ -236,7 +235,7 @@ export function Header({ isScrolled = false }: { isScrolled?: boolean }) {
                   )}
                 </div>
               ))}
-              
+
               <div className="pt-4 border-t border-gray-300 space-y-3">
                 <button
                   onClick={toggleLang}

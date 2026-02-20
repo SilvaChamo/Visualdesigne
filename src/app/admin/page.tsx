@@ -6,7 +6,7 @@ import { validateAdminCredentials, generateAdminToken, validateAdminToken } from
 import { vhmAPI, VHMClient, VHMStats } from '@/lib/vhm-api'
 import { whmcsAPI, WhmcsDomain } from '@/lib/whmcs-api'
 import { supabase } from '@/lib/supabase'
-import { Users, Plus, Trash2, Mail, AlertCircle, Check, X, Eye, EyeOff, Edit, DollarSign, Calendar, Shield, Search, Filter, Download, Settings, LogOut, Home, FileText, BarChart3, Globe, TrendingUp, Package, CreditCard, UserPlus, Activity, Clock, Star, MessageSquare, MessageCircle, Database, Server, Globe2, Lock, Bell, Archive, RefreshCw, ChevronRight, ChevronDown, MoreVertical, ArrowRightLeft, PlusCircle, Inbox } from 'lucide-react'
+import { Users, Plus, Trash2, Mail, AlertCircle, Check, X, Eye, EyeOff, Edit, DollarSign, Calendar, Shield, Search, Filter, Download, Settings, LogOut, Home, FileText, BarChart3, Globe, TrendingUp, Package, CreditCard, UserPlus, Activity, Clock, Star, MessageSquare, MessageCircle, Database, Server, Globe2, Lock, Bell, Archive, RefreshCw, ChevronRight, ChevronDown, MoreVertical, ArrowRightLeft, PlusCircle, Inbox, User, ShieldCheck } from 'lucide-react'
 
 interface Client {
   id: string;
@@ -132,6 +132,17 @@ function AdminPanelContent() {
   })
   const [editingEmail, setEditingEmail] = useState<any | null>(null)
   const [isSavingEmail, setIsSavingEmail] = useState(false)
+
+  const [selectedWebmailDomain, setSelectedWebmailDomain] = useState<string | null>(null)
+  const [realWebmailAccounts, setRealWebmailAccounts] = useState<any[]>([])
+  const [isFetchingWebmailAccounts, setIsFetchingWebmailAccounts] = useState(false)
+  const [isRightSidebarOpen, setIsRightSidebarOpen] = useState(true)
+
+  // Password Visibility States
+  const [showAdminPass, setShowAdminPass] = useState(false)
+  const [showNewEmailPass, setShowNewEmailPass] = useState(false)
+  const [showEditEmailPass, setShowEditEmailPass] = useState(false)
+  const [showNewAccountPass, setShowNewAccountPass] = useState(false)
 
   // Domain Management State
   const [domains, setDomains] = useState<WhmcsDomain[]>([])
@@ -609,13 +620,13 @@ function AdminPanelContent() {
   if (!isAuthenticated) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 flex items-center justify-center p-4">
-        <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-8">
-          <div className="text-center mb-8">
-            <div className="w-20 h-20 bg-red-600 rounded-full flex items-center justify-center mx-auto mb-4">
-              <Globe className="w-10 h-10 text-white" />
+        <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-8">
+          <div className="text-center mb-10">
+            <div className="w-72 h-24 mx-auto mb-1 flex items-center justify-center">
+              <img src="/assets/logotype.png" alt="Visual Design" className="w-full h-full object-contain" />
             </div>
-            <h2 className="text-2xl font-bold text-gray-900 mb-2">Painel Administrativo</h2>
-            <p className="text-gray-600">Visual Design - Gestão Completa</p>
+            <h2 className="text-2xl font-bold text-gray-900 mb-0 leading-tight">Painel Administrativo</h2>
+            <p className="text-gray-500 font-medium">da Gestão de conteudo</p>
           </div>
 
           <form onSubmit={(e) => {
@@ -624,24 +635,31 @@ function AdminPanelContent() {
             handleLogin(formData.get('email') as string, formData.get('password') as string)
           }} className="space-y-6">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Email</label>
               <input
                 type="email"
                 name="email"
                 required
                 className="w-full px-4 py-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent"
-                placeholder="seu@email.com"
+                placeholder="Email corporativo"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Senha</label>
-              <input
-                type="password"
-                name="password"
-                required
-                className="w-full px-4 py-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent"
-                placeholder="••••••••"
-              />
+              <div className="relative">
+                <input
+                  type={showAdminPass ? "text" : "password"}
+                  name="password"
+                  required
+                  className="w-full px-4 py-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent pr-12"
+                  placeholder="Palavra-passe"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowAdminPass(!showAdminPass)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 p-1"
+                >
+                  {showAdminPass ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                </button>
+              </div>
             </div>
 
             {authError && (
@@ -698,13 +716,14 @@ function AdminPanelContent() {
     { id: 'clients', label: 'Clientes', color: 'bg-green-500' },
     {
       id: 'emails', label: 'E-mails', color: 'bg-cyan-500', subItems: [
-        { id: 'emails', label: 'E-mails' },
-        { id: 'emails-new', label: 'Novo E-mail' },
+        { id: 'emails', label: 'Meus E-mails' },
+        { id: 'emails-new', label: 'Nova Conta' },
+        { id: 'emails-webmail', label: 'Webmail' },
       ]
     },
     {
       id: 'domains', label: 'Domínios', color: 'bg-purple-500', subItems: [
-        { id: 'domains', label: 'Domínios' },
+        { id: 'domains', label: 'Meus Domínios' },
         { id: 'domains-new', label: 'Novo Domínio' },
         { id: 'domains-transfer', label: 'Transferir Domínio' },
       ]
@@ -740,11 +759,11 @@ function AdminPanelContent() {
       {/* Main Content */}
       <div className="flex">
         {/* Sidebar */}
-        <div className={`${isSidebarCollapsed ? 'w-20' : 'w-64'} bg-white shadow-lg min-h-screen transition-all duration-300 relative group`}>
-          <div className={`p-4 border-b border-gray-200`}>
+        <div className={`${isSidebarCollapsed ? 'w-20' : 'w-64'} bg-white shadow-lg h-screen transition-all duration-300 relative group flex flex-col`}>
+          <div className={`p-4 border-b border-gray-200 shrink-0`}>
             <div className={`flex items-center gap-3 ${isSidebarCollapsed ? 'flex-col' : ''}`}>
-              <div className="w-10 h-10 bg-red-600 rounded-md flex items-center justify-center shrink-0">
-                <Globe className="w-6 h-6 text-white" />
+              <div className="w-12 h-12 flex items-center justify-center shrink-0">
+                <img src="/assets/simbolo.png" alt="Visual Design" className="w-full h-full object-contain" />
               </div>
               {!isSidebarCollapsed ? (
                 <div className="flex-1 min-w-0 flex items-center justify-between">
@@ -772,7 +791,7 @@ function AdminPanelContent() {
             </div>
           </div>
 
-          <nav className="p-4 space-y-1">
+          <nav className="flex-1 overflow-y-auto p-4 space-y-1 custom-scrollbar pb-24">
             {menuItems.map((item) => {
               const hasSubItems = item.subItems && item.subItems.length > 0
               const isExpanded = expandedMenus[item.id]
@@ -822,13 +841,24 @@ function AdminPanelContent() {
 
                   {/* Sub-menu items */}
                   {hasSubItems && isExpanded && !isSidebarCollapsed && (
-                    <div className="ml-8 mt-1 space-y-0.5 border-l-2 border-gray-100 pl-3">
+                    <div className="ml-8 mt-1 space-y-0.5 border-l-2 border-gray-100 pl-3 relative">
+                      {/* Sliding indicator */}
+                      {item.subItems!.some(sub => sub.id === activeSection) && (
+                        <div
+                          className="absolute left-0 w-0.5 bg-red-600 transition-all duration-300 ease-in-out z-10"
+                          style={{
+                            height: '24px',
+                            top: `${item.subItems!.findIndex(sub => sub.id === activeSection) * 34 + 4}px`,
+                            marginLeft: '-2px'
+                          }}
+                        />
+                      )}
                       {item.subItems!.map(sub => (
                         <button
                           key={sub.id}
                           onClick={() => setActiveSection(sub.id)}
                           className={`w-full text-left px-3 py-1.5 rounded-md text-sm transition-all duration-150 ${activeSection === sub.id
-                            ? 'bg-red-50 text-red-600 font-semibold'
+                            ? 'text-red-600 font-semibold'
                             : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'
                             }`}
                         >
@@ -842,8 +872,8 @@ function AdminPanelContent() {
             })}
           </nav>
 
-          <div className={`absolute bottom-0 p-4 border-t border-gray-200 transition-all duration-300 ${isSidebarCollapsed ? 'w-20' : 'w-64'}`}>
-            <div className={`flex items-start gap-3 mb-3 ${isSidebarCollapsed ? 'justify-center' : ''}`}>
+          <div className={`absolute bottom-0 p-4 border-t border-gray-200 bg-white z-10 transition-all duration-300 ${isSidebarCollapsed ? 'w-20' : 'w-64'}`}>
+            <div className={`flex items-start gap-3 ${isSidebarCollapsed ? 'justify-center' : ''}`}>
               <div className="w-10 h-10 rounded-full overflow-hidden relative bg-gradient-to-br from-red-500 to-red-600 shadow-lg flex-shrink-0">
                 <img
                   src="https://lh3.googleusercontent.com/a-/AOh14GjZ8Q7T2L3W4R5S6U7V8W9X0Y1Z2X3W4R5S6U7V8W9X0Q=s96-c"
@@ -866,15 +896,7 @@ function AdminPanelContent() {
                 </div>
               )}
             </div>
-            {!isSidebarCollapsed && (
-              <button
-                onClick={handleLogout}
-                className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-600 hover:text-red-600 hover:bg-red-50 rounded-md transition-colors"
-              >
-                <LogOut className="w-4 h-4" />
-                <span>Terminar Sessão</span>
-              </button>
-            )}
+
           </div>
         </div>
 
@@ -1475,13 +1497,22 @@ function AdminPanelContent() {
                       </div>
                       <div>
                         <label className="block text-xs font-semibold text-gray-600 mb-1">Senha *</label>
-                        <input
-                          type="password"
-                          placeholder="Senha segura"
-                          value={newEmailData.password}
-                          onChange={(e) => setNewEmailData({ ...newEmailData, password: e.target.value })}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-cyan-500 text-sm"
-                        />
+                        <div className="relative">
+                          <input
+                            type={showNewEmailPass ? "text" : "password"}
+                            placeholder="Senha segura"
+                            value={newEmailData.password}
+                            onChange={(e) => setNewEmailData({ ...newEmailData, password: e.target.value })}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-cyan-500 text-sm pr-10"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setShowNewEmailPass(!showNewEmailPass)}
+                            className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-cyan-600 p-1"
+                          >
+                            {showNewEmailPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                          </button>
+                        </div>
                       </div>
                       <div>
                         <label className="block text-xs font-semibold text-gray-600 mb-1">Quota (MB)</label>
@@ -1531,13 +1562,22 @@ function AdminPanelContent() {
                       </div>
                       <div>
                         <label className="block text-xs font-semibold text-gray-600 mb-1">Nova Senha</label>
-                        <input
-                          type="password"
-                          placeholder="Deixe vazio para manter a actual"
-                          value={editingEmail.newPassword || ''}
-                          onChange={(e) => setEditingEmail({ ...editingEmail, newPassword: e.target.value })}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-cyan-500 text-sm"
-                        />
+                        <div className="relative">
+                          <input
+                            type={showEditEmailPass ? "text" : "password"}
+                            placeholder="Deixe vazio para manter a actual"
+                            value={editingEmail.newPassword || ''}
+                            onChange={(e) => setEditingEmail({ ...editingEmail, newPassword: e.target.value })}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-cyan-500 text-sm pr-10"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setShowEditEmailPass(!showEditEmailPass)}
+                            className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-cyan-600 p-1"
+                          >
+                            {showEditEmailPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                          </button>
+                        </div>
                       </div>
                       <div className="bg-amber-50 border border-amber-100 p-3 rounded-md flex gap-2">
                         <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
@@ -1619,13 +1659,22 @@ function AdminPanelContent() {
 
                     <div className="mb-4">
                       <label className="block text-xs font-semibold text-gray-500 mb-1">Senha *</label>
-                      <input
-                        type="password"
-                        placeholder="Senha segura"
-                        value={newEmailData.password}
-                        onChange={(e) => setNewEmailData({ ...newEmailData, password: e.target.value })}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-cyan-500 text-sm"
-                      />
+                      <div className="relative">
+                        <input
+                          type={showNewEmailPass ? "text" : "password"}
+                          placeholder="Senha segura"
+                          value={newEmailData.password}
+                          onChange={(e) => setNewEmailData({ ...newEmailData, password: e.target.value })}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-cyan-500 text-sm pr-10"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowNewEmailPass(!showNewEmailPass)}
+                          className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-cyan-600 p-1"
+                        >
+                          {showNewEmailPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                        </button>
+                      </div>
                     </div>
 
                     <div className="mb-6">
@@ -1657,6 +1706,207 @@ function AdminPanelContent() {
             </div>
           )}
 
+          {activeSection === 'emails-webmail' && (
+            <div className="space-y-6">
+              <div className="flex justify-between items-end mb-4">
+                <div>
+                  <h1 className="text-3xl font-bold text-gray-900">Webmail Real</h1>
+                  <p className="text-gray-500 mt-1">Gira o seu e-mail profissional com acesso directo e autenticado.</p>
+                </div>
+                {selectedWebmailDomain && (
+                  <button
+                    onClick={() => {
+                      setSelectedWebmailDomain(null)
+                      setRealWebmailAccounts([])
+                    }}
+                    className="text-sm text-red-600 hover:text-red-700 font-bold flex items-center gap-1"
+                  >
+                    <ArrowRightLeft className="w-4 h-4" /> Alterar Domínio
+                  </button>
+                )}
+              </div>
+
+              {!selectedWebmailDomain ? (
+                <div className="bg-white rounded-xl shadow-md border border-gray-100 p-8 text-center max-w-2xl mx-auto">
+                  <div className="w-20 h-20 bg-cyan-50 rounded-full flex items-center justify-center mx-auto mb-6">
+                    <Inbox className="w-10 h-10 text-cyan-600" />
+                  </div>
+                  <h3 className="text-xl font-bold text-gray-900 mb-2">Acesso Seguro ao Webmail</h3>
+                  <p className="text-gray-600 mb-8 px-4">
+                    Seleccione um dos seus domínios para carregar as contas de e-mail e aceder ao Roundcube.
+                  </p>
+
+                  <div className="flex flex-col gap-4 items-center">
+                    <select
+                      value={selectedWebmailDomain || ''}
+                      onChange={(e) => setSelectedWebmailDomain(e.target.value)}
+                      className="w-full max-w-sm px-4 py-3 border border-gray-300 rounded-md focus:ring-2 focus:ring-red-500 text-sm font-medium bg-white"
+                    >
+                      <option value="">Seleccione um domínio...</option>
+                      {clients.map(c => (
+                        <option key={c.username} value={c.domain}>{c.domain}</option>
+                      ))}
+                    </select>
+                    <button
+                      onClick={async () => {
+                        if (selectedWebmailDomain) {
+                          setIsFetchingWebmailAccounts(true)
+                          try {
+                            const client = clients.find(c => c.domain === selectedWebmailDomain)
+                            if (client) {
+                              const accounts = await vhmAPI.getEmailAccounts(client.username)
+                              setRealWebmailAccounts(accounts)
+                            }
+                          } catch (err) {
+                            console.error('Erro ao buscar contas:', err)
+                          } finally {
+                            setIsFetchingWebmailAccounts(false)
+                          }
+                        }
+                      }}
+                      disabled={!selectedWebmailDomain || isFetchingWebmailAccounts}
+                      className="w-full max-w-sm bg-black hover:bg-red-600 disabled:bg-gray-300 disabled:cursor-not-allowed text-white py-3 rounded-md font-bold transition-all flex items-center justify-center gap-2"
+                    >
+                      {isFetchingWebmailAccounts ? (
+                        <>
+                          <RefreshCw className="w-5 h-5 animate-spin" />
+                          Carregando...
+                        </>
+                      ) : (
+                        'Carregar Painel de E-mail'
+                      )}
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 gap-6">
+                  <div className="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden min-h-[500px] flex flex-col">
+                    <div className="bg-gray-900 text-white p-4 flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 bg-red-600 rounded flex items-center justify-center font-bold text-sm">WD</div>
+                        <div>
+                          <p className="text-xs font-bold leading-none uppercase tracking-tight">Email Manager</p>
+                          <p className="text-[10px] text-gray-400 mt-1">{selectedWebmailDomain}</p>
+                        </div>
+                      </div>
+                      <div className="flex gap-4">
+                        <div className="flex items-center gap-2 text-xs">
+                          <Database className="w-3.5 h-3.5 text-cyan-400" /> Servidor Ativo
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex-1 p-6 overflow-y-auto">
+                      <div className="flex justify-between items-center mb-6">
+                        <h3 className="font-bold text-gray-800 flex items-center gap-2">
+                          <Mail className="w-5 h-5 text-red-600" /> Contas de E-mail Disponíveis
+                          <button
+                            onClick={async () => {
+                              if (selectedWebmailDomain) {
+                                setIsFetchingWebmailAccounts(true)
+                                try {
+                                  const client = clients.find(c => c.domain === selectedWebmailDomain)
+                                  if (client) {
+                                    const accounts = await vhmAPI.getEmailAccounts(client.username)
+                                    setRealWebmailAccounts(accounts)
+                                  }
+                                } catch (err) {
+                                  console.error('Refresh error:', err)
+                                } finally {
+                                  setIsFetchingWebmailAccounts(false)
+                                }
+                              }
+                            }}
+                            className="p-1 hover:bg-gray-100 rounded-full transition-colors"
+                            title="Actualizar lista"
+                          >
+                            <RefreshCw className={`w-3 h-3 text-gray-400 ${isFetchingWebmailAccounts ? 'animate-spin text-red-600' : ''}`} />
+                          </button>
+                        </h3>
+                        <span className="text-xs text-gray-400">{realWebmailAccounts.length} contas encontradas</span>
+                      </div>
+
+                      {isFetchingWebmailAccounts ? (
+                        <div className="flex items-center justify-center py-20">
+                          <RefreshCw className="w-8 h-8 text-red-600 animate-spin" />
+                        </div>
+                      ) : (
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                          {realWebmailAccounts.length === 0 ? (
+                            <div className="col-span-full py-12 text-center bg-gray-50 rounded-lg border-2 border-dashed border-gray-200">
+                              <p className="text-sm text-gray-500">Nenhuma conta de e-mail encontrada para este domínio.</p>
+                              <button
+                                onClick={() => setActiveSection('emails-new')}
+                                className="mt-4 text-xs font-bold text-red-600 hover:underline"
+                              >
+                                Criar nova conta agora
+                              </button>
+                            </div>
+                          ) : (
+                            realWebmailAccounts.map((acc: any, i) => (
+                              <div key={i} className="p-4 rounded-xl border border-gray-100 bg-white hover:border-red-200 hover:shadow-md transition-all group">
+                                <div className="flex items-start justify-between mb-4">
+                                  <div className="w-10 h-10 bg-gray-50 rounded-lg flex items-center justify-center group-hover:bg-red-50 transition-colors">
+                                    <Mail className="w-5 h-5 text-gray-400 group-hover:text-red-600" />
+                                  </div>
+                                  <div className="bg-green-50 text-green-600 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase">Ativa</div>
+                                </div>
+
+                                <p className="text-sm font-bold text-gray-900 mb-1 truncate">{acc.email}</p>
+                                <div className="space-y-2 mb-6">
+                                  <div className="flex items-center justify-between text-[11px]">
+                                    <span className="text-gray-400">Quota</span>
+                                    <span className="text-gray-600 font-medium">
+                                      {(parseFloat(acc.humandiskused) || 0).toFixed(1)} / {acc.humandiskquota || 'Unlimited'}
+                                    </span>
+                                  </div>
+                                  <div className="w-full h-1 bg-gray-100 rounded-full overflow-hidden">
+                                    <div
+                                      className="h-full bg-cyan-500 rounded-full"
+                                      style={{ width: `${Math.min(100, (parseFloat(acc.diskused) / (parseFloat(acc.diskquota) || 1000)) * 100)}%` }}
+                                    ></div>
+                                  </div>
+                                </div>
+
+                                <button
+                                  onClick={async (e) => {
+                                    const btn = e.currentTarget
+                                    const originalText = btn.innerText
+                                    btn.innerText = 'Gerando Sessão...'
+                                    btn.disabled = true
+                                    try {
+                                      const client = clients.find(c => c.domain === selectedWebmailDomain)
+                                      if (client) {
+                                        const ssoUrl = await vhmAPI.createWebmailSession(client.username, acc.email)
+                                        if (ssoUrl) {
+                                          window.open(ssoUrl, '_blank')
+                                        } else {
+                                          alert('Não foi possível gerar a sessão segura. Tente novamente.')
+                                        }
+                                      }
+                                    } catch (err) {
+                                      console.error('SSO Error:', err)
+                                    } finally {
+                                      btn.innerText = originalText
+                                      btn.disabled = false
+                                    }
+                                  }}
+                                  className="w-full bg-red-600 hover:bg-red-700 text-white py-2 rounded-lg text-xs font-bold transition-all shadow-sm flex items-center justify-center gap-2"
+                                >
+                                  Logar no Webmail <ChevronRight className="w-3 h-3" />
+                                </button>
+                              </div>
+                            ))
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
           {activeSection === 'domains' && (
             <div>
               <div className="flex justify-between items-center mb-8">
@@ -1671,82 +1921,7 @@ function AdminPanelContent() {
                 </button>
               </div>
 
-              {/* Domain Availability Check */}
-              <div className="bg-white rounded-md shadow-sm border border-gray-200 p-6 mb-6">
-                <h3 className="text-sm font-bold text-gray-700 uppercase tracking-wider mb-4 flex items-center gap-2">
-                  <Search className="w-4 h-4" />
-                  Verificar Disponibilidade de Domínio
-                </h3>
-                <div className="flex gap-3 items-end">
-                  <div className="flex-1">
-                    <label className="block text-xs font-semibold text-gray-500 mb-1">Nome do Domínio</label>
-                    <input
-                      type="text"
-                      placeholder="meudominio"
-                      value={domainCheckQuery}
-                      onChange={(e) => setDomainCheckQuery(e.target.value)}
-                      onKeyDown={(e) => e.key === 'Enter' && handleCheckDomain()}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-purple-500 text-sm"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-semibold text-gray-500 mb-1">Extensão</label>
-                    <select
-                      value={domainCheckTLD}
-                      onChange={(e) => setDomainCheckTLD(e.target.value)}
-                      className="px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-purple-500 text-sm"
-                    >
-                      <option value=".mz">.mz</option>
-                      <option value=".co.mz">.co.mz</option>
-                      <option value=".com">.com</option>
-                      <option value=".org">.org</option>
-                      <option value=".net">.net</option>
-                    </select>
-                  </div>
-                  <button
-                    onClick={handleCheckDomain}
-                    disabled={isCheckingDomain || !domainCheckQuery.trim()}
-                    className="bg-purple-600 hover:bg-purple-700 text-white px-5 py-2 rounded-md flex items-center gap-2 transition-all text-sm font-bold disabled:opacity-50"
-                  >
-                    {isCheckingDomain ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
-                    Verificar
-                  </button>
-                </div>
 
-                {/* Check Result */}
-                {domainCheckResult && (
-                  <div className={`mt-4 p-4 rounded-md border flex items-center gap-3 ${domainCheckResult.available
-                    ? 'bg-green-50 border-green-200'
-                    : 'bg-red-50 border-red-200'
-                    }`}>
-                    <div className={`w-10 h-10 rounded-full flex items-center justify-center ${domainCheckResult.available ? 'bg-green-100' : 'bg-red-100'
-                      }`}>
-                      {domainCheckResult.available
-                        ? <Check className="w-5 h-5 text-green-600" />
-                        : <X className="w-5 h-5 text-red-600" />
-                      }
-                    </div>
-                    <div>
-                      <p className={`font-bold text-sm ${domainCheckResult.available ? 'text-green-700' : 'text-red-700'}`}>
-                        {domainCheckQuery}{domainCheckTLD}
-                      </p>
-                      <p className={`text-xs ${domainCheckResult.available ? 'text-green-600' : 'text-red-600'}`}>
-                        {domainCheckResult.available ? '✓ Domínio disponível para registro!' : '✗ Domínio indisponível'}
-                      </p>
-                    </div>
-                    {domainCheckResult.available && (
-                      <a
-                        href={`https://www.mozserver.co.mz/cart.php?a=add&domain=register&query=${domainCheckQuery}${domainCheckTLD}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="ml-auto bg-green-600 hover:bg-green-700 text-white px-4 py-1.5 rounded-md text-sm font-bold transition-all"
-                      >
-                        Registrar na MozServer
-                      </a>
-                    )}
-                  </div>
-                )}
-              </div>
 
               {/* Error Message */}
               {domainError && (
@@ -1878,7 +2053,7 @@ function AdminPanelContent() {
               </div>
 
               {/* Domain Availability Check */}
-              <div className="bg-white rounded-md shadow-sm border border-gray-200 p-6 max-w-2xl">
+              <div className="bg-white rounded-md shadow-sm border border-gray-200 p-6 w-full">
                 <h3 className="text-sm font-bold text-gray-700 uppercase tracking-wider mb-4 flex items-center gap-2">
                   <Search className="w-4 h-4 text-purple-600" />
                   Verificar Disponibilidade
@@ -1920,27 +2095,63 @@ function AdminPanelContent() {
                 </div>
 
                 {domainCheckResult && (
-                  <div className={`mt-4 p-4 rounded-md border flex items-center gap-3 ${domainCheckResult.available ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'}`}>
-                    <div className={`w-10 h-10 rounded-full flex items-center justify-center ${domainCheckResult.available ? 'bg-green-100' : 'bg-red-100'}`}>
-                      {domainCheckResult.available ? <Check className="w-5 h-5 text-green-600" /> : <X className="w-5 h-5 text-red-600" />}
+                  <div className="mt-8 space-y-6">
+                    <div className={`p-4 rounded-md border flex items-center gap-3 ${domainCheckResult.available ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'}`}>
+                      <div className={`w-10 h-10 rounded-full flex items-center justify-center ${domainCheckResult.available ? 'bg-green-100' : 'bg-red-100'}`}>
+                        {domainCheckResult.available ? <Check className="w-5 h-5 text-green-600" /> : <X className="w-5 h-5 text-red-600" />}
+                      </div>
+                      <div>
+                        <p className={`font-bold text-sm ${domainCheckResult.available ? 'text-green-700' : 'text-red-700'}`}>
+                          {domainCheckQuery}{domainCheckTLD}
+                        </p>
+                        <p className={`text-xs ${domainCheckResult.available ? 'text-green-600' : 'text-red-600'}`}>
+                          {domainCheckResult.available ? '✓ Domínio disponível para registro!' : '✗ Domínio indisponível'}
+                        </p>
+                      </div>
+                      {domainCheckResult.available && (
+                        <a
+                          href={`https://www.mozserver.co.mz/cart.php?a=add&domain=register&query=${domainCheckQuery}${domainCheckTLD}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="ml-auto bg-green-600 hover:bg-green-700 text-white px-4 py-1.5 rounded-md text-sm font-bold transition-all"
+                        >
+                          Registrar Domínio
+                        </a>
+                      )}
                     </div>
-                    <div>
-                      <p className={`font-bold text-sm ${domainCheckResult.available ? 'text-green-700' : 'text-red-700'}`}>
-                        {domainCheckQuery}{domainCheckTLD}
-                      </p>
-                      <p className={`text-xs ${domainCheckResult.available ? 'text-green-600' : 'text-red-600'}`}>
-                        {domainCheckResult.available ? '✓ Domínio disponível para registro!' : '✗ Domínio indisponível'}
-                      </p>
-                    </div>
+
                     {domainCheckResult.available && (
-                      <a
-                        href={`https://www.mozserver.co.mz/cart.php?a=add&domain=register&query=${domainCheckQuery}${domainCheckTLD}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="ml-auto bg-green-600 hover:bg-green-700 text-white px-4 py-1.5 rounded-md text-sm font-bold transition-all"
-                      >
-                        Registrar Domínio
-                      </a>
+                      <div className="bg-gray-50 border border-gray-200 rounded-md p-6">
+                        <h4 className="text-sm font-bold text-gray-800 uppercase tracking-wider mb-4 flex items-center gap-2">
+                          <CreditCard className="w-4 h-4 text-gray-600" />
+                          Dados para Pagamento
+                        </h4>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 text-sm">
+                          <div>
+                            <p className="font-semibold text-gray-700 mb-2">Transferência Bancária / M-Pesa</p>
+                            <div className="space-y-3 bg-white p-4 rounded border border-gray-100">
+                              <div>
+                                <p className="text-[10px] text-gray-400 font-bold uppercase tracking-tight">Banco (FNB)</p>
+                                <p className="font-mono text-gray-900">Visual Design, Lda</p>
+                                <p className="font-mono text-gray-900 font-bold">IBAN: MZ59 0000 0000 0000 0000 0</p>
+                              </div>
+                              <div className="pt-2 border-t border-gray-50">
+                                <p className="text-[10px] text-gray-400 font-bold uppercase tracking-tight">Vodacom M-Pesa</p>
+                                <p className="font-mono text-gray-900 font-bold">84 000 0000</p>
+                              </div>
+                            </div>
+                          </div>
+                          <div>
+                            <p className="font-semibold text-gray-700 mb-2">Instruções Importantes</p>
+                            <ul className="space-y-2 text-xs text-gray-600 list-disc pl-4">
+                              <li>Utilize o nome do domínio como referência no pagamento.</li>
+                              <li>Envie o comprovativo para <span className="font-bold">pagamentos@visualdesign.co.mz</span></li>
+                              <li>O registo será activado após a confirmação do crédito em conta.</li>
+                              <li>Preço Estimado: <span className="font-bold text-green-600">950,00 MT / Ano</span></li>
+                            </ul>
+                          </div>
+                        </div>
+                      </div>
                     )}
                   </div>
                 )}
@@ -1954,154 +2165,162 @@ function AdminPanelContent() {
                 <h1 className="text-3xl font-bold text-gray-900">Transferir Domínio</h1>
               </div>
 
-              {/* Transfer Info Banner */}
-              <div className="bg-purple-50 border border-purple-200 rounded-md p-4 mb-6 flex items-start gap-3">
-                <div className="w-10 h-10 rounded-full bg-purple-100 flex items-center justify-center shrink-0">
-                  <ArrowRightLeft className="w-5 h-5 text-purple-600" />
-                </div>
-                <div>
-                  <p className="font-bold text-sm text-purple-800">Transferência para Visual Design</p>
-                  <p className="text-xs text-purple-700 mt-1">
-                    Transfira o seu domínio para a gestão da Visual Design. Após a transferência, poderá gerir o domínio directamente neste painel.
-                    Necessita do código de autorização EPP do seu registrador actual.
-                  </p>
-                </div>
-              </div>
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                {/* Main Form Content */}
+                <div className="lg:col-span-2 space-y-6">
+                  <div className="bg-white rounded-md shadow-sm border border-gray-200 p-6">
+                    <h3 className="text-sm font-bold text-gray-700 uppercase tracking-wider mb-6 flex items-center gap-2">
+                      <ArrowRightLeft className="w-4 h-4 text-purple-600" />
+                      Dados da Transferência
+                    </h3>
 
-              <div className="bg-white rounded-md shadow-sm border border-gray-200 p-6 max-w-2xl">
-                <h3 className="text-sm font-bold text-gray-700 uppercase tracking-wider mb-6 flex items-center gap-2">
-                  <ArrowRightLeft className="w-4 h-4 text-purple-600" />
-                  Dados da Transferência
-                </h3>
+                    <div className="mb-4">
+                      <label className="block text-xs font-semibold text-gray-500 mb-1">Nome do Domínio *</label>
+                      <input
+                        type="text"
+                        placeholder="meudominio.com"
+                        value={transferDomain}
+                        onChange={(e) => setTransferDomain(e.target.value)}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-purple-500 text-sm"
+                      />
+                    </div>
 
-                <div className="mb-4">
-                  <label className="block text-xs font-semibold text-gray-500 mb-1">Nome do Domínio *</label>
-                  <input
-                    type="text"
-                    placeholder="meudominio.com"
-                    value={transferDomain}
-                    onChange={(e) => setTransferDomain(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-purple-500 text-sm"
-                  />
-                </div>
+                    <div className="mb-4">
+                      <label className="block text-xs font-semibold text-gray-500 mb-1">Código de Autorização (EPP/Auth Code) *</label>
+                      <input
+                        type="text"
+                        placeholder="Código EPP do registrador actual"
+                        value={transferAuthCode}
+                        onChange={(e) => setTransferAuthCode(e.target.value)}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-purple-500 text-sm"
+                      />
+                      <p className="text-[10px] text-gray-400 mt-1">Obtenha este código junto do registo actual do seu domínio.</p>
+                    </div>
 
-                <div className="mb-4">
-                  <label className="block text-xs font-semibold text-gray-500 mb-1">Código de Autorização (EPP/Auth Code) *</label>
-                  <input
-                    type="text"
-                    placeholder="Código EPP do registrador actual"
-                    value={transferAuthCode}
-                    onChange={(e) => setTransferAuthCode(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-purple-500 text-sm"
-                  />
-                  <p className="text-[10px] text-gray-400 mt-1">Obtenha este código junto do registo actual do seu domínio.</p>
-                </div>
+                    <hr className="my-5 border-gray-100" />
+                    <h4 className="text-xs font-bold text-gray-600 uppercase tracking-wider mb-4">Dados de Contacto</h4>
 
-                <hr className="my-5 border-gray-100" />
-                <h4 className="text-xs font-bold text-gray-600 uppercase tracking-wider mb-4">Dados de Contacto</h4>
+                    <div className="mb-4">
+                      <label className="block text-xs font-semibold text-gray-500 mb-1">Nome Completo *</label>
+                      <input
+                        type="text"
+                        placeholder="João Silva"
+                        value={transferContactName}
+                        onChange={(e) => setTransferContactName(e.target.value)}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-purple-500 text-sm"
+                      />
+                    </div>
 
-                <div className="mb-4">
-                  <label className="block text-xs font-semibold text-gray-500 mb-1">Nome Completo *</label>
-                  <input
-                    type="text"
-                    placeholder="João Silva"
-                    value={transferContactName}
-                    onChange={(e) => setTransferContactName(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-purple-500 text-sm"
-                  />
-                </div>
-
-                <div className="grid grid-cols-2 gap-4 mb-6">
-                  <div>
-                    <label className="block text-xs font-semibold text-gray-500 mb-1">E-mail *</label>
-                    <input
-                      type="email"
-                      placeholder="email@exemplo.com"
-                      value={transferContactEmail}
-                      onChange={(e) => setTransferContactEmail(e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-purple-500 text-sm"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-semibold text-gray-500 mb-1">Telefone</label>
-                    <input
-                      type="tel"
-                      placeholder="+258 84 000 0000"
-                      value={transferContactPhone}
-                      onChange={(e) => setTransferContactPhone(e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-purple-500 text-sm"
-                    />
-                  </div>
-                </div>
-
-                <button
-                  onClick={async () => {
-                    if (!transferDomain || !transferAuthCode || !transferContactName || !transferContactEmail) {
-                      alert('Por favor, preencha todos os campos obrigatórios.')
-                      return
-                    }
-                    setIsTransferring(true)
-                    try {
-                      // Save transfer request to Supabase
-                      const { error } = await supabase.from('domain_transfers').insert({
-                        domain_name: transferDomain,
-                        auth_code: transferAuthCode,
-                        contact_name: transferContactName,
-                        contact_email: transferContactEmail,
-                        contact_phone: transferContactPhone,
-                        status: 'pending',
-                        created_at: new Date().toISOString()
-                      })
-                      if (error) throw error
-                      alert('Pedido de transferência submetido com sucesso! Iremos processar a transferência e entrar em contacto.')
-                      setTransferDomain('')
-                      setTransferAuthCode('')
-                      setTransferContactName('')
-                      setTransferContactEmail('')
-                      setTransferContactPhone('')
-                    } catch (err) {
-                      console.error('Transfer error:', err)
-                      alert('Pedido de transferência registado. Entraremos em contacto para finalizar a transferência.')
-                      setTransferDomain('')
-                      setTransferAuthCode('')
-                      setTransferContactName('')
-                      setTransferContactEmail('')
-                      setTransferContactPhone('')
-                    } finally {
-                      setIsTransferring(false)
-                    }
-                  }}
-                  disabled={isTransferring || !transferDomain || !transferAuthCode || !transferContactName || !transferContactEmail}
-                  className="w-full bg-purple-600 hover:bg-purple-700 text-white py-2.5 rounded-md text-sm font-bold transition-all flex items-center justify-center gap-2 disabled:opacity-50"
-                >
-                  {isTransferring ? (
-                    <><RefreshCw className="w-4 h-4 animate-spin" /> Processando...</>
-                  ) : (
-                    <><ArrowRightLeft className="w-4 h-4" /> Solicitar Transferência</>
-                  )}
-                </button>
-              </div>
-
-              {/* Steps Guide */}
-              <div className="bg-white rounded-md shadow-sm border border-gray-200 p-6 max-w-2xl mt-6">
-                <h3 className="text-sm font-bold text-gray-700 uppercase tracking-wider mb-4">Como Funciona a Transferência</h3>
-                <div className="space-y-3">
-                  {[
-                    { step: '1', title: 'Desbloqueie o domínio', desc: 'Aceda ao painel do seu registrador actual e desbloquei o domínio para transferência.' },
-                    { step: '2', title: 'Obtenha o código EPP', desc: 'Solicite o código de autorização (EPP/Auth Code) ao seu registrador actual.' },
-                    { step: '3', title: 'Preencha o formulário', desc: 'Insira os dados acima e submeta o pedido de transferência.' },
-                    { step: '4', title: 'Aguarde a confirmação', desc: 'A equipa Visual Design processará a transferência. Receberá uma confirmação por e-mail.' },
-                  ].map(item => (
-                    <div key={item.step} className="flex items-start gap-3">
-                      <div className="w-7 h-7 bg-purple-100 text-purple-700 rounded-full flex items-center justify-center text-xs font-bold shrink-0">
-                        {item.step}
+                    <div className="grid grid-cols-2 gap-4 mb-6">
+                      <div>
+                        <label className="block text-xs font-semibold text-gray-500 mb-1">E-mail *</label>
+                        <input
+                          type="email"
+                          placeholder="email@exemplo.com"
+                          value={transferContactEmail}
+                          onChange={(e) => setTransferContactEmail(e.target.value)}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-purple-500 text-sm"
+                        />
                       </div>
                       <div>
-                        <p className="text-sm font-semibold text-gray-800">{item.title}</p>
-                        <p className="text-xs text-gray-500">{item.desc}</p>
+                        <label className="block text-xs font-semibold text-gray-500 mb-1">Telefone</label>
+                        <input
+                          type="tel"
+                          placeholder="+258 84 000 0000"
+                          value={transferContactPhone}
+                          onChange={(e) => setTransferContactPhone(e.target.value)}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-purple-500 text-sm"
+                        />
                       </div>
                     </div>
-                  ))}
+
+                    <div className="flex justify-start">
+                      <button
+                        onClick={async () => {
+                          if (!transferDomain || !transferAuthCode || !transferContactName || !transferContactEmail) {
+                            alert('Por favor, preencha todos os campos obrigatórios.')
+                            return
+                          }
+                          setIsTransferring(true)
+                          try {
+                            const { error } = await supabase.from('domain_transfers').insert({
+                              domain_name: transferDomain,
+                              auth_code: transferAuthCode,
+                              contact_name: transferContactName,
+                              contact_email: transferContactEmail,
+                              contact_phone: transferContactPhone,
+                              status: 'pending',
+                              created_at: new Date().toISOString()
+                            })
+                            if (error) throw error
+                            alert('Pedido de transferência submetido com sucesso! Iremos processar a transferência e entrar em contacto.')
+                            setTransferDomain('')
+                            setTransferAuthCode('')
+                            setTransferContactName('')
+                            setTransferContactEmail('')
+                            setTransferContactPhone('')
+                          } catch (err) {
+                            console.error('Transfer error:', err)
+                            alert('Pedido de transferência registado. Entraremos em contacto para finalizar a transferência.')
+                            setTransferDomain('')
+                            setTransferAuthCode('')
+                            setTransferContactName('')
+                            setTransferContactEmail('')
+                            setTransferContactPhone('')
+                          } finally {
+                            setIsTransferring(false)
+                          }
+                        }}
+                        disabled={isTransferring || !transferDomain || !transferAuthCode || !transferContactName || !transferContactEmail}
+                        className="w-full md:w-auto px-12 bg-black hover:bg-red-600 text-white py-2.5 rounded-md text-sm font-bold transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                      >
+                        {isTransferring ? (
+                          <><RefreshCw className="w-4 h-4 animate-spin" /> Processando...</>
+                        ) : (
+                          <><ArrowRightLeft className="w-4 h-4" /> Solicitar Transferência</>
+                        )}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Sidebar Instructions */}
+                <div className="lg:col-span-1 space-y-6">
+                  {/* Transfer Info Banner */}
+                  <div className="bg-purple-50 border border-purple-200 rounded-md p-4 flex items-start gap-3">
+                    <div className="w-8 h-8 rounded-full bg-purple-100 flex items-center justify-center shrink-0">
+                      <ArrowRightLeft className="w-4 h-4 text-purple-600" />
+                    </div>
+                    <div>
+                      <p className="font-bold text-xs text-purple-800">Transferência para Visual Design</p>
+                      <p className="text-[11px] text-purple-700 mt-1">
+                        Transfira o seu domínio para a gestão da Visual Design. Após a transferência, poderá gerir o domínio directamente neste painel.
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Steps Guide */}
+                  <div className="bg-white rounded-md shadow-sm border border-gray-200 p-6">
+                    <h3 className="text-sm font-bold text-gray-700 uppercase tracking-wider mb-4">Passos a seguir</h3>
+                    <div className="space-y-4">
+                      {[
+                        { step: '1', title: 'Desbloqueie o domínio', desc: 'Aceda ao seu registrador actual e desbloquei o domínio.' },
+                        { step: '2', title: 'Obtenha o código EPP', desc: 'Solicite o código de autorização (EPP Code).' },
+                        { step: '3', title: 'Preencha o formulário', desc: 'Introduza os dados e submeta o pedido.' },
+                        { step: '4', title: 'Confirmação', desc: 'Receberá uma confirmação após o processamento.' },
+                      ].map(item => (
+                        <div key={item.step} className="flex items-start gap-3">
+                          <div className="w-6 h-6 bg-purple-100 text-purple-700 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0">
+                            {item.step}
+                          </div>
+                          <div>
+                            <p className="text-xs font-semibold text-gray-800">{item.title}</p>
+                            <p className="text-[11px] text-gray-500 leading-tight">{item.desc}</p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -2562,13 +2781,22 @@ function AdminPanelContent() {
                     </div>
                     <div>
                       <label className="block text-xs font-semibold text-gray-600 mb-1">Senha (Opcional)</label>
-                      <input
-                        type="password"
-                        placeholder="Deixe vazio para gerar"
-                        value={newAccountData.password}
-                        onChange={(e) => setNewAccountData({ ...newAccountData, password: e.target.value })}
-                        className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-red-500"
-                      />
+                      <div className="relative">
+                        <input
+                          type={showNewAccountPass ? "text" : "password"}
+                          placeholder="Deixe vazio para gerar"
+                          value={newAccountData.password}
+                          onChange={(e) => setNewAccountData({ ...newAccountData, password: e.target.value })}
+                          className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-red-500 pr-10"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowNewAccountPass(!showNewAccountPass)}
+                          className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-red-600 p-1"
+                        >
+                          {showNewAccountPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                        </button>
+                      </div>
                     </div>
                     <div>
                       <label className="block text-xs font-semibold text-gray-600 mb-1">E-mail de Contacto *</label>

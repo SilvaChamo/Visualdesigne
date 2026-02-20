@@ -10,8 +10,11 @@ const exo2 = Exo_2({
 });
 
 export const metadata: Metadata = {
-  title: "Visual Design - Agência de Design Digital em Maputo",
-  description: "Transformamos ideias em realidade digital. Web design, desenvolvimento e marketing digital que geram resultados.",
+  title: "visualdesign",
+  description: "visualdesign",
+  icons: {
+    icon: "/assets/simbolo.png",
+  },
 };
 
 export default function RootLayout({
