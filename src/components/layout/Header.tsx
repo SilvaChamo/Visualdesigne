@@ -5,7 +5,7 @@ import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Menu, X, ChevronDown } from 'lucide-react'
+import { Menu, X, ChevronDown, User } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { useI18n } from '@/lib/i18n'
@@ -153,7 +153,7 @@ export function Header({ isScrolled = false }: { isScrolled?: boolean }) {
             </div>
 
             {/* Right Column - Buttons (1fr) */}
-            <div className="flex items-center justify-end">
+            <div className="flex items-center justify-end space-x-4">
               {/* Language Toggle Button */}
               <button
                 onClick={toggleLang}
@@ -162,15 +162,24 @@ export function Header({ isScrolled = false }: { isScrolled?: boolean }) {
               >
                 {otherLangLabel}
               </button>
-            </div>
 
-            {/* Mobile Menu Button */}
-            <button
-              onClick={toggleMobileMenu}
-              className="lg:hidden p-2 rounded-lg hover:bg-gray-700 transition-colors absolute right-4"
-            >
-              {isOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
-            </button>
+              {/* Login Button - Desktop */}
+              <Link
+                href="/login"
+                className="px-4 py-2 bg-red-600 text-white text-[10px] lg:text-xs font-black uppercase tracking-tighter rounded-md hover:bg-black hover:text-white transition-all shadow-lg shadow-red-900/20 flex items-center gap-2 group whitespace-nowrap"
+              >
+                <User className="w-4 h-4 group-hover:scale-110 transition-transform" />
+                Login
+              </Link>
+
+              {/* Mobile Menu Button */}
+              <button
+                onClick={toggleMobileMenu}
+                className="lg:hidden p-2 rounded-lg hover:bg-gray-700 transition-colors"
+              >
+                {isOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -226,16 +235,26 @@ export function Header({ isScrolled = false }: { isScrolled?: boolean }) {
                     <Link
                       href={item.href}
                       className={cn(
-                        "text-black hover:text-red-600 font-medium transition-colors py-2",
+                        "text-white hover:text-white hover:bg-red-600 font-medium transition-colors py-2",
                         pathname === item.href && "text-red-600"
                       )}
-                      onClick={() => setActiveDropdown(null)}
+                      onClick={() => { setActiveDropdown(null); setIsOpen(false); }}
                     >
                       {t(item.nameKey)}
                     </Link>
                   )}
                 </div>
               ))}
+
+              {/* Login Link for Mobile */}
+              <Link
+                href="/login"
+                className="flex items-center gap-2 px-4 py-3 bg-red-600/10 text-red-600 rounded-xl font-bold text-sm"
+                onClick={() => setIsOpen(false)}
+              >
+                <User className="w-4 h-4" />
+                Login
+              </Link>
 
               <div className="pt-4 border-t border-gray-300 space-y-3">
                 <button
