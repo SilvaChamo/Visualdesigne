@@ -6,7 +6,8 @@ import { validateAdminCredentials, generateAdminToken, validateAdminToken } from
 import { vhmAPI, VHMClient, VHMStats } from '@/lib/vhm-api'
 import { whmcsAPI, WhmcsDomain } from '@/lib/whmcs-api'
 import { supabase } from '@/lib/supabase'
-import { Users, Plus, Trash2, Mail, AlertCircle, Check, X, Eye, EyeOff, Edit, DollarSign, Calendar, Shield, Search, Filter, Download, Settings, LogOut, Home, FileText, BarChart3, Globe, TrendingUp, Package, CreditCard, UserPlus, Activity, Clock, Star, MessageSquare, MessageCircle, Database, Server, Globe2, Lock, Bell, Archive, RefreshCw, ChevronRight, ChevronDown, MoreVertical, ArrowRightLeft, PlusCircle, Inbox, User, ShieldCheck } from 'lucide-react'
+import { generateNotificationReport, calculateDaysUntilExpiry } from '@/lib/notification-system'
+import { Users, Plus, Trash2, Mail, AlertCircle, Check, X, Eye, EyeOff, Edit, DollarSign, Calendar, Shield, Search, Filter, Download, Settings, LogOut, Home, FileText, BarChart3, Globe, TrendingUp, Package, CreditCard, UserPlus, Activity, Clock, Star, MessageSquare, MessageCircle, Database, Server, Globe2, Lock, Bell, Archive, RefreshCw, ChevronRight, ChevronDown, MoreVertical, ArrowRightLeft, PlusCircle, Inbox, User, ShieldCheck, Wallet } from 'lucide-react'
 
 interface Client {
   id: string;
@@ -137,6 +138,14 @@ function AdminPanelContent() {
   const [realWebmailAccounts, setRealWebmailAccounts] = useState<any[]>([])
   const [isFetchingWebmailAccounts, setIsFetchingWebmailAccounts] = useState(false)
   const [isRightSidebarOpen, setIsRightSidebarOpen] = useState(true)
+  const [billingInfo, setBillingInfo] = useState<{
+    balance: string;
+    status: string;
+    nextDueDate: string;
+    paidInvoices: number;
+    daysToRenew: number;
+  } | null>(null)
+  const [notificationCount, setNotificationCount] = useState(0)
 
   // Password Visibility States
   const [showAdminPass, setShowAdminPass] = useState(false)
@@ -177,6 +186,22 @@ function AdminPanelContent() {
 
       if (error) throw error
       setSubscriptions(data || [])
+
+      // Calculate active notifications
+      const subClients = (data || []).map(s => ({
+        id: s.id,
+        name: s.vhm_username,
+        email: s.client_email,
+        domain: s.domain,
+        status: s.status as any,
+        plan: s.plan,
+        price: 0,
+        currency: 'MT',
+        expiryDate: s.expiry_date || '',
+        registeredAt: s.created_at
+      }))
+      const report = generateNotificationReport(subClients)
+      setNotificationCount(report.expiringIn30Days + report.expiringIn15Days + report.expiringIn7Days + report.expiringIn1Day + report.expired)
     } catch (err) {
       console.error('Error loading subscriptions:', err)
     }
@@ -266,6 +291,31 @@ function AdminPanelContent() {
       setPlans(plansData)
 
       console.log(`Loaded ${clientsData.length} VHM clients`)
+
+      // Fetch Billing Info from WHMCS
+      try {
+        const [clientDetails, invoices] = await Promise.all([
+          whmcsAPI.getClientsDetails(),
+          whmcsAPI.getInvoices('Paid')
+        ])
+
+        if (clientDetails) {
+          // Find next renewal (simplification: use the furthest expiry domain or just status)
+          const resellerDomains = await whmcsAPI.getClientDomains()
+          const hostingDomain = resellerDomains.find(d => d.domainname === 'visualdesigne.com') || resellerDomains[0]
+          const daysToRenew = hostingDomain ? calculateDaysUntilExpiry(hostingDomain.expirydate) : 0
+
+          setBillingInfo({
+            balance: `${clientDetails.credit || '0.00'} MT`,
+            status: clientDetails.status || 'Ativo',
+            nextDueDate: hostingDomain?.expirydate || 'N/A',
+            paidInvoices: invoices.length,
+            daysToRenew: daysToRenew
+          })
+        }
+      } catch (billingErr) {
+        console.error('Error loading billing info:', billingErr)
+      }
     } catch (err) {
       console.error('VHM API Error:', err)
       setError(err instanceof Error ? err.message : 'Failed to load VHM data')
@@ -619,10 +669,13 @@ function AdminPanelContent() {
 
   if (!isAuthenticated) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 flex items-center justify-center p-4">
-        <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-8">
-          <div className="text-center mb-10">
-            <div className="w-72 h-24 mx-auto mb-1 flex items-center justify-center">
+      <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 flex items-center justify-center p-4 relative overflow-hidden">
+        {/* Decorative elements */}
+        <div className="fixed bottom-0 left-0 right-0 h-1.5 bg-red-600 z-50"></div>
+
+        <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-8 relative z-10">
+          <div className="text-center mb-6">
+            <div className="w-72 h-24 mx-auto mb-0 flex items-center justify-center">
               <img src="/assets/logotype.png" alt="Visual Design" className="w-full h-full object-contain" />
             </div>
             <h2 className="text-2xl font-bold text-gray-900 mb-0 leading-tight">Painel Administrativo</h2>
@@ -760,9 +813,9 @@ function AdminPanelContent() {
       <div className="flex">
         {/* Sidebar */}
         <div className={`${isSidebarCollapsed ? 'w-20' : 'w-64'} bg-white shadow-lg h-screen transition-all duration-300 relative group flex flex-col`}>
-          <div className={`p-4 border-b border-gray-200 shrink-0`}>
-            <div className={`flex items-center gap-3 ${isSidebarCollapsed ? 'flex-col' : ''}`}>
-              <div className="w-12 h-12 flex items-center justify-center shrink-0">
+          <div className={`p-3 border-b border-gray-200 shrink-0`}>
+            <div className={`flex items-center gap-0 ${isSidebarCollapsed ? 'flex-col' : ''}`}>
+              <div className="w-16 h-16 flex items-center justify-center shrink-0">
                 <img src="/assets/simbolo.png" alt="Visual Design" className="w-full h-full object-contain" />
               </div>
               {!isSidebarCollapsed ? (
@@ -953,75 +1006,79 @@ function AdminPanelContent() {
                 <>
                   {/* Stats Cards */}
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-                    <div className="bg-white rounded-xl shadow-md p-6 hover:shadow-lg transition-shadow">
-                      <div className="flex items-center justify-between mb-4">
-                        <div className="w-12 h-12 bg-blue-100 rounded-md flex items-center justify-center">
-                          <Users className="w-6 h-6 text-blue-600" />
-                        </div>
-                        <span className="text-sm text-gray-500">Total</span>
+                    <div className="bg-white rounded-xl shadow-md p-6 hover:shadow-lg transition-shadow flex items-center gap-4">
+                      <div className="w-12 h-12 bg-blue-100 rounded-md flex items-center justify-center shrink-0">
+                        <Users className="w-6 h-6 text-blue-600" />
                       </div>
-                      <div className="text-2xl font-bold text-gray-900">{stats.total_clients}</div>
-                      <div className="text-sm text-gray-600">Clientes</div>
-                      <div className="mt-2 text-xs text-green-600">VHM Real</div>
+                      <div className="flex-1">
+                        <div className="flex items-baseline justify-between">
+                          <div className="text-2xl font-bold text-gray-900 leading-none">{stats.total_clients}</div>
+                          <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Total</div>
+                        </div>
+                        <div className="text-sm text-gray-600 mt-1">Clientes</div>
+                      </div>
                     </div>
 
-                    <div className="bg-white rounded-xl shadow-md p-6 hover:shadow-lg transition-shadow">
-                      <div className="flex items-center justify-between mb-4">
-                        <div className="w-12 h-12 bg-green-100 rounded-md flex items-center justify-center">
-                          <Check className="w-6 h-6 text-green-600" />
-                        </div>
-                        <span className="text-sm text-gray-500">Ativos</span>
+                    <div className="bg-white rounded-xl shadow-md p-6 hover:shadow-lg transition-shadow flex items-center gap-4">
+                      <div className="w-12 h-12 bg-green-100 rounded-md flex items-center justify-center shrink-0">
+                        <Check className="w-6 h-6 text-green-600" />
                       </div>
-                      <div className="text-2xl font-bold text-gray-900">{stats.active_clients}</div>
-                      <div className="text-sm text-gray-600">Clientes</div>
-                      <div className="mt-2 text-xs text-green-600">VHM Real</div>
+                      <div className="flex-1">
+                        <div className="flex items-baseline justify-between">
+                          <div className="text-2xl font-bold text-gray-900 leading-none">{stats.active_clients}</div>
+                          <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Ativos</div>
+                        </div>
+                        <div className="text-sm text-gray-600 mt-1">Contas Ativas</div>
+                      </div>
                     </div>
 
-                    <div className="bg-white rounded-xl shadow-md p-6 hover:shadow-lg transition-shadow">
-                      <div className="flex items-center justify-between mb-4">
-                        <div className="w-12 h-12 bg-purple-100 rounded-md flex items-center justify-center">
-                          <Globe2 className="w-6 h-6 text-purple-600" />
-                        </div>
-                        <span className="text-sm text-gray-500">Total</span>
+                    <div className="bg-white rounded-xl shadow-md p-6 hover:shadow-lg transition-shadow flex items-center gap-4">
+                      <div className="w-12 h-12 bg-purple-100 rounded-md flex items-center justify-center shrink-0">
+                        <Globe2 className="w-6 h-6 text-purple-600" />
                       </div>
-                      <div className="text-2xl font-bold text-gray-900">{stats.total_domains}</div>
-                      <div className="text-sm text-gray-600">Domínios</div>
-                      <div className="mt-2 text-xs text-green-600">VHM Real</div>
+                      <div className="flex-1">
+                        <div className="flex items-baseline justify-between">
+                          <div className="text-2xl font-bold text-gray-900 leading-none">{stats.total_domains}</div>
+                          <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Total</div>
+                        </div>
+                        <div className="text-sm text-gray-600 mt-1">Domínios</div>
+                      </div>
                     </div>
 
-                    <div className="bg-white rounded-xl shadow-md p-6 hover:shadow-lg transition-shadow">
-                      <div className="flex items-center justify-between mb-4">
-                        <div className="w-12 h-12 bg-orange-100 rounded-md flex items-center justify-center">
-                          <Database className="w-6 h-6 text-orange-600" />
-                        </div>
-                        <span className="text-sm text-gray-500">Uso</span>
+                    <div className="bg-white rounded-xl shadow-md p-6 hover:shadow-lg transition-shadow flex items-center gap-4">
+                      <div className="w-12 h-12 bg-orange-100 rounded-md flex items-center justify-center shrink-0">
+                        <Database className="w-6 h-6 text-orange-600" />
                       </div>
-                      <div className="text-2xl font-bold text-gray-900">{formatBytes(stats.disk_usage_total)}</div>
-                      <div className="text-sm text-gray-600">Disco Total</div>
-                      <div className="mt-2 text-xs text-green-600">VHM Real</div>
+                      <div className="flex-1">
+                        <div className="flex items-baseline justify-between">
+                          <div className="text-2xl font-bold text-gray-900 leading-none">{formatBytes(stats.disk_usage_total)}</div>
+                          <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Uso</div>
+                        </div>
+                        <div className="text-sm text-gray-600 mt-1">Disco Total</div>
+                      </div>
                     </div>
                   </div>
 
-                  {/* Quick Actions */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+                  {/* Secondary Cards Row */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
                     <div className="bg-white rounded-xl shadow-md p-6">
                       <h3 className="text-lg font-semibold text-gray-900 mb-4">Ações Rápidas</h3>
                       <div className="space-y-3">
                         <button
                           onClick={() => setShowCreateModal(true)}
-                          className="w-full flex items-center gap-3 px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-md transition-colors"
+                          className="w-full flex items-center gap-3 px-3 py-2 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-md transition-colors"
                         >
                           <UserPlus className="w-5 h-5" />
                           <span>Novo Cliente</span>
                         </button>
                         <button
                           onClick={() => loadVHMData()}
-                          className="w-full flex items-center gap-3 px-3 py-1.5 bg-green-50 hover:bg-green-100 text-green-700 rounded-md transition-colors"
+                          className="w-full flex items-center gap-3 px-3 py-2 bg-green-50 hover:bg-green-100 text-green-700 rounded-md transition-colors"
                         >
                           <RefreshCw className="w-5 h-5" />
                           <span>Atualizar Dados</span>
                         </button>
-                        <button className="w-full flex items-center gap-3 px-3 py-1.5 bg-purple-50 hover:bg-purple-100 text-purple-700 rounded-md transition-colors text-sm">
+                        <button className="w-full flex items-center gap-3 px-3 py-2 bg-purple-50 hover:bg-purple-100 text-purple-700 rounded-md transition-colors text-sm">
                           <Mail className="w-4 h-4" />
                           <span>Enviar Notificação</span>
                         </button>
@@ -1037,11 +1094,11 @@ function AdminPanelContent() {
                         </div>
                         <div className="flex items-center justify-between">
                           <span className="text-sm text-gray-600">Clientes Suspensos</span>
-                          <span className="text-sm text-gray-900">{stats.suspended_clients}</span>
+                          <span className="text-sm text-gray-900 font-medium">{stats.suspended_clients}</span>
                         </div>
                         <div className="flex items-center justify-between">
                           <span className="text-sm text-gray-600">Uso de Banda</span>
-                          <span className="text-sm text-gray-900">{formatBytes(stats.bandwidth_usage_total)}</span>
+                          <span className="text-sm text-gray-900 font-medium">{formatBytes(stats.bandwidth_usage_total)}</span>
                         </div>
                       </div>
                     </div>
@@ -1053,30 +1110,160 @@ function AdminPanelContent() {
                           <div className="w-2 h-2 bg-green-500 rounded-full"></div>
                           <div className="flex-1">
                             <div className="text-sm text-gray-900">API VHM Conectada</div>
-                            <div className="text-xs text-gray-500">Dados em tempo real</div>
+                            <div className="text-xs text-gray-500">za4.mozserver.com</div>
                           </div>
                         </div>
                         <div className="flex items-center gap-3">
                           <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
                           <div className="flex-1">
-                            <div className="text-sm text-gray-900">Servidor: za4.mozserver.com</div>
-                            <div className="text-xs text-gray-500">Porta 2087</div>
+                            <div className="text-sm text-gray-900">Porta Segura 2087</div>
+                            <div className="text-xs text-gray-500">DNS: Visual Design</div>
                           </div>
                         </div>
                         <div className="flex items-center gap-3">
                           <div className="w-2 h-2 bg-orange-500 rounded-full"></div>
                           <div className="flex-1">
-                            <div className="text-sm text-gray-900">Controle Total</div>
-                            <div className="text-xs text-gray-500">Ações reais no VHM</div>
+                            <div className="text-sm text-gray-900">Sincronização Ativa</div>
+                            <div className="text-xs text-gray-500">Base Supabase OK</div>
                           </div>
                         </div>
                       </div>
+                    </div>
+
+                    <div className="bg-white rounded-xl shadow-md p-6">
+                      <h3 className="text-lg font-semibold text-gray-900 mb-4">Conta Principal</h3>
+                      <div className="space-y-3">
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm text-gray-600">Estado da Conta</span>
+                          <span className={`px-2 py-1 ${billingInfo?.status === 'Active' || billingInfo?.status === 'Ativo' ? 'bg-green-100 text-green-700' : 'bg-orange-100 text-orange-700'} text-xs rounded-full font-medium`}>
+                            {billingInfo?.status || 'Ativo'}
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm text-gray-600">Saldo / Créditos</span>
+                          <span className="text-sm font-bold text-gray-900">{billingInfo?.balance || '0.00 MT'}</span>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm text-gray-600">Renovação MozServer</span>
+                          <div className="text-right">
+                            <span className={`text-sm font-bold ${billingInfo && billingInfo.daysToRenew < 15 ? 'text-red-600' : 'text-gray-900'}`}>
+                              {billingInfo?.daysToRenew || 0} dias
+                            </span>
+                            <div className="text-[10px] text-gray-500 font-medium">{billingInfo?.nextDueDate}</div>
+                          </div>
+                        </div>
+                        <div className="pt-2 mt-2 border-t border-gray-100 flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <Bell className="w-4 h-4 text-red-500" />
+                            <span className="text-sm text-gray-700">Notificações</span>
+                          </div>
+                          <span className="bg-red-600 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">
+                            {notificationCount} Activas
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Marketplace / Shop Services */}
+                  <div>
+                    <div className="flex items-center gap-2 mb-6">
+                      <Sparkles className="w-5 h-5 text-amber-500" />
+                      <h2 className="text-xl font-bold text-gray-900">Comprar Novos Serviços</h2>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                      {/* Domains Card */}
+                      <Link href="/servicos/dominios" className="group bg-white rounded-xl shadow-sm hover:shadow-md transition-all p-5 border border-gray-100 border-b-4 border-b-blue-500">
+                        <div className="w-10 h-10 bg-blue-50 text-blue-600 rounded-lg flex items-center justify-center mb-4 group-hover:bg-blue-600 group-hover:text-white transition-colors">
+                          <Globe className="w-6 h-6" />
+                        </div>
+                        <h4 className="font-bold text-gray-900 mb-1">Domínios .MZ</h4>
+                        <p className="text-xs text-gray-500 mb-4 line-clamp-2">Garanta sua identidade online com extensões nacionais e internacionais.</p>
+                        <div className="flex items-center text-blue-600 text-xs font-bold uppercase tracking-wider">
+                          Ver Preços <ArrowRight className="w-3 h-3 ml-1 group-hover:translate-x-1 transition-transform" />
+                        </div>
+                      </Link>
+
+                      {/* Hosting Card */}
+                      <Link href="/servicos/hospedagem" className="group bg-white rounded-xl shadow-sm hover:shadow-md transition-all p-5 border border-gray-100 border-b-4 border-b-green-500">
+                        <div className="w-10 h-10 bg-green-50 text-green-600 rounded-lg flex items-center justify-center mb-4 group-hover:bg-green-600 group-hover:text-white transition-colors">
+                          <Server className="w-6 h-6" />
+                        </div>
+                        <h4 className="font-bold text-gray-900 mb-1">Hospedagem Web</h4>
+                        <p className="text-xs text-gray-500 mb-4 line-clamp-2">Alta performance para seu site ou aplicação com servidores em Moçambique.</p>
+                        <div className="flex items-center text-green-600 text-xs font-bold uppercase tracking-wider">
+                          Escolher Plano <ArrowRight className="w-3 h-3 ml-1 group-hover:translate-x-1 transition-transform" />
+                        </div>
+                      </Link>
+
+                      {/* SSL Card */}
+                      <Link href="/servicos/ssl" className="group bg-white rounded-xl shadow-sm hover:shadow-md transition-all p-5 border border-gray-100 border-b-4 border-b-amber-500">
+                        <div className="w-10 h-10 bg-amber-50 text-amber-600 rounded-lg flex items-center justify-center mb-4 group-hover:bg-amber-600 group-hover:text-white transition-colors">
+                          <ShieldCheck className="w-6 h-6" />
+                        </div>
+                        <h4 className="font-bold text-gray-900 mb-1">Certificados SSL</h4>
+                        <p className="text-xs text-gray-500 mb-4 line-clamp-2">Segurança máxima e selo de confiança para seus visitantes e clientes.</p>
+                        <div className="flex items-center text-amber-600 text-xs font-bold uppercase tracking-wider">
+                          Contratar <ArrowRight className="w-3 h-3 ml-1 group-hover:translate-x-1 transition-transform" />
+                        </div>
+                      </Link>
+
+                      {/* Professional Email */}
+                      <Link href="/servicos/email" className="group bg-white rounded-xl shadow-sm hover:shadow-md transition-all p-5 border border-gray-100 border-b-4 border-b-purple-500">
+                        <div className="w-10 h-10 bg-purple-50 text-purple-600 rounded-lg flex items-center justify-center mb-4 group-hover:bg-purple-600 group-hover:text-white transition-colors">
+                          <Mail className="w-6 h-6" />
+                        </div>
+                        <h4 className="font-bold text-gray-900 mb-1">Email Profissional</h4>
+                        <p className="text-xs text-gray-500 mb-4 line-clamp-2">Comunicação corporativa segura e personalizada com seu próprio domínio.</p>
+                        <div className="flex items-center text-purple-600 text-xs font-bold uppercase tracking-wider">
+                          Configurar <ArrowRight className="w-3 h-3 ml-1 group-hover:translate-x-1 transition-transform" />
+                        </div>
+                      </Link>
+
+                      {/* Digital Services - Row 2 */}
+                      <Link href="/servicos/design-grafico" className="group bg-white rounded-xl shadow-sm hover:shadow-md transition-all p-5 border border-gray-100 border-b-4 border-b-red-500">
+                        <div className="w-10 h-10 bg-red-50 text-red-600 rounded-lg flex items-center justify-center mb-4 group-hover:bg-red-600 group-hover:text-white transition-colors">
+                          <Star className="w-6 h-6" />
+                        </div>
+                        <h4 className="font-bold text-gray-900 mb-1">Design Gráfico</h4>
+                        <p className="text-xs text-gray-500 mb-4 line-clamp-2">Criação de logotipos, material para redes sociais e identidade visual.</p>
+                        <div className="flex items-center text-red-600 text-xs font-bold uppercase tracking-wider">
+                          Ver Mais <ArrowRight className="w-3 h-3 ml-1 group-hover:translate-x-1 transition-transform" />
+                        </div>
+                      </Link>
+
+                      <Link href="/servicos/marketing-digital" className="group bg-white rounded-xl shadow-sm hover:shadow-md transition-all p-5 border border-gray-100 border-b-4 border-b-red-500">
+                        <div className="w-10 h-10 bg-red-50 text-red-600 rounded-lg flex items-center justify-center mb-4 group-hover:bg-red-600 group-hover:text-white transition-colors">
+                          <TrendingUp className="w-6 h-6" />
+                        </div>
+                        <h4 className="font-bold text-gray-900 mb-1">Marketing Digital</h4>
+                        <p className="text-xs text-gray-500 mb-4 line-clamp-2">Estratégias para aumentar suas vendas e presença online.</p>
+                        <div className="flex items-center text-red-600 text-xs font-bold uppercase tracking-wider">
+                          Consulte-nos <ArrowRight className="w-3 h-3 ml-1 group-hover:translate-x-1 transition-transform" />
+                        </div>
+                      </Link>
+
+                      <button
+                        onClick={() => setActiveSection('support')}
+                        className="group bg-white rounded-xl shadow-sm hover:shadow-md transition-all p-5 border border-gray-100 border-b-4 border-b-gray-400 text-left"
+                      >
+                        <div className="w-10 h-10 bg-gray-50 text-gray-600 rounded-lg flex items-center justify-center mb-4 group-hover:bg-gray-600 group-hover:text-white transition-colors">
+                          <Activity className="w-6 h-6" />
+                        </div>
+                        <h4 className="font-bold text-gray-900 mb-1">Suporte Técnico</h4>
+                        <p className="text-xs text-gray-500 mb-4 line-clamp-2">Ajuda especializada para resolver qualquer problema nos seus serviços.</p>
+                        <div className="flex items-center text-gray-600 text-xs font-bold uppercase tracking-wider">
+                          Pedir Ajuda <ArrowRight className="w-3 h-3 ml-1 group-hover:translate-x-1 transition-transform" />
+                        </div>
+                      </button>
                     </div>
                   </div>
                 </>
               )}
             </div>
-          )}
+          )
+          }
 
           {
             activeSection === 'clients' && (
@@ -2919,9 +3106,8 @@ function AdminPanelContent() {
               </div>
             </div>
           </div>
-        )
-      }
-    </div >
+        )}
+    </div>
   )
 }
 

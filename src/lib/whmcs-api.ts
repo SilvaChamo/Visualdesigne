@@ -135,6 +135,32 @@ class WhmcsAPI {
             return false
         }
     }
+
+    // Get client details (balance, status, etc)
+    async getClientsDetails(): Promise<any> {
+        try {
+            return await this.makeRequest('GetClientsDetails', {
+                email: this.email
+            })
+        } catch (error) {
+            console.error('Failed to fetch client details:', error)
+            return null
+        }
+    }
+
+    // Get invoices (to check payments)
+    async getInvoices(status: string = 'Paid'): Promise<any[]> {
+        try {
+            const result = await this.makeRequest('GetInvoices', {
+                limitnum: 50,
+                status: status
+            })
+            return result.invoices?.invoice || []
+        } catch (error) {
+            console.error('Failed to fetch invoices:', error)
+            return []
+        }
+    }
 }
 
 export const whmcsAPI = new WhmcsAPI()
