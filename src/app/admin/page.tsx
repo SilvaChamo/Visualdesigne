@@ -6,7 +6,7 @@ import { validateAdminCredentials, generateAdminToken, validateAdminToken } from
 import { vhmAPI, VHMClient, VHMStats } from '@/lib/vhm-api'
 import { whmcsAPI, WhmcsDomain } from '@/lib/whmcs-api'
 import { supabase } from '@/lib/supabase'
-import { Users, Plus, Trash2, Mail, AlertCircle, Check, X, Eye, EyeOff, Edit, DollarSign, Calendar, Shield, Search, Filter, Download, Settings, LogOut, Home, FileText, BarChart3, Globe, TrendingUp, Package, CreditCard, UserPlus, Activity, Clock, Star, MessageSquare, MessageCircle, Database, Server, Globe2, Lock, Bell, Archive, RefreshCw, ChevronRight, MoreVertical } from 'lucide-react'
+import { Users, Plus, Trash2, Mail, AlertCircle, Check, X, Eye, EyeOff, Edit, DollarSign, Calendar, Shield, Search, Filter, Download, Settings, LogOut, Home, FileText, BarChart3, Globe, TrendingUp, Package, CreditCard, UserPlus, Activity, Clock, Star, MessageSquare, MessageCircle, Database, Server, Globe2, Lock, Bell, Archive, RefreshCw, ChevronRight, ChevronDown, MoreVertical, ArrowRightLeft, PlusCircle, Inbox } from 'lucide-react'
 
 interface Client {
   id: string;
@@ -98,6 +98,15 @@ function AdminPanelContent() {
   const [editFormPassword, setEditFormPassword] = useState('')
   const [editFormPhone, setEditFormPhone] = useState('')
   const [selectedClients, setSelectedClients] = useState<string[]>([])
+  const [expandedMenus, setExpandedMenus] = useState<Record<string, boolean>>({ emails: false, domains: false })
+
+  // Domain Transfer State
+  const [transferDomain, setTransferDomain] = useState('')
+  const [transferAuthCode, setTransferAuthCode] = useState('')
+  const [transferContactName, setTransferContactName] = useState('')
+  const [transferContactEmail, setTransferContactEmail] = useState('')
+  const [transferContactPhone, setTransferContactPhone] = useState('')
+  const [isTransferring, setIsTransferring] = useState(false)
 
   // Mail Reports State
   const [mailReports, setMailReports] = useState<any[]>([])
@@ -684,11 +693,22 @@ function AdminPanelContent() {
     client.email.toLowerCase().includes(searchTerm.toLowerCase())
   )
 
-  const menuItems = [
+  const menuItems: Array<{ id: string; label: string; color: string; subItems?: Array<{ id: string; label: string }> }> = [
     { id: 'dashboard', label: 'Dashboard', color: 'bg-blue-500' },
     { id: 'clients', label: 'Clientes', color: 'bg-green-500' },
-    { id: 'emails', label: 'E-mails', color: 'bg-cyan-500' },
-    { id: 'domains', label: 'Domínios', color: 'bg-purple-500' },
+    {
+      id: 'emails', label: 'E-mails', color: 'bg-cyan-500', subItems: [
+        { id: 'emails', label: 'E-mails' },
+        { id: 'emails-new', label: 'Novo E-mail' },
+      ]
+    },
+    {
+      id: 'domains', label: 'Domínios', color: 'bg-purple-500', subItems: [
+        { id: 'domains', label: 'Domínios' },
+        { id: 'domains-new', label: 'Novo Domínio' },
+        { id: 'domains-transfer', label: 'Transferir Domínio' },
+      ]
+    },
     { id: 'notifications', label: 'Notificações', color: 'bg-orange-500' },
     { id: 'billing', label: 'Faturação', color: 'bg-indigo-500' },
     { id: 'reports', label: 'Relatórios', color: 'bg-pink-500' },
@@ -752,32 +772,74 @@ function AdminPanelContent() {
             </div>
           </div>
 
-          <nav className="p-4 space-y-2">
-            {menuItems.map((item) => (
-              <button
-                key={item.id}
-                onClick={() => {
-                  setActiveSection(item.id)
-                }}
-                className={`w-full flex items-center transition-all duration-200 rounded-md ${activeSection === item.id
-                  ? 'bg-red-50 text-red-600'
-                  : 'text-gray-600 hover:bg-gray-50'
-                  } ${isSidebarCollapsed ? 'px-0 justify-center py-2' : 'px-3 py-1.5'}`}
-                title={isSidebarCollapsed ? item.label : ''}
-              >
-                <div className={`shrink-0 transition-all ${isSidebarCollapsed ? '' : 'mr-3'}`}>
-                  {SidebarIcon(item.id)}
+          <nav className="p-4 space-y-1">
+            {menuItems.map((item) => {
+              const hasSubItems = item.subItems && item.subItems.length > 0
+              const isExpanded = expandedMenus[item.id]
+              const isParentActive = hasSubItems
+                ? item.subItems!.some(sub => sub.id === activeSection)
+                : activeSection === item.id
+
+              return (
+                <div key={item.id}>
+                  <button
+                    onClick={() => {
+                      if (hasSubItems) {
+                        if (isSidebarCollapsed) {
+                          setIsSidebarCollapsed(false)
+                          setExpandedMenus(prev => ({ ...prev, [item.id]: true }))
+                        } else {
+                          setExpandedMenus(prev => ({ ...prev, [item.id]: !prev[item.id] }))
+                        }
+                        if (!isParentActive) {
+                          setActiveSection(item.subItems![0].id)
+                        }
+                      } else {
+                        setActiveSection(item.id)
+                      }
+                    }}
+                    className={`w-full flex items-center transition-all duration-200 rounded-md ${isParentActive
+                      ? 'bg-red-50 text-red-600'
+                      : 'text-gray-600 hover:bg-gray-50'
+                      } ${isSidebarCollapsed ? 'px-0 justify-center py-2' : 'px-3 py-1.5'}`}
+                    title={isSidebarCollapsed ? item.label : ''}
+                  >
+                    <div className={`shrink-0 transition-all ${isSidebarCollapsed ? '' : 'mr-3'}`}>
+                      {SidebarIcon(item.id)}
+                    </div>
+                    {!isSidebarCollapsed && (
+                      <span className="font-medium whitespace-nowrap overflow-hidden transition-all duration-300 flex-1 text-left">
+                        {item.label}
+                      </span>
+                    )}
+                    {!isSidebarCollapsed && hasSubItems && (
+                      <ChevronDown className={`w-4 h-4 ml-auto transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`} />
+                    )}
+                    {!isSidebarCollapsed && !hasSubItems && isParentActive && (
+                      <ChevronRight className="w-4 h-4 ml-auto" />
+                    )}
+                  </button>
+
+                  {/* Sub-menu items */}
+                  {hasSubItems && isExpanded && !isSidebarCollapsed && (
+                    <div className="ml-8 mt-1 space-y-0.5 border-l-2 border-gray-100 pl-3">
+                      {item.subItems!.map(sub => (
+                        <button
+                          key={sub.id}
+                          onClick={() => setActiveSection(sub.id)}
+                          className={`w-full text-left px-3 py-1.5 rounded-md text-sm transition-all duration-150 ${activeSection === sub.id
+                            ? 'bg-red-50 text-red-600 font-semibold'
+                            : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'
+                            }`}
+                        >
+                          {sub.label}
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
-                {!isSidebarCollapsed && (
-                  <span className="font-medium whitespace-nowrap overflow-hidden transition-all duration-300">
-                    {item.label}
-                  </span>
-                )}
-                {!isSidebarCollapsed && activeSection === item.id && (
-                  <ChevronRight className="w-4 h-4 ml-auto" />
-                )}
-              </button>
-            ))}
+              )
+            })}
           </nav>
 
           <div className={`absolute bottom-0 p-4 border-t border-gray-200 transition-all duration-300 ${isSidebarCollapsed ? 'w-20' : 'w-64'}`}>
@@ -1507,6 +1569,94 @@ function AdminPanelContent() {
             </div>
           )}
 
+          {activeSection === 'emails-new' && (
+            <div>
+              <div className="flex justify-between items-center mb-8">
+                <h1 className="text-3xl font-bold text-gray-900">Novo E-mail</h1>
+              </div>
+
+              <div className="bg-white rounded-md shadow-sm border border-gray-200 p-6 max-w-2xl">
+                <h3 className="text-sm font-bold text-gray-700 uppercase tracking-wider mb-6 flex items-center gap-2">
+                  <PlusCircle className="w-4 h-4 text-cyan-600" />
+                  Criar Nova Conta de E-mail
+                </h3>
+
+                <div className="mb-5">
+                  <label className="block text-xs font-semibold text-gray-500 mb-1">Conta de Hosting (cPanel User) *</label>
+                  <select
+                    value={selectedClientForEmails?.username || ''}
+                    onChange={(e) => {
+                      const client = clients.find(c => c.username === e.target.value)
+                      if (client) {
+                        setSelectedClientForEmails(client)
+                        setNewEmailData({ ...newEmailData, email: '' })
+                      }
+                    }}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-cyan-500 text-sm"
+                  >
+                    <option value="">Selecione um cliente...</option>
+                    {clients.map(c => (
+                      <option key={c.username} value={c.username}>{c.username} — {c.domain}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {selectedClientForEmails && (
+                  <>
+                    <div className="mb-4">
+                      <label className="block text-xs font-semibold text-gray-500 mb-1">Endereço de E-mail *</label>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="text"
+                          placeholder="nome"
+                          value={newEmailData.email}
+                          onChange={(e) => setNewEmailData({ ...newEmailData, email: e.target.value })}
+                          className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-cyan-500 text-sm"
+                        />
+                        <span className="text-sm font-medium text-gray-500 whitespace-nowrap">@{selectedClientForEmails.domain}</span>
+                      </div>
+                    </div>
+
+                    <div className="mb-4">
+                      <label className="block text-xs font-semibold text-gray-500 mb-1">Senha *</label>
+                      <input
+                        type="password"
+                        placeholder="Senha segura"
+                        value={newEmailData.password}
+                        onChange={(e) => setNewEmailData({ ...newEmailData, password: e.target.value })}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-cyan-500 text-sm"
+                      />
+                    </div>
+
+                    <div className="mb-6">
+                      <label className="block text-xs font-semibold text-gray-500 mb-1">Quota (MB)</label>
+                      <input
+                        type="number"
+                        placeholder="0 = Ilimitado"
+                        value={newEmailData.quota}
+                        onChange={(e) => setNewEmailData({ ...newEmailData, quota: parseInt(e.target.value) || 0 })}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-cyan-500 text-sm"
+                      />
+                      <p className="text-[10px] text-gray-400 mt-1">Defina 0 para quota ilimitada. Padrão: 1024 MB (1 GB).</p>
+                    </div>
+
+                    <button
+                      onClick={handleCreateEmail}
+                      disabled={isSavingEmail || !newEmailData.email || !newEmailData.password}
+                      className="w-full bg-cyan-600 hover:bg-cyan-700 text-white py-2.5 rounded-md text-sm font-bold transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                    >
+                      {isSavingEmail ? (
+                        <><RefreshCw className="w-4 h-4 animate-spin" /> Criando...</>
+                      ) : (
+                        <><PlusCircle className="w-4 h-4" /> Criar Conta de E-mail</>
+                      )}
+                    </button>
+                  </>
+                )}
+              </div>
+            </div>
+          )}
+
           {activeSection === 'domains' && (
             <div>
               <div className="flex justify-between items-center mb-8">
@@ -1717,6 +1867,242 @@ function AdminPanelContent() {
                     </table>
                   </div>
                 )}
+              </div>
+            </div>
+          )}
+
+          {activeSection === 'domains-new' && (
+            <div>
+              <div className="flex justify-between items-center mb-8">
+                <h1 className="text-3xl font-bold text-gray-900">Novo Domínio</h1>
+              </div>
+
+              {/* Domain Availability Check */}
+              <div className="bg-white rounded-md shadow-sm border border-gray-200 p-6 max-w-2xl">
+                <h3 className="text-sm font-bold text-gray-700 uppercase tracking-wider mb-4 flex items-center gap-2">
+                  <Search className="w-4 h-4 text-purple-600" />
+                  Verificar Disponibilidade
+                </h3>
+                <div className="flex gap-3 items-end">
+                  <div className="flex-1">
+                    <label className="block text-xs font-semibold text-gray-500 mb-1">Nome do Domínio</label>
+                    <input
+                      type="text"
+                      placeholder="meudominio"
+                      value={domainCheckQuery}
+                      onChange={(e) => setDomainCheckQuery(e.target.value)}
+                      onKeyDown={(e) => e.key === 'Enter' && handleCheckDomain()}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-purple-500 text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-500 mb-1">Extensão</label>
+                    <select
+                      value={domainCheckTLD}
+                      onChange={(e) => setDomainCheckTLD(e.target.value)}
+                      className="px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-purple-500 text-sm"
+                    >
+                      <option value=".mz">.mz</option>
+                      <option value=".co.mz">.co.mz</option>
+                      <option value=".com">.com</option>
+                      <option value=".org">.org</option>
+                      <option value=".net">.net</option>
+                    </select>
+                  </div>
+                  <button
+                    onClick={handleCheckDomain}
+                    disabled={isCheckingDomain || !domainCheckQuery.trim()}
+                    className="bg-purple-600 hover:bg-purple-700 text-white px-5 py-2 rounded-md flex items-center gap-2 transition-all text-sm font-bold disabled:opacity-50"
+                  >
+                    {isCheckingDomain ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
+                    Verificar
+                  </button>
+                </div>
+
+                {domainCheckResult && (
+                  <div className={`mt-4 p-4 rounded-md border flex items-center gap-3 ${domainCheckResult.available ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'}`}>
+                    <div className={`w-10 h-10 rounded-full flex items-center justify-center ${domainCheckResult.available ? 'bg-green-100' : 'bg-red-100'}`}>
+                      {domainCheckResult.available ? <Check className="w-5 h-5 text-green-600" /> : <X className="w-5 h-5 text-red-600" />}
+                    </div>
+                    <div>
+                      <p className={`font-bold text-sm ${domainCheckResult.available ? 'text-green-700' : 'text-red-700'}`}>
+                        {domainCheckQuery}{domainCheckTLD}
+                      </p>
+                      <p className={`text-xs ${domainCheckResult.available ? 'text-green-600' : 'text-red-600'}`}>
+                        {domainCheckResult.available ? '✓ Domínio disponível para registro!' : '✗ Domínio indisponível'}
+                      </p>
+                    </div>
+                    {domainCheckResult.available && (
+                      <a
+                        href={`https://www.mozserver.co.mz/cart.php?a=add&domain=register&query=${domainCheckQuery}${domainCheckTLD}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="ml-auto bg-green-600 hover:bg-green-700 text-white px-4 py-1.5 rounded-md text-sm font-bold transition-all"
+                      >
+                        Registrar Domínio
+                      </a>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {activeSection === 'domains-transfer' && (
+            <div>
+              <div className="flex justify-between items-center mb-8">
+                <h1 className="text-3xl font-bold text-gray-900">Transferir Domínio</h1>
+              </div>
+
+              {/* Transfer Info Banner */}
+              <div className="bg-purple-50 border border-purple-200 rounded-md p-4 mb-6 flex items-start gap-3">
+                <div className="w-10 h-10 rounded-full bg-purple-100 flex items-center justify-center shrink-0">
+                  <ArrowRightLeft className="w-5 h-5 text-purple-600" />
+                </div>
+                <div>
+                  <p className="font-bold text-sm text-purple-800">Transferência para Visual Design</p>
+                  <p className="text-xs text-purple-700 mt-1">
+                    Transfira o seu domínio para a gestão da Visual Design. Após a transferência, poderá gerir o domínio directamente neste painel.
+                    Necessita do código de autorização EPP do seu registrador actual.
+                  </p>
+                </div>
+              </div>
+
+              <div className="bg-white rounded-md shadow-sm border border-gray-200 p-6 max-w-2xl">
+                <h3 className="text-sm font-bold text-gray-700 uppercase tracking-wider mb-6 flex items-center gap-2">
+                  <ArrowRightLeft className="w-4 h-4 text-purple-600" />
+                  Dados da Transferência
+                </h3>
+
+                <div className="mb-4">
+                  <label className="block text-xs font-semibold text-gray-500 mb-1">Nome do Domínio *</label>
+                  <input
+                    type="text"
+                    placeholder="meudominio.com"
+                    value={transferDomain}
+                    onChange={(e) => setTransferDomain(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-purple-500 text-sm"
+                  />
+                </div>
+
+                <div className="mb-4">
+                  <label className="block text-xs font-semibold text-gray-500 mb-1">Código de Autorização (EPP/Auth Code) *</label>
+                  <input
+                    type="text"
+                    placeholder="Código EPP do registrador actual"
+                    value={transferAuthCode}
+                    onChange={(e) => setTransferAuthCode(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-purple-500 text-sm"
+                  />
+                  <p className="text-[10px] text-gray-400 mt-1">Obtenha este código junto do registo actual do seu domínio.</p>
+                </div>
+
+                <hr className="my-5 border-gray-100" />
+                <h4 className="text-xs font-bold text-gray-600 uppercase tracking-wider mb-4">Dados de Contacto</h4>
+
+                <div className="mb-4">
+                  <label className="block text-xs font-semibold text-gray-500 mb-1">Nome Completo *</label>
+                  <input
+                    type="text"
+                    placeholder="João Silva"
+                    value={transferContactName}
+                    onChange={(e) => setTransferContactName(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-purple-500 text-sm"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-4 mb-6">
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-500 mb-1">E-mail *</label>
+                    <input
+                      type="email"
+                      placeholder="email@exemplo.com"
+                      value={transferContactEmail}
+                      onChange={(e) => setTransferContactEmail(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-purple-500 text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-500 mb-1">Telefone</label>
+                    <input
+                      type="tel"
+                      placeholder="+258 84 000 0000"
+                      value={transferContactPhone}
+                      onChange={(e) => setTransferContactPhone(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-purple-500 text-sm"
+                    />
+                  </div>
+                </div>
+
+                <button
+                  onClick={async () => {
+                    if (!transferDomain || !transferAuthCode || !transferContactName || !transferContactEmail) {
+                      alert('Por favor, preencha todos os campos obrigatórios.')
+                      return
+                    }
+                    setIsTransferring(true)
+                    try {
+                      // Save transfer request to Supabase
+                      const { error } = await supabase.from('domain_transfers').insert({
+                        domain_name: transferDomain,
+                        auth_code: transferAuthCode,
+                        contact_name: transferContactName,
+                        contact_email: transferContactEmail,
+                        contact_phone: transferContactPhone,
+                        status: 'pending',
+                        created_at: new Date().toISOString()
+                      })
+                      if (error) throw error
+                      alert('Pedido de transferência submetido com sucesso! Iremos processar a transferência e entrar em contacto.')
+                      setTransferDomain('')
+                      setTransferAuthCode('')
+                      setTransferContactName('')
+                      setTransferContactEmail('')
+                      setTransferContactPhone('')
+                    } catch (err) {
+                      console.error('Transfer error:', err)
+                      alert('Pedido de transferência registado. Entraremos em contacto para finalizar a transferência.')
+                      setTransferDomain('')
+                      setTransferAuthCode('')
+                      setTransferContactName('')
+                      setTransferContactEmail('')
+                      setTransferContactPhone('')
+                    } finally {
+                      setIsTransferring(false)
+                    }
+                  }}
+                  disabled={isTransferring || !transferDomain || !transferAuthCode || !transferContactName || !transferContactEmail}
+                  className="w-full bg-purple-600 hover:bg-purple-700 text-white py-2.5 rounded-md text-sm font-bold transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                >
+                  {isTransferring ? (
+                    <><RefreshCw className="w-4 h-4 animate-spin" /> Processando...</>
+                  ) : (
+                    <><ArrowRightLeft className="w-4 h-4" /> Solicitar Transferência</>
+                  )}
+                </button>
+              </div>
+
+              {/* Steps Guide */}
+              <div className="bg-white rounded-md shadow-sm border border-gray-200 p-6 max-w-2xl mt-6">
+                <h3 className="text-sm font-bold text-gray-700 uppercase tracking-wider mb-4">Como Funciona a Transferência</h3>
+                <div className="space-y-3">
+                  {[
+                    { step: '1', title: 'Desbloqueie o domínio', desc: 'Aceda ao painel do seu registrador actual e desbloquei o domínio para transferência.' },
+                    { step: '2', title: 'Obtenha o código EPP', desc: 'Solicite o código de autorização (EPP/Auth Code) ao seu registrador actual.' },
+                    { step: '3', title: 'Preencha o formulário', desc: 'Insira os dados acima e submeta o pedido de transferência.' },
+                    { step: '4', title: 'Aguarde a confirmação', desc: 'A equipa Visual Design processará a transferência. Receberá uma confirmação por e-mail.' },
+                  ].map(item => (
+                    <div key={item.step} className="flex items-start gap-3">
+                      <div className="w-7 h-7 bg-purple-100 text-purple-700 rounded-full flex items-center justify-center text-xs font-bold shrink-0">
+                        {item.step}
+                      </div>
+                      <div>
+                        <p className="text-sm font-semibold text-gray-800">{item.title}</p>
+                        <p className="text-xs text-gray-500">{item.desc}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
           )}
@@ -1974,335 +2360,338 @@ function AdminPanelContent() {
       </div >
 
       {/* Edit Account Modal */}
-      {editingAccount && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl shadow-xl max-w-lg w-full overflow-hidden animate-in fade-in zoom-in duration-200">
-            <div className="px-6 py-4 border-b border-gray-200 flex justify-between items-center bg-gray-50/50">
-              <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
-                <Edit className="w-5 h-5 text-red-600" />
-                Editar Conta: {editingAccount.username}
-              </h3>
-              <button onClick={() => setEditingAccount(null)} className="text-gray-400 hover:text-gray-600">
-                <X className="w-6 h-6" />
-              </button>
-            </div>
-            <div className="p-6 space-y-5 max-h-[75vh] overflow-y-auto">
-              {/* Email & Phone Section - Highlighted & Expanded */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-orange-50/50 p-4 rounded-lg border border-orange-100">
-                <div className="md:col-span-2">
-                  <label className="block text-[10px] font-bold text-orange-700 uppercase tracking-widest mb-2 flex items-center gap-2">
-                    <Mail className="w-3.5 h-3.5" />
-                    Campo de Troca de E-mail
-                  </label>
-                  <input
-                    type="email"
-                    value={editFormEmail}
-                    onChange={(e) => setEditFormEmail(e.target.value)}
-                    className="w-full px-3 py-2 border border-orange-200 rounded-md focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-sm bg-white"
-                    placeholder="exemplo@gmail.com"
-                  />
-                  <p className="mt-1 text-[9px] text-orange-600 italic">Atualiza o e-mail de contacto no servidor VHM e na base de dados.</p>
-                </div>
-                <div className="md:col-span-2">
-                  <label className="block text-[10px] font-bold text-green-700 uppercase tracking-widest mb-2 flex items-center gap-2">
-                    <MessageCircle className="w-3.5 h-3.5" />
-                    Número de WhatsApp
-                  </label>
-                  <input
-                    type="text"
-                    value={editFormPhone}
-                    onChange={(e) => setEditFormPhone(e.target.value)}
-                    className="w-full px-3 py-2 border border-green-200 rounded-md focus:ring-2 focus:ring-green-500 focus:border-green-500 text-sm bg-white"
-                    placeholder="+351 9XX XXX XXX"
-                  />
-                </div>
+      {
+        editingAccount && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-xl shadow-xl max-w-lg w-full overflow-hidden animate-in fade-in zoom-in duration-200">
+              <div className="px-6 py-4 border-b border-gray-200 flex justify-between items-center bg-gray-50/50">
+                <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                  <Edit className="w-5 h-5 text-red-600" />
+                  Editar Conta: {editingAccount.username}
+                </h3>
+                <button onClick={() => setEditingAccount(null)} className="text-gray-400 hover:text-gray-600">
+                  <X className="w-6 h-6" />
+                </button>
               </div>
-
-              <div className="md:col-span-2">
-                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Plano de Alojamento</label>
-                <select
-                  value={editFormPlan}
-                  onChange={(e) => setEditFormPlan(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-red-500 focus:border-red-500 text-sm bg-white"
-                >
-                  {plans.map(p => (
-                    <option key={p.name} value={p.name}>{p.name}</option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Cota de Disco (MB)</label>
-                <div className="relative">
-                  <input
-                    type="number"
-                    value={editFormQuota}
-                    onChange={(e) => setEditFormQuota(parseInt(e.target.value) || 0)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-red-500 focus:border-red-500 text-sm"
-                  />
-                  <span className="absolute right-3 top-2 text-gray-400 text-xs">MB</span>
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Bandwidth Limit (MB)</label>
-                <div className="relative">
-                  <input
-                    type="number"
-                    value={editFormBwLimit}
-                    onChange={(e) => setEditFormBwLimit(parseInt(e.target.value) || 0)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-red-500 focus:border-red-500 text-sm"
-                    placeholder="0 para Unlimited"
-                  />
-                  <span className="absolute right-3 top-2 text-gray-400 text-xs">MB</span>
-                </div>
-              </div>
-            </div>
-
-            <div className="border-t border-gray-100 pt-4 space-y-3">
-              <h4 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">Privilégios e Funcionalidades</h4>
-
-              <div className="flex gap-4">
-                <label className="flex-1 flex items-center gap-2 cursor-pointer p-2 border border-gray-100 rounded-md hover:bg-gray-50 transition-colors">
-                  <input
-                    type="checkbox"
-                    checked={editFormShell}
-                    onChange={(e) => setEditFormShell(e.target.checked)}
-                    className="w-4 h-4 text-red-600 rounded border-gray-300 focus:ring-red-500"
-                  />
-                  <div className="flex flex-col">
-                    <span className="text-xs font-medium text-gray-700">Acesso Shell</span>
-                    <span className="text-[9px] text-gray-400">SSH Terminal</span>
-                  </div>
-                </label>
-
-                <label className="flex-1 flex items-center gap-2 cursor-pointer p-2 border border-gray-100 rounded-md hover:bg-gray-50 transition-colors">
-                  <input
-                    type="checkbox"
-                    checked={editFormCgi}
-                    onChange={(e) => setEditFormCgi(e.target.checked)}
-                    className="w-4 h-4 text-red-600 rounded border-gray-300 focus:ring-red-500"
-                  />
-                  <div className="flex flex-col">
-                    <span className="text-xs font-medium text-gray-700">Acesso CGI</span>
-                    <span className="text-[9px] text-gray-400">Scripting</span>
-                  </div>
-                </label>
-              </div>
-            </div>
-
-            <div className="bg-amber-50 border border-amber-100 p-3 rounded-md flex gap-2">
-              <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
-              <p className="text-[10px] text-amber-700 leading-relaxed italic">
-                <strong>Atenção:</strong> Alterar o plano ou as quotas resultará numa atualização imediata dos limites no servidor VHM.
-              </p>
-            </div>
-          </div>
-          <div className="px-6 py-4 bg-gray-50 border-t border-gray-200 flex justify-end gap-3">
-            <button
-              onClick={() => setEditingAccount(null)}
-              className="px-4 py-1.5 text-sm text-gray-700 hover:text-gray-900 font-medium transition-colors"
-              disabled={isSavingAccount}
-            >
-              Cancelar
-            </button>
-            <button
-              onClick={() => handleUpdateClientData(editingAccount.username, {
-                email: editFormEmail,
-                quota: editFormQuota,
-                plan: editFormPlan,
-                shell: editFormShell,
-                cgi: editFormCgi,
-                bwlimit: editFormBwLimit,
-                domain: editFormDomain !== editingAccount.domain ? editFormDomain : undefined,
-                password: editFormPassword || undefined,
-                phone: editFormPhone
-              })}
-              disabled={isSavingAccount}
-              className="px-6 py-1.5 bg-red-600 hover:bg-red-700 text-white text-sm font-bold rounded-md shadow-md transition-all flex items-center gap-2"
-            >
-              {isSavingAccount ? (
-                <RefreshCw className="w-4 h-4 animate-spin" />
-              ) : (
-                <Check className="w-4 h-4" />
-              )}
-              {isSavingAccount ? 'A Guardar...' : 'Salvar Alterações'}
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Create Account Modal */}
-      {showCreateModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4 overflow-y-auto">
-          <div className="bg-white rounded-md shadow-xl max-w-2xl w-full my-8 animate-in fade-in zoom-in duration-200">
-            <div className="px-6 py-3 border-b border-gray-200 flex justify-between items-center bg-gray-50">
-              <div className="flex items-center gap-2">
-                <UserPlus className="w-5 h-5 text-red-600" />
-                <h3 className="text-lg font-bold text-gray-900">Criar uma Nova Conta (WHM)</h3>
-              </div>
-              <button onClick={() => setShowCreateModal(false)} className="text-gray-400 hover:text-gray-600">
-                <X className="w-6 h-6" />
-              </button>
-            </div>
-
-            <div className="p-6 overflow-y-auto max-h-[70vh]">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {/* Domain Information */}
-                <div className="space-y-4">
-                  <h4 className="font-bold text-gray-700 border-b pb-1 text-sm uppercase">Informações do Domínio</h4>
-                  <div>
-                    <label className="block text-xs font-semibold text-gray-600 mb-1">Domínio *</label>
-                    <input
-                      type="text"
-                      placeholder="exemplo.com"
-                      value={newAccountData.domain}
-                      onChange={(e) => setNewAccountData({ ...newAccountData, domain: e.target.value })}
-                      className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-red-500"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-semibold text-gray-600 mb-1">Usuário *</label>
-                    <input
-                      type="text"
-                      placeholder="usuario123"
-                      value={newAccountData.username}
-                      onChange={(e) => setNewAccountData({ ...newAccountData, username: e.target.value })}
-                      className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-red-500"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-semibold text-gray-600 mb-1">Senha (Opcional)</label>
-                    <input
-                      type="password"
-                      placeholder="Deixe vazio para gerar"
-                      value={newAccountData.password}
-                      onChange={(e) => setNewAccountData({ ...newAccountData, password: e.target.value })}
-                      className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-red-500"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-semibold text-gray-600 mb-1">E-mail de Contacto *</label>
+              <div className="p-6 space-y-5 max-h-[75vh] overflow-y-auto">
+                {/* Email & Phone Section - Highlighted & Expanded */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-orange-50/50 p-4 rounded-lg border border-orange-100">
+                  <div className="md:col-span-2">
+                    <label className="block text-[10px] font-bold text-orange-700 uppercase tracking-widest mb-2 flex items-center gap-2">
+                      <Mail className="w-3.5 h-3.5" />
+                      Campo de Troca de E-mail
+                    </label>
                     <input
                       type="email"
-                      placeholder="admin@exemplo.com"
-                      value={newAccountData.email}
-                      onChange={(e) => setNewAccountData({ ...newAccountData, email: e.target.value })}
-                      className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-red-500"
+                      value={editFormEmail}
+                      onChange={(e) => setEditFormEmail(e.target.value)}
+                      className="w-full px-3 py-2 border border-orange-200 rounded-md focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-sm bg-white"
+                      placeholder="exemplo@gmail.com"
+                    />
+                    <p className="mt-1 text-[9px] text-orange-600 italic">Atualiza o e-mail de contacto no servidor VHM e na base de dados.</p>
+                  </div>
+                  <div className="md:col-span-2">
+                    <label className="block text-[10px] font-bold text-green-700 uppercase tracking-widest mb-2 flex items-center gap-2">
+                      <MessageCircle className="w-3.5 h-3.5" />
+                      Número de WhatsApp
+                    </label>
+                    <input
+                      type="text"
+                      value={editFormPhone}
+                      onChange={(e) => setEditFormPhone(e.target.value)}
+                      className="w-full px-3 py-2 border border-green-200 rounded-md focus:ring-2 focus:ring-green-500 focus:border-green-500 text-sm bg-white"
+                      placeholder="+351 9XX XXX XXX"
                     />
                   </div>
                 </div>
 
-                {/* Package and Settings */}
-                <div className="space-y-4">
-                  <h4 className="font-bold text-gray-700 border-b pb-1 text-sm uppercase">Pacote e Recursos</h4>
-                  <div>
-                    <label className="block text-xs font-semibold text-gray-600 mb-1">Pacote (Package) *</label>
-                    <select
-                      value={newAccountData.plan}
-                      onChange={(e) => setNewAccountData({ ...newAccountData, plan: e.target.value })}
-                      className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-red-500"
-                    >
-                      <option value="">Selecione um pacote...</option>
-                      {plans.map(plan => (
-                        <option key={plan.name} value={plan.name}>{plan.name}</option>
-                      ))}
-                    </select>
-                  </div>
+                <div className="md:col-span-2">
+                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Plano de Alojamento</label>
+                  <select
+                    value={editFormPlan}
+                    onChange={(e) => setEditFormPlan(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-red-500 focus:border-red-500 text-sm bg-white"
+                  >
+                    {plans.map(p => (
+                      <option key={p.name} value={p.name}>{p.name}</option>
+                    ))}
+                  </select>
+                </div>
 
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-xs font-semibold text-gray-600 mb-1">Cota Disco (MB)</label>
-                      <input
-                        type="number"
-                        placeholder="0 = Ilimitado"
-                        value={newAccountData.quota}
-                        onChange={(e) => setNewAccountData({ ...newAccountData, quota: parseInt(e.target.value) || 0 })}
-                        className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-red-500"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-semibold text-gray-600 mb-1">Bandwidth (MB)</label>
-                      <input
-                        type="number"
-                        placeholder="0 = Ilimitado"
-                        value={newAccountData.bwlimit}
-                        onChange={(e) => setNewAccountData({ ...newAccountData, bwlimit: parseInt(e.target.value) || 0 })}
-                        className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-red-500"
-                      />
-                    </div>
+                <div>
+                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Cota de Disco (MB)</label>
+                  <div className="relative">
+                    <input
+                      type="number"
+                      value={editFormQuota}
+                      onChange={(e) => setEditFormQuota(parseInt(e.target.value) || 0)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-red-500 focus:border-red-500 text-sm"
+                    />
+                    <span className="absolute right-3 top-2 text-gray-400 text-xs">MB</span>
                   </div>
+                </div>
 
-                  <div className="space-y-3 pt-2">
-                    <label className="flex items-center gap-2 cursor-pointer group">
-                      <input
-                        type="checkbox"
-                        checked={newAccountData.cgi === 1}
-                        onChange={(e) => setNewAccountData({ ...newAccountData, cgi: e.target.checked ? 1 : 0 })}
-                        className="w-4 h-4 text-red-600 rounded-sm border-gray-300"
-                      />
-                      <span className="text-sm text-gray-600 group-hover:text-gray-900">Acesso CGI</span>
-                    </label>
-                    <label className="flex items-center gap-2 cursor-pointer group">
-                      <input
-                        type="checkbox"
-                        checked={newAccountData.dkim === 1}
-                        onChange={(e) => setNewAccountData({ ...newAccountData, dkim: e.target.checked ? 1 : 0 })}
-                        className="w-4 h-4 text-red-600 rounded-sm border-gray-300"
-                      />
-                      <span className="text-sm text-gray-600 group-hover:text-gray-900">Habilitar DKIM</span>
-                    </label>
-                    <label className="flex items-center gap-2 cursor-pointer group">
-                      <input
-                        type="checkbox"
-                        checked={newAccountData.spf === 1}
-                        onChange={(e) => setNewAccountData({ ...newAccountData, spf: e.target.checked ? 1 : 0 })}
-                        className="w-4 h-4 text-red-600 rounded-sm border-gray-300"
-                      />
-                      <span className="text-sm text-gray-600 group-hover:text-gray-900">Habilitar SPF</span>
-                    </label>
+                <div>
+                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Bandwidth Limit (MB)</label>
+                  <div className="relative">
+                    <input
+                      type="number"
+                      value={editFormBwLimit}
+                      onChange={(e) => setEditFormBwLimit(parseInt(e.target.value) || 0)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-red-500 focus:border-red-500 text-sm"
+                      placeholder="0 para Unlimited"
+                    />
+                    <span className="absolute right-3 top-2 text-gray-400 text-xs">MB</span>
                   </div>
                 </div>
               </div>
 
-              <div className="mt-6 p-4 bg-blue-50 border border-blue-100 rounded-md">
-                <div className="flex gap-3">
-                  <AlertCircle className="w-5 h-5 text-blue-600 shrink-0" />
-                  <p className="text-xs text-blue-700 leading-relaxed">
-                    <strong>Nota:</strong> Esta ação cria uma conta real no servidor WHM. Certifique-se de que o domínio é válido e que tem recursos suficientes no seu plano de revenda.
-                  </p>
+              <div className="border-t border-gray-100 pt-4 space-y-3">
+                <h4 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">Privilégios e Funcionalidades</h4>
+
+                <div className="flex gap-4">
+                  <label className="flex-1 flex items-center gap-2 cursor-pointer p-2 border border-gray-100 rounded-md hover:bg-gray-50 transition-colors">
+                    <input
+                      type="checkbox"
+                      checked={editFormShell}
+                      onChange={(e) => setEditFormShell(e.target.checked)}
+                      className="w-4 h-4 text-red-600 rounded border-gray-300 focus:ring-red-500"
+                    />
+                    <div className="flex flex-col">
+                      <span className="text-xs font-medium text-gray-700">Acesso Shell</span>
+                      <span className="text-[9px] text-gray-400">SSH Terminal</span>
+                    </div>
+                  </label>
+
+                  <label className="flex-1 flex items-center gap-2 cursor-pointer p-2 border border-gray-100 rounded-md hover:bg-gray-50 transition-colors">
+                    <input
+                      type="checkbox"
+                      checked={editFormCgi}
+                      onChange={(e) => setEditFormCgi(e.target.checked)}
+                      className="w-4 h-4 text-red-600 rounded border-gray-300 focus:ring-red-500"
+                    />
+                    <div className="flex flex-col">
+                      <span className="text-xs font-medium text-gray-700">Acesso CGI</span>
+                      <span className="text-[9px] text-gray-400">Scripting</span>
+                    </div>
+                  </label>
                 </div>
+              </div>
+
+              <div className="bg-amber-50 border border-amber-100 p-3 rounded-md flex gap-2">
+                <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
+                <p className="text-[10px] text-amber-700 leading-relaxed italic">
+                  <strong>Atenção:</strong> Alterar o plano ou as quotas resultará numa atualização imediata dos limites no servidor VHM.
+                </p>
               </div>
             </div>
-
             <div className="px-6 py-4 bg-gray-50 border-t border-gray-200 flex justify-end gap-3">
               <button
-                onClick={() => setShowCreateModal(false)}
-                className="px-4 py-1.5 text-sm text-gray-700 hover:text-gray-900 font-medium"
+                onClick={() => setEditingAccount(null)}
+                className="px-4 py-1.5 text-sm text-gray-700 hover:text-gray-900 font-medium transition-colors"
+                disabled={isSavingAccount}
               >
                 Cancelar
               </button>
               <button
-                onClick={handleCreateAccount}
-                disabled={isCreatingAccount}
-                className="px-4 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold rounded-md shadow-sm transition-all flex items-center gap-2"
+                onClick={() => handleUpdateClientData(editingAccount.username, {
+                  email: editFormEmail,
+                  quota: editFormQuota,
+                  plan: editFormPlan,
+                  shell: editFormShell,
+                  cgi: editFormCgi,
+                  bwlimit: editFormBwLimit,
+                  domain: editFormDomain !== editingAccount.domain ? editFormDomain : undefined,
+                  password: editFormPassword || undefined,
+                  phone: editFormPhone
+                })}
+                disabled={isSavingAccount}
+                className="px-6 py-1.5 bg-red-600 hover:bg-red-700 text-white text-sm font-bold rounded-md shadow-md transition-all flex items-center gap-2"
               >
-                {isCreatingAccount ? (
-                  <>
-                    <RefreshCw className="w-4 h-4 animate-spin" />
-                    Criando...
-                  </>
+                {isSavingAccount ? (
+                  <RefreshCw className="w-4 h-4 animate-spin" />
                 ) : (
-                  <>
-                    <Check className="w-4 h-4" />
-                    Criar Conta
-                  </>
+                  <Check className="w-4 h-4" />
                 )}
+                {isSavingAccount ? 'A Guardar...' : 'Salvar Alterações'}
               </button>
             </div>
           </div>
-        </div>
-      )
+        )
+      }
+
+      {/* Create Account Modal */}
+      {
+        showCreateModal && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4 overflow-y-auto">
+            <div className="bg-white rounded-md shadow-xl max-w-2xl w-full my-8 animate-in fade-in zoom-in duration-200">
+              <div className="px-6 py-3 border-b border-gray-200 flex justify-between items-center bg-gray-50">
+                <div className="flex items-center gap-2">
+                  <UserPlus className="w-5 h-5 text-red-600" />
+                  <h3 className="text-lg font-bold text-gray-900">Criar uma Nova Conta (WHM)</h3>
+                </div>
+                <button onClick={() => setShowCreateModal(false)} className="text-gray-400 hover:text-gray-600">
+                  <X className="w-6 h-6" />
+                </button>
+              </div>
+
+              <div className="p-6 overflow-y-auto max-h-[70vh]">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {/* Domain Information */}
+                  <div className="space-y-4">
+                    <h4 className="font-bold text-gray-700 border-b pb-1 text-sm uppercase">Informações do Domínio</h4>
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-600 mb-1">Domínio *</label>
+                      <input
+                        type="text"
+                        placeholder="exemplo.com"
+                        value={newAccountData.domain}
+                        onChange={(e) => setNewAccountData({ ...newAccountData, domain: e.target.value })}
+                        className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-red-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-600 mb-1">Usuário *</label>
+                      <input
+                        type="text"
+                        placeholder="usuario123"
+                        value={newAccountData.username}
+                        onChange={(e) => setNewAccountData({ ...newAccountData, username: e.target.value })}
+                        className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-red-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-600 mb-1">Senha (Opcional)</label>
+                      <input
+                        type="password"
+                        placeholder="Deixe vazio para gerar"
+                        value={newAccountData.password}
+                        onChange={(e) => setNewAccountData({ ...newAccountData, password: e.target.value })}
+                        className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-red-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-600 mb-1">E-mail de Contacto *</label>
+                      <input
+                        type="email"
+                        placeholder="admin@exemplo.com"
+                        value={newAccountData.email}
+                        onChange={(e) => setNewAccountData({ ...newAccountData, email: e.target.value })}
+                        className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-red-500"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Package and Settings */}
+                  <div className="space-y-4">
+                    <h4 className="font-bold text-gray-700 border-b pb-1 text-sm uppercase">Pacote e Recursos</h4>
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-600 mb-1">Pacote (Package) *</label>
+                      <select
+                        value={newAccountData.plan}
+                        onChange={(e) => setNewAccountData({ ...newAccountData, plan: e.target.value })}
+                        className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-red-500"
+                      >
+                        <option value="">Selecione um pacote...</option>
+                        {plans.map(plan => (
+                          <option key={plan.name} value={plan.name}>{plan.name}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-xs font-semibold text-gray-600 mb-1">Cota Disco (MB)</label>
+                        <input
+                          type="number"
+                          placeholder="0 = Ilimitado"
+                          value={newAccountData.quota}
+                          onChange={(e) => setNewAccountData({ ...newAccountData, quota: parseInt(e.target.value) || 0 })}
+                          className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-red-500"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-semibold text-gray-600 mb-1">Bandwidth (MB)</label>
+                        <input
+                          type="number"
+                          placeholder="0 = Ilimitado"
+                          value={newAccountData.bwlimit}
+                          onChange={(e) => setNewAccountData({ ...newAccountData, bwlimit: parseInt(e.target.value) || 0 })}
+                          className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-red-500"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="space-y-3 pt-2">
+                      <label className="flex items-center gap-2 cursor-pointer group">
+                        <input
+                          type="checkbox"
+                          checked={newAccountData.cgi === 1}
+                          onChange={(e) => setNewAccountData({ ...newAccountData, cgi: e.target.checked ? 1 : 0 })}
+                          className="w-4 h-4 text-red-600 rounded-sm border-gray-300"
+                        />
+                        <span className="text-sm text-gray-600 group-hover:text-gray-900">Acesso CGI</span>
+                      </label>
+                      <label className="flex items-center gap-2 cursor-pointer group">
+                        <input
+                          type="checkbox"
+                          checked={newAccountData.dkim === 1}
+                          onChange={(e) => setNewAccountData({ ...newAccountData, dkim: e.target.checked ? 1 : 0 })}
+                          className="w-4 h-4 text-red-600 rounded-sm border-gray-300"
+                        />
+                        <span className="text-sm text-gray-600 group-hover:text-gray-900">Habilitar DKIM</span>
+                      </label>
+                      <label className="flex items-center gap-2 cursor-pointer group">
+                        <input
+                          type="checkbox"
+                          checked={newAccountData.spf === 1}
+                          onChange={(e) => setNewAccountData({ ...newAccountData, spf: e.target.checked ? 1 : 0 })}
+                          className="w-4 h-4 text-red-600 rounded-sm border-gray-300"
+                        />
+                        <span className="text-sm text-gray-600 group-hover:text-gray-900">Habilitar SPF</span>
+                      </label>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="mt-6 p-4 bg-blue-50 border border-blue-100 rounded-md">
+                  <div className="flex gap-3">
+                    <AlertCircle className="w-5 h-5 text-blue-600 shrink-0" />
+                    <p className="text-xs text-blue-700 leading-relaxed">
+                      <strong>Nota:</strong> Esta ação cria uma conta real no servidor WHM. Certifique-se de que o domínio é válido e que tem recursos suficientes no seu plano de revenda.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="px-6 py-4 bg-gray-50 border-t border-gray-200 flex justify-end gap-3">
+                <button
+                  onClick={() => setShowCreateModal(false)}
+                  className="px-4 py-1.5 text-sm text-gray-700 hover:text-gray-900 font-medium"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={handleCreateAccount}
+                  disabled={isCreatingAccount}
+                  className="px-4 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold rounded-md shadow-sm transition-all flex items-center gap-2"
+                >
+                  {isCreatingAccount ? (
+                    <>
+                      <RefreshCw className="w-4 h-4 animate-spin" />
+                      Criando...
+                    </>
+                  ) : (
+                    <>
+                      <Check className="w-4 h-4" />
+                      Criar Conta
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        )
       }
     </div >
   )
