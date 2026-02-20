@@ -1,4 +1,5 @@
 'use client'
+// Force re-render to fix hydration mismatch after logo size change
 
 import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
@@ -80,7 +81,7 @@ export function Header({ isScrolled = false }: { isScrolled?: boolean }) {
               <Link href="/" className="flex items-center">
                 <motion.div
                   whileHover={{ scale: 1.05 }}
-                  className="w-16 h-16 lg:w-56 lg:h-20 flex items-center justify-center overflow-hidden"
+                  className="w-12 h-12 lg:w-40 lg:h-12 flex items-center justify-center overflow-hidden"
                 >
                   <img
                     src="/assets/logotipo.png"
