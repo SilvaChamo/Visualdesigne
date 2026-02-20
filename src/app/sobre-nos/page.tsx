@@ -1,7 +1,7 @@
 import { Metadata } from 'next'
 
 export const metadata: Metadata = {
-  title: 'Sobre Nós | Visual Design',
+  title: 'Sobre Nós',
   description: 'Conheça a história da Visual Design e nossa missão de transformar ideias em realidade digital.',
 }
 
@@ -26,11 +26,11 @@ export default function AboutPage() {
       {/* Hero Section */}
       <section className="relative py-20 lg:py-32">
         <div className="absolute inset-0 bg-black" />
-        <div 
+        <div
           className="absolute inset-0 bg-cover bg-center bg-no-repeat opacity-20"
           style={{ backgroundImage: "url('/assets/BG.jpg')" }}
         />
-        
+
         <div className="relative z-10 max-w-[1380px] mx-auto px-4">
           <div className="max-w-4xl mx-auto text-center">
             <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold text-white mb-6">
@@ -52,16 +52,16 @@ export default function AboutPage() {
                 Nossa <span className="text-red-600">História</span>
               </h2>
               <p className="text-gray-300 mb-6">
-                A Visual Design nasceu da paixão por criar experiências digitais incríveis. 
-                Começamos como uma pequena equipe em Maputo e crescemos para nos tornarmos 
+                A Visual Design nasceu da paixão por criar experiências digitais incríveis.
+                Começamos como uma pequena equipe em Maputo e crescemos para nos tornarmos
                 uma referência em design e desenvolvimento web em Moçambique.
               </p>
               <p className="text-gray-300 mb-6">
-                Nossa missão é ajudar empresas a alcançarem seu potencial máximo através 
+                Nossa missão é ajudar empresas a alcançarem seu potencial máximo através
                 de soluções digitais inovadoras e eficazes.
               </p>
               <p className="text-gray-300">
-                Cada projeto é uma oportunidade de superar expectativas e criar algo 
+                Cada projeto é uma oportunidade de superar expectativas e criar algo
                 verdadeiramente único.
               </p>
             </div>

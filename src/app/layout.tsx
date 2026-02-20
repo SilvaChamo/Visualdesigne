@@ -10,10 +10,15 @@ const exo2 = Exo_2({
 });
 
 export const metadata: Metadata = {
-  title: "visualdesign",
-  description: "visualdesign",
+  title: {
+    default: "Visualdesign",
+    template: "Visualdesign - %s",
+  },
+  description: "Visualdesign - Inovação e Design",
   icons: {
-    icon: "/assets/simbolo.png",
+    icon: "/favicon.png",
+    shortcut: "/favicon.png",
+    apple: "/favicon.png",
   },
 };
 

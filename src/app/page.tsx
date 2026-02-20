@@ -132,7 +132,7 @@ function HomePage() {
                       else if (tabKey === 'home.tabs.email') window.location.href = '/precos/email'
                       else if (tabKey === 'home.tabs.support') window.location.href = '/precos/suporte'
                     }}
-                    className={`px-4 sm:px-6 md:px-8 py-[6px] rounded-lg font-medium text-sm sm:text-base transition-all relative ${activeTab === tabKey
+                    className={`px-2 sm:px-3 md:px-4 py-1 rounded-lg font-medium text-xs sm:text-sm transition-all relative flex items-center justify-center text-center ${activeTab === tabKey
                       ? 'bg-red-600 text-white'
                       : 'bg-black text-white hover:bg-red-600'
                       }`}
