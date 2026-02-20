@@ -9,41 +9,43 @@ export async function POST(request: NextRequest) {
     // VHM API Configuration
     const vhmUrl = 'https://za4.mozserver.com:2087'
     const username = 'yknrnlev'
-    const password = 'FerramentasWeb#2020'
+    const apiToken = '2WTFJ8YO8QH0PCXMO6YE1QEQFM0W2YX1'
 
-    // Create form data for VHM API
-    const formData = new FormData()
-    formData.append('user', username)
-    formData.append('pass', password)
+    // Use WHM API Token format: whm username:token
+    const authHeader = `whm ${username}:${apiToken}`
 
-    // Add additional parameters
-    if (params) {
+    // Convert params to query string if they exist
+    let url = `${vhmUrl}${endpoint}`
+    if (params && Object.keys(params).length > 0) {
+      const queryParams = new URLSearchParams()
       Object.keys(params).forEach(key => {
-        formData.append(key, params[key])
+        queryParams.append(key, params[key])
       })
+      url += (url.includes('?') ? '&' : '?') + queryParams.toString()
     }
 
-    console.log('VHM Proxy Request:', `${vhmUrl}${endpoint}`)
+    console.log('VHM Proxy Request (API Token):', url)
 
-    // Make request to VHM API from server (no CORS)
-    const response = await fetch(`${vhmUrl}${endpoint}`, {
-      method: 'POST',
-      body: formData,
+    // Make request to VHM API from server
+    const response = await fetch(url, {
+      method: 'GET',
       headers: {
+        'Authorization': authHeader,
         'User-Agent': 'Mozilla/5.0 (compatible; VHM-Proxy/1.0)',
       },
     })
 
+    const data = await response.text()
+
     if (!response.ok) {
-      console.error('VHM API Error:', response.status, response.statusText)
+      console.error(`[VHM ERROR] Endpoint: ${endpoint}, Status: ${response.status}, Body: ${data.substring(0, 500)}`)
       return NextResponse.json(
-        { error: `VHM API Error: ${response.status} ${response.statusText}` },
+        { error: `VHM API Error: ${response.status} ${response.statusText}`, raw: data },
         { status: response.status }
       )
     }
 
-    const data = await response.text()
-    console.log('VHM API Response length:', data.length)
+    console.log(`[VHM SUCCESS] Endpoint: ${endpoint}`)
 
     // Try to parse JSON
     try {
@@ -51,6 +53,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(jsonData)
     } catch {
       // Return raw text if not JSON
+      console.log('VHM API RESPONSE IS NOT JSON')
       return NextResponse.json({ raw: data })
     }
 

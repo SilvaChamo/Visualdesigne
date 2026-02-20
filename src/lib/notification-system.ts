@@ -1,5 +1,6 @@
 // Sistema de Notificações Automáticas
-import { getRevendedorClients, sendNotificationEmail } from './mozserver-api'
+import { sendNotificationEmail } from './mozserver-api'
+import { supabase } from './supabase'
 
 interface NotificationTemplate {
   id: string;
@@ -72,10 +73,10 @@ export function calculateDaysUntilExpiry(expiryDate: string): number {
   const expiry = new Date(expiryDate)
   const today = new Date()
   today.setHours(0, 0, 0, 0) // Zerar horas para comparação precisa
-  
+
   const diffTime = expiry.getTime() - today.getTime()
   const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
-  
+
   return diffDays
 }
 
@@ -150,7 +151,7 @@ export async function sendBatchNotifications(
   for (const candidate of candidates) {
     try {
       const personalizedMessage = personalizeMessage(candidate.template.message, candidate.client)
-      
+
       const result = await sendNotificationEmail(
         candidate.client.email,
         candidate.template.subject,
@@ -189,22 +190,34 @@ export async function runDailyNotificationCheck(): Promise<{
   errors: Array<{ client: Client; error: string }>;
 }> {
   try {
-    // Buscar todos os clientes
-    const clientsResult = await getRevendedorClients()
-    
-    if (!clientsResult.success || !clientsResult.data) {
-      throw new Error('Falha ao buscar clientes')
-    }
+    // Buscar todos os clientes do Supabase (Subscrições)
+    const { data: subscriptions, error } = await supabase
+      .from('subscriptions')
+      .select('*')
 
-    const clients = clientsResult.data
+    if (error) throw error
+
+    const clients: Client[] = (subscriptions || []).map(s => ({
+      id: s.id,
+      name: s.vhm_username, // Usando username como nome
+      email: s.client_email,
+      domain: s.domain,
+      status: s.status as any,
+      plan: s.plan,
+      price: 0, // Ajustar se tivermos preços no banco
+      currency: 'MT',
+      expiryDate: s.expiry_date || '',
+      registeredAt: s.created_at
+    }))
+
     const templates = defaultNotificationTemplates.filter(t => t.enabled)
-    
+
     // Verificar candidatos a notificação
     const candidates = getNotificationCandidates(clients, templates)
-    
+
     // Enviar notificações
     const result = await sendBatchNotifications(candidates)
-    
+
     return {
       totalChecked: clients.length,
       notificationsSent: result.success,
@@ -247,7 +260,7 @@ export function generateNotificationReport(clients: Client[]): {
   for (const client of clients) {
     if (client.status === 'active') {
       const daysUntilExpiry = calculateDaysUntilExpiry(client.expiryDate)
-      
+
       if (daysUntilExpiry < 0) {
         report.expired++
       } else if (daysUntilExpiry <= 1) {
