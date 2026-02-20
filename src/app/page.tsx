@@ -92,13 +92,13 @@ function HomePage() {
           </div>
         </div>
       )}
-      
+
       {/* Header - Fixo e ocupa espaço do top menu quando scrolled */}
       <Header isScrolled={isScrolled} />
-      
+
       {/* Header Section - Gray 25% */}
       <div className="bg-[#404040] relative overflow-hidden">
-        <div 
+        <div
           className="absolute inset-0 bg-cover bg-center bg-no-repeat opacity-20"
           style={{ backgroundImage: "url('/assets/BG.jpg')" }}
         />
@@ -111,7 +111,7 @@ function HomePage() {
             <p className="text-sm sm:text-base md:text-lg lg:text-xl text-white mb-[20px] sm:mb-[25px] md:mb-[30px] font-normal text-center max-w-3xl sm:max-w-4xl md:max-w-5xl lg:max-w-6xl mx-auto">
               {t('home.subtitle')}
             </p>
-            
+
             {/* Domain Search Box */}
             <div className="flex justify-center mb-[40px]">
               <DomainSearch />
@@ -132,11 +132,10 @@ function HomePage() {
                       else if (tabKey === 'home.tabs.email') window.location.href = '/precos/email'
                       else if (tabKey === 'home.tabs.support') window.location.href = '/precos/suporte'
                     }}
-                    className={`px-2 sm:px-3 md:px-4 py-[5px] rounded-lg font-medium text-xs sm:text-sm transition-all relative ${
-                      activeTab === tabKey
+                    className={`px-4 sm:px-6 md:px-8 py-[6px] rounded-lg font-medium text-sm sm:text-base transition-all relative ${activeTab === tabKey
                         ? 'bg-red-600 text-white'
                         : 'bg-black text-white hover:bg-red-600'
-                    }`}
+                      }`}
                   >
                     {t(tabKey)}
                   </button>
@@ -144,7 +143,7 @@ function HomePage() {
               </div>
             </div>
           </div>
-          
+
           {/* Service Categories - Bottom Center */}
           {/* <div className="w-full max-w-4xl text-center mt-4">
             <div className="flex flex-wrap justify-center gap-4">
