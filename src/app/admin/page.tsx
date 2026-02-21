@@ -12,7 +12,9 @@ import { ciuemAPI } from '@/lib/ciuem-whois-api'
 import { cyberPanelAPI, CyberPanelWebsite, CyberPanelPackage } from '@/lib/cyberpanel-api'
 import { supabase } from '@/lib/supabase'
 import { generateNotificationReport, calculateDaysUntilExpiry } from '@/lib/notification-system'
-import { Users, Plus, Trash2, Mail, AlertCircle, Check, X, Eye, EyeOff, Edit, DollarSign, Calendar, Shield, Search, Filter, Download, Settings, LogOut, Home, FileText, BarChart3, Globe, TrendingUp, Package, CreditCard, UserPlus, Activity, Clock, Star, MessageSquare, MessageCircle, Database, Server, Globe2, Lock, Bell, Archive, RefreshCw, ChevronRight, ChevronDown, MoreVertical, ArrowRightLeft, PlusCircle, Inbox, User, ShieldCheck, Wallet, Sparkles, ArrowRight, ExternalLink, Info } from 'lucide-react'
+import {
+  Users, Plus, Trash2, Mail, AlertCircle, Check, X, Eye, EyeOff, Edit, DollarSign, Calendar, Shield, Search, Filter, Download, Settings, Cpu, Share2, Bell, AlertTriangle, Save, Globe, Info, Server, Key, KeyRound, Monitor, Hash, Lock, Smartphone, MessageCircle, HeartHandshake, UserX, Database, Terminal, ShieldCheck, LogOut, Home, FileText, BarChart3, TrendingUp, Package, CreditCard, UserPlus, Activity, Clock, Star, MessageSquare, Globe2, Archive, RefreshCw, ChevronRight, ChevronDown, MoreVertical, ArrowRightLeft, PlusCircle, Inbox, User, Wallet, Sparkles, ArrowRight, ExternalLink
+} from 'lucide-react'
 
 interface Client {
   id: string;
@@ -818,6 +820,151 @@ function AdminPanelContent() {
     }
   }
 
+  // --- CyberPanel Email Management Handlers ---
+
+  const loadCyberEmailAccounts = async (domain: string) => {
+    setIsFetchingEmails(true)
+    try {
+      const response = await fetch(`/api/cyberpanel-email?domain=${domain}`)
+      const data = await response.json()
+      if (data.success) {
+        setEmailAccounts(data.emails || [])
+      } else {
+        alert('Erro ao carregar e-mails: ' + data.error)
+      }
+    } catch (err) {
+      console.error('Error loading CyberPanel emails:', err)
+      alert('Erro de rede ao carregar e-mails.')
+    } finally {
+      setIsFetchingEmails(false)
+    }
+  }
+
+  const handleCreateCyberEmail = async (domain: string) => {
+    if (!newEmailData.email || !newEmailData.password) {
+      alert('Preencha Utilizador e Password!')
+      return
+    }
+    setIsSavingEmail(true)
+    try {
+      const response = await fetch('/api/cyberpanel-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          domainName: domain,
+          userName: newEmailData.email,
+          password: newEmailData.password
+        })
+      })
+      const data = await response.json()
+      if (data.success) {
+        await loadCyberEmailAccounts(domain)
+        setShowCreateEmailModal(false)
+        setNewEmailData({ email: '', password: '', quota: 1024 })
+        alert('Conta de E-mail criada com sucesso!')
+      } else {
+        alert('Falha: ' + data.error)
+      }
+    } catch (err) {
+      console.error('Create Cyber email error:', err)
+      alert('Erro inesperado ao criar e-mail.')
+    } finally {
+      setIsSavingEmail(false)
+    }
+  }
+
+  const handleDeleteCyberEmail = async (fullEmail: string, domain: string) => {
+    if (!confirm(`Tem certeza que deseja apagar a caixa ${fullEmail}?`)) return
+    try {
+      const response = await fetch('/api/cyberpanel-email', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: fullEmail })
+      })
+      const data = await response.json()
+      if (data.success) {
+        await loadCyberEmailAccounts(domain)
+        alert('Conta apagada com sucesso!')
+      } else {
+        alert('Falha ao apagar: ' + data.error)
+      }
+    } catch (err) {
+      console.error('Delete Cyber email error:', err)
+      alert('Erro ao apagar conta.')
+    }
+  }
+
+  // --- CyberPanel DNS Handlers ---
+  const loadDnsRecords = async (domain: string) => {
+    setIsFetchingDns(true)
+    setSelectedDnsDomain(domain)
+    try {
+      const response = await fetch(`/api/cyberpanel-dns?domain=${domain}`)
+      const data = await response.json()
+      if (data.success) {
+        setDnsRecords(data.records || [])
+      } else {
+        alert('Erro ao listar DNS: ' + data.error)
+      }
+    } catch (err) {
+      console.error('Error loading DNS:', err)
+    } finally {
+      setIsFetchingDns(false)
+    }
+  }
+
+  const handleCreateDnsRecord = async () => {
+    if (!dnsFormData.name || !dnsFormData.value) {
+      alert('Preencha o Nome e Valor do registo.')
+      return
+    }
+    setIsSavingDns(true)
+    try {
+      const response = await fetch('/api/cyberpanel-dns', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          domainName: selectedDnsDomain,
+          name: dnsFormData.name,
+          type: dnsFormData.recordType,
+          value: dnsFormData.value,
+          ttl: dnsFormData.ttl
+        })
+      })
+      const data = await response.json()
+      if (data.success) {
+        await loadDnsRecords(selectedDnsDomain)
+        setDnsFormData({ name: '', recordType: 'A', value: '', ttl: '3600' })
+        alert('Registo criado com sucesso!')
+      } else {
+        alert('Erro: ' + data.error)
+      }
+    } catch (err) {
+      console.error('Create DNS error:', err)
+    } finally {
+      setIsSavingDns(false)
+    }
+  }
+
+  const handleDeleteDnsRecord = async (id: string) => {
+    if (!confirm('Deseja mesmo apagar este registo DNS?')) return
+    try {
+      const response = await fetch('/api/cyberpanel-dns', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ domainName: selectedDnsDomain, id })
+      })
+      const data = await response.json()
+      if (data.success) {
+        await loadDnsRecords(selectedDnsDomain)
+      } else {
+        alert('Erro: ' + data.error)
+      }
+    } catch (err) {
+      console.error('Delete DNS error:', err)
+    }
+  }
+
   // --- Domain Management Handlers ---
 
   const loadDomains = async () => {
@@ -1008,145 +1155,6 @@ function AdminPanelContent() {
       setIsInstallingWP(false)
     }
   }
-
-  // --- DNS Management Functions ---
-  const loadDnsRecords = async (domain: string) => {
-    if (!domain) return;
-    setIsFetchingDns(true);
-    setError(null);
-    try {
-      const res = await fetch('/api/cyberpanel-dns', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'get', domainName: domain })
-      });
-      const data = await res.json();
-      if (data.success) {
-        setDnsRecords(data.records || []);
-      } else {
-        throw new Error(data.error || 'Erro ao buscar registos DNS');
-      }
-    } catch (err: any) {
-      setError(err.message);
-      setDnsRecords([]);
-    } finally {
-      setIsFetchingDns(false);
-    }
-  };
-
-  const handleAddDnsRecord = async () => {
-    if (!selectedDnsDomain || !dnsFormData.name || !dnsFormData.value) {
-      setError('Preencha os campos obrigatórios (Nome e Valor)');
-      return;
-    }
-
-    setIsSavingDns(true);
-    setError(null);
-    try {
-      const res = await fetch('/api/cyberpanel-dns', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'add',
-          domainName: selectedDnsDomain,
-          ...dnsFormData
-        })
-      });
-      const data = await res.json();
-      if (data.success) {
-        setDnsFormData({ name: '', recordType: 'A', value: '', ttl: '3600' });
-        loadDnsRecords(selectedDnsDomain);
-      } else {
-        throw new Error(data.error || 'Erro ao adicionar registo DNS');
-      }
-    } catch (err: any) {
-      setError(err.message);
-    } finally {
-      setIsSavingDns(false);
-    }
-  };
-
-  const handleDeleteDnsRecord = async (recordId: string) => {
-    if (!confirm('Tem a certeza que deseja apagar este registo DNS? Esta ação pode afetar a estabilidade do site.')) return;
-
-    setIsFetchingDns(true);
-    setError(null);
-    try {
-      const res = await fetch('/api/cyberpanel-dns', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'delete', domainName: selectedDnsDomain, recordID: recordId })
-      });
-      const data = await res.json();
-      if (data.success) {
-        loadDnsRecords(selectedDnsDomain);
-      } else {
-        throw new Error(data.error || 'Erro ao apagar registo DNS');
-      }
-    } catch (err: any) {
-      setError(err.message);
-      setIsFetchingDns(false);
-    }
-  };
-
-  // --- Package Management Functions ---
-  const loadPackages = async () => {
-    setIsFetchingPackages(true);
-    setError(null);
-    try {
-      const res = await fetch('/api/cyberpanel-packages');
-      const data = await res.json();
-      if (data.success) {
-        setPackages(data.packages || []);
-      } else {
-        throw new Error(data.error || 'Erro ao buscar pacotes');
-      }
-    } catch (err: any) {
-      setError(err.message);
-      setPackages([]);
-    } finally {
-      setIsFetchingPackages(false);
-    }
-  };
-
-  const handleAddPackage = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!packageFormData.packageName) {
-      setError('O nome do pacote é obrigatório');
-      return;
-    }
-
-    setIsSavingPackage(true);
-    setError(null);
-    setSuccess(null);
-    try {
-      const res = await fetch('/api/cyberpanel-packages', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(packageFormData)
-      });
-      const data = await res.json();
-      if (data.success) {
-        setSuccess('Pacote criado com sucesso!');
-        setPackageFormData({
-          packageName: '',
-          diskSpace: '1000',
-          bandwidth: '10000',
-          emailAccounts: '10',
-          dataBases: '5',
-          ftpAccounts: '2',
-          allowedDomains: '1'
-        });
-        loadPackages();
-      } else {
-        throw new Error(data.error || 'Erro ao criar pacote');
-      }
-    } catch (err: any) {
-      setError(err.message);
-    } finally {
-      setIsSavingPackage(false);
-    }
-  };
 
   const handleDeletePackage = async (packageName: string) => {
     if (packageName.toLowerCase() === 'default') {
@@ -1848,24 +1856,32 @@ function AdminPanelContent() {
 
           {activeSection === 'infrastructure' && (
             <div className="space-y-8">
-              <div className="flex justify-between items-center">
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
-                  <h1 className="text-3xl font-bold text-gray-900">Infraestrutura Independente</h1>
-                  <p className="text-gray-500 text-sm mt-1">Gestão do novo servidor privado Contabo (NVMe SSD).</p>
+                  <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+                    <Globe2 className="h-6 w-6 text-blue-600" />
+                    Gestão de Infraestrutura (VPS)
+                  </h2>
+                  <p className="text-sm text-gray-500 mt-1">Servidor Contabo Cloud • CyberPanel & OpenLiteSpeed</p>
                 </div>
-                <div className="flex items-center gap-3">
-                  <div className="flex flex-col items-end">
-                    <span className="text-xs font-bold text-green-600 flex items-center gap-1">
-                      <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>
-                      SERVIDOR ONLINE
-                    </span>
-                    <span className="text-[10px] text-gray-400 font-mono">109.199.104.22</span>
-                  </div>
+                <div className="flex gap-2">
                   <button
-                    onClick={loadCyberPanelData}
-                    className="p-2 text-gray-500 hover:text-cyan-600 hover:bg-cyan-50 rounded-md transition-colors"
+                    onClick={() => {
+                      navigator.clipboard.writeText('109.199.104.22');
+                      alert('IP copiado para a área de transferência!');
+                    }}
+                    className="bg-blue-50 text-blue-700 font-medium px-4 py-2 flex items-center gap-2 border border-blue-200 transition-colors hover:bg-blue-100 rounded-md shadow-sm"
                   >
-                    <RefreshCw className={`w-5 h-5 ${isFetchingCyberPanel ? 'animate-spin' : ''}`} />
+                    <Server className="h-4 w-4" />
+                    IP: 109.199.104.22
+                    <span className="text-xs ml-1 bg-white px-2 py-0.5 rounded-full shadow-sm text-blue-600 font-bold border border-blue-100">Copiar</span>
+                  </button>
+                  <button
+                    onClick={() => loadCyberPanelData()}
+                    className="bg-gray-100 text-gray-700 rounded-md py-1.5 px-3 flex items-center hover:bg-gray-200 transition-colors"
+                  >
+                    <RefreshCw className={`h-4 w-4 mr-2 ${isFetchingCyberPanel ? 'animate-spin' : ''}`} />
+                    Atualizar
                   </button>
                 </div>
               </div>
@@ -2005,18 +2021,42 @@ function AdminPanelContent() {
                               </td>
                               <td className="px-6 py-4 text-right flex justify-end gap-2">
                                 <button
+                                  onClick={() => loadDnsRecords(site.domain)}
+                                  title="Gerir DNS (Registos A, TXT, CNAME)"
+                                  className="text-gray-400 hover:text-purple-600 p-1.5 transition-colors bg-gray-50 hover:bg-purple-50 rounded-md border border-transparent hover:border-purple-200"
+                                >
+                                  <Server className="w-4 h-4" />
+                                </button>
+                                <button
+                                  onClick={() => loadCyberEmailAccounts(site.domain)}
+                                  title="Gerir Contas de E-mail"
+                                  className="text-gray-400 hover:text-amber-600 p-1.5 transition-colors bg-gray-50 hover:bg-amber-50 rounded-md border border-transparent hover:border-amber-200"
+                                >
+                                  <Mail className="w-4 h-4" />
+                                </button>
+                                <a
+                                  href={`https://109.199.104.22:8090/snappymail/`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  title="Aceder ao Webmail Externamente"
+                                  className="text-gray-400 hover:text-teal-600 p-1.5 transition-colors bg-gray-50 hover:bg-teal-50 rounded-md border border-transparent hover:border-teal-200 flex items-center"
+                                >
+                                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path></svg>
+                                </a>
+                                <div className="w-px h-6 bg-gray-200 mx-1"></div>
+                                <button
                                   onClick={() => {
                                     setSelectedWPDomain(site.domain);
                                     setShowWPModal(true);
                                   }}
                                   title="Instalar WordPress (1-Click)"
-                                  className="text-gray-400 hover:text-blue-600 p-1.5 transition-colors"
+                                  className="text-gray-400 hover:text-blue-600 p-1.5 transition-colors bg-gray-50 hover:bg-blue-50 rounded-md border border-transparent hover:border-blue-200"
                                 >
                                   <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
                                     <path d="M12.158 12.786l-2.698 7.84c.806.236 1.657.365 2.54.365 1.047 0 2.05-.18 2.986-.51-.024-.037-.046-.078-.065-.123l-2.763-7.572zm5.405-2.835c-.17-.885-.595-1.597-1.146-2.073-.55-.477-1.222-.716-1.956-.716-.145 0-.306.015-.476.046-.17.03-.336.07-.487.123-.153.05-.306.11-.458.17-.152.062-.312.132-.472.215-.245.123-.487.23-.717.323-.23.09-.457.17-.672.23-.213.06-.442.107-.67.14-.23.03-.473.045-.717.045-.64 0-1.19-.107-1.634-.323-.443-.215-.794-.522-1.04-.906-.244-.385-.365-.845-.365-1.37 0-.584.14-1.09.412-1.506.273-.415.655-.74 1.13-1.03.472-.292 1.053-.523 1.725-.693.67-.17 1.436-.26 2.274-.26 1.13 0 2.152.17 3.052.507.9.34 1.677.815 2.316 1.447.64.63 1.122 1.383 1.44 2.244.32.863.487 1.8.487 2.8-.002.585-.05 1.14-.14 1.66zM2.84 12c0-5.06 4.103-9.16 9.16-9.16 1.6 0 3.104.412 4.416 1.14-1.127-1.03-2.67-1.64-4.355-1.64-3.488 0-6.315 2.827-6.315 6.315 0 .205.01.408.03.61-.132.844-.198 1.7-.198 2.57 0 1.25.19 2.45.54 3.58l-1.42 2.03C3.543 15.91 2.84 14.032 2.84 12zm2.096 1.815c.168.966.452 1.898.835 2.78l1.458 3.32c-.524-.486-.98-.99-1.39-1.5-2.074-2.585-3.08-5.34-3.08-8.24m7.222.97l2.872 7.89c.815-.316 1.572-.756 2.26-1.332-1.58.2-3.23-.284-4.46-1.31M12 0C5.372 0 0 5.372 0 12s5.372 12 12 12 12-5.372 12-12S18.628 0 12 0z" />
                                   </svg>
                                 </button>
-                                <button className="text-gray-400 hover:text-cyan-600 p-1.5 transition-colors">
+                                <button className="text-gray-400 hover:text-cyan-600 p-1.5 transition-colors bg-gray-50 hover:bg-cyan-50 rounded-md border border-transparent hover:border-cyan-200">
                                   <Settings className="w-4 h-4" />
                                 </button>
                               </td>
@@ -4962,6 +5002,151 @@ function AdminPanelContent() {
                     >
                       {isInstallingWP ? (<><RefreshCw className="w-4 h-4 animate-spin" /> Instalando...</>) : (<>Instalar WP</>)}
                     </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+          {/* Gerir Contas de E-mail (CyberPanel) */}
+          {selectedClientForEmails && showCreateEmailModal && infraActiveTab === 'websites' && (
+            <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+              <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full overflow-hidden animate-in fade-in zoom-in duration-200">
+                <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
+                  <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+                    <Mail className="w-5 h-5 text-amber-500" />
+                    E-mails do Domínio
+                  </h2>
+                  <button onClick={() => { setSelectedClientForEmails(null); setShowCreateEmailModal(false); }} className="text-gray-400 hover:text-gray-600 transition-colors p-1 hover:bg-gray-100 rounded-full">
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+                <div className="p-6 h-[60vh] overflow-y-auto">
+                  <div className="bg-amber-50 border border-amber-200 p-4 rounded-xl mb-6 flex items-start gap-4">
+                    <div className="flex-1">
+                      <h4 className="font-bold text-amber-900 mb-1">Criar Nova Conta</h4>
+                      <div className="flex gap-2 items-end">
+                        <div className="flex-1">
+                          <label className="text-xs font-bold text-gray-500">Endereço</label>
+                          <div className="flex bg-white rounded-md border border-gray-300 overflow-hidden mt-1">
+                            <input type="text" value={newEmailData.email} onChange={(e) => setNewEmailData({ ...newEmailData, email: e.target.value })} placeholder="geral" className="px-3 py-1.5 flex-1 focus:outline-none text-sm font-medium" />
+                            <span className="bg-gray-100 border-l border-gray-300 px-3 py-1.5 text-sm text-gray-500 font-medium">@{selectedClientForEmails.domain}</span>
+                          </div>
+                        </div>
+                        <div className="flex-[0.8]">
+                          <label className="text-xs font-bold text-gray-500">Password</label>
+                          <input type="password" value={newEmailData.password} onChange={(e) => setNewEmailData({ ...newEmailData, password: e.target.value })} placeholder="******" className="w-full mt-1 px-3 py-1.5 border border-gray-300 rounded-md focus:outline-none text-sm" />
+                        </div>
+                        <button onClick={() => handleCreateCyberEmail(selectedClientForEmails.domain)} disabled={isSavingEmail} className="bg-amber-600 hover:bg-amber-700 text-white px-4 py-1.5 rounded-md font-bold text-sm transition-colors shadow-sm disabled:opacity-50">
+                          {isSavingEmail ? 'Aguarde...' : 'Criar Conta'}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  <h3 className="font-bold text-gray-800 text-sm mb-3">Contas Ativas</h3>
+                  {isFetchingEmails ? (
+                    <div className="py-8 text-center text-gray-400 text-sm italic">Carregando as contas...</div>
+                  ) : emailAccounts.length === 0 ? (
+                    <div className="py-8 text-center text-gray-500 text-sm">Nenhuma conta de email criada neste domínio.</div>
+                  ) : (
+                    <div className="space-y-2">
+                      {emailAccounts.map(account => (
+                        <div key={account.email} className="flex items-center justify-between p-3 border border-gray-100 bg-gray-50 rounded-lg hover:border-gray-200 transition-colors">
+                          <div className="flex items-center gap-3">
+                            <div className="w-8 h-8 rounded-full bg-white border border-gray-200 flex items-center justify-center text-amber-600 font-bold shadow-sm">
+                              {account.user.charAt(0).toUpperCase()}
+                            </div>
+                            <div>
+                              <p className="font-bold text-gray-900 text-sm">{account.email}</p>
+                            </div>
+                          </div>
+                          <button onClick={() => handleDeleteCyberEmail(account.email, selectedClientForEmails.domain)} className="text-red-500 hover:text-red-700 p-2 bg-white rounded-md border border-gray-200 shadow-sm transition-colors">
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* DNS Manager Modal */}
+          {selectedDnsDomain && (
+            <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+              <div className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full overflow-hidden animate-in fade-in zoom-in duration-200 flex flex-col h-[85vh]">
+                <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
+                  <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+                    <Server className="w-5 h-5 text-purple-600" />
+                    Gestor de Registos DNS <span className="text-gray-400 font-normal">({selectedDnsDomain})</span>
+                  </h2>
+                  <button onClick={() => { setSelectedDnsDomain(''); setDnsRecords([]); }} className="text-gray-400 hover:text-gray-600 transition-colors p-1 hover:bg-gray-100 rounded-full">
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+
+                <div className="flex-1 overflow-hidden flex flex-col p-6 gap-6">
+                  <div className="bg-purple-50 border border-purple-200 p-4 rounded-xl flex items-end gap-3 flex-wrap">
+                    <div className="flex-1 min-w-[150px]">
+                      <label className="text-xs font-bold text-gray-600 uppercase">Nome (ex: @ ou _dmarc)</label>
+                      <input type="text" value={dnsFormData.name} onChange={(e) => setDnsFormData({ ...dnsFormData, name: e.target.value })} className="w-full mt-1.5 px-3 py-2 rounded border border-gray-300 focus:outline-none text-sm" placeholder="ex: @" />
+                    </div>
+                    <div className="w-32">
+                      <label className="text-xs font-bold text-gray-600 uppercase">Tipo</label>
+                      <select value={dnsFormData.recordType} onChange={(e) => setDnsFormData({ ...dnsFormData, recordType: e.target.value })} className="w-full mt-1.5 px-3 py-2 rounded border border-gray-300 focus:outline-none text-sm font-bold bg-white">
+                        <option value="A">A Record</option>
+                        <option value="TXT">TXT Record</option>
+                        <option value="CNAME">CNAME Record</option>
+                        <option value="MX">MX Record</option>
+                      </select>
+                    </div>
+                    <div className="flex-[2] min-w-[200px]">
+                      <label className="text-xs font-bold text-gray-600 uppercase">Valor (IP ou Texto)</label>
+                      <input type="text" value={dnsFormData.value} onChange={(e) => setDnsFormData({ ...dnsFormData, value: e.target.value })} className="w-full mt-1.5 px-3 py-2 rounded border border-gray-300 focus:outline-none text-sm font-mono" placeholder="ex: 109.199.104.22" />
+                    </div>
+                    <div className="w-24">
+                      <label className="text-xs font-bold text-gray-600 uppercase">TTL</label>
+                      <input type="text" value={dnsFormData.ttl} onChange={(e) => setDnsFormData({ ...dnsFormData, ttl: e.target.value })} className="w-full mt-1.5 px-3 py-2 rounded border border-gray-300 focus:outline-none text-sm font-mono" placeholder="3600" />
+                    </div>
+                    <button onClick={handleCreateDnsRecord} disabled={isSavingDns} className="bg-purple-600 hover:bg-purple-700 text-white px-5 py-2 rounded shadow-sm text-sm font-bold transition-colors disabled:opacity-50">
+                      {isSavingDns ? 'Aguarde...' : 'Criar Registo'}
+                    </button>
+                  </div>
+
+                  <div className="flex-1 border border-gray-200 rounded-xl overflow-y-auto bg-white shadow-sm relative">
+                    {isFetchingDns ? (
+                      <div className="flex h-full items-center justify-center text-gray-400">
+                        <RefreshCw className="w-8 h-8 animate-spin text-purple-400" />
+                      </div>
+                    ) : (
+                      <table className="w-full text-sm">
+                        <thead className="bg-gray-50 border-b border-gray-200 sticky top-0 z-10">
+                          <tr className="text-left text-xs font-bold text-gray-500 uppercase">
+                            <th className="px-6 py-3">Tipo</th>
+                            <th className="px-6 py-3">Nome</th>
+                            <th className="px-6 py-3">Valor / Apontamento</th>
+                            <th className="px-6 py-3 w-20 text-center">TTL</th>
+                            <th className="px-6 py-3 text-right">Ação</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-100">
+                          {dnsRecords.map((rec) => (
+                            <tr key={rec.id} className="hover:bg-gray-50 transition-colors">
+                              <td className="px-6 py-3 font-bold text-purple-700">{rec.type}</td>
+                              <td className="px-6 py-3 font-medium text-gray-900">{rec.name}</td>
+                              <td className="px-6 py-3 font-mono text-gray-600 break-all max-w-sm">{rec.content}</td>
+                              <td className="px-6 py-3 text-center text-gray-400 text-xs">{rec.ttl}</td>
+                              <td className="px-6 py-3 text-right">
+                                <button onClick={() => handleDeleteDnsRecord(rec.id)} className="text-red-400 hover:text-red-600 p-1 bg-white hover:bg-red-50 border border-gray-200 rounded shadow-sm transition-colors">
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    )}
                   </div>
                 </div>
               </div>
