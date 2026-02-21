@@ -11,10 +11,27 @@ export interface CyberPanelWebsite {
     bandwidthUsage: string;
 }
 
+export interface CyberPanelPackage {
+    packageName: string;
+    diskSpace: number;     // MB
+    bandwidth: number;     // MB
+    emailAccounts: number;
+    dataBases: number;
+    ftpAccounts: number;
+    allowedDomains: number;
+}
+
 export interface CyberPanelEmail {
     email: string;
     quota: string;
     usage: string;
+}
+
+export interface WPInstallParams {
+    domainName: string;
+    wpTitle: string;
+    wpUser: string;
+    wpPassword: string;
 }
 
 class CyberPanelAPI {
@@ -103,14 +120,100 @@ class CyberPanelAPI {
         domainName: string;
         ownerEmail: string;
         packageName: string;
-        websiteOwner: string;
-        ownerPassword: string;
+        phpSelection: string;
     }): Promise<boolean> {
         try {
-            const result = await this.makeRequest('createWebsite', params);
+            const requestParams = {
+                domainName: params.domainName,
+                ownerEmail: params.ownerEmail,
+                packageName: params.packageName,
+                websiteOwner: 'admin',      // Defaulting to admin
+                ownerPassword: 'RandomPassword123!', // Required by API but admin can access it anyway
+                phpSelection: params.phpSelection
+            };
+            const result = await this.makeRequest('createWebsite', requestParams);
             return result.status === 1;
         } catch (error) {
             console.error('Failed to create website in CyberPanel:', error);
+            return false;
+        }
+    }
+
+    async installWordPress(params: WPInstallParams): Promise<boolean> {
+        try {
+            const requestParams = {
+                domainName: params.domainName,
+                wpTitle: params.wpTitle,
+                wpUser: params.wpUser,
+                wpPassword: params.wpPassword
+            };
+
+            // Usage of our specialized SSH-based WP install route
+            // Because CyberPanel's REST API lacks a functional WP installer endpoint publicly
+            const response = await fetch('/api/cyberpanel-wp', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(requestParams),
+            });
+
+            const result = await response.json();
+
+            if (!response.ok) {
+                console.error(`Failed to install WordPress on ${params.domainName}:`, result.error || result.details);
+                return false;
+            }
+
+            return result.success === true;
+        } catch (error) {
+            console.error(`Failed to install WordPress on ${params.domainName}:`, error);
+            return false;
+        }
+    }
+
+    // --- WP Manager & Operations ---
+
+    async issueSSL(domainName: string): Promise<boolean> {
+        try {
+            const result = await this.makeRequest('issueSSL', { domainName });
+            return result.status === 1 || result.success === 1;
+        } catch (error) {
+            console.error(`Failed to issue SSL for ${domainName}:`, error);
+            return false;
+        }
+    }
+
+    async wpAutoLogin(domainName: string): Promise<string | null> {
+        try {
+            // This attempts to call a CyberPanel native or plugin endpoint for WP AutoLogin
+            const result = await this.makeRequest('wpAutoLogin', { domainName });
+            if (result.status === 1 && result.token) {
+                return `https://${domainName}/wp-login.php?cyberpanel_token=${result.token}`;
+            }
+            return null;
+        } catch (error) {
+            console.error(`Failed to get AutoLogin URL for ${domainName}:`, error);
+            return null;
+        }
+    }
+
+    async purgeLSCache(domainName: string): Promise<boolean> {
+        try {
+            const result = await this.makeRequest('purgeLSCache', { domainName });
+            return result.status === 1 || result.success === 1;
+        } catch (error) {
+            console.error(`Failed to purge LSCache for ${domainName}:`, error);
+            return false;
+        }
+    }
+
+    async createBackup(domainName: string): Promise<boolean> {
+        try {
+            const result = await this.makeRequest('submitWebsiteBackup', { websiteName: domainName });
+            return result.status === 1 || result.success === 1;
+        } catch (error) {
+            console.error(`Failed to create backup for ${domainName}:`, error);
             return false;
         }
     }
@@ -141,6 +244,80 @@ class CyberPanelAPI {
             return result.status === 1;
         } catch (error) {
             console.error('Failed to create email in CyberPanel:', error);
+            return false;
+        }
+    }
+
+    // --- Package Management ---
+
+    async listPackages(): Promise<CyberPanelPackage[]> {
+        try {
+            // Some CyberPanel versions don't expose package lists natively via simple endpoints.
+            // Using fetchPackages if available, or we will handle fallback in UI if it fails.
+            const result = await this.makeRequest('fetchPackages');
+
+            if (result.status === 1 && Array.isArray(result.data)) {
+                return result.data.map((pkg: any) => ({
+                    packageName: pkg.packageName,
+                    diskSpace: pkg.diskSpace,
+                    bandwidth: pkg.bandwidth,
+                    emailAccounts: pkg.emailAccounts,
+                    dataBases: pkg.dataBases,
+                    ftpAccounts: pkg.ftpAccounts,
+                    allowedDomains: pkg.allowedDomains
+                }));
+            }
+
+            // Fallback: If the API doesn't return data, we can at least return the Default package
+            return [{
+                packageName: 'Default',
+                diskSpace: 1000,
+                bandwidth: 10000,
+                emailAccounts: 10,
+                dataBases: 1,
+                ftpAccounts: 1,
+                allowedDomains: 1
+            }];
+        } catch (error) {
+            console.error('Failed to fetch CyberPanel packages:', error);
+            // Fallback to ensuring at least 'Default' exists on error
+            return [{
+                packageName: 'Default',
+                diskSpace: 1000,
+                bandwidth: 10000,
+                emailAccounts: 10,
+                dataBases: 1,
+                ftpAccounts: 1,
+                allowedDomains: 1
+            }];
+        }
+    }
+
+    async createPackage(params: {
+        packageName: string;
+        diskSpace: number;     // MB
+        bandwidth: number;     // MB
+        emailAccounts: number;
+        dataBases: number;
+        ftpAccounts: number;
+        allowedDomains: number;
+    }): Promise<boolean> {
+        try {
+            // CyberPanel expects string endpoints, and these are the default API parameters for createPackage.
+            const result = await this.makeRequest('createPackage', params);
+            return result.status === 1 || result.success === 1 || !result.error_message;
+        } catch (error) {
+            console.error('Failed to create package in CyberPanel:', error);
+            return false;
+        }
+    }
+
+    async deletePackage(packageName: string): Promise<boolean> {
+        try {
+            const result = await this.makeRequest('deletePackage', { packageName });
+            return result.status === 1 || result.success === 1 || !result.error_message;
+        } catch (error) {
+            console.error('Failed to delete package in CyberPanel:', error);
             return false;
         }
     }

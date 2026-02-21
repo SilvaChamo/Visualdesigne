@@ -9,7 +9,7 @@ import { validateAdminCredentials, generateAdminToken, validateAdminToken } from
 import { vhmAPI, VHMClient, VHMStats } from '@/lib/vhm-api'
 import { whmcsAPI, WhmcsDomain } from '@/lib/whmcs-api'
 import { ciuemAPI } from '@/lib/ciuem-whois-api'
-import { cyberPanelAPI, CyberPanelWebsite } from '@/lib/cyberpanel-api'
+import { cyberPanelAPI, CyberPanelWebsite, CyberPanelPackage } from '@/lib/cyberpanel-api'
 import { supabase } from '@/lib/supabase'
 import { generateNotificationReport, calculateDaysUntilExpiry } from '@/lib/notification-system'
 import { Users, Plus, Trash2, Mail, AlertCircle, Check, X, Eye, EyeOff, Edit, DollarSign, Calendar, Shield, Search, Filter, Download, Settings, LogOut, Home, FileText, BarChart3, Globe, TrendingUp, Package, CreditCard, UserPlus, Activity, Clock, Star, MessageSquare, MessageCircle, Database, Server, Globe2, Lock, Bell, Archive, RefreshCw, ChevronRight, ChevronDown, MoreVertical, ArrowRightLeft, PlusCircle, Inbox, User, ShieldCheck, Wallet, Sparkles, ArrowRight, ExternalLink, Info } from 'lucide-react'
@@ -154,9 +154,69 @@ function AdminPanelContent() {
 
   // CyberPanel Infrastructure State
   const [cyberPanelSites, setCyberPanelSites] = useState<CyberPanelWebsite[]>([])
+  const [cyberPanelPackages, setCyberPanelPackages] = useState<CyberPanelPackage[]>([])
   const [isFetchingCyberPanel, setIsFetchingCyberPanel] = useState(false)
 
+  // Package Management State
+  const [infraActiveTab, setInfraActiveTab] = useState<'websites' | 'packages'>('websites')
+  const [showCreatePackageModal, setShowCreatePackageModal] = useState(false)
+  const [isSavingPackage, setIsSavingPackage] = useState(false)
+  const [newPackageData, setNewPackageData] = useState({
+    packageName: '',
+    diskSpace: 1000,
+    bandwidth: 10000,
+    emailAccounts: 10,
+    dataBases: 1,
+    ftpAccounts: 1,
+    allowedDomains: 1
+  })
+  const [showCreateCyberSiteModal, setShowCreateCyberSiteModal] = useState(false)
+  const [isSavingCyberSite, setIsSavingCyberSite] = useState(false)
+  const [newCyberSiteData, setNewCyberSiteData] = useState({
+    domainName: '',
+    adminEmail: '',
+    packageName: 'Default',
+    phpSelection: 'PHP 8.2'
+  })
+
+  // WP Installation State
+  const [showWPModal, setShowWPModal] = useState(false)
+  const [selectedWPDomain, setSelectedWPDomain] = useState('')
+  const [isInstallingWP, setIsInstallingWP] = useState(false)
+  const [wpData, setWpData] = useState({ title: '', user: 'admin', password: '' })
+
+  // States for DNS Manager
+  const [dnsRecords, setDnsRecords] = useState<any[]>([])
+  const [isFetchingDns, setIsFetchingDns] = useState(false)
+  const [isSavingDns, setIsSavingDns] = useState(false)
+  const [selectedDnsDomain, setSelectedDnsDomain] = useState('')
+  const [dnsFormData, setDnsFormData] = useState({ name: '', recordType: 'A', value: '', ttl: '3600' })
+
+  // States for Package Management
+  const [packages, setPackages] = useState<any[]>([])
+  const [isFetchingPackages, setIsFetchingPackages] = useState(false)
+  const [isSavingPackage, setIsSavingPackage] = useState(false)
+  const [packageFormData, setPackageFormData] = useState({
+    packageName: '',
+    diskSpace: '1000',
+    bandwidth: '10000',
+    emailAccounts: '10',
+    dataBases: '5',
+    ftpAccounts: '2',
+    allowedDomains: '1'
+  })
   const router = useRouter()
+
+  // Fetch infrastructure details from VHM and CyberPanel
+  const loadInfrastructureData = async () => {
+    // Check authentication on mount
+    const token = localStorage.getItem('admin-token')
+    if (!token || !validateAdminToken(token)) {
+      router.push('/login')
+    } else {
+      setIsAuthenticated(true)
+    }
+  }
 
   useEffect(() => {
     // Check authentication on mount
@@ -231,9 +291,13 @@ function AdminPanelContent() {
   const loadCyberPanelData = async () => {
     setIsFetchingCyberPanel(true)
     try {
-      const sites = await cyberPanelAPI.listWebsites()
+      const [sites, packages] = await Promise.all([
+        cyberPanelAPI.listWebsites(),
+        cyberPanelAPI.listPackages()
+      ]);
       setCyberPanelSites(sites)
-      console.log(`Loaded ${sites.length} CyberPanel sites from new VPS`)
+      setCyberPanelPackages(packages)
+      console.log(`Loaded ${sites.length} CyberPanel sites and ${packages.length} packages from new VPS`)
     } catch (err) {
       console.error('Error loading CyberPanel data:', err)
     } finally {
@@ -839,6 +903,279 @@ function AdminPanelContent() {
     }
   }
 
+  const handleCreatePackage = async () => {
+    setIsSavingPackage(true)
+    setError(null)
+    try {
+      if (!newPackageData.packageName.trim()) {
+        throw new Error('O nome do pacote é obrigatório')
+      }
+
+      const success = await cyberPanelAPI.createPackage({
+        packageName: newPackageData.packageName.trim().replace(/\s+/g, '_'),
+        diskSpace: newPackageData.diskSpace,
+        bandwidth: newPackageData.bandwidth,
+        emailAccounts: newPackageData.emailAccounts,
+        dataBases: newPackageData.dataBases,
+        ftpAccounts: newPackageData.ftpAccounts,
+        allowedDomains: newPackageData.allowedDomains
+      })
+
+      if (success) {
+        // Refresh packages
+        const pkgs = await cyberPanelAPI.listPackages()
+        setCyberPanelPackages(pkgs)
+        setShowCreatePackageModal(false)
+        setNewPackageData({
+          packageName: '',
+          diskSpace: 1000,
+          bandwidth: 10000,
+          emailAccounts: 10,
+          dataBases: 1,
+          ftpAccounts: 1,
+          allowedDomains: 1
+        })
+      } else {
+        throw new Error('Falha ao criar o pacote no CyberPanel')
+      }
+    } catch (err: any) {
+      setError(err.message || 'Ocorreu um erro ao criar o pacote')
+    } finally {
+      setIsSavingPackage(false)
+    }
+  }
+
+  const handleCreateCyberSite = async () => {
+    setIsSavingCyberSite(true)
+    setError(null)
+    try {
+      if (!newCyberSiteData.domainName.trim() || !newCyberSiteData.adminEmail.trim()) {
+        throw new Error('Domínio e email são obrigatórios')
+      }
+
+      const success = await cyberPanelAPI.createWebsite({
+        domainName: newCyberSiteData.domainName.trim(),
+        ownerEmail: newCyberSiteData.adminEmail.trim(),
+        packageName: newCyberSiteData.packageName,
+        phpSelection: newCyberSiteData.phpSelection
+      })
+
+      if (success) {
+        // Refresh websites
+        const sites = await cyberPanelAPI.listWebsites()
+        setCyberPanelSites(sites)
+        setShowCreateCyberSiteModal(false)
+        setNewCyberSiteData({
+          domainName: '',
+          adminEmail: '',
+          packageName: 'Default',
+          phpSelection: 'PHP 8.2'
+        })
+      } else {
+        throw new Error('Falha ao criar o website no CyberPanel')
+      }
+    } catch (err: any) {
+      setError(err.message || 'Ocorreu um erro ao criar o website')
+    } finally {
+      setIsSavingCyberSite(false)
+    }
+  }
+
+  const handleInstallWP = async () => {
+    setIsInstallingWP(true)
+    setError(null)
+    try {
+      if (!wpData.title.trim() || !wpData.user.trim() || !wpData.password.trim()) {
+        throw new Error('Todos os campos são obrigatórios')
+      }
+
+      const success = await cyberPanelAPI.installWordPress({
+        domainName: selectedWPDomain,
+        wpTitle: wpData.title.trim(),
+        wpUser: wpData.user.trim(),
+        wpPassword: wpData.password.trim()
+      })
+
+      if (success) {
+        setShowWPModal(false)
+        setWpData({ title: '', user: 'admin', password: '' })
+        loadCyberPanelData() // refresh list
+      } else {
+        throw new Error('Falha ao instalar o WordPress via CyberPanel. Verifique as credenciais no servidor via SSH.')
+      }
+    } catch (err: any) {
+      setError(err.message || 'Erro ao comunicar com o servidor CyberPanel')
+    } finally {
+      setIsInstallingWP(false)
+    }
+  }
+
+  // --- DNS Management Functions ---
+  const loadDnsRecords = async (domain: string) => {
+    if (!domain) return;
+    setIsFetchingDns(true);
+    setError(null);
+    try {
+      const res = await fetch('/api/cyberpanel-dns', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'get', domainName: domain })
+      });
+      const data = await res.json();
+      if (data.success) {
+        setDnsRecords(data.records || []);
+      } else {
+        throw new Error(data.error || 'Erro ao buscar registos DNS');
+      }
+    } catch (err: any) {
+      setError(err.message);
+      setDnsRecords([]);
+    } finally {
+      setIsFetchingDns(false);
+    }
+  };
+
+  const handleAddDnsRecord = async () => {
+    if (!selectedDnsDomain || !dnsFormData.name || !dnsFormData.value) {
+      setError('Preencha os campos obrigatórios (Nome e Valor)');
+      return;
+    }
+
+    setIsSavingDns(true);
+    setError(null);
+    try {
+      const res = await fetch('/api/cyberpanel-dns', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'add',
+          domainName: selectedDnsDomain,
+          ...dnsFormData
+        })
+      });
+      const data = await res.json();
+      if (data.success) {
+        setDnsFormData({ name: '', recordType: 'A', value: '', ttl: '3600' });
+        loadDnsRecords(selectedDnsDomain);
+      } else {
+        throw new Error(data.error || 'Erro ao adicionar registo DNS');
+      }
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setIsSavingDns(false);
+    }
+  };
+
+  const handleDeleteDnsRecord = async (recordId: string) => {
+    if (!confirm('Tem a certeza que deseja apagar este registo DNS? Esta ação pode afetar a estabilidade do site.')) return;
+
+    setIsFetchingDns(true);
+    setError(null);
+    try {
+      const res = await fetch('/api/cyberpanel-dns', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'delete', domainName: selectedDnsDomain, recordID: recordId })
+      });
+      const data = await res.json();
+      if (data.success) {
+        loadDnsRecords(selectedDnsDomain);
+      } else {
+        throw new Error(data.error || 'Erro ao apagar registo DNS');
+      }
+    } catch (err: any) {
+      setError(err.message);
+      setIsFetchingDns(false);
+    }
+  };
+
+  // --- Package Management Functions ---
+  const loadPackages = async () => {
+    setIsFetchingPackages(true);
+    setError(null);
+    try {
+      const res = await fetch('/api/cyberpanel-packages');
+      const data = await res.json();
+      if (data.success) {
+        setPackages(data.packages || []);
+      } else {
+        throw new Error(data.error || 'Erro ao buscar pacotes');
+      }
+    } catch (err: any) {
+      setError(err.message);
+      setPackages([]);
+    } finally {
+      setIsFetchingPackages(false);
+    }
+  };
+
+  const handleAddPackage = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!packageFormData.packageName) {
+      setError('O nome do pacote é obrigatório');
+      return;
+    }
+
+    setIsSavingPackage(true);
+    setError(null);
+    setSuccess(null);
+    try {
+      const res = await fetch('/api/cyberpanel-packages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(packageFormData)
+      });
+      const data = await res.json();
+      if (data.success) {
+        setSuccess('Pacote criado com sucesso!');
+        setPackageFormData({
+          packageName: '',
+          diskSpace: '1000',
+          bandwidth: '10000',
+          emailAccounts: '10',
+          dataBases: '5',
+          ftpAccounts: '2',
+          allowedDomains: '1'
+        });
+        loadPackages();
+      } else {
+        throw new Error(data.error || 'Erro ao criar pacote');
+      }
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setIsSavingPackage(false);
+    }
+  };
+
+  const handleDeletePackage = async (packageName: string) => {
+    if (packageName.toLowerCase() === 'default') {
+      alert('Não é permitido apagar o pacote Default.');
+      return;
+    }
+    if (!confirm(`Tem a certeza que deseja apagar o pacote "${packageName}"?`)) return;
+
+    setIsFetchingPackages(true);
+    setError(null);
+    try {
+      const res = await fetch('/api/cyberpanel-packages', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ packageName })
+      });
+      const data = await res.json();
+      if (data.success) {
+        loadPackages();
+      } else {
+        throw new Error(data.error || 'Erro ao apagar pacote');
+      }
+    } catch (err: any) {
+      setError(err.message);
+      setIsFetchingPackages(false);
+    }
+  };
+
   if (!isAuthenticated) {
     return (
       <div className="min-h-screen bg-white flex items-center justify-center">
@@ -881,7 +1218,7 @@ function AdminPanelContent() {
     client.email.toLowerCase().includes(searchTerm.toLowerCase())
   )
 
-  const menuItems: Array<{ id: string; label: string; color: string; subItems?: Array<{ id: string; label: string }> }> = [
+  const menuItems: Array<{ id: string; label: string; color: string; isNew?: boolean; subItems?: Array<{ id: string; label: string }> }> = [
     { id: 'dashboard', label: 'Dashboard', color: 'bg-blue-500' },
     { id: 'clients', label: 'Clientes', color: 'bg-green-500' },
     { id: 'users', label: 'Usuários', color: 'bg-red-500' },
@@ -896,7 +1233,14 @@ function AdminPanelContent() {
       id: 'domains', label: 'Domínios', color: 'bg-purple-500', subItems: [
         { id: 'domains', label: 'Meus Domínios' },
         { id: 'domains-new', label: 'Novo Domínio' },
+        { id: 'domains-dns', label: 'Gestão de DNS' },
         { id: 'domains-transfer', label: 'Transferir Domínio' },
+      ]
+    },
+    {
+      id: 'packages', label: 'Pacotes', color: 'bg-emerald-500', isNew: true, subItems: [
+        { id: 'packages-list', label: 'Listar Pacotes' },
+        { id: 'packages-new', label: 'Criar Pacote' },
       ]
     },
     { id: 'notifications', label: 'Notificações', color: 'bg-orange-500' },
@@ -906,6 +1250,15 @@ function AdminPanelContent() {
     { id: 'settings', label: 'Configurações', color: 'bg-gray-500' },
     { id: 'security', label: 'Segurança', color: 'bg-red-500' },
     { id: 'infrastructure', label: 'Infraestrutura', color: 'bg-cyan-600' },
+    {
+      id: 'wordpress', label: 'WordPress', color: 'bg-indigo-500', isNew: true, subItems: [
+        { id: 'wordpress-deploy', label: 'Deploy WordPress' },
+        { id: 'wordpress-list', label: 'List WordPress' },
+        { id: 'wordpress-plugins', label: 'Configure Plugins' },
+        { id: 'wordpress-restore', label: 'Restore Backups' },
+        { id: 'wordpress-remote', label: 'Remote Backup' },
+      ]
+    },
     { id: 'backup', label: 'Backup', color: 'bg-yellow-500' }
   ]
 
@@ -916,6 +1269,7 @@ function AdminPanelContent() {
       case 'users': return <UserPlus className="w-5 h-5" />
       case 'emails': return <Mail className="w-5 h-5" />
       case 'domains': return <Globe className="w-5 h-5" />
+      case 'packages': return <Package className="w-5 h-5" />
       case 'notifications': return <Bell className="w-5 h-5" />
       case 'billing': return <CreditCard className="w-5 h-5" />
       case 'reports': return <FileText className="w-5 h-5" />
@@ -923,6 +1277,7 @@ function AdminPanelContent() {
       case 'settings': return <Settings className="w-5 h-5" />
       case 'security': return <Shield className="w-5 h-5" />
       case 'infrastructure': return <Server className="w-5 h-5" />
+      case 'wordpress': return <Globe2 className="w-5 h-5" />
       case 'backup': return <Database className="w-5 h-5" />
       default: return <BarChart3 className="w-5 h-5" />
     }
@@ -933,7 +1288,7 @@ function AdminPanelContent() {
       {/* Main Content */}
       <div className="flex">
         {/* Sidebar */}
-        <div className={`${isSidebarCollapsed ? 'w-20' : 'w-64'} bg-white shadow-lg h-screen transition-all duration-300 relative group flex flex-col`}>
+        <div className={`${isSidebarCollapsed ? 'w-20' : 'w-64'} bg-white shadow-lg h-screen sticky top-0 transition-all duration-300 z-50 group flex flex-col shrink-0`}>
           <div className={`p-3 border-b border-gray-200 shrink-0`}>
             <div className={`flex items-center gap-0 ${isSidebarCollapsed ? 'flex-col' : ''}`}>
               <div className="w-16 h-16 flex items-center justify-center shrink-0">
@@ -1010,6 +1365,11 @@ function AdminPanelContent() {
                     )}
                     {!isSidebarCollapsed && !hasSubItems && isParentActive && (
                       <ChevronRight className="w-4 h-4 ml-auto" />
+                    )}
+                    {!isSidebarCollapsed && (item as any).isNew && (
+                      <span className="ml-2 px-1.5 py-0.5 text-[10px] font-bold text-white bg-orange-500 rounded-md">
+                        NEW
+                      </span>
                     )}
                   </button>
 
@@ -1575,65 +1935,170 @@ function AdminPanelContent() {
                 </div>
               </div>
 
-              {/* Websites List */}
-              <div className="bg-white rounded-xl shadow-md border border-gray-200 overflow-hidden">
-                <div className="px-6 py-4 border-b border-gray-200 flex justify-between items-center bg-gray-50">
-                  <h3 className="text-sm font-bold text-gray-800">Websites no Novo Servidor</h3>
-                  <button className="text-xs font-bold text-cyan-600 hover:bg-cyan-50 px-3 py-1 rounded transition-colors border border-cyan-200">
-                    + Criar Novo Site
-                  </button>
-                </div>
-
-                {isFetchingCyberPanel ? (
-                  <div className="p-12 text-center text-gray-500">
-                    <RefreshCw className="w-8 h-8 animate-spin mx-auto mb-3 text-cyan-500" />
-                    Carregando sites...
-                  </div>
-                ) : cyberPanelSites.length === 0 ? (
-                  <div className="p-16 text-center">
-                    <div className="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center mx-auto mb-4">
-                      <Globe2 className="w-8 h-8 text-gray-300" />
-                    </div>
-                    <p className="text-sm text-gray-500 max-w-sm mx-auto">
-                      Ainda não existem websites criados na nova infraestrutura.
-                      Pode iniciar a migração de sites do VHM para aqui.
-                    </p>
-                  </div>
-                ) : (
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-sm">
-                      <thead className="bg-gray-50 text-gray-500 uppercase text-[10px] font-bold tracking-widest">
-                        <tr>
-                          <th className="px-6 py-4 text-left">Domínio</th>
-                          <th className="px-6 py-4 text-left">Pacote</th>
-                          <th className="px-6 py-4 text-left">Dono</th>
-                          <th className="px-6 py-4 text-left">Status</th>
-                          <th className="px-6 py-4 text-right">Ações</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-gray-100">
-                        {cyberPanelSites.map((site) => (
-                          <tr key={site.domain} className="hover:bg-gray-50 transition-colors">
-                            <td className="px-6 py-4 font-medium text-gray-900">{site.domain}</td>
-                            <td className="px-6 py-4 text-gray-600">{site.package}</td>
-                            <td className="px-6 py-4 text-gray-600">{site.owner}</td>
-                            <td className="px-6 py-4">
-                              <span className={`px-2 py-0.5 text-[10px] font-bold rounded-full border ${site.status === 'Active' ? 'bg-green-100 text-green-700 border-green-200' : 'bg-gray-100 text-gray-700 border-gray-200'}`}>
-                                {site.status}
-                              </span>
-                            </td>
-                            <td className="px-6 py-4 text-right">
-                              <button className="text-gray-400 hover:text-cyan-600 p-1.5 transition-colors">
-                                <Settings className="w-4 h-4" />
-                              </button>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
+              {/* Infrastructure Tabs */}
+              <div className="flex bg-white rounded-lg shadow-sm border border-gray-200 p-1 mb-6 max-w-sm">
+                <button
+                  onClick={() => setInfraActiveTab('websites')}
+                  className={`flex-1 py-2 text-sm font-bold rounded-md transition-all ${infraActiveTab === 'websites' ? 'bg-cyan-50 text-cyan-700 shadow-sm' : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'}`}
+                >
+                  <Globe className="w-4 h-4 inline-block mr-2" />
+                  Websites
+                </button>
+                <button
+                  onClick={() => setInfraActiveTab('packages')}
+                  className={`flex-1 py-2 text-sm font-bold rounded-md transition-all ${infraActiveTab === 'packages' ? 'bg-cyan-50 text-cyan-700 shadow-sm' : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'}`}
+                >
+                  <Package className="w-4 h-4 inline-block mr-2" />
+                  Pacotes
+                </button>
               </div>
+
+              {/* Websites List */}
+              {infraActiveTab === 'websites' && (
+                <div className="bg-white rounded-xl shadow-md border border-gray-200 overflow-hidden animate-in fade-in duration-300">
+                  <div className="px-6 py-4 border-b border-gray-200 flex justify-between items-center bg-gray-50">
+                    <h3 className="text-sm font-bold text-gray-800">Websites no Novo Servidor</h3>
+                    <button
+                      onClick={() => setShowCreateCyberSiteModal(true)}
+                      className="text-xs font-bold text-cyan-600 hover:bg-cyan-50 px-3 py-1 rounded transition-colors border border-cyan-200"
+                    >
+                      + Criar Novo Site
+                    </button>
+                  </div>
+
+                  {isFetchingCyberPanel ? (
+                    <div className="p-12 text-center text-gray-500">
+                      <RefreshCw className="w-8 h-8 animate-spin mx-auto mb-3 text-cyan-500" />
+                      Carregando sites...
+                    </div>
+                  ) : cyberPanelSites.length === 0 ? (
+                    <div className="p-16 text-center">
+                      <div className="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center mx-auto mb-4">
+                        <Globe2 className="w-8 h-8 text-gray-300" />
+                      </div>
+                      <p className="text-sm text-gray-500 max-w-sm mx-auto">
+                        Ainda não existem websites criados na nova infraestrutura.
+                        Pode iniciar a migração de sites do VHM para aqui.
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead className="bg-gray-50 text-gray-500 uppercase text-[10px] font-bold tracking-widest">
+                          <tr>
+                            <th className="px-6 py-4 text-left">Domínio</th>
+                            <th className="px-6 py-4 text-left">Pacote</th>
+                            <th className="px-6 py-4 text-left">Dono</th>
+                            <th className="px-6 py-4 text-left">Status</th>
+                            <th className="px-6 py-4 text-right">Ações</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-100">
+                          {cyberPanelSites.map((site) => (
+                            <tr key={site.domain} className="hover:bg-gray-50 transition-colors">
+                              <td className="px-6 py-4 font-medium text-gray-900">{site.domain}</td>
+                              <td className="px-6 py-4 text-gray-600">{site.package}</td>
+                              <td className="px-6 py-4 text-gray-600">{site.owner}</td>
+                              <td className="px-6 py-4">
+                                <span className={`px-2 py-0.5 text-[10px] font-bold rounded-full border ${site.status === 'Active' ? 'bg-green-100 text-green-700 border-green-200' : 'bg-gray-100 text-gray-700 border-gray-200'}`}>
+                                  {site.status}
+                                </span>
+                              </td>
+                              <td className="px-6 py-4 text-right flex justify-end gap-2">
+                                <button
+                                  onClick={() => {
+                                    setSelectedWPDomain(site.domain);
+                                    setShowWPModal(true);
+                                  }}
+                                  title="Instalar WordPress (1-Click)"
+                                  className="text-gray-400 hover:text-blue-600 p-1.5 transition-colors"
+                                >
+                                  <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
+                                    <path d="M12.158 12.786l-2.698 7.84c.806.236 1.657.365 2.54.365 1.047 0 2.05-.18 2.986-.51-.024-.037-.046-.078-.065-.123l-2.763-7.572zm5.405-2.835c-.17-.885-.595-1.597-1.146-2.073-.55-.477-1.222-.716-1.956-.716-.145 0-.306.015-.476.046-.17.03-.336.07-.487.123-.153.05-.306.11-.458.17-.152.062-.312.132-.472.215-.245.123-.487.23-.717.323-.23.09-.457.17-.672.23-.213.06-.442.107-.67.14-.23.03-.473.045-.717.045-.64 0-1.19-.107-1.634-.323-.443-.215-.794-.522-1.04-.906-.244-.385-.365-.845-.365-1.37 0-.584.14-1.09.412-1.506.273-.415.655-.74 1.13-1.03.472-.292 1.053-.523 1.725-.693.67-.17 1.436-.26 2.274-.26 1.13 0 2.152.17 3.052.507.9.34 1.677.815 2.316 1.447.64.63 1.122 1.383 1.44 2.244.32.863.487 1.8.487 2.8-.002.585-.05 1.14-.14 1.66zM2.84 12c0-5.06 4.103-9.16 9.16-9.16 1.6 0 3.104.412 4.416 1.14-1.127-1.03-2.67-1.64-4.355-1.64-3.488 0-6.315 2.827-6.315 6.315 0 .205.01.408.03.61-.132.844-.198 1.7-.198 2.57 0 1.25.19 2.45.54 3.58l-1.42 2.03C3.543 15.91 2.84 14.032 2.84 12zm2.096 1.815c.168.966.452 1.898.835 2.78l1.458 3.32c-.524-.486-.98-.99-1.39-1.5-2.074-2.585-3.08-5.34-3.08-8.24m7.222.97l2.872 7.89c.815-.316 1.572-.756 2.26-1.332-1.58.2-3.23-.284-4.46-1.31M12 0C5.372 0 0 5.372 0 12s5.372 12 12 12 12-5.372 12-12S18.628 0 12 0z" />
+                                  </svg>
+                                </button>
+                                <button className="text-gray-400 hover:text-cyan-600 p-1.5 transition-colors">
+                                  <Settings className="w-4 h-4" />
+                                </button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Packages List */}
+              {infraActiveTab === 'packages' && (
+                <div className="bg-white rounded-xl shadow-md border border-gray-200 overflow-hidden animate-in fade-in duration-300">
+                  <div className="px-6 py-4 border-b border-gray-200 flex justify-between items-center bg-gray-50">
+                    <h3 className="text-sm font-bold text-gray-800">Planos de Alojamento</h3>
+                    <button
+                      onClick={() => setShowCreatePackageModal(true)}
+                      className="text-xs font-bold text-cyan-600 hover:bg-cyan-50 px-3 py-1 rounded transition-colors border border-cyan-200"
+                    >
+                      + Criar Novo Pacote
+                    </button>
+                  </div>
+
+                  {isFetchingCyberPanel ? (
+                    <div className="p-12 text-center text-gray-500">
+                      <RefreshCw className="w-8 h-8 animate-spin mx-auto mb-3 text-cyan-500" />
+                      Carregando pacotes...
+                    </div>
+                  ) : cyberPanelPackages.length === 0 ? (
+                    <div className="p-16 text-center">
+                      <div className="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center mx-auto mb-4">
+                        <Package className="w-8 h-8 text-gray-300" />
+                      </div>
+                      <p className="text-sm text-gray-500 max-w-sm mx-auto">
+                        Nenhum pacote encontrado. O "Default" não foi detectado.
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead className="bg-gray-50 text-gray-500 uppercase text-[10px] font-bold tracking-widest">
+                          <tr>
+                            <th className="px-6 py-4 text-left">Pacote</th>
+                            <th className="px-6 py-4 text-center">Disco</th>
+                            <th className="px-6 py-4 text-center">Banda</th>
+                            <th className="px-6 py-4 text-center">Domínios</th>
+                            <th className="px-6 py-4 text-center">E-mails</th>
+                            <th className="px-6 py-4 text-center">DBs</th>
+                            <th className="px-6 py-4 text-center">FTP</th>
+                            <th className="px-6 py-4 text-right">Ações</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-100">
+                          {cyberPanelPackages.map((pkg) => (
+                            <tr key={pkg.packageName} className="hover:bg-gray-50 transition-colors">
+                              <td className="px-6 py-4 font-bold text-gray-900">{pkg.packageName}</td>
+                              <td className="px-6 py-4 text-center text-gray-600">{pkg.diskSpace > 1000000 ? 'Ilimitado' : `${pkg.diskSpace} MB`}</td>
+                              <td className="px-6 py-4 text-center text-gray-600">{pkg.bandwidth > 1000000 ? 'Ilimitado' : `${pkg.bandwidth} MB`}</td>
+                              <td className="px-6 py-4 text-center text-gray-600">{pkg.allowedDomains}</td>
+                              <td className="px-6 py-4 text-center text-gray-600">{pkg.emailAccounts}</td>
+                              <td className="px-6 py-4 text-center text-gray-600">{pkg.dataBases}</td>
+                              <td className="px-6 py-4 text-center text-gray-600">{pkg.ftpAccounts}</td>
+                              <td className="px-6 py-4 text-right">
+                                {pkg.packageName === 'Default' ? (
+                                  <span className="text-xs text-gray-400 italic">Padrão do Sistema</span>
+                                ) : (
+                                  <button className="text-red-400 hover:text-red-600 p-1.5 transition-colors">
+                                    <Trash2 className="w-4 h-4" />
+                                  </button>
+                                )}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           )}
 
@@ -2740,6 +3205,379 @@ function AdminPanelContent() {
             </div>
           )}
 
+          {activeSection === 'domains-dns' && (
+            <div className="space-y-6 max-w-5xl">
+              <div className="flex justify-between items-center mb-8">
+                <div>
+                  <h1 className="text-3xl font-bold text-gray-900">Gestão de DNS</h1>
+                  <p className="text-gray-500 mt-1">Gira os registos A, CNAME, TXT, MX e outros para os seus domínios alojados na infraestrutura.</p>
+                </div>
+              </div>
+
+              <div className="bg-white rounded-xl shadow-md border border-gray-100 overflow-hidden">
+                <div className="p-6 border-b border-gray-100 bg-gray-50 flex gap-4 items-end">
+                  <div className="flex-1">
+                    <label className="block text-xs font-bold text-gray-700 mb-1">Selecione o Domínio</label>
+                    <div className="relative">
+                      <select
+                        value={selectedDnsDomain}
+                        onChange={(e) => {
+                          setSelectedDnsDomain(e.target.value);
+                          if (e.target.value) {
+                            loadDnsRecords(e.target.value);
+                          } else {
+                            setDnsRecords([]);
+                          }
+                        }}
+                        className="w-full pl-10 pr-4 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500"
+                      >
+                        <option value="">Escolha um domínio...</option>
+                        {cyberPanelSites.map(site => (
+                          <option key={site.domain} value={site.domain}>{site.domain}</option>
+                        ))}
+                      </select>
+                      <Globe className="w-4 h-4 text-gray-400 absolute left-3 top-2.5" />
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => loadDnsRecords(selectedDnsDomain)}
+                    disabled={!selectedDnsDomain || isFetchingDns}
+                    className="px-4 py-2 bg-white border border-gray-200 text-gray-700 hover:bg-gray-50 hover:text-purple-600 rounded-lg text-sm font-semibold transition-colors flex items-center gap-2 disabled:opacity-50"
+                  >
+                    <RefreshCw className={`w-4 h-4 ${isFetchingDns ? 'animate-spin text-purple-600' : ''}`} />
+                    Atualizar Registos
+                  </button>
+                </div>
+
+                {error && (
+                  <div className="m-6 p-4 bg-red-50 border border-red-100 text-red-600 text-sm rounded-lg flex items-start gap-3">
+                    <AlertCircle className="w-5 h-5 flex-shrink-0" />
+                    <div>{error}</div>
+                  </div>
+                )}
+
+                {selectedDnsDomain ? (
+                  <div className="p-6">
+                    {/* Add New Record Form */}
+                    <div className="mb-8 p-5 bg-purple-50/50 rounded-xl border border-purple-100">
+                      <h3 className="text-sm font-bold text-gray-900 mb-4 flex items-center gap-2">
+                        <Plus className="w-4 h-4 text-purple-600" />
+                        Adicionar Novo Registo
+                      </h3>
+                      <div className="grid grid-cols-12 gap-4 items-end">
+                        <div className="col-span-2">
+                          <label className="block text-xs font-semibold text-gray-600 mb-1">Tipo</label>
+                          <select
+                            value={dnsFormData.recordType}
+                            onChange={(e) => setDnsFormData({ ...dnsFormData, recordType: e.target.value })}
+                            className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20"
+                          >
+                            <option value="A">A</option>
+                            <option value="AAAA">AAAA</option>
+                            <option value="CNAME">CNAME</option>
+                            <option value="MX">MX</option>
+                            <option value="TXT">TXT</option>
+                            <option value="NS">NS</option>
+                            <option value="SRV">SRV</option>
+                          </select>
+                        </div>
+                        <div className="col-span-3">
+                          <label className="block text-xs font-semibold text-gray-600 mb-1">Nome (Name)</label>
+                          <input
+                            type="text"
+                            placeholder="ex: @ ou subdominio"
+                            value={dnsFormData.name}
+                            onChange={(e) => setDnsFormData({ ...dnsFormData, name: e.target.value })}
+                            className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20"
+                          />
+                        </div>
+                        <div className="col-span-4">
+                          <label className="block text-xs font-semibold text-gray-600 mb-1">Valor (Value)</label>
+                          <input
+                            type="text"
+                            placeholder="ex: 192.168.1.1 ou v=spf1..."
+                            value={dnsFormData.value}
+                            onChange={(e) => setDnsFormData({ ...dnsFormData, value: e.target.value })}
+                            className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20"
+                          />
+                        </div>
+                        <div className="col-span-1">
+                          <label className="block text-xs font-semibold text-gray-600 mb-1">TTL</label>
+                          <input
+                            type="text"
+                            placeholder="3600"
+                            value={dnsFormData.ttl}
+                            onChange={(e) => setDnsFormData({ ...dnsFormData, ttl: e.target.value })}
+                            className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20"
+                          />
+                        </div>
+                        <div className="col-span-2">
+                          <button
+                            onClick={handleAddDnsRecord}
+                            disabled={isSavingDns || !dnsFormData.name || !dnsFormData.value}
+                            className="w-full px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white font-bold text-sm rounded-lg shadow-sm transition-colors disabled:opacity-50"
+                          >
+                            {isSavingDns ? <RefreshCw className="w-4 h-4 animate-spin mx-auto" /> : 'Adicionar'}
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Records Table */}
+                    <div className="border border-gray-200 rounded-xl overflow-hidden">
+                      <table className="w-full text-sm text-left">
+                        <thead className="bg-gray-50 text-gray-500 text-xs uppercase font-bold tracking-wider">
+                          <tr>
+                            <th className="px-6 py-4">Nome</th>
+                            <th className="px-6 py-4 w-24">Tipo</th>
+                            <th className="px-6 py-4">Conteúdo / Valor</th>
+                            <th className="px-6 py-4 w-24">TTL</th>
+                            <th className="px-6 py-4 text-right w-24">Ações</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-100">
+                          {isFetchingDns && dnsRecords.length === 0 ? (
+                            <tr>
+                              <td colSpan={5} className="px-6 py-12 text-center text-gray-400">
+                                <RefreshCw className="w-6 h-6 animate-spin mx-auto mb-2 text-purple-400" />
+                                <p>A carregar registos DNS...</p>
+                              </td>
+                            </tr>
+                          ) : dnsRecords.length === 0 ? (
+                            <tr>
+                              <td colSpan={5} className="px-6 py-12 text-center text-gray-400">
+                                <Server className="w-8 h-8 mx-auto mb-2 opacity-20" />
+                                <p>Nenhum registo encontrado para este domínio.</p>
+                              </td>
+                            </tr>
+                          ) : (
+                            dnsRecords.map((record, index) => (
+                              <tr key={index} className="hover:bg-purple-50/30 transition-colors">
+                                <td className="px-6 py-3 font-medium text-gray-900">{record.name}</td>
+                                <td className="px-6 py-3">
+                                  <span className={`px-2 py-1 rounded text-xs font-bold ${record.type === 'A' ? 'bg-blue-100 text-blue-700' :
+                                    record.type === 'CNAME' ? 'bg-purple-100 text-purple-700' :
+                                      record.type === 'TXT' ? 'bg-green-100 text-green-700' :
+                                        record.type === 'MX' ? 'bg-orange-100 text-orange-700' :
+                                          'bg-gray-100 text-gray-700'
+                                    }`}>
+                                    {record.type}
+                                  </span>
+                                </td>
+                                <td className="px-6 py-3 text-gray-600 font-mono text-xs break-all">{record.content}</td>
+                                <td className="px-6 py-3 text-gray-500">{record.ttl}</td>
+                                <td className="px-6 py-3 text-right">
+                                  {record.type !== 'SOA' && (
+                                    <button
+                                      onClick={() => handleDeleteDnsRecord(record.id)}
+                                      className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded transition-colors"
+                                      title="Apagar Registo"
+                                    >
+                                      <Trash2 className="w-4 h-4" />
+                                    </button>
+                                  )}
+                                </td>
+                              </tr>
+                            ))
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="p-16 text-center text-gray-400">
+                    <Globe className="w-12 h-12 mx-auto mb-4 opacity-20" />
+                    <p>Selecione um domínio acima para gerir os seus registos DNS.</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {activeSection === 'packages-list' && (
+            <div className="space-y-6 max-w-5xl">
+              <div className="flex justify-between items-center mb-8">
+                <div>
+                  <h1 className="text-3xl font-bold text-gray-900">Pacotes de Alojamento</h1>
+                  <p className="text-gray-500 mt-1">Gira as quotas de armazenamento, tráfego e limites da sua revenda.</p>
+                </div>
+                <button
+                  onClick={() => {
+                    loadPackages()
+                  }}
+                  className="bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-2 rounded-md flex items-center gap-2 transition-all font-bold"
+                >
+                  <RefreshCw className={`w-4 h-4 ${isFetchingPackages ? 'animate-spin text-emerald-600' : ''}`} />
+                  Atualizar
+                </button>
+              </div>
+
+              {error && (
+                <div className="p-4 bg-red-50 border border-red-100 text-red-600 rounded-lg flex items-start gap-3">
+                  <AlertCircle className="w-5 h-5 flex-shrink-0" />
+                  <div>{error}</div>
+                </div>
+              )}
+
+              <div className="bg-white rounded-xl shadow-md border border-gray-100 overflow-hidden">
+                <table className="w-full text-sm">
+                  <thead className="bg-gray-50 border-b border-gray-100">
+                    <tr className="text-left text-xs font-bold text-gray-500 uppercase tracking-wider">
+                      <th className="px-6 py-4">Nome do Pacote</th>
+                      <th className="px-6 py-4">Disco (MB)</th>
+                      <th className="px-6 py-4">Tráfego (MB)</th>
+                      <th className="px-6 py-4">E-mails</th>
+                      <th className="px-6 py-4">BDs</th>
+                      <th className="px-6 py-4">Domínios</th>
+                      <th className="px-6 py-4 text-right">Ações</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-50">
+                    {packages.length === 0 && !isFetchingPackages ? (
+                      <tr>
+                        <td colSpan={7} className="px-6 py-12 text-center text-gray-400">
+                          <Package className="w-12 h-12 mx-auto mb-3 opacity-20" />
+                          Nenhum pacote encontrado.
+                        </td>
+                      </tr>
+                    ) : (
+                      packages.map((pkg, idx) => (
+                        <tr key={idx} className="hover:bg-gray-50 transition-colors">
+                          <td className="px-6 py-3 font-bold text-gray-900">{pkg.name}</td>
+                          <td className="px-6 py-3 text-gray-600">{pkg.diskSpace}</td>
+                          <td className="px-6 py-3 text-gray-600">{pkg.bandwidth}</td>
+                          <td className="px-6 py-3 text-gray-600">{pkg.emailAccounts}</td>
+                          <td className="px-6 py-3 text-gray-600">{pkg.dataBases}</td>
+                          <td className="px-6 py-3 text-gray-600">{pkg.allowedDomains}</td>
+                          <td className="px-6 py-3 text-right">
+                            <button
+                              onClick={() => handleDeletePackage(pkg.name)}
+                              className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
+                              title="Apagar Pacote"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {activeSection === 'packages-new' && (
+            <div className="space-y-6 max-w-3xl">
+              <div>
+                <h1 className="text-3xl font-bold text-gray-900">Criar Novo Pacote</h1>
+                <p className="text-gray-500 mt-1">Defina os limites de recursos para este plano.</p>
+              </div>
+
+              {error && (
+                <div className="p-4 bg-red-50 border border-red-100 text-red-600 rounded-lg flex items-start gap-3">
+                  <AlertCircle className="w-5 h-5 flex-shrink-0" />
+                  <div>{error}</div>
+                </div>
+              )}
+              {success && (
+                <div className="p-4 bg-emerald-50 border border-emerald-100 text-emerald-600 rounded-lg flex items-start gap-3">
+                  <Check className="w-5 h-5 flex-shrink-0" />
+                  <div>{success}</div>
+                </div>
+              )}
+
+              <form onSubmit={handleAddPackage} className="bg-white rounded-xl shadow-md border border-gray-100 p-8 space-y-6">
+                <div>
+                  <label className="block text-sm font-bold text-gray-700 mb-2">Nome do Pacote</label>
+                  <input
+                    type="text"
+                    required
+                    value={packageFormData.packageName}
+                    onChange={(e) => setPackageFormData({ ...packageFormData, packageName: e.target.value })}
+                    className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-emerald-500"
+                    placeholder="Ex: Start, Pro, Business"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">Apenas letras sem espaços.</p>
+                </div>
+
+                <div className="grid grid-cols-2 gap-6">
+                  <div>
+                    <label className="block text-sm font-bold text-gray-700 mb-2">Espaço em Disco (MB)</label>
+                    <input
+                      type="number"
+                      required
+                      value={packageFormData.diskSpace}
+                      onChange={(e) => setPackageFormData({ ...packageFormData, diskSpace: e.target.value })}
+                      className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-emerald-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-bold text-gray-700 mb-2">Tráfego Mensal (MB)</label>
+                    <input
+                      type="number"
+                      required
+                      value={packageFormData.bandwidth}
+                      onChange={(e) => setPackageFormData({ ...packageFormData, bandwidth: e.target.value })}
+                      className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-emerald-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-bold text-gray-700 mb-2">Contas de E-mail</label>
+                    <input
+                      type="number"
+                      required
+                      value={packageFormData.emailAccounts}
+                      onChange={(e) => setPackageFormData({ ...packageFormData, emailAccounts: e.target.value })}
+                      className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-emerald-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-bold text-gray-700 mb-2">Bases de Dados</label>
+                    <input
+                      type="number"
+                      required
+                      value={packageFormData.dataBases}
+                      onChange={(e) => setPackageFormData({ ...packageFormData, dataBases: e.target.value })}
+                      className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-emerald-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-bold text-gray-700 mb-2">Contas FTP</label>
+                    <input
+                      type="number"
+                      required
+                      value={packageFormData.ftpAccounts}
+                      onChange={(e) => setPackageFormData({ ...packageFormData, ftpAccounts: e.target.value })}
+                      className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-emerald-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-bold text-gray-700 mb-2">Domínios Extra Permitidos</label>
+                    <input
+                      type="number"
+                      required
+                      value={packageFormData.allowedDomains}
+                      onChange={(e) => setPackageFormData({ ...packageFormData, allowedDomains: e.target.value })}
+                      className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-emerald-500"
+                    />
+                  </div>
+                </div>
+
+                <div className="pt-4 border-t border-gray-100 flex justify-end">
+                  <button
+                    type="submit"
+                    disabled={isSavingPackage}
+                    className="bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-3 rounded-lg font-bold flex items-center gap-2 transition-all disabled:opacity-50"
+                  >
+                    {isSavingPackage ? <RefreshCw className="w-5 h-5 animate-spin" /> : <Package className="w-5 h-5" />}
+                    Criar Pacote
+                  </button>
+                </div>
+              </form>
+            </div>
+          )}
+
           {activeSection === 'domains-new' && (
             <div>
               <div className="flex justify-between items-center mb-8">
@@ -3070,6 +3908,185 @@ function AdminPanelContent() {
                       ))}
                     </div>
                   </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {activeSection === 'wordpress-deploy' && (
+            <div className="space-y-6 max-w-4xl">
+              <div className="flex justify-between items-center mb-8">
+                <div>
+                  <h1 className="text-3xl font-bold text-gray-900">Deploy WordPress</h1>
+                  <p className="text-gray-500 mt-1">Instale o WordPress com 1-click num dos websites da Nova Infraestrutura.</p>
+                </div>
+              </div>
+
+              <div className="bg-white rounded-xl shadow-md border border-gray-100 p-8">
+                <div className="space-y-6">
+                  <div>
+                    <label className="block text-xs font-bold text-gray-700 mb-1">Domínio de Destino</label>
+                    <select
+                      value={selectedWPDomain || ''}
+                      onChange={(e) => setSelectedWPDomain(e.target.value)}
+                      className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#00749C]/20 focus:border-[#00749C]"
+                    >
+                      <option value="">Selecione um domínio...</option>
+                      {cyberPanelSites.map(site => (
+                        <option key={site.domain} value={site.domain}>{site.domain}</option>
+                      ))}
+                    </select>
+                    {cyberPanelSites.length === 0 && (
+                      <p className="text-[10px] text-red-500 mt-1">Nenhum site encontrado. Crie um website na tab Infraestrutura primeiro.</p>
+                    )}
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-gray-700 mb-1">Título do Website</label>
+                    <input
+                      type="text"
+                      value={wpData.title}
+                      onChange={(e) => setWpData({ ...wpData, title: e.target.value })}
+                      placeholder="Ex: Meu Novo Site"
+                      className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#00749C]/20 focus:border-[#00749C]"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-bold text-gray-700 mb-1">Nome de Utilizador</label>
+                      <input
+                        type="text"
+                        value={wpData.user}
+                        onChange={(e) => setWpData({ ...wpData, user: e.target.value })}
+                        placeholder="admin"
+                        className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#00749C]/20 focus:border-[#00749C]"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-gray-700 mb-1">Palavra-passe Segura</label>
+                      <input
+                        type="text"
+                        value={wpData.password}
+                        onChange={(e) => setWpData({ ...wpData, password: e.target.value })}
+                        placeholder="P@ssw0rd!"
+                        className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#00749C]/20 focus:border-[#00749C]"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="pt-6 border-t border-gray-100 flex justify-end">
+                    <button
+                      onClick={handleInstallWP}
+                      disabled={isInstallingWP || !selectedWPDomain || !wpData.title.trim() || !wpData.user.trim() || !wpData.password.trim()}
+                      className="px-8 py-3 bg-black hover:bg-red-600 text-white text-sm font-bold rounded-lg shadow-md transition-all flex items-center gap-2 disabled:opacity-50"
+                    >
+                      {isInstallingWP ? (<><RefreshCw className="w-4 h-4 animate-spin" /> Instalando...</>) : (<><Globe2 className="w-4 h-4" /> Instalar WordPress Agora</>)}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {activeSection === 'wordpress-list' && (
+            <div className="space-y-6">
+              <div className="flex justify-between items-center mb-8">
+                <div>
+                  <h1 className="text-3xl font-bold text-gray-900">Listar WordPress</h1>
+                  <p className="text-gray-500 mt-1">Gerencie as instalações WordPress ativas.</p>
+                </div>
+                <button
+                  onClick={loadCyberPanelData}
+                  className="p-2 text-gray-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-md transition-colors"
+                >
+                  <RefreshCw className={`w-5 h-5 ${isFetchingCyberPanel ? 'animate-spin' : ''}`} />
+                </button>
+              </div>
+
+              <div className="bg-white rounded-xl shadow-md border border-gray-100 overflow-hidden">
+                {isFetchingCyberPanel ? (
+                  <div className="p-12 text-center text-gray-500">
+                    <RefreshCw className="w-8 h-8 animate-spin mx-auto mb-3 text-indigo-500" />
+                    Carregando instalações...
+                  </div>
+                ) : cyberPanelSites.length === 0 ? (
+                  <div className="p-16 text-center">
+                    <Globe2 className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+                    <p className="text-sm text-gray-500">Nenhum site encontrado no servidor CyberPanel.</p>
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead className="bg-gray-50 text-gray-500 uppercase text-[10px] font-bold tracking-widest">
+                        <tr>
+                          <th className="px-6 py-4 text-left">Domínio</th>
+                          <th className="px-6 py-4 text-left">Status</th>
+                          <th className="px-6 py-4 text-left">Auto Login</th>
+                          <th className="px-6 py-4 text-right">Ações</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-100">
+                        {cyberPanelSites.map((site) => (
+                          <tr key={site.domain} className="hover:bg-gray-50 transition-colors">
+                            <td className="px-6 py-4 font-medium text-gray-900 flex items-center gap-2">
+                              <div className="w-6 h-6 rounded-full bg-indigo-50 flex items-center justify-center">
+                                <Globe2 className="w-3 h-3 text-indigo-600" />
+                              </div>
+                              {site.domain}
+                            </td>
+                            <td className="px-6 py-4">
+                              <span className={`px-2 py-0.5 text-[10px] font-bold rounded-full border ${site.status === 'Active' ? 'bg-green-100 text-green-700 border-green-200' : 'bg-gray-100 text-gray-700 border-gray-200'}`}>
+                                {site.status || 'Ativo'}
+                              </span>
+                            </td>
+                            <td className="px-6 py-4">
+                              <a
+                                href={`https://${site.domain}/wp-admin`}
+                                target="_blank"
+                                className="text-xs font-bold text-indigo-600 hover:underline"
+                              >
+                                Abrir wp-admin
+                              </a>
+                            </td>
+                            <td className="px-6 py-4 text-right">
+                              <button className="text-gray-400 hover:text-indigo-600 p-1.5 transition-colors" title="Settings">
+                                <Settings className="w-4 h-4" />
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {['wordpress-plugins', 'wordpress-restore', 'wordpress-remote'].includes(activeSection) && (
+            <div className="space-y-6">
+              <div className="flex justify-between items-center mb-8">
+                <div>
+                  <h1 className="text-3xl font-bold text-gray-900">
+                    {activeSection === 'wordpress-plugins' && 'Configure Plugins'}
+                    {activeSection === 'wordpress-restore' && 'Restore Backups'}
+                    {activeSection === 'wordpress-remote' && 'Remote Backup'}
+                  </h1>
+                  <p className="text-gray-500 mt-1">Gestão avançada de instâncias WordPress no servidor.</p>
+                </div>
+              </div>
+
+              <div className="bg-white rounded-xl shadow-md border border-gray-100 p-8 text-center max-w-2xl mx-auto mt-12">
+                <div className="w-20 h-20 bg-indigo-50 rounded-full flex items-center justify-center mx-auto mb-6">
+                  <Database className="w-10 h-10 text-indigo-600" />
+                </div>
+                <h3 className="text-xl font-bold text-gray-900 mb-2">Em Desenvolvimento</h3>
+                <p className="text-gray-600 mb-8 px-4">
+                  Esta funcionalidade ({activeSection}) será ligada à API do LiteSpeed e do CyberPanel em breve.
+                </p>
+                <div className="inline-block bg-orange-100 text-orange-700 px-3 py-1 text-sm font-bold rounded-full">
+                  BREVEMENTE
                 </div>
               </div>
             </div>
@@ -3622,6 +4639,8 @@ function AdminPanelContent() {
                             />
                             <span className="text-sm text-gray-600 group-hover:text-gray-900">Habilitar SPF</span>
                           </label>
+                          {/* Removed misplaced Create Package Modal */}
+
                         </div>
                       </div>
                     </div>
@@ -3665,6 +4684,290 @@ function AdminPanelContent() {
               </div>
             )}
 
+          {/* Create Package Modal */}
+          {showCreatePackageModal && (
+            <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+              <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full overflow-hidden animate-in fade-in zoom-in duration-200">
+                <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
+                  <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+                    <Package className="w-5 h-5 text-cyan-500" />
+                    Novo Pacote CyberPanel
+                  </h2>
+                  <button onClick={() => setShowCreatePackageModal(false)} className="text-gray-400 hover:text-gray-600 transition-colors p-1 hover:bg-gray-100 rounded-full">
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+
+                <div className="p-6">
+                  {error && (
+                    <div className="mb-4 p-3 bg-red-50 border border-red-100 text-red-600 text-xs rounded-md">
+                      {error}
+                    </div>
+                  )}
+
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-xs font-bold text-gray-700 mb-1">Nome do Pacote</label>
+                      <input
+                        type="text"
+                        value={newPackageData.packageName}
+                        onChange={(e) => setNewPackageData({ ...newPackageData, packageName: e.target.value })}
+                        placeholder="Ex: Start_CMS"
+                        className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500/20 focus:border-cyan-500 transition-all font-medium text-gray-900"
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-xs font-bold text-gray-700 mb-1">Espaço Lógico (MB)</label>
+                        <input
+                          type="number"
+                          value={newPackageData.diskSpace}
+                          onChange={(e) => setNewPackageData({ ...newPackageData, diskSpace: parseInt(e.target.value) || 0 })}
+                          className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500/20 focus:border-cyan-500"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold text-gray-700 mb-1">Largura de Banda (MB)</label>
+                        <input
+                          type="number"
+                          value={newPackageData.bandwidth}
+                          onChange={(e) => setNewPackageData({ ...newPackageData, bandwidth: parseInt(e.target.value) || 0 })}
+                          className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500/20 focus:border-cyan-500"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-xs font-bold text-gray-700 mb-1">Lim. E-mails</label>
+                        <input
+                          type="number"
+                          value={newPackageData.emailAccounts}
+                          onChange={(e) => setNewPackageData({ ...newPackageData, emailAccounts: parseInt(e.target.value) || 0 })}
+                          className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500/20 focus:border-cyan-500"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold text-gray-700 mb-1">Lim. Bases de Dados</label>
+                        <input
+                          type="number"
+                          value={newPackageData.dataBases}
+                          onChange={(e) => setNewPackageData({ ...newPackageData, dataBases: parseInt(e.target.value) || 0 })}
+                          className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500/20 focus:border-cyan-500"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-xs font-bold text-gray-700 mb-1">Lim. Contas FTP</label>
+                        <input
+                          type="number"
+                          value={newPackageData.ftpAccounts}
+                          onChange={(e) => setNewPackageData({ ...newPackageData, ftpAccounts: parseInt(e.target.value) || 0 })}
+                          className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500/20 focus:border-cyan-500"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold text-gray-700 mb-1">Domínios Extra</label>
+                        <input
+                          type="number"
+                          value={newPackageData.allowedDomains}
+                          onChange={(e) => setNewPackageData({ ...newPackageData, allowedDomains: parseInt(e.target.value) || 0 })}
+                          className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500/20 focus:border-cyan-500"
+                        />
+                      </div>
+                    </div>
+
+                  </div>
+
+                  <div className="mt-8 flex justify-end gap-3 pt-4 border-t border-gray-100">
+                    <button onClick={() => setShowCreatePackageModal(false)} className="px-5 py-2 text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-50 font-medium rounded-lg transition-colors">Cancelar</button>
+                    <button
+                      onClick={handleCreatePackage}
+                      disabled={isSavingPackage || !newPackageData.packageName.trim()}
+                      className="px-6 py-2 bg-cyan-600 hover:bg-cyan-700 text-white text-sm font-bold rounded-lg shadow-sm transition-all flex items-center gap-2 disabled:opacity-50"
+                    >
+                      {isSavingPackage ? (<><RefreshCw className="w-4 h-4 animate-spin" /> Criando...</>) : (<><Package className="w-4 h-4" /> Criar Pacote</>)}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+          {/* Create CyberPanel Website Modal */}
+          {showCreateCyberSiteModal && (
+            <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+              <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full overflow-hidden animate-in fade-in zoom-in duration-200">
+                <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
+                  <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+                    <Globe2 className="w-5 h-5 text-cyan-500" />
+                    Novo Website CyberPanel
+                  </h2>
+                  <button onClick={() => setShowCreateCyberSiteModal(false)} className="text-gray-400 hover:text-gray-600 transition-colors p-1 hover:bg-gray-100 rounded-full">
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+
+                <div className="p-6">
+                  {error && (
+                    <div className="mb-4 p-3 bg-red-50 border border-red-100 text-red-600 text-xs rounded-md">
+                      {error}
+                    </div>
+                  )}
+
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-xs font-bold text-gray-700 mb-1">Domínio</label>
+                      <input
+                        type="text"
+                        value={newCyberSiteData.domainName}
+                        onChange={(e) => setNewCyberSiteData({ ...newCyberSiteData, domainName: e.target.value })}
+                        placeholder="exemplo.com"
+                        className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500/20 focus:border-cyan-500"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-bold text-gray-700 mb-1">Email do Administrador</label>
+                      <input
+                        type="email"
+                        value={newCyberSiteData.adminEmail}
+                        onChange={(e) => setNewCyberSiteData({ ...newCyberSiteData, adminEmail: e.target.value })}
+                        placeholder="admin@exemplo.com"
+                        className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500/20 focus:border-cyan-500"
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-xs font-bold text-gray-700 mb-1">Pacote</label>
+                        <select
+                          value={newCyberSiteData.packageName}
+                          onChange={(e) => setNewCyberSiteData({ ...newCyberSiteData, packageName: e.target.value })}
+                          className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500/20 focus:border-cyan-500"
+                        >
+                          {cyberPanelPackages.length > 0 ? (
+                            cyberPanelPackages.map(pkg => (
+                              <option key={pkg.packageName} value={pkg.packageName}>{pkg.packageName}</option>
+                            ))
+                          ) : (
+                            <option value="Default">Default</option>
+                          )}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold text-gray-700 mb-1">Versão PHP</label>
+                        <select
+                          value={newCyberSiteData.phpSelection}
+                          onChange={(e) => setNewCyberSiteData({ ...newCyberSiteData, phpSelection: e.target.value })}
+                          className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500/20 focus:border-cyan-500"
+                        >
+                          <option value="PHP 7.4">PHP 7.4</option>
+                          <option value="PHP 8.0">PHP 8.0</option>
+                          <option value="PHP 8.1">PHP 8.1</option>
+                          <option value="PHP 8.2">PHP 8.2</option>
+                          <option value="PHP 8.3">PHP 8.3</option>
+                        </select>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="mt-8 flex justify-end gap-3 pt-4 border-t border-gray-100">
+                    <button onClick={() => setShowCreateCyberSiteModal(false)} className="px-5 py-2 text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-50 font-medium rounded-lg transition-colors">Cancelar</button>
+                    <button
+                      onClick={handleCreateCyberSite}
+                      disabled={isSavingCyberSite || !newCyberSiteData.domainName.trim() || !newCyberSiteData.adminEmail.trim()}
+                      className="px-6 py-2 bg-cyan-600 hover:bg-cyan-700 text-white text-sm font-bold rounded-lg shadow-sm transition-all flex items-center gap-2 disabled:opacity-50"
+                    >
+                      {isSavingCyberSite ? (<><RefreshCw className="w-4 h-4 animate-spin" /> Criando...</>) : (<><Globe2 className="w-4 h-4" /> Criar Website</>)}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* 1-Click WP Install Modal */}
+          {showWPModal && (
+            <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+              <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full overflow-hidden animate-in fade-in zoom-in duration-200">
+                <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
+                  <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+                    <svg className="w-5 h-5 text-[#00749C]" viewBox="0 0 24 24" fill="currentColor">
+                      <path d="M12.158 12.786l-2.698 7.84c.806.236 1.657.365 2.54.365 1.047 0 2.05-.18 2.986-.51-.024-.037-.046-.078-.065-.123l-2.763-7.572zm5.405-2.835c-.17-.885-.595-1.597-1.146-2.073-.55-.477-1.222-.716-1.956-.716-.145 0-.306.015-.476.046-.17.03-.336.07-.487.123-.153.05-.306.11-.458.17-.152.062-.312.132-.472.215-.245.123-.487.23-.717.323-.23.09-.457.17-.672.23-.213.06-.442.107-.67.14-.23.03-.473.045-.717.045-.64 0-1.19-.107-1.634-.323-.443-.215-.794-.522-1.04-.906-.244-.385-.365-.845-.365-1.37 0-.584.14-1.09.412-1.506.273-.415.655-.74 1.13-1.03.472-.292 1.053-.523 1.725-.693.67-.17 1.436-.26 2.274-.26 1.13 0 2.152.17 3.052.507.9.34 1.677.815 2.316 1.447.64.63 1.122 1.383 1.44 2.244.32.863.487 1.8.487 2.8-.002.585-.05 1.14-.14 1.66zM2.84 12c0-5.06 4.103-9.16 9.16-9.16 1.6 0 3.104.412 4.416 1.14-1.127-1.03-2.67-1.64-4.355-1.64-3.488 0-6.315 2.827-6.315 6.315 0 .205.01.408.03.61-.132.844-.198 1.7-.198 2.57 0 1.25.19 2.45.54 3.58l-1.42 2.03C3.543 15.91 2.84 14.032 2.84 12zm2.096 1.815c.168.966.452 1.898.835 2.78l1.458 3.32c-.524-.486-.98-.99-1.39-1.5-2.074-2.585-3.08-5.34-3.08-8.24m7.222.97l2.872 7.89c.815-.316 1.572-.756 2.26-1.332-1.58.2-3.23-.284-4.46-1.31M12 0C5.372 0 0 5.372 0 12s5.372 12 12 12 12-5.372 12-12S18.628 0 12 0z" />
+                    </svg>
+                    Instalação Rápida WordPress
+                  </h2>
+                  <button onClick={() => setShowWPModal(false)} className="text-gray-400 hover:text-gray-600 transition-colors p-1 hover:bg-gray-100 rounded-full">
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+
+                <div className="p-6">
+                  {error && (
+                    <div className="mb-4 p-3 bg-red-50 border border-red-100 text-red-600 text-xs rounded-md">
+                      {error}
+                    </div>
+                  )}
+
+                  <div className="mb-4">
+                    <p className="text-sm text-gray-600">
+                      Vai instalar o WordPress de forma limpa em: <span className="font-bold text-gray-900">{selectedWPDomain}</span>
+                    </p>
+                  </div>
+
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-xs font-bold text-gray-700 mb-1">Título do Website</label>
+                      <input
+                        type="text"
+                        value={wpData.title}
+                        onChange={(e) => setWpData({ ...wpData, title: e.target.value })}
+                        placeholder="Ex: Meu Novo Site"
+                        className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#00749C]/20 focus:border-[#00749C]"
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-xs font-bold text-gray-700 mb-1">Nome de Utilizador</label>
+                        <input
+                          type="text"
+                          value={wpData.user}
+                          onChange={(e) => setWpData({ ...wpData, user: e.target.value })}
+                          placeholder="admin"
+                          className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#00749C]/20 focus:border-[#00749C]"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold text-gray-700 mb-1">Palavra-passe Segura</label>
+                        <input
+                          type="text"
+                          value={wpData.password}
+                          onChange={(e) => setWpData({ ...wpData, password: e.target.value })}
+                          placeholder="P@ssw0rd!"
+                          className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#00749C]/20 focus:border-[#00749C]"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="mt-8 flex justify-end gap-3 pt-4 border-t border-gray-100">
+                    <button onClick={() => setShowWPModal(false)} className="px-5 py-2 text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-50 font-medium rounded-lg transition-colors">Cancelar</button>
+                    <button
+                      onClick={handleInstallWP}
+                      disabled={isInstallingWP || !wpData.title.trim() || !wpData.user.trim() || !wpData.password.trim()}
+                      className="px-6 py-2 bg-[#00749C] hover:bg-[#005a7a] text-white text-sm font-bold rounded-lg shadow-sm transition-all flex items-center gap-2 disabled:opacity-50"
+                    >
+                      {isInstallingWP ? (<><RefreshCw className="w-4 h-4 animate-spin" /> Instalando...</>) : (<>Instalar WP</>)}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>

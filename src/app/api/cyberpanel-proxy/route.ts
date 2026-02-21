@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
+import https from 'https';
 
 // CyberPanel API Configuration
-const CYBERPANEL_URL = 'https://109.199.104.22:8090/api';
-const CYBERPANEL_ADMIN_PASS = 'Vgz5Zat4uMyFt2tb';
+const CYBERPANEL_URL = process.env.CYBERPANEL_URL || 'https://109.199.104.22:8090/api';
+const CYBERPANEL_ADMIN_PASS = process.env.CYBERPANEL_PASS || 'Vgz5Zat4uMyFt2tb';
 const CYBERPANEL_TIMEOUT_MS = 20000; // 20 seconds
 
 export async function POST(request: NextRequest) {
@@ -10,35 +11,54 @@ export async function POST(request: NextRequest) {
         const body = await request.json();
         const { endpoint, params } = body;
 
-        // Build the request to CyberPanel
-        // CyberPanel API usually expects a POST request with JSON body
-        // and the endpoint as a key like 'controller' or similar, but the docs show different styles.
-        // Based on common CyberPanel API implementations:
         const url = `${CYBERPANEL_URL}/${endpoint}`;
-
         console.log(`[CyberPanel Proxy] Requesting: ${endpoint} for ${params?.domainName || 'all'}`);
 
-        // In a production environment, you might want to force certain parameters 
-        // or validate the adminPass against a secret stored in environment variables.
+        const finalParams = {
+            adminUser: process.env.CYBERPANEL_USER || 'admin',
+            adminPass: CYBERPANEL_ADMIN_PASS,
+            ...params
+        };
 
-        const response = await fetch(url, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify(params),
-            signal: AbortSignal.timeout(CYBERPANEL_TIMEOUT_MS),
+        const postData = JSON.stringify(finalParams);
+
+        // Function to make HTTPS request natively ignoring SSL errors
+        const makeRequest = () => new Promise<string>((resolve, reject) => {
+            const parsedUrl = new URL(url);
+            const options = {
+                hostname: parsedUrl.hostname,
+                port: parsedUrl.port || 443,
+                path: parsedUrl.pathname + parsedUrl.search,
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Content-Length': Buffer.byteLength(postData)
+                },
+                rejectUnauthorized: false,
+                timeout: CYBERPANEL_TIMEOUT_MS
+            };
+
+            const req = https.request(options, (res) => {
+                let data = '';
+                res.on('data', (chunk) => { data += chunk; });
+                res.on('end', () => {
+                    resolve(data);
+                });
+            });
+
+            req.on('error', (e) => {
+                reject(e);
+            });
+
+            req.on('timeout', () => {
+                req.destroy(new Error('TimeoutError'));
+            });
+
+            req.write(postData);
+            req.end();
         });
 
-        const data = await response.text();
-
-        if (!response.ok) {
-            console.error(`[CyberPanel ERROR] Status: ${response.status}, Body: ${data.substring(0, 500)}`);
-            return NextResponse.json(
-                { error: `CyberPanel API Error: ${response.status}`, raw: data },
-                { status: response.status }
-            );
-        }
+        const data = await makeRequest();
 
         try {
             const jsonData = JSON.parse(data);
