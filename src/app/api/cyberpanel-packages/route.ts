@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { Client } from 'ssh2';
 
+import * as fs from 'fs';
+
 // Helper function to execute SSH commands
 function executeSSHCommand(command: string): Promise<string> {
     return new Promise((resolve, reject) => {
@@ -35,7 +37,9 @@ function executeSSHCommand(command: string): Promise<string> {
             host: process.env.CYBERPANEL_IP,
             port: Number(process.env.CYBERPANEL_SSH_PORT || 22),
             username: process.env.CYBERPANEL_SSH_USER || 'root',
-            privateKey: process.env.CYBERPANEL_SSH_KEY ? process.env.CYBERPANEL_SSH_KEY.replace(/\\n/g, '\n') : undefined,
+            privateKey: process.env.CYBERPANEL_SSH_KEY_PATH
+                ? fs.readFileSync(process.env.CYBERPANEL_SSH_KEY_PATH, 'utf8')
+                : (process.env.CYBERPANEL_SSH_KEY ? process.env.CYBERPANEL_SSH_KEY.replace(/\\n/g, '\n') : undefined),
             password: process.env.CYBERPANEL_SSH_PASS, // fallback if no key
         });
     });
@@ -73,8 +77,8 @@ function parsePackageSQLOutput(output: string) {
 export async function GET() {
     try {
         // Query the packages table directly from the CyberPanel database
-        // Table structure is usually: packageName, diskSpace, bandwidth, emailAccounts, dataBases, ftpAccounts, allowedDomains
-        const query = `mysql -D cyberpanel -e "SELECT packageName, diskSpace, bandwidth, emailAccounts, dataBases, ftpAccounts, allowedDomains FROM packages;" | awk 'NR>1 {print $1\\"|\\"$2\\"|\\"$3\\"|\\"$4\\"|\\"$5\\"|\\"$6\\"|\\"$7}'`;
+        // Using sed to format instead of awk to avoid bash escape issues. dataBases is a reserved keyword in MySQL, so using backticks.
+        const query = `mysql -D cyberpanel -e "SELECT packageName, diskSpace, bandwidth, emailAccounts, \\\`dataBases\\\`, ftpAccounts, allowedDomains FROM packages_package;" | tr '\\t' '|' | grep -v "packageName|diskSpace"`;
 
         const output = await executeSSHCommand(query);
         const packages = parsePackageSQLOutput(output);

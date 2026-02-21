@@ -195,7 +195,6 @@ function AdminPanelContent() {
   // States for Package Management
   const [packages, setPackages] = useState<any[]>([])
   const [isFetchingPackages, setIsFetchingPackages] = useState(false)
-  const [isSavingPackage, setIsSavingPackage] = useState(false)
   const [packageFormData, setPackageFormData] = useState({
     packageName: '',
     diskSpace: '1000',
