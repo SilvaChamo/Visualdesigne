@@ -6,7 +6,6 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { I18nProvider, useI18n } from '@/lib/i18n'
 import { validateAdminCredentials, generateAdminToken, validateAdminToken } from '@/lib/admin-auth'
-import { vhmAPI, VHMClient, VHMStats } from '@/lib/vhm-api'
 import { whmcsAPI, WhmcsDomain } from '@/lib/whmcs-api'
 import { ciuemAPI } from '@/lib/ciuem-whois-api'
 import { cyberPanelAPI, CyberPanelWebsite, CyberPanelPackage } from '@/lib/cyberpanel-api'
@@ -67,20 +66,20 @@ interface Subscription {
 function AdminPanelContent() {
   const { t } = useI18n()
   const [activeSection, setActiveSection] = useState<string>('dashboard')
-  const [clients, setClients] = useState<VHMClient[]>([])
+  const [clients, setClients] = useState<any[]>([])
   const [subscriptions, setSubscriptions] = useState<Subscription[]>([])
-  const [stats, setStats] = useState<VHMStats | null>(null)
+  const [stats, setStats] = useState<any | null>(null)
   const [plans, setPlans] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [syncing, setSyncing] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [showClientForm, setShowClientForm] = useState(false)
-  const [editingClient, setEditingClient] = useState<VHMClient | null>(null)
+  const [editingClient, setEditingClient] = useState<any | null>(null)
   const [isAuthenticated, setIsAuthenticated] = useState(false)
   const [authError, setAuthError] = useState('')
   const [searchTerm, setSearchTerm] = useState('')
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false)
-  const [editingAccount, setEditingAccount] = useState<VHMClient | null>(null)
+  const [editingAccount, setEditingAccount] = useState<any | null>(null)
   const [isSavingAccount, setIsSavingAccount] = useState(false)
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [isCreatingAccount, setIsCreatingAccount] = useState(false)
@@ -141,7 +140,7 @@ function AdminPanelContent() {
 
   // Email Accounts State
   const [emailAccounts, setEmailAccounts] = useState<any[]>([])
-  const [selectedClientForEmails, setSelectedClientForEmails] = useState<VHMClient | null>(null)
+  const [selectedClientForEmails, setSelectedClientForEmails] = useState<any | null>(null)
   const [isFetchingEmails, setIsFetchingEmails] = useState(false)
   const [emailSearchTerm, setEmailSearchTerm] = useState('')
   const [showCreateEmailModal, setShowCreateEmailModal] = useState(false)
@@ -243,7 +242,6 @@ function AdminPanelContent() {
   }, [])
 
   useEffect(() => {
-    vhmAPI.setToken(vhmApiToken)
   }, [vhmApiToken])
 
   const [realWebmailAccounts, setRealWebmailAccounts] = useState<any[]>([])
@@ -283,9 +281,8 @@ function AdminPanelContent() {
     }
 
     if (isAuthenticated) {
-      loadVHMData()
-      loadSubscriptions()
       loadCyberPanelData()
+      loadSubscriptions()
     }
   }, [isAuthenticated])
 
@@ -340,7 +337,6 @@ function AdminPanelContent() {
     setSyncing(true)
     try {
       // 1. Get current clients from VHM
-      const vhmClients = await vhmAPI.getAllClients()
 
       // 2. Prepare records for Supabase upsert
       const upsertData = vhmClients.map(client => ({
@@ -413,16 +409,12 @@ function AdminPanelContent() {
 
     try {
       // Login to VHM API
-      const loginSuccess = await vhmAPI.login()
       if (!loginSuccess) {
         throw new Error('VHM API indísponivel')
       }
 
       // Load ALL clients, stats, and plans
       const [clientsData, statsData, plansData] = await Promise.all([
-        vhmAPI.getAllClients(),
-        vhmAPI.getStats(),
-        vhmAPI.getPlans()
       ])
 
       setClients(clientsData)
@@ -467,7 +459,7 @@ function AdminPanelContent() {
         .order('vhm_username', { ascending: true })
 
       if (!subError && cachedSubs) {
-        const mappedClients: VHMClient[] = cachedSubs.map(sub => ({
+        const mappedClients: any[] = cachedSubs.map(sub => ({
           id: sub.vhm_username,
           username: sub.vhm_username,
           domain: sub.domain,
@@ -527,7 +519,6 @@ function AdminPanelContent() {
     }
 
     try {
-      const success = await vhmAPI.suspendClient(username)
       if (success) {
         await loadVHMData() // Reload data
         alert('Cliente suspenso com sucesso!')
@@ -546,7 +537,6 @@ function AdminPanelContent() {
     }
 
     try {
-      const success = await vhmAPI.unsuspendClient(username)
       if (success) {
         await loadVHMData() // Reload data
         alert('Cliente reativado com sucesso!')
@@ -611,7 +601,6 @@ function AdminPanelContent() {
     }
 
     try {
-      const success = await vhmAPI.terminateClient(username)
       if (success) {
         await loadVHMData() // Reload data
         alert('Cliente terminado com sucesso!')
@@ -638,22 +627,9 @@ function AdminPanelContent() {
 
     setIsCreatingAccount(true)
     try {
-      const response = await vhmAPI.createAccount({
-        domain: newAccountData.domain,
-        username: newAccountData.username,
-        password: newAccountData.password || undefined,
-        plan: newAccountData.plan,
-        contactemail: newAccountData.email,
-        cgi: newAccountData.cgi,
-        dkim: newAccountData.dkim,
-        spf: newAccountData.spf,
-        quota: newAccountData.quota || undefined,
-        bwlimit: newAccountData.bwlimit || undefined
-      })
-
-      if (response && (response.metadata?.result === 1 || response.status === 1)) {
-        alert('Conta criada com sucesso!')
-        setShowCreateModal(false)
+      // Função de criação removida - VHM não é mais usado
+      alert('Função de criação de conta removida - usar CyberPanel')
+      setShowCreateModal(false)
         setNewAccountData({
           domain: '',
           username: '',
@@ -693,7 +669,6 @@ function AdminPanelContent() {
     setIsSavingAccount(true)
     try {
       // 1. Core VHM Updates
-      const success = await vhmAPI.updateClient(username, {
         email: updates.email,
         quota: updates.quota,
         plan: updates.plan,
@@ -706,7 +681,6 @@ function AdminPanelContent() {
       // 2. Password Update if provided
       let passSuccess = true;
       if (updates.password) {
-        passSuccess = await vhmAPI.changePassword(username, updates.password);
       }
 
       // 3. Supabase Updates (Sync phone and domain if changed)
@@ -738,11 +712,10 @@ function AdminPanelContent() {
 
   // --- Email Management Handlers ---
 
-  const loadEmailAccounts = async (client: VHMClient) => {
+  const loadEmailAccounts = async (client: any) => {
     setIsFetchingEmails(true)
     setSelectedClientForEmails(client)
     try {
-      const pops = await vhmAPI.getEmailAccounts(client.username)
       setEmailAccounts(pops)
     } catch (err) {
       console.error('Error loading email accounts:', err)
@@ -760,7 +733,6 @@ function AdminPanelContent() {
 
     setIsSavingEmail(true)
     try {
-      const success = await vhmAPI.createEmailAccount(selectedClientForEmails.username, {
         email: newEmailData.email,
         domain: selectedClientForEmails.domain,
         password: newEmailData.password,
@@ -787,7 +759,6 @@ function AdminPanelContent() {
     if (!selectedClientForEmails || !confirm(`Tem certeza que deseja apagar o e-mail ${email}@${domain}?`)) return
 
     try {
-      const success = await vhmAPI.deleteEmailAccount(selectedClientForEmails.username, email, domain)
       if (success) {
         await loadEmailAccounts(selectedClientForEmails)
         alert('Conta de e-mail apagada com sucesso!')
@@ -805,7 +776,6 @@ function AdminPanelContent() {
 
     setIsSavingEmail(true)
     try {
-      const success = await vhmAPI.updateEmailPassword(selectedClientForEmails.username, email, domain, newPass)
       if (success) {
         alert('Senha de e-mail atualizada com sucesso!')
         setEditingEmail(null)
@@ -1034,7 +1004,6 @@ function AdminPanelContent() {
       const startTimestamp = mailFilters.startDate ? Math.floor(new Date(mailFilters.startDate).getTime() / 1000) : undefined
       const endTimestamp = mailFilters.endDate ? Math.floor(new Date(mailFilters.endDate).getTime() / 1000) : undefined
 
-      const results = await vhmAPI.getMailDeliveryReports({
         recipient: mailFilters.recipient || undefined,
         sender: mailFilters.sender || undefined,
         startTime: startTimestamp,
@@ -2250,7 +2219,6 @@ function AdminPanelContent() {
                     <button
                       onClick={async () => {
                         setIsSavingConfig(true)
-                        vhmAPI.setToken(vhmApiToken)
                         localStorage.setItem('vhm_api_token', vhmApiToken)
                         // Simulate saving to database/localStorage
                         setTimeout(() => {
@@ -2952,7 +2920,6 @@ function AdminPanelContent() {
                           try {
                             const client = clients.find(c => c.domain === selectedWebmailDomain)
                             if (client) {
-                              const accounts = await vhmAPI.getEmailAccounts(client.username)
                               setRealWebmailAccounts(accounts)
                             }
                           } catch (err) {
@@ -3005,7 +2972,6 @@ function AdminPanelContent() {
                                 try {
                                   const client = clients.find(c => c.domain === selectedWebmailDomain)
                                   if (client) {
-                                    const accounts = await vhmAPI.getEmailAccounts(client.username)
                                     setRealWebmailAccounts(accounts)
                                   }
                                 } catch (err) {
@@ -3075,7 +3041,6 @@ function AdminPanelContent() {
                                     try {
                                       const client = clients.find(c => c.domain === selectedWebmailDomain)
                                       if (client) {
-                                        const ssoUrl = await vhmAPI.createWebmailSession(client.username, acc.email)
                                         if (ssoUrl) {
                                           window.open(ssoUrl, '_blank')
                                         } else {
