@@ -1,107 +1,161 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import { Client } from 'ssh2';
+import * as fs from 'fs';
 
-// CyberPanel Server SSH Configuration
-const CYBERPANEL_HOST = process.env.CYBERPANEL_IP || '109.199.104.22';
-const CYBERPANEL_SSH_PORT = parseInt(process.env.CYBERPANEL_SSH_PORT || '22');
-const CYBERPANEL_SSH_USER = process.env.CYBERPANEL_SSH_USER || 'root';
-const CYBERPANEL_SSH_PASS = process.env.CYBERPANEL_SSH_PASS || '';
-const CYBERPANEL_SSH_KEY = process.env.CYBERPANEL_SSH_KEY || '';
-
-// Helper para executar comandos SSH
-function executeSSH(command: string): Promise<string> {
+// Helper function to execute SSH commands
+function executeSSHCommand(command: string): Promise<string> {
     return new Promise((resolve, reject) => {
         const conn = new Client();
+
         conn.on('ready', () => {
-            conn.exec(command, (err: Error | undefined, stream: any) => {
+            conn.exec(command, (err, stream) => {
                 if (err) {
                     conn.end();
                     return reject(err);
                 }
+
                 let output = '';
+                let errorOutput = '';
+
                 stream.on('close', (code: any, signal: any) => {
                     conn.end();
-                    resolve(output);
+                    if (code !== 0 && errorOutput) {
+                        reject(new Error(`SSH Command failed with code ${code}: ${errorOutput}`));
+                    } else {
+                        resolve(output);
+                    }
                 }).on('data', (data: any) => {
                     output += data;
                 }).stderr.on('data', (data: any) => {
-                    output += data;
+                    errorOutput += data;
                 });
             });
-        }).on('error', (err: Error) => {
-            reject(err);
+        }).on('error', (err) => {
+            reject(new Error(`SSH Connection Error: ${err.message}`));
         }).connect({
-            host: CYBERPANEL_HOST,
-            port: CYBERPANEL_SSH_PORT,
-            username: CYBERPANEL_SSH_USER,
-            password: CYBERPANEL_SSH_PASS,
-            privateKey: CYBERPANEL_SSH_KEY ? Buffer.from(CYBERPANEL_SSH_KEY, 'base64') : undefined
+            host: process.env.CYBERPANEL_IP,
+            port: Number(process.env.CYBERPANEL_SSH_PORT || 22),
+            username: process.env.CYBERPANEL_SSH_USER || 'root',
+            privateKey: process.env.CYBERPANEL_SSH_KEY_PATH
+                ? fs.readFileSync(process.env.CYBERPANEL_SSH_KEY_PATH, 'utf8')
+                : (process.env.CYBERPANEL_SSH_KEY ? process.env.CYBERPANEL_SSH_KEY.replace(/\\n/g, '\n') : undefined),
+            password: process.env.CYBERPANEL_SSH_PASS, // fallback if no key
         });
     });
 }
 
-export async function POST(request: NextRequest) {
+function parseDnsOutput(output: string) {
+    const lines = output.trim().split('\n');
+    const records = [];
+
+    // Skip empty outputs
+    if (lines.length === 0 || (lines.length === 1 && lines[0] === '')) return [];
+
+    for (const line of lines) {
+        if (!line.includes('|')) continue;
+        const parts = line.split('|');
+        if (parts.length >= 5) {
+            records.push({
+                id: parts[0].trim(),
+                name: parts[1].trim(),
+                type: parts[2].trim(),
+                content: parts[3].trim(),
+                ttl: parts[4].trim(),
+            });
+        }
+    }
+
+    return records;
+}
+
+export async function GET(request: Request) {
+    try {
+        const { searchParams } = new URL(request.url);
+        const domain = searchParams.get('domain');
+
+        if (!domain) {
+            return NextResponse.json({ error: 'Domain param is required.' }, { status: 400 });
+        }
+
+        // Clean domain string for safety
+        const cleanDomain = domain.replace(/[^a-zA-Z0-9_.-]/g, '');
+
+        // Query the PowerDNS (pdns) database directly
+        const query = `mysql -D pdns -e "SELECT id, name, type, content, ttl FROM records WHERE domain_id=(SELECT id FROM domains WHERE name='${cleanDomain}');" | tr '\\t' '|' | grep -v "type|content"`;
+
+        const output = await executeSSHCommand(query);
+        const records = parseDnsOutput(output);
+
+        return NextResponse.json({ success: true, records });
+    } catch (error: any) {
+        console.error('Error listing DNS records:', error);
+        return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+}
+
+export async function POST(request: Request) {
     try {
         const body = await request.json();
-        const { action, domainName, recordType, name, value, ttl, recordID } = body;
+        const { domainName, name, type, value, ttl = 3600 } = body;
 
-        if (!domainName) {
-            return NextResponse.json({ error: 'O nome do domínio é obrigatório' }, { status: 400 });
+        if (!domainName || !name || !type || !value) {
+            return NextResponse.json({ error: 'Missing required parameters (domainName, name, type, value).' }, { status: 400 });
         }
 
-        if (!CYBERPANEL_SSH_PASS && !CYBERPANEL_SSH_KEY) {
-            return NextResponse.json({ error: 'Configuração SSH ausente no servidor' }, { status: 500 });
+        // Clean parameters (allow standard DNS characters like . _ - and alnum)
+        const cleanDomain = domainName.replace(/[^a-zA-Z0-9_.-]/g, '');
+        const cleanName = name.replace(/[^a-zA-Z0-9_.-]/g, '');
+        const cleanType = type.replace(/[^A-Z]/g, '');
+        // Value might contain spaces (like for TXT records)
+        const cleanValue = value.replace(/['"]/g, '');
+        const cleanTtl = parseInt(ttl, 10);
+
+        // Envolve value with double quotes in the CLI command
+        const command = `cyberpanel createDnsRecord --domainName "${cleanDomain}" --name "${cleanName}" --type "${cleanType}" --value "${cleanValue}" --ttl ${cleanTtl}`;
+
+        const output = await executeSSHCommand(command);
+
+        if (output.includes('successfully created') || output.includes('Record Created') || !output.toLowerCase().includes('error')) {
+            return NextResponse.json({ success: true, message: 'Registo DNS criado com sucesso!' });
+        } else {
+            return NextResponse.json({ error: 'Erro ao criar registo DNS.', details: output }, { status: 400 });
         }
-
-        if (action === 'get') {
-            // Usa query MySQL limpa pois CLI retorna HTML output às vezes e é dificil de parsear
-            const getCommand = `mysql -D cyberpanel -e "SELECT id, name, type, content, ttl FROM records WHERE domain_id = (SELECT id FROM domains WHERE name = '${domainName}' LIMIT 1);" | awk 'NR>1 {print $1"|"$2"|"$3"|"$4"|"$5}'`;
-            const output = await executeSSH(getCommand);
-
-            const records = output.split('\\n').filter(line => line.trim().length > 0).map(line => {
-                const parts = line.split('|');
-                return {
-                    id: parts[0],
-                    name: parts[1],
-                    type: parts[2],
-                    content: parts[3],
-                    ttl: parts[4]
-                };
-            });
-
-            return NextResponse.json({ success: true, records });
-        }
-        else if (action === 'add') {
-            if (!recordType || !name || !value) {
-                return NextResponse.json({ error: 'Faltam parâmetros para adicionar o registo' }, { status: 400 });
-            }
-
-            const addCommand = `cyberpanel addDNSRecord --domainName "${domainName}" --name "${name}" --recordType "${recordType}" --value "${value}" --ttl "${ttl || 3600}"`;
-            const output = await executeSSH(addCommand);
-
-            if (output.toLowerCase().includes('error') || output.toLowerCase().includes('fail')) {
-                return NextResponse.json({ error: 'Falha ao adicionar', details: output }, { status: 400 });
-            }
-            return NextResponse.json({ success: true, message: 'Registo adicionado com sucesso', output });
-        }
-        else if (action === 'delete') {
-            if (!recordID) {
-                return NextResponse.json({ error: 'ID do registo é obrigatório' }, { status: 400 });
-            }
-
-            const deleteCommand = `cyberpanel deleteDNSRecord --domainName "${domainName}" --recordID "${recordID}"`;
-            const output = await executeSSH(deleteCommand);
-
-            if (output.toLowerCase().includes('error') || output.toLowerCase().includes('fail')) {
-                return NextResponse.json({ error: 'Falha ao apagar', details: output }, { status: 400 });
-            }
-            return NextResponse.json({ success: true, message: 'Registo apagado com sucesso', output });
-        }
-
-        return NextResponse.json({ error: 'Ação inválida' }, { status: 400 });
 
     } catch (error: any) {
-        console.error('[DNS Manager Exception]', error?.message || error);
-        return NextResponse.json({ error: 'Erro no gestor de DNS', details: error?.message }, { status: 500 });
+        console.error('Error creating DNS record:', error);
+        return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+}
+
+export async function DELETE(request: Request) {
+    try {
+        const body = await request.json();
+        // The DNS deletion requires passing the domainName and record ID
+        const { domainName, id } = body;
+
+        if (!domainName || !id) {
+            return NextResponse.json({ error: 'domainName and record id are required for deletion.' }, { status: 400 });
+        }
+
+        const cleanDomain = domainName.replace(/[^a-zA-Z0-9_.-]/g, '');
+        const cleanId = parseInt(id, 10);
+
+        // Since CyberPanel CLI deleteDnsRecord asks for name, we might just run a MySQL statement or try to pass what cyberpanel expects: cyberpanel deleteDnsRecord --domainName DOMAIN --id ID
+        // Often, CLI implementation of CyberPanel lacks ID-based deletion easily without interacting directly with PowerDNS DB
+        // Let's use the DB approach directly for deletions to be 100% precise avoiding CLI regex matches
+        const command = `mysql -D pdns -e "DELETE FROM records WHERE id=${cleanId} AND domain_id=(SELECT id FROM domains WHERE name='${cleanDomain}');"`;
+
+        const output = await executeSSHCommand(command);
+
+        // Since mysql command output is empty on success DELETE statement:
+        if (!output.toLowerCase().includes('error')) {
+            return NextResponse.json({ success: true, message: 'Registo DNS removido com sucesso!' });
+        } else {
+            return NextResponse.json({ error: 'Erro ao remover registo DNS.', details: output }, { status: 400 });
+        }
+
+    } catch (error: any) {
+        console.error('Error deleting DNS record:', error);
+        return NextResponse.json({ error: error.message }, { status: 500 });
     }
 }
