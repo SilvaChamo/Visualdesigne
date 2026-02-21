@@ -11,7 +11,8 @@ import {
     LogOut,
     ChevronRight,
     Menu,
-    X
+    X,
+    ShoppingBag
 } from 'lucide-react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
@@ -48,6 +49,7 @@ export default function DashboardSidebar() {
         { icon: Home, label: 'Início', href: '/dashboard' },
         { icon: Package, label: 'Meus Planos', href: '/dashboard/servicos' },
         { icon: Globe, label: 'Domínios', href: '/dashboard/dominios' },
+        { icon: ShoppingBag, label: 'Loja de Serviços', href: '/dashboard/marketplace' },
         { icon: CreditCard, label: 'Faturas', href: '/dashboard/faturas' },
         { icon: Settings, label: 'Definições', href: '/dashboard/definicoes' },
         { icon: LifeBuoy, label: 'Suporte', href: '/dashboard/suporte' },

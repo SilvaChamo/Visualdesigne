@@ -10,8 +10,10 @@ import {
     ShieldCheck,
     Clock,
     ArrowRight,
-    ChevronRight
+    ChevronRight,
+    Mail
 } from 'lucide-react'
+import Link from 'next/link'
 import UsageProgress from '@/components/dashboard/UsageProgress'
 
 import { supabase } from '@/lib/supabase'
@@ -174,6 +176,69 @@ export default function DashboardHome() {
                             <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
                         </button>
                     </div>
+                </div>
+            </div>
+            {/* Recommended Services - Discreet Marketplace Integration */}
+            <div className="pt-10">
+                <div className="flex items-center justify-between mb-8">
+                    <div>
+                        <h2 className="text-2xl font-black text-gray-900 tracking-tight">Serviços Recomendados</h2>
+                        <p className="text-gray-500 font-medium text-sm">Aumente o potencial do seu negócio online.</p>
+                    </div>
+                    <Link href="/dashboard/marketplace" className="text-red-600 font-black text-sm hover:underline flex items-center gap-1 group">
+                        Ver Loja Completa
+                        <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+                    </Link>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                    {/* SSL Suggestion */}
+                    <Link href="/servicos/ssl" className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow group">
+                        <div className="w-12 h-12 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center mb-4 group-hover:bg-amber-600 group-hover:text-white transition-all shadow-sm">
+                            <ShieldCheck className="w-6 h-6" />
+                        </div>
+                        <h4 className="font-black text-gray-900 mb-1 tracking-tight">Certificados SSL</h4>
+                        <p className="text-gray-500 text-xs font-medium leading-relaxed mb-4">Segurança máxima e selo de confiança para seu site.</p>
+                        <div className="flex items-center text-amber-600 text-[10px] font-black uppercase tracking-widest">
+                            Configurar <ChevronRight className="w-3 h-3 ml-1 group-hover:translate-x-1 transition-transform" />
+                        </div>
+                    </Link>
+
+                    {/* Email Suggestion */}
+                    <Link href="/servicos/email" className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow group">
+                        <div className="w-12 h-12 rounded-2xl bg-purple-50 text-purple-600 flex items-center justify-center mb-4 group-hover:bg-purple-600 group-hover:text-white transition-all shadow-sm">
+                            <Mail className="w-6 h-6" />
+                        </div>
+                        <h4 className="font-black text-gray-900 mb-1 tracking-tight">Email Profissional</h4>
+                        <p className="text-gray-500 text-xs font-medium leading-relaxed mb-4">Sua marca em todas as comunicações enviadas.</p>
+                        <div className="flex items-center text-purple-600 text-[10px] font-black uppercase tracking-widest">
+                            Criar Conta <ChevronRight className="w-3 h-3 ml-1 group-hover:translate-x-1 transition-transform" />
+                        </div>
+                    </Link>
+
+                    {/* Domains Suggestion */}
+                    <Link href="/servicos/dominios" className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow group">
+                        <div className="w-12 h-12 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center mb-4 group-hover:bg-blue-600 group-hover:text-white transition-all shadow-sm">
+                            <Globe2 className="w-6 h-6" />
+                        </div>
+                        <h4 className="font-black text-gray-900 mb-1 tracking-tight">Domínios .MZ</h4>
+                        <p className="text-gray-500 text-xs font-medium leading-relaxed mb-4">Proteja a sua marca com extensões nacionais.</p>
+                        <div className="flex items-center text-blue-600 text-[10px] font-black uppercase tracking-widest">
+                            Registrar <ChevronRight className="w-3 h-3 ml-1 group-hover:translate-x-1 transition-transform" />
+                        </div>
+                    </Link>
+
+                    {/* Digital Card Suggestion */}
+                    <Link href="/servicos/cartao-digital" className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow group">
+                        <div className="w-12 h-12 rounded-2xl bg-red-50 text-red-600 flex items-center justify-center mb-4 group-hover:bg-red-600 group-hover:text-white transition-all shadow-sm">
+                            <Plus className="w-6 h-6" />
+                        </div>
+                        <h4 className="font-black text-gray-900 mb-1 tracking-tight">Cartão Digital</h4>
+                        <p className="text-gray-500 text-xs font-medium leading-relaxed mb-4">O seu cartão de visita interativo e inovador.</p>
+                        <div className="flex items-center text-red-600 text-[10px] font-black uppercase tracking-widest">
+                            Experimentar <ChevronRight className="w-3 h-3 ml-1 group-hover:translate-x-1 transition-transform" />
+                        </div>
+                    </Link>
                 </div>
             </div>
         </div>
