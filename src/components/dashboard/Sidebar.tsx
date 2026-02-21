@@ -24,22 +24,66 @@ interface SidebarItemProps {
     href: string
     active?: boolean
     onClick?: () => void
+    subItems?: { label: string; href: string }[]
+    isNew?: boolean
 }
 
-const SidebarItem = ({ icon: Icon, label, href, active, onClick }: SidebarItemProps) => (
-    <Link
-        href={href}
-        onClick={onClick}
-        className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200 group ${active
-            ? 'bg-red-50 text-red-600 border-l-4 border-red-600 rounded-r-lg'
-            : 'text-gray-500 hover:bg-gray-50 hover:text-gray-900 rounded-lg'
-            }`}
-    >
-        <Icon className={`w-5 h-5 ${active ? 'text-red-600' : 'group-hover:text-red-500'}`} />
-        <span className="font-medium">{label}</span>
-        {active && <ChevronRight className="w-4 h-4 ml-auto" />}
-    </Link>
-)
+const SidebarItem = ({ icon: Icon, label, href, active, onClick, subItems, isNew }: SidebarItemProps) => {
+    const [isExpanded, setIsExpanded] = React.useState(false)
+    const hasSubItems = subItems && subItems.length > 0
+
+    const handleClick = (e: React.MouseEvent) => {
+        if (hasSubItems) {
+            e.preventDefault()
+            setIsExpanded(!isExpanded)
+        } else if (onClick) {
+            onClick()
+        }
+    }
+
+    return (
+        <div className="flex flex-col">
+            <Link
+                href={href}
+                onClick={handleClick}
+                className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200 group ${active && !hasSubItems
+                    ? 'bg-red-50 text-red-600 border-l-4 border-red-600 rounded-r-lg'
+                    : 'text-gray-500 hover:bg-gray-50 hover:text-gray-900 rounded-lg'
+                    }`}
+            >
+                <div className={`w-8 h-8 flex items-center justify-center rounded-lg ${isNew ? 'bg-indigo-100 text-indigo-600' : ''}`}>
+                    <Icon className={`w-5 h-5 ${active && !hasSubItems ? 'text-red-600' : 'group-hover:text-red-500'} ${isNew ? 'text-indigo-600' : ''}`} />
+                </div>
+                <span className="font-medium flex-1">{label}</span>
+                {isNew && (
+                    <span className="px-2 py-0.5 text-xs font-bold text-white bg-orange-500 rounded-md">
+                        NEW
+                    </span>
+                )}
+                {hasSubItems ? (
+                    <ChevronRight className={`w-4 h-4 transition-transform ${isExpanded ? 'rotate-90' : ''}`} />
+                ) : (
+                    active && <ChevronRight className="w-4 h-4 ml-auto" />
+                )}
+            </Link>
+
+            {hasSubItems && isExpanded && (
+                <div className="flex flex-col mt-1 ml-4 pl-4 border-l border-gray-100 space-y-1">
+                    {subItems.map((subItem) => (
+                        <Link
+                            key={subItem.label}
+                            href={subItem.href}
+                            onClick={onClick}
+                            className="text-sm text-gray-500 hover:text-gray-900 py-2 px-4 rounded-lg hover:bg-gray-50 transition-colors"
+                        >
+                            {subItem.label}
+                        </Link>
+                    ))}
+                </div>
+            )}
+        </div>
+    )
+}
 
 export default function DashboardSidebar() {
     const pathname = usePathname()
@@ -48,7 +92,25 @@ export default function DashboardSidebar() {
     const menuItems = [
         { icon: Home, label: 'Início', href: '/dashboard' },
         { icon: Package, label: 'Meus Planos', href: '/dashboard/servicos' },
-        { icon: Globe, label: 'Domínios', href: '/dashboard/dominios' },
+        {
+            icon: Globe, label: 'Domínios', href: '#', subItems: [
+                { label: 'Meus Domínios', href: '/dashboard/dominios' },
+                { label: 'Gestão de DNS', href: '/admin?section=domains-dns' }
+            ]
+        },
+        {
+            icon: Globe, // Using Globe as fallback for WordPress, can be replaced with custom SVG later
+            label: 'WordPress',
+            href: '#',
+            isNew: true,
+            subItems: [
+                { label: 'Deploy WordPress', href: '/dashboard/wordpress' },
+                { label: 'List WordPress', href: '/dashboard/wordpress/list' },
+                { label: 'Configure Plugins', href: '/dashboard/wordpress/plugins' },
+                { label: 'Restore Backups', href: '/dashboard/wordpress/restore' },
+                { label: 'Remote Backup', href: '/dashboard/wordpress/remote-backup' }
+            ]
+        },
         { icon: ShoppingBag, label: 'Loja de Serviços', href: '/dashboard/marketplace' },
         { icon: CreditCard, label: 'Faturas', href: '/dashboard/faturas' },
         { icon: Settings, label: 'Definições', href: '/dashboard/definicoes' },
