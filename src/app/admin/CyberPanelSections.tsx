@@ -46,6 +46,7 @@ export function SubdomainsSection({ sites }: { sites: CyberPanelWebsite[] }) {
     setCreating(true); setMsg('')
     const ok = await cyberPanelAPI.createSubdomain(selectedDomain, newSub.trim())
     cpSaveSubdomain(selectedDomain, newSub.trim())
+    void (async () => { try { await supabase.from('cyberpanel_subdomains').upsert({ domain: selectedDomain, subdomain: `${newSub.trim()}.${selectedDomain}` }, { onConflict: 'domain,subdomain' }) } catch {} })()
     setMsg(ok ? 'Subdomínio criado com sucesso!' : 'Guardado localmente. Verifica no CyberPanel.')
     setNewSub('')
     loadSubs(selectedDomain)
@@ -56,6 +57,7 @@ export function SubdomainsSection({ sites }: { sites: CyberPanelWebsite[] }) {
     if (!confirm(`Eliminar subdomínio ${sub}?`)) return
     await cyberPanelAPI.deleteSubdomain(selectedDomain, sub)
     cpRemoveSubdomain(sub)
+    void (async () => { try { await supabase.from('cyberpanel_subdomains').delete().eq('subdomain', sub) } catch {} })()
     loadSubs(selectedDomain)
   }
 
@@ -150,6 +152,7 @@ export function DatabasesSection({ sites }: { sites: CyberPanelWebsite[] }) {
     setCreating(true); setMsg('')
     const ok = await cyberPanelAPI.createDatabase(selectedDomain, dbName, dbUser, dbPass)
     cpSaveDatabase(selectedDomain, dbName, dbUser)
+    void (async () => { try { await supabase.from('cyberpanel_databases').upsert({ domain: selectedDomain, db_name: dbName, db_user: dbUser }, { onConflict: 'domain,db_name' }) } catch {} })()
     setMsg(ok ? 'Base de dados criada!' : 'Guardada localmente. Verifica no CyberPanel.')
     setDbName(''); setDbUser(''); setDbPass('')
     loadDBs(selectedDomain)
@@ -160,6 +163,7 @@ export function DatabasesSection({ sites }: { sites: CyberPanelWebsite[] }) {
     if (!confirm(`Eliminar base de dados ${name}?`)) return
     await cyberPanelAPI.deleteDatabase(selectedDomain, name)
     cpRemoveDatabase(selectedDomain, name)
+    void (async () => { try { await supabase.from('cyberpanel_databases').delete().eq('domain', selectedDomain).eq('db_name', name) } catch {} })()
     loadDBs(selectedDomain)
   }
 
@@ -248,6 +252,7 @@ export function FTPSection({ sites }: { sites: CyberPanelWebsite[] }) {
     setCreating(true); setMsg('')
     const ok = await cyberPanelAPI.createFTPAccount(selectedDomain, ftpUser, ftpPass, ftpPath)
     cpSaveFTP(selectedDomain, ftpUser, ftpPath)
+    void (async () => { try { await supabase.from('cyberpanel_ftp').upsert({ domain: selectedDomain, username: ftpUser, path: ftpPath }, { onConflict: 'domain,username' }) } catch {} })()
     setMsg(ok ? 'Conta FTP criada!' : 'Guardada localmente. Verifica no CyberPanel.')
     setFtpUser(''); setFtpPass(''); setFtpPath('/')
     loadFTP(selectedDomain)
@@ -258,6 +263,7 @@ export function FTPSection({ sites }: { sites: CyberPanelWebsite[] }) {
     if (!confirm(`Eliminar conta FTP ${user}?`)) return
     await cyberPanelAPI.deleteFTPAccount(selectedDomain, user)
     cpRemoveFTP(selectedDomain, user)
+    void (async () => { try { await supabase.from('cyberpanel_ftp').delete().eq('domain', selectedDomain).eq('username', user) } catch {} })()
     loadFTP(selectedDomain)
   }
 
@@ -352,6 +358,7 @@ export function EmailManagementSection({ sites }: { sites: CyberPanelWebsite[] }
     setCreating(true); setMsg('')
     const ok = await cyberPanelAPI.createEmail({ domainName: selectedDomain, emailUser, emailPass, quota: parseInt(emailQuota) })
     cpSaveEmail(selectedDomain, emailUser, { quota: emailQuota })
+    void (async () => { try { await supabase.from('cyberpanel_emails').upsert({ domain: selectedDomain, email_user: emailUser, quota: emailQuota }, { onConflict: 'domain,email_user' }) } catch {} })()
     setMsg(ok ? 'Conta de e-mail criada!' : 'Guardada localmente. Verifica no CyberPanel.')
     setEmailUser(''); setEmailPass('')
     loadEmails(selectedDomain)
