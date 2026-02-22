@@ -223,13 +223,29 @@ class CyberPanelAPI {
         packageName: string;
         phpSelection: string;
     }): Promise<boolean> {
+        // CyberPanel requires ownerEmail to match an existing CyberPanel user's email.
+        // Try to get the admin's real email from fetchUsers first.
+        let ownerEmail = params.ownerEmail;
+        try {
+            const usersResult = await this.makeRequest('fetchUsers');
+            const usersArr = usersResult?.data || usersResult?.users || [];
+            if (Array.isArray(usersArr)) {
+                const adminUser = usersArr.find((u: any) => u.userName === 'admin' || u.username === 'admin');
+                if (adminUser?.email) ownerEmail = adminUser.email;
+            }
+        } catch { /* use provided email */ }
+
         const requestParams = {
             domainName: params.domainName,
-            ownerEmail: params.ownerEmail,
-            packageName: params.packageName,
+            ownerEmail,
             websiteOwner: 'admin',
-            phpSelection: params.phpSelection
+            packageName: params.packageName,
+            phpSelection: params.phpSelection,
+            ssl: 1,
+            dkimCheck: 1,
+            openBasedir: 1,
         };
+        // Let the error throw naturally so callers get the real reason
         const result = await this.makeRequest('createWebsite', requestParams);
         return result.status === 1;
     }
