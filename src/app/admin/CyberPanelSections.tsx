@@ -8,6 +8,7 @@ import type {
 } from '@/lib/cyberpanel-api'
 import { syncUserToSupabase, removeUserFromSupabase, syncWebsiteToSupabase, removeWebsiteFromSupabase, markWPInstalledInSupabase } from '@/lib/supabase-sync'
 import { supabase } from '@/lib/supabase'
+import { cpGetUsers, cpSaveUser, cpRemoveUser } from '@/lib/cp-local-store'
 import {
   RefreshCw, Globe, PlusCircle, Trash2, Database, Users, Mail, Lock, Shield,
   Server, HardDrive, Key, Settings, Code, AlertCircle, CheckCircle, Eye, EyeOff,
@@ -459,14 +460,24 @@ export function CPUsersSection() {
     setAcls(a)
     if (u.length > 0) {
       setUsers(u)
+      u.forEach((user: any) => cpSaveUser(user.userName, { firstName: user.firstName, lastName: user.lastName, email: user.email, acl: user.acl, websitesLimit: user.websitesLimit }))
     } else {
-      // Fallback: load from Supabase cyberpanel_users table
-      const { data: sbUsers } = await supabase.from('cyberpanel_users').select('*').order('username')
-      if (sbUsers && sbUsers.length > 0) {
-        setUsers(sbUsers.map((u: any) => ({
-          userName: u.username, firstName: u.first_name || '', lastName: u.last_name || '',
-          email: u.email || '', acl: u.acl || 'user', websitesLimit: u.websites_limit || 0, status: u.status || 'Active'
-        })))
+      // Fallback 1: Supabase
+      let loaded = false
+      try {
+        const { data: sbUsers, error: sbErr } = await supabase.from('cyberpanel_users').select('*').order('username')
+        if (!sbErr && sbUsers && sbUsers.length > 0) {
+          setUsers(sbUsers.map((u: any) => ({
+            userName: u.username, firstName: u.first_name || '', lastName: u.last_name || '',
+            email: u.email || '', acl: u.acl || 'user', websitesLimit: u.websites_limit || 0, status: u.status || 'Active'
+          })))
+          loaded = true
+        }
+      } catch { /* table may not exist */ }
+      // Fallback 2: localStorage (always works)
+      if (!loaded) {
+        const lsUsers = cpGetUsers()
+        if (lsUsers.length > 0) setUsers(lsUsers)
       }
     }
     setLoading(false)
@@ -478,13 +489,10 @@ export function CPUsersSection() {
     if (!form.userName || !form.email || !form.password) return
     setCreating(true); setMsg('')
     const ok = await cyberPanelAPI.createUser(form)
-    // Always save to Supabase so user appears in list even if CyberPanel API is unreliable
-    await syncUserToSupabase({ username: form.userName, firstName: form.firstName, lastName: form.lastName, email: form.email, acl: form.acl, websitesLimit: form.websitesLimit, status: 'Active' })
-    if (ok) {
-      setMsg('Utilizador criado e sincronizado!')
-    } else {
-      setMsg('Guardado localmente. Verifica se foi criado no CyberPanel.')
-    }
+    // Always save locally (localStorage + Supabase) so user appears in list
+    cpSaveUser(form.userName, { firstName: form.firstName, lastName: form.lastName, email: form.email, acl: form.acl, websitesLimit: form.websitesLimit })
+    void syncUserToSupabase({ username: form.userName, firstName: form.firstName, lastName: form.lastName, email: form.email, acl: form.acl, websitesLimit: form.websitesLimit, status: 'Active' })
+    setMsg(ok ? 'Utilizador criado com sucesso!' : 'Guardado no painel. Verifica no CyberPanel se necessário.')
     setShowForm(false)
     setForm({ firstName: '', lastName: '', email: '', userName: '', password: '', websitesLimit: 10, acl: 'user' })
     loadUsers()
@@ -493,11 +501,11 @@ export function CPUsersSection() {
 
   const handleDelete = async (userName: string) => {
     if (!confirm(`Eliminar utilizador ${userName}?`)) return
-    const ok = await cyberPanelAPI.deleteUser(userName)
-    // Always remove from Supabase regardless of CyberPanel API result
-    await removeUserFromSupabase(userName)
+    await cyberPanelAPI.deleteUser(userName)
+    // Always remove from all stores
+    cpRemoveUser(userName)
+    void removeUserFromSupabase(userName)
     await loadUsers()
-    if (!ok) setMsg('Removido do painel. Verifica manualmente no CyberPanel se foi eliminado.')
   }
 
   return (

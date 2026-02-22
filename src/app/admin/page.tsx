@@ -90,28 +90,43 @@ interface Subscription {
   client_phone: string | null;
 }
 
-// ── localStorage helpers for CyberPanel sites (works without Supabase tables) ──
+// ── localStorage helpers — works without Supabase tables ──────────────────────
 const LS_SITES_KEY = 'cp_sites_v1'
+const LS_USERS_KEY = 'cp_users_v1'
+const LS_PKGS_KEY  = 'cp_packages_v1'
 
-function lsGetSites(): any[] {
+function lsGet<T>(key: string): T[] {
   if (typeof window === 'undefined') return []
-  try { return JSON.parse(localStorage.getItem(LS_SITES_KEY) || '[]') } catch { return [] }
+  try { return JSON.parse(localStorage.getItem(key) || '[]') } catch { return [] }
+}
+function lsSet(key: string, data: any[]) {
+  if (typeof window === 'undefined') return
+  try { localStorage.setItem(key, JSON.stringify(data)) } catch {}
 }
 
+function lsGetSites() { return lsGet<any>(LS_SITES_KEY) }
 function lsSaveSite(domain: string, extra: Record<string, any> = {}) {
-  if (typeof window === 'undefined') return
   const list = lsGetSites()
   const idx = list.findIndex((s: any) => s.domain === domain)
   const entry = { domain, adminEmail: '', package: 'Default', owner: 'admin', status: 'Active', diskUsage: '', bandwidthUsage: '', ...extra }
   if (idx >= 0) list[idx] = entry; else list.push(entry)
-  localStorage.setItem(LS_SITES_KEY, JSON.stringify(list))
+  lsSet(LS_SITES_KEY, list)
 }
+function lsRemoveSite(domain: string) { lsSet(LS_SITES_KEY, lsGetSites().filter((s: any) => s.domain !== domain)) }
 
-function lsRemoveSite(domain: string) {
-  if (typeof window === 'undefined') return
-  localStorage.setItem(LS_SITES_KEY, JSON.stringify(lsGetSites().filter((s: any) => s.domain !== domain)))
+function lsGetUsers() { return lsGet<any>(LS_USERS_KEY) }
+function lsSaveUser(userName: string, extra: Record<string, any> = {}) {
+  const list = lsGetUsers()
+  const idx = list.findIndex((u: any) => u.userName === userName)
+  const entry = { userName, firstName: '', lastName: '', email: '', acl: 'user', websitesLimit: 10, status: 'Active', ...extra }
+  if (idx >= 0) list[idx] = entry; else list.push(entry)
+  lsSet(LS_USERS_KEY, list)
 }
-// ──────────────────────────────────────────────────────────────────────────────
+function lsRemoveUser(userName: string) { lsSet(LS_USERS_KEY, lsGetUsers().filter((u: any) => u.userName !== userName)) }
+
+function lsGetPackages() { return lsGet<any>(LS_PKGS_KEY) }
+function lsSavePackages(pkgs: any[]) { lsSet(LS_PKGS_KEY, pkgs) }
+// ───────────────────────────────────────────────────────────────────────────────
 
 function AdminPanelContent() {
   const { t } = useI18n()
@@ -319,6 +334,16 @@ function AdminPanelContent() {
   const [isCheckingDomain, setIsCheckingDomain] = useState(false)
   const [domainCheckResult, setDomainCheckResult] = useState<{ available: boolean; status: string } | null>(null)
 
+  // ── Immediately load from localStorage on mount so all dropdowns have data ──
+  useEffect(() => {
+    const sites = lsGetSites()
+    const users = lsGetUsers()
+    const pkgs  = lsGetPackages()
+    if (sites.length > 0) setCyberPanelSites(sites)
+    if (users.length > 0) setCyberPanelUsers(users)
+    if (pkgs.length > 0)  setCyberPanelPackages(pkgs)
+  }, [])
+
   useEffect(() => {
     if (isAuthenticated) {
       loadSubscriptions()
@@ -335,8 +360,17 @@ function AdminPanelContent() {
         cyberPanelAPI.listPackages().catch(() => [{ packageName: 'Default', diskSpace: 1000, bandwidth: 10000, emailAccounts: 10, dataBases: 1, ftpAccounts: 1, allowedDomains: 1 }]),
         cyberPanelAPI.listUsers().catch(() => [] as any[]),
       ]);
-      setCyberPanelPackages(packages)
-      setCyberPanelUsers(users)
+      // Save packages + users to localStorage so they're available immediately next load
+      if (packages.length > 0) { setCyberPanelPackages(packages); lsSavePackages(packages) }
+      else { const lsPkgs = lsGetPackages(); if (lsPkgs.length > 0) setCyberPanelPackages(lsPkgs) }
+
+      if (users.length > 0) {
+        setCyberPanelUsers(users)
+        users.forEach((u: any) => lsSaveUser(u.userName, { firstName: u.firstName, lastName: u.lastName, email: u.email, acl: u.acl, websitesLimit: u.websitesLimit }))
+      } else {
+        const lsUsers = lsGetUsers()
+        if (lsUsers.length > 0) setCyberPanelUsers(lsUsers)
+      }
 
       if (sites.length === 0) {
         // Fallback 1: Supabase table
@@ -1107,22 +1141,20 @@ function AdminPanelContent() {
         allowedDomains: newPackageData.allowedDomains
       })
 
-      if (success) {
-        // Refresh packages
-        const pkgs = await cyberPanelAPI.listPackages()
-        setCyberPanelPackages(pkgs)
-        setShowCreatePackageModal(false)
-        setNewPackageData({
-          packageName: '',
-          diskSpace: 1000,
-          bandwidth: 10000,
-          emailAccounts: 10,
-          dataBases: 1,
-          ftpAccounts: 1,
-          allowedDomains: 1
-        })
-      } else {
-        throw new Error('Falha ao criar o pacote no CyberPanel')
+      // Always save to localStorage so it appears in all dropdowns immediately
+      const pkgEntry = {
+        packageName: newPackageData.packageName.trim().replace(/\s+/g, '_'),
+        diskSpace: newPackageData.diskSpace, bandwidth: newPackageData.bandwidth,
+        emailAccounts: newPackageData.emailAccounts, dataBases: newPackageData.dataBases,
+        ftpAccounts: newPackageData.ftpAccounts, allowedDomains: newPackageData.allowedDomains
+      }
+      const updatedPkgs = [...cyberPanelPackages.filter(p => p.packageName !== pkgEntry.packageName), pkgEntry]
+      setCyberPanelPackages(updatedPkgs)
+      lsSavePackages(updatedPkgs)
+      setShowCreatePackageModal(false)
+      setNewPackageData({ packageName: '', diskSpace: 1000, bandwidth: 10000, emailAccounts: 10, dataBases: 1, ftpAccounts: 1, allowedDomains: 1 })
+      if (!success) {
+        setError('Aviso: API CyberPanel não confirmou. Pacote guardado no painel local.')
       }
     } catch (err: any) {
       setError(err.message || 'Ocorreu um erro ao criar o pacote')
