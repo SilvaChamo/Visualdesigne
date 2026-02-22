@@ -37,21 +37,8 @@ async function checkDomainViaDNS(domain: string): Promise<boolean> {
             return false // Domain exists with records, not available
         }
 
-        // If no answers but NOERROR, could be parked — check NS records
-        const nsResponse = await fetch(
-            `https://cloudflare-dns.com/dns-query?name=${encodeURIComponent(domain)}&type=NS`,
-            {
-                headers: { 'Accept': 'application/dns-json' }
-            }
-        )
-
-        if (nsResponse.ok) {
-            const nsData = await nsResponse.json()
-            if (nsData.Status === 3) return true // NXDOMAIN
-            if (nsData.Answer && nsData.Answer.length > 0) return false // Has NS records
-        }
-
-        // Default: if we can't be certain, say it's available
+        // No A records but NOERROR — domain may exist but have no A record
+        // This is still "taken" only if it has SOA (registered). Default: available.
         return true
     } catch (error) {
         console.error('DNS check error:', error)

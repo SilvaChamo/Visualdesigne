@@ -311,9 +311,25 @@ function AdminPanelContent() {
         cyberPanelAPI.listPackages(),
         cyberPanelAPI.listUsers()
       ]);
-      setCyberPanelSites(sites)
       setCyberPanelPackages(packages)
       setCyberPanelUsers(users)
+
+      // If API returned 0 sites, fall back to Supabase before overwriting state
+      if (sites.length === 0) {
+        const { data: sbSites } = await supabase.from('cyberpanel_sites').select('*')
+        if (sbSites && sbSites.length > 0) {
+          setCyberPanelSites(sbSites.map((s: any) => ({
+            domain: s.domain, adminEmail: s.admin_email || '', package: s.package || 'Default',
+            owner: s.owner || 'admin', status: s.status || 'Active',
+            diskUsage: s.disk_usage || '', bandwidthUsage: s.bandwidth_usage || '',
+          })))
+          console.log(`API returned 0 sites → loaded ${sbSites.length} from Supabase`)
+        } else {
+          setCyberPanelSites([])
+        }
+      } else {
+        setCyberPanelSites(sites)
+      }
       console.log(`Loaded ${sites.length} CyberPanel sites, ${packages.length} packages, ${users.length} users from VPS`)
 
       // Log utilizadores sincronizados (admin + visualdesign)
@@ -2101,14 +2117,24 @@ function AdminPanelContent() {
                       Carregando sites...
                     </div>
                   ) : cyberPanelSites.length === 0 ? (
-                    <div className="p-16 text-center">
-                      <div className="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center mx-auto mb-4">
-                        <Globe2 className="w-8 h-8 text-gray-300" />
+                    <div className="p-8 text-center space-y-4">
+                      <Globe2 className="w-10 h-10 text-gray-300 mx-auto" />
+                      <p className="text-sm text-gray-500">A API do CyberPanel não devolveu sites.<br/>Adiciona manualmente os domínios que já existem no servidor.</p>
+                      <div className="flex gap-2 max-w-sm mx-auto">
+                        <input id="manualDomainInput" type="text" placeholder="ex: visualdesigne.com" className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500" />
+                        <button
+                          onClick={async () => {
+                            const input = (document.getElementById('manualDomainInput') as HTMLInputElement)
+                            const domain = input?.value?.trim().toLowerCase()
+                            if (!domain) return
+                            await supabase.from('cyberpanel_sites').upsert({ domain, owner: 'admin', status: 'Active', package: 'Default', admin_email: '', disk_usage: '', bandwidth_usage: '', synced_at: new Date().toISOString() }, { onConflict: 'domain' })
+                            await loadCyberPanelData()
+                            if (input) input.value = ''
+                          }}
+                          className="bg-cyan-600 hover:bg-cyan-700 text-white px-4 py-2 rounded-lg text-sm font-bold transition-colors">
+                          Adicionar
+                        </button>
                       </div>
-                      <p className="text-sm text-gray-500 max-w-sm mx-auto">
-                        Ainda não existem websites criados na nova infraestrutura.
-                        Pode iniciar a migração de sites para aqui.
-                      </p>
                     </div>
                   ) : (
                     <div className="overflow-x-auto">
