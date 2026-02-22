@@ -183,7 +183,7 @@ class CyberPanelAPI {
                 const result = await this.makeRequest(endpoint, extra);
                 console.log(`[listWebsites] ${endpoint}:`, JSON.stringify(result).substring(0, 200));
                 // CyberPanel uses different keys depending on version
-                const arr = result.data || result.websitesData || result.websites || result.websiteList || [];
+                const arr = result.websiteData || result.data || result.websitesData || result.websites || result.websiteList || [];
                 if (Array.isArray(arr) && arr.length > 0) return parseSites(arr);
             } catch { /* try next */ }
             return null;

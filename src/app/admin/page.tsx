@@ -581,7 +581,7 @@ function AdminPanelContent() {
     const link = document.createElement('a')
     const url = URL.createObjectURL(blob)
     link.setAttribute('href', url)
-    link.setAttribute('download', `clientes_${new Date().toISOString().split('T')[0]}.csv`)
+    link.setAttribute('download', `contas_${new Date().toISOString().split('T')[0]}.csv`)
     link.style.visibility = 'hidden'
     document.body.appendChild(link)
     link.click()
@@ -1342,7 +1342,7 @@ function AdminPanelContent() {
 
   const menuItems: Array<{ id: string; label: string; color: string; isNew?: boolean; subItems?: Array<{ id: string; label: string }> }> = [
     { id: 'dashboard',     label: 'Dashboard',       color: 'bg-blue-500' },
-    { id: 'clients',       label: 'Clientes',        color: 'bg-green-500' },
+    { id: 'clients',       label: 'Contas',          color: 'bg-green-500' },
     { id: 'billing',       label: 'Faturação',       color: 'bg-indigo-500' },
     { id: 'notifications', label: 'Notificações',    color: 'bg-orange-500' },
     { id: 'reports',       label: 'Relatórios',      color: 'bg-pink-500' },
@@ -1540,7 +1540,7 @@ function AdminPanelContent() {
               <div className="flex justify-between items-center">
                 <div>
                   <h1 className="text-3xl font-bold text-gray-900">Usuários</h1>
-                  <p className="text-gray-500 text-sm mt-1">Gerencie as credenciais de acesso dos seus clientes ao Dashboard.</p>
+                  <p className="text-gray-500 text-sm mt-1">Gerencie as credenciais de acesso das contas ao Dashboard.</p>
                 </div>
                 <button
                   onClick={() => {
@@ -1798,7 +1798,7 @@ function AdminPanelContent() {
                           <div className="text-2xl font-bold text-gray-900 leading-none">{stats.total_clients}</div>
                           <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Total</div>
                         </div>
-                        <div className="text-sm text-gray-600 mt-1">Clientes</div>
+                        <div className="text-sm text-gray-600 mt-1">Contas</div>
                       </div>
                     </div>
 
@@ -1876,7 +1876,7 @@ function AdminPanelContent() {
                           <span className="px-2 py-1 bg-green-100 text-green-700 text-xs rounded-full">Online</span>
                         </div>
                         <div className="flex items-center justify-between">
-                          <span className="text-sm text-gray-600">Clientes Suspensos</span>
+                          <span className="text-sm text-gray-600">Contas Suspensas</span>
                           <span className="text-sm text-gray-900 font-medium">{stats.suspended_clients}</span>
                         </div>
                         <div className="flex items-center justify-between">
@@ -2387,7 +2387,7 @@ function AdminPanelContent() {
             activeSection === 'clients' && (
               <div>
                 <div className="flex justify-between items-center mb-8">
-                  <h1 className="text-3xl font-bold text-gray-900">Clientes</h1>
+                  <h1 className="text-3xl font-bold text-gray-900">Contas</h1>
                   <div className="flex items-center gap-4">
                     <button
                       onClick={() => setShowCreateModal(true)}
@@ -2408,7 +2408,7 @@ function AdminPanelContent() {
 
                 {loading && (
                   <div className="flex items-center justify-center py-12">
-                    <div className="text-gray-600">Carregando clientes...</div>
+                    <div className="text-gray-600">Carregando contas...</div>
                   </div>
                 )}
 
@@ -2416,7 +2416,7 @@ function AdminPanelContent() {
                   <>
                     <div className="bg-white rounded-xl shadow-md overflow-hidden">
                       <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
-                        <h3 className="text-lg font-semibold text-gray-900">Clientes ({clients.length})</h3>
+                        <h3 className="text-lg font-semibold text-gray-900">Contas ({clients.length})</h3>
                         <div className="flex items-center gap-4">
                           <button
                             onClick={handleSyncVHM}
@@ -2444,7 +2444,7 @@ function AdminPanelContent() {
                             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
                             <input
                               type="text"
-                              placeholder="Buscar clientes..."
+                              placeholder="Buscar contas..."
                               value={searchTerm}
                               onChange={(e) => setSearchTerm(e.target.value)}
                               className="pl-10 pr-4 py-1.5 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500 w-64 text-sm"
