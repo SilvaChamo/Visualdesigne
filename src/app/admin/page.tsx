@@ -1455,6 +1455,7 @@ function AdminPanelContent() {
   const menuItems: Array<{ id: string; label: string; color: string; isNew?: boolean; subItems?: Array<{ id: string; label: string }> }> = [
     { id: 'dashboard',     label: 'Dashboard',       color: 'bg-blue-500' },
     { id: 'clients',       label: 'Contas',          color: 'bg-green-500' },
+    { id: 'packages-list', label: 'Pacotes',         color: 'bg-teal-500' },
     { id: 'billing',       label: 'Faturação',       color: 'bg-indigo-500' },
     { id: 'notifications', label: 'Notificações',    color: 'bg-orange-500' },
     { id: 'reports',       label: 'Relatórios',      color: 'bg-pink-500' },
@@ -3701,25 +3702,25 @@ function AdminPanelContent() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-50">
-                    {packages.length === 0 && !isFetchingPackages ? (
+                    {cyberPanelPackages.length === 0 && !isFetchingCyberPanel ? (
                       <tr>
                         <td colSpan={7} className="px-6 py-12 text-center text-gray-400">
                           <Package className="w-12 h-12 mx-auto mb-3 opacity-20" />
-                          Nenhum pacote encontrado.
+                          Nenhum pacote encontrado. Cria um pacote primeiro.
                         </td>
                       </tr>
                     ) : (
-                      packages.map((pkg, idx) => (
+                      cyberPanelPackages.map((pkg, idx) => (
                         <tr key={idx} className="hover:bg-gray-50 transition-colors">
-                          <td className="px-6 py-3 font-bold text-gray-900">{pkg.name}</td>
-                          <td className="px-6 py-3 text-gray-600">{pkg.diskSpace}</td>
-                          <td className="px-6 py-3 text-gray-600">{pkg.bandwidth}</td>
-                          <td className="px-6 py-3 text-gray-600">{pkg.emailAccounts}</td>
-                          <td className="px-6 py-3 text-gray-600">{pkg.dataBases}</td>
-                          <td className="px-6 py-3 text-gray-600">{pkg.allowedDomains}</td>
+                          <td className="px-6 py-3 font-bold text-gray-900">{pkg.packageName}</td>
+                          <td className="px-6 py-3 text-gray-600">{pkg.diskSpace ?? '—'}</td>
+                          <td className="px-6 py-3 text-gray-600">{pkg.bandwidth ?? '—'}</td>
+                          <td className="px-6 py-3 text-gray-600">{pkg.emailAccounts ?? '—'}</td>
+                          <td className="px-6 py-3 text-gray-600">{pkg.dataBases ?? '—'}</td>
+                          <td className="px-6 py-3 text-gray-600">{pkg.allowedDomains ?? '—'}</td>
                           <td className="px-6 py-3 text-right">
                             <button
-                              onClick={() => handleDeletePackage(pkg.name)}
+                              onClick={() => handleDeletePackage(pkg.packageName)}
                               className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
                               title="Apagar Pacote"
                             >
@@ -4868,11 +4869,16 @@ function AdminPanelContent() {
                           <label className="block text-xs font-semibold text-gray-600 mb-1">Domínio *</label>
                           <input
                             type="text"
-                            placeholder="exemplo.com"
+                            list="sites-datalist"
+                            placeholder="exemplo.com ou selecione da lista"
                             value={newAccountData.domain}
                             onChange={(e) => setNewAccountData({ ...newAccountData, domain: e.target.value })}
                             className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-red-500"
                           />
+                          <datalist id="sites-datalist">
+                            {cyberPanelSites.map(s => <option key={s.domain} value={s.domain} />)}
+                          </datalist>
+                          {cyberPanelSites.length > 0 && <p className="text-[10px] text-gray-400 mt-0.5">{cyberPanelSites.length} site(s) disponíveis</p>}
                         </div>
                         <div>
                           <label className="block text-xs font-semibold text-gray-600 mb-1">Usuário *</label>
@@ -4926,9 +4932,10 @@ function AdminPanelContent() {
                             className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-red-500"
                           >
                             <option value="">Selecione um pacote...</option>
-                            {plans.map(plan => (
-                              <option key={plan.name} value={plan.name}>{plan.name}</option>
-                            ))}
+                            {cyberPanelPackages.length > 0
+                              ? cyberPanelPackages.map(p => <option key={p.packageName} value={p.packageName}>{p.packageName}</option>)
+                              : <option value="Default">Default</option>
+                            }
                           </select>
                         </div>
 
