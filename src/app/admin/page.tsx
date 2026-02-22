@@ -90,6 +90,29 @@ interface Subscription {
   client_phone: string | null;
 }
 
+// ── localStorage helpers for CyberPanel sites (works without Supabase tables) ──
+const LS_SITES_KEY = 'cp_sites_v1'
+
+function lsGetSites(): any[] {
+  if (typeof window === 'undefined') return []
+  try { return JSON.parse(localStorage.getItem(LS_SITES_KEY) || '[]') } catch { return [] }
+}
+
+function lsSaveSite(domain: string, extra: Record<string, any> = {}) {
+  if (typeof window === 'undefined') return
+  const list = lsGetSites()
+  const idx = list.findIndex((s: any) => s.domain === domain)
+  const entry = { domain, adminEmail: '', package: 'Default', owner: 'admin', status: 'Active', diskUsage: '', bandwidthUsage: '', ...extra }
+  if (idx >= 0) list[idx] = entry; else list.push(entry)
+  localStorage.setItem(LS_SITES_KEY, JSON.stringify(list))
+}
+
+function lsRemoveSite(domain: string) {
+  if (typeof window === 'undefined') return
+  localStorage.setItem(LS_SITES_KEY, JSON.stringify(lsGetSites().filter((s: any) => s.domain !== domain)))
+}
+// ──────────────────────────────────────────────────────────────────────────────
+
 function AdminPanelContent() {
   const { t } = useI18n()
   const [activeSection, setActiveSection] = useState<string>('dashboard')
@@ -315,21 +338,37 @@ function AdminPanelContent() {
       setCyberPanelPackages(packages)
       setCyberPanelUsers(users)
 
-      // If API returned 0 sites, fall back to Supabase before overwriting state
       if (sites.length === 0) {
-        const { data: sbSites } = await supabase.from('cyberpanel_sites').select('*')
-        if (sbSites && sbSites.length > 0) {
-          setCyberPanelSites(sbSites.map((s: any) => ({
-            domain: s.domain, adminEmail: s.admin_email || '', package: s.package || 'Default',
-            owner: s.owner || 'admin', status: s.status || 'Active',
-            diskUsage: s.disk_usage || '', bandwidthUsage: s.bandwidth_usage || '',
-          })))
-          console.log(`API returned 0 sites → loaded ${sbSites.length} from Supabase`)
-        } else {
-          setCyberPanelSites([])
+        // Fallback 1: Supabase table
+        let loaded = false
+        try {
+          const { data: sbSites, error: sbErr } = await supabase.from('cyberpanel_sites').select('*')
+          if (!sbErr && sbSites && sbSites.length > 0) {
+            setCyberPanelSites(sbSites.map((s: any) => ({
+              domain: s.domain, adminEmail: s.admin_email || '', package: s.package || 'Default',
+              owner: s.owner || 'admin', status: s.status || 'Active',
+              diskUsage: s.disk_usage || '', bandwidthUsage: s.bandwidth_usage || '',
+            })))
+            // Also merge into localStorage
+            sbSites.forEach((s: any) => lsSaveSite(s.domain, { adminEmail: s.admin_email || '', package: s.package || 'Default', owner: s.owner || 'admin' }))
+            loaded = true
+          }
+        } catch { /* table may not exist */ }
+
+        // Fallback 2: localStorage (works without Supabase tables)
+        if (!loaded) {
+          const lsSites = lsGetSites()
+          if (lsSites.length > 0) {
+            setCyberPanelSites(lsSites)
+            console.log(`Loaded ${lsSites.length} sites from localStorage`)
+          } else {
+            setCyberPanelSites([])
+          }
         }
       } else {
         setCyberPanelSites(sites)
+        // Save API results to localStorage for future offline use
+        sites.forEach((s: any) => lsSaveSite(s.domain, { adminEmail: s.adminEmail, package: s.package, owner: s.owner }))
       }
       console.log(`Loaded ${sites.length} CyberPanel sites, ${packages.length} packages, ${users.length} users from VPS`)
 
@@ -372,24 +411,20 @@ function AdminPanelContent() {
       }
     } catch (err) {
       console.error('Error loading CyberPanel data:', err)
-      // Fallback: tentar carregar do Supabase se CyberPanel falhar
+      // Fallback 1: Supabase
       try {
         const { data } = await supabase.from('cyberpanel_sites').select('*')
         if (data && data.length > 0) {
           setCyberPanelSites(data.map((s: any) => ({
-            domain: s.domain,
-            adminEmail: s.admin_email,
-            package: s.package,
-            owner: s.owner,
-            status: s.status || 'Active',
-            diskUsage: s.disk_usage || '',
-            bandwidthUsage: s.bandwidth_usage || '',
+            domain: s.domain, adminEmail: s.admin_email, package: s.package,
+            owner: s.owner, status: s.status || 'Active', diskUsage: s.disk_usage || '', bandwidthUsage: s.bandwidth_usage || '',
           })))
-          console.log(`Loaded ${data.length} sites from Supabase fallback`)
+          return
         }
-      } catch (sbErr) {
-        console.error('Supabase fallback also failed:', sbErr)
-      }
+      } catch { /* ignore */ }
+      // Fallback 2: localStorage
+      const lsSites = lsGetSites()
+      if (lsSites.length > 0) setCyberPanelSites(lsSites)
     } finally {
       setIsFetchingCyberPanel(false)
     }
@@ -1126,18 +1161,15 @@ function AdminPanelContent() {
         serverError = apiErr.message || ''
       }
 
-      // Always save to Supabase regardless of API result
-      // (domain may exist on server already, or API may be misconfigured)
-      await supabase.from('cyberpanel_sites').upsert({
-        domain: domainName,
-        admin_email: newCyberSiteData.adminEmail.trim(),
-        package: newCyberSiteData.packageName,
-        owner: 'admin',
-        status: 'Active',
-        disk_usage: '',
-        bandwidth_usage: '',
-        synced_at: new Date().toISOString(),
-      }, { onConflict: 'domain' })
+      // Save to localStorage first (always works, no table dependency)
+      lsSaveSite(domainName, { adminEmail: newCyberSiteData.adminEmail.trim(), package: newCyberSiteData.packageName })
+
+      // Also try Supabase (best-effort, may fail if table doesn't exist)
+      void (async () => { try { await supabase.from('cyberpanel_sites').upsert({
+        domain: domainName, admin_email: newCyberSiteData.adminEmail.trim(),
+        package: newCyberSiteData.packageName, owner: 'admin', status: 'Active',
+        disk_usage: '', bandwidth_usage: '', synced_at: new Date().toISOString(),
+      }, { onConflict: 'domain' }) } catch {} })()
       await loadCyberPanelData()
       setShowCreateCyberSiteModal(false)
       setNewCyberSiteData({ domainName: '', adminEmail: '', packageName: 'Default', phpSelection: 'PHP 8.2' })
@@ -2154,8 +2186,14 @@ function AdminPanelContent() {
                           onClick={async () => {
                             const input = (document.getElementById('manualDomainInput') as HTMLInputElement)
                             const domain = input?.value?.trim().toLowerCase()
-                            if (!domain) return
-                            await supabase.from('cyberpanel_sites').upsert({ domain, owner: 'admin', status: 'Active', package: 'Default', admin_email: '', disk_usage: '', bandwidth_usage: '', synced_at: new Date().toISOString() }, { onConflict: 'domain' })
+                            if (!domain || !domain.includes('.')) {
+                              alert('Inclui a extensão do domínio, ex: visualdesigne.com')
+                              return
+                            }
+                            // Save to localStorage (always works)
+                            lsSaveSite(domain)
+                            // Also try Supabase (best-effort)
+                            void (async () => { try { await supabase.from('cyberpanel_sites').upsert({ domain, owner: 'admin', status: 'Active', package: 'Default', admin_email: '', disk_usage: '', bandwidth_usage: '', synced_at: new Date().toISOString() }, { onConflict: 'domain' }) } catch {} })()
                             await loadCyberPanelData()
                             if (input) input.value = ''
                           }}
