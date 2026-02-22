@@ -1010,6 +1010,15 @@ class CyberPanelAPI {
         } catch (error) { console.error('Failed to toggle WP plugin:', error); return false; }
     }
 
+    async installWPPlugin(domainName: string, pluginSlug: string): Promise<boolean> {
+        try {
+            const result = await this.makeRequest('installWPPlugin', { domainName, pluginName: pluginSlug });
+            if (result.status === 1) return true;
+            // fallback: try activating in case it's already installed but inactive
+            return await this.toggleWPPlugin(domainName, pluginSlug, true);
+        } catch (error) { console.error('Failed to install WP plugin:', error); return false; }
+    }
+
     async restoreWPBackup(domainName: string, backupFile: string): Promise<boolean> {
         try {
             const result = await this.makeRequest('restoreWordPressBackup', { domainName, backupFile });

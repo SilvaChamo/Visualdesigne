@@ -1248,8 +1248,17 @@ export function DeleteWebsiteSection({ sites, onRefresh }: { sites: CyberPanelWe
 export function WPListSection({ sites }: { sites: CyberPanelWebsite[] }) {
   const [wpSites, setWpSites] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
+  const [installingLS, setInstallingLS] = useState<string | null>(null)
+  const [lsMsg, setLsMsg] = useState<{ domain: string; ok: boolean; text: string } | null>(null)
 
   useEffect(() => { (async () => { setLoading(true); const data = await cyberPanelAPI.listWordPress(); setWpSites(data); setLoading(false) })() }, [])
+
+  const handleInstallLiteSpeed = async (domain: string) => {
+    setInstallingLS(domain); setLsMsg(null)
+    const ok = await cyberPanelAPI.installWPPlugin(domain, 'litespeed-cache')
+    setLsMsg({ domain, ok, text: ok ? 'LiteSpeed Cache instalado!' : 'Erro ao instalar LiteSpeed Cache.' })
+    setInstallingLS(null)
+  }
 
   const allSites = wpSites.length > 0
     ? wpSites.map((wp: any) => ({ domain: wp.domain || wp.domainName, version: wp.version || null, owner: wp.owner || '' }))
@@ -1290,6 +1299,17 @@ export function WPListSection({ sites }: { sites: CyberPanelWebsite[] }) {
                   className="w-full bg-amber-50 hover:bg-amber-100 text-amber-700 text-xs font-bold py-2 px-4 rounded-lg border border-amber-200 transition-all flex items-center justify-center gap-2">
                   <FolderOpen className="w-3.5 h-3.5" /> Ficheiros WordPress
                 </a>
+                <button
+                  onClick={() => handleInstallLiteSpeed(s.domain)}
+                  disabled={installingLS === s.domain}
+                  className="w-full bg-green-50 hover:bg-green-100 text-green-700 text-xs font-bold py-2 px-4 rounded-lg border border-green-200 transition-all flex items-center justify-center gap-2 disabled:opacity-60">
+                  {installingLS === s.domain
+                    ? <><RefreshCw className="w-3.5 h-3.5 animate-spin" /> A instalar...</>
+                    : <><Layers className="w-3.5 h-3.5" /> Instalar LiteSpeed Cache</>}
+                </button>
+                {lsMsg && lsMsg.domain === s.domain && (
+                  <p className={`text-[10px] font-bold text-center py-1 rounded ${lsMsg.ok ? 'text-green-700 bg-green-50' : 'text-red-700 bg-red-50'}`}>{lsMsg.text}</p>
+                )}
               </div>
             </div>
           ))}
