@@ -181,21 +181,38 @@ class CyberPanelAPI {
         const tryFetch = async (endpoint: string, extra: Record<string, any> = {}) => {
             try {
                 const result = await this.makeRequest(endpoint, extra);
-                console.log(`[listWebsites] ${endpoint}:`, JSON.stringify(result).substring(0, 200));
-                // CyberPanel uses different keys depending on version
+                console.log(`[listWebsites] ${endpoint} (${JSON.stringify(extra)}):`, JSON.stringify(result).substring(0, 300));
                 const arr = result.websiteData || result.data || result.websitesData || result.websites || result.websiteList || [];
                 if (Array.isArray(arr) && arr.length > 0) return parseSites(arr);
-            } catch { /* try next */ }
+            } catch (e: any) {
+                console.log(`[listWebsites] ${endpoint} failed:`, e?.message);
+            }
             return null;
         };
 
-        // Try endpoints in order until one returns results
+        // Step 1: try to get admin's actual email from fetchUsers, then use it
+        let adminEmail: string | null = null;
+        try {
+            const usersResult = await this.makeRequest('fetchUsers');
+            const usersArr = usersResult?.data || usersResult?.users || [];
+            if (Array.isArray(usersArr)) {
+                const adminUser = usersArr.find((u: any) => u.userName === 'admin' || u.username === 'admin');
+                if (adminUser?.email) adminEmail = adminUser.email;
+            }
+        } catch { /* ignore */ }
+
+        if (adminEmail) {
+            const result = await tryFetch('fetchWebsites', { ownerEmail: adminEmail });
+            if (result) return result;
+        }
+
+        // Step 2: fallback attempts with common patterns
         return (
-            await tryFetch('fetchWebsites', { ownerEmail: 'admin' }) ||
-            await tryFetch('fetchWebsites', { websiteOwner: 'admin' }) ||
             await tryFetch('fetchWebsites') ||
+            await tryFetch('fetchWebsites', { websiteOwner: 'admin' }) ||
             await tryFetch('listWebsites') ||
             await tryFetch('fetchSitesv2') ||
+            await tryFetch('getUsersWebsites', { websiteOwner: 'admin' }) ||
             []
         );
     }
@@ -539,7 +556,9 @@ class CyberPanelAPI {
         acl: string;
     }): Promise<boolean> {
         try {
-            const result = await this.makeRequest('submitUserCreation', params);
+            // CyberPanel expects 'selectedACL' not 'acl'
+            const { acl, ...rest } = params;
+            const result = await this.makeRequest('submitUserCreation', { ...rest, selectedACL: acl });
             return result.status === 1;
         } catch (error) {
             console.error('Failed to create user:', error);

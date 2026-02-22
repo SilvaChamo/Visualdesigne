@@ -306,10 +306,11 @@ function AdminPanelContent() {
   const loadCyberPanelData = async () => {
     setIsFetchingCyberPanel(true)
     try {
+      // Resilient: each call has its own fallback so one failure doesn't break everything
       const [sites, packages, users] = await Promise.all([
-        cyberPanelAPI.listWebsites(),
-        cyberPanelAPI.listPackages(),
-        cyberPanelAPI.listUsers()
+        cyberPanelAPI.listWebsites().catch(() => [] as any[]),
+        cyberPanelAPI.listPackages().catch(() => [{ packageName: 'Default', diskSpace: 1000, bandwidth: 10000, emailAccounts: 10, dataBases: 1, ftpAccounts: 1, allowedDomains: 1 }]),
+        cyberPanelAPI.listUsers().catch(() => [] as any[]),
       ]);
       setCyberPanelPackages(packages)
       setCyberPanelUsers(users)
@@ -1757,6 +1758,17 @@ function AdminPanelContent() {
                   >
                     <Globe className="w-4 h-4" />
                     Painel CyberPanel
+                  </button>
+                  <button
+                    onClick={async () => {
+                      const res = await fetch('/api/cyberpanel-debug')
+                      const data = await res.json()
+                      alert('=== CyberPanel API Diagnóstico ===\n\n' + JSON.stringify(data, null, 2).substring(0, 3000))
+                    }}
+                    className="bg-amber-500 hover:bg-amber-600 text-white px-3 py-1.5 rounded-md flex items-center gap-2 transition-colors text-sm"
+                  >
+                    <RefreshCw className="w-4 h-4" />
+                    Testar API
                   </button>
                   <button
                     onClick={handleLogout}
