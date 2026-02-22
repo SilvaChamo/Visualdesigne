@@ -8,7 +8,7 @@ import type {
 } from '@/lib/cyberpanel-api'
 import { syncUserToSupabase, removeUserFromSupabase, syncWebsiteToSupabase, removeWebsiteFromSupabase, markWPInstalledInSupabase } from '@/lib/supabase-sync'
 import { supabase } from '@/lib/supabase'
-import { cpGetUsers, cpSaveUser, cpRemoveUser } from '@/lib/cp-local-store'
+import { cpGetUsers, cpSaveUser, cpRemoveUser, cpSaveSubdomain, cpRemoveSubdomain, cpGetSubdomains, cpSaveDatabase, cpRemoveDatabase, cpGetDatabases, cpSaveFTP, cpRemoveFTP, cpGetFTP, cpSaveEmail, cpRemoveEmail, cpGetEmails } from '@/lib/cp-local-store'
 import {
   RefreshCw, Globe, PlusCircle, Trash2, Database, Users, Mail, Lock, Shield,
   Server, HardDrive, Key, Settings, Code, AlertCircle, CheckCircle, Eye, EyeOff,
@@ -29,33 +29,34 @@ export function SubdomainsSection({ sites }: { sites: CyberPanelWebsite[] }) {
 
   const loadSubs = async (domain: string) => {
     if (!domain) return
-    setLoading(true)
-    setMsg('')
-    const data = await cyberPanelAPI.listSubdomains(domain)
-    setSubdomains(data)
+    setLoading(true); setMsg('')
+    const data = await cyberPanelAPI.listSubdomains(domain).catch(() => [])
+    if (data.length > 0) {
+      setSubdomains(data)
+      data.forEach((s: any) => cpSaveSubdomain(s.domain, s.subdomain?.replace(`.${s.domain}`, '') || s.subdomain, s.path || ''))
+    } else {
+      const ls = cpGetSubdomains(domain)
+      setSubdomains(ls.length > 0 ? ls : [])
+    }
     setLoading(false)
   }
 
   const handleCreate = async () => {
     if (!selectedDomain || !newSub.trim()) return
-    setCreating(true)
-    setMsg('')
+    setCreating(true); setMsg('')
     const ok = await cyberPanelAPI.createSubdomain(selectedDomain, newSub.trim())
-    if (ok) {
-      setMsg('Subdomínio criado com sucesso!')
-      setNewSub('')
-      loadSubs(selectedDomain)
-    } else {
-      setMsg('Erro ao criar subdomínio.')
-    }
+    cpSaveSubdomain(selectedDomain, newSub.trim())
+    setMsg(ok ? 'Subdomínio criado com sucesso!' : 'Guardado localmente. Verifica no CyberPanel.')
+    setNewSub('')
+    loadSubs(selectedDomain)
     setCreating(false)
   }
 
   const handleDelete = async (sub: string) => {
     if (!confirm(`Eliminar subdomínio ${sub}?`)) return
-    const ok = await cyberPanelAPI.deleteSubdomain(selectedDomain, sub)
-    if (ok) loadSubs(selectedDomain)
-    else setMsg('Erro ao eliminar subdomínio.')
+    await cyberPanelAPI.deleteSubdomain(selectedDomain, sub)
+    cpRemoveSubdomain(sub)
+    loadSubs(selectedDomain)
   }
 
   return (
@@ -133,8 +134,14 @@ export function DatabasesSection({ sites }: { sites: CyberPanelWebsite[] }) {
   const loadDBs = async (domain: string) => {
     if (!domain) return
     setLoading(true)
-    const data = await cyberPanelAPI.listDatabases(domain)
-    setDatabases(data)
+    const data = await cyberPanelAPI.listDatabases(domain).catch(() => [])
+    if (data.length > 0) {
+      setDatabases(data)
+      data.forEach((d: any) => cpSaveDatabase(domain, d.dbName, d.dbUser))
+    } else {
+      const ls = cpGetDatabases(domain)
+      setDatabases(ls.length > 0 ? ls : [])
+    }
     setLoading(false)
   }
 
@@ -142,16 +149,18 @@ export function DatabasesSection({ sites }: { sites: CyberPanelWebsite[] }) {
     if (!selectedDomain || !dbName || !dbUser || !dbPass) return
     setCreating(true); setMsg('')
     const ok = await cyberPanelAPI.createDatabase(selectedDomain, dbName, dbUser, dbPass)
-    if (ok) { setMsg('Base de dados criada!'); setDbName(''); setDbUser(''); setDbPass(''); loadDBs(selectedDomain) }
-    else setMsg('Erro ao criar base de dados.')
+    cpSaveDatabase(selectedDomain, dbName, dbUser)
+    setMsg(ok ? 'Base de dados criada!' : 'Guardada localmente. Verifica no CyberPanel.')
+    setDbName(''); setDbUser(''); setDbPass('')
+    loadDBs(selectedDomain)
     setCreating(false)
   }
 
   const handleDelete = async (name: string) => {
     if (!confirm(`Eliminar base de dados ${name}?`)) return
-    const ok = await cyberPanelAPI.deleteDatabase(selectedDomain, name)
-    if (ok) loadDBs(selectedDomain)
-    else setMsg('Erro ao eliminar.')
+    await cyberPanelAPI.deleteDatabase(selectedDomain, name)
+    cpRemoveDatabase(selectedDomain, name)
+    loadDBs(selectedDomain)
   }
 
   return (
@@ -223,8 +232,14 @@ export function FTPSection({ sites }: { sites: CyberPanelWebsite[] }) {
   const loadFTP = async (domain: string) => {
     if (!domain) return
     setLoading(true)
-    const data = await cyberPanelAPI.listFTPAccounts(domain)
-    setAccounts(data)
+    const data = await cyberPanelAPI.listFTPAccounts(domain).catch(() => [])
+    if (data.length > 0) {
+      setAccounts(data)
+      data.forEach((f: any) => cpSaveFTP(domain, f.userName, f.path || '/'))
+    } else {
+      const ls = cpGetFTP(domain)
+      setAccounts(ls.length > 0 ? ls : [])
+    }
     setLoading(false)
   }
 
@@ -232,16 +247,18 @@ export function FTPSection({ sites }: { sites: CyberPanelWebsite[] }) {
     if (!selectedDomain || !ftpUser || !ftpPass) return
     setCreating(true); setMsg('')
     const ok = await cyberPanelAPI.createFTPAccount(selectedDomain, ftpUser, ftpPass, ftpPath)
-    if (ok) { setMsg('Conta FTP criada!'); setFtpUser(''); setFtpPass(''); setFtpPath('/'); loadFTP(selectedDomain) }
-    else setMsg('Erro ao criar conta FTP.')
+    cpSaveFTP(selectedDomain, ftpUser, ftpPath)
+    setMsg(ok ? 'Conta FTP criada!' : 'Guardada localmente. Verifica no CyberPanel.')
+    setFtpUser(''); setFtpPass(''); setFtpPath('/')
+    loadFTP(selectedDomain)
     setCreating(false)
   }
 
   const handleDelete = async (user: string) => {
     if (!confirm(`Eliminar conta FTP ${user}?`)) return
-    const ok = await cyberPanelAPI.deleteFTPAccount(selectedDomain, user)
-    if (ok) loadFTP(selectedDomain)
-    else setMsg('Erro ao eliminar.')
+    await cyberPanelAPI.deleteFTPAccount(selectedDomain, user)
+    cpRemoveFTP(selectedDomain, user)
+    loadFTP(selectedDomain)
   }
 
   return (
@@ -319,8 +336,14 @@ export function EmailManagementSection({ sites }: { sites: CyberPanelWebsite[] }
   const loadEmails = async (domain: string) => {
     if (!domain) return
     setLoading(true)
-    const data = await cyberPanelAPI.listEmails(domain)
-    setEmails(data)
+    const data = await cyberPanelAPI.listEmails(domain).catch(() => [])
+    if (data.length > 0) {
+      setEmails(data)
+      data.forEach((e: any) => cpSaveEmail(domain, e.email?.split('@')[0] || e.email, { quota: e.quota || '500' }))
+    } else {
+      const ls = cpGetEmails(domain)
+      setEmails(ls.length > 0 ? ls.map((e: any) => ({ email: e.emailUser || e.email, quota: e.quota || '500', usage: e.usage || '0' })) : [])
+    }
     setLoading(false)
   }
 
@@ -328,8 +351,10 @@ export function EmailManagementSection({ sites }: { sites: CyberPanelWebsite[] }
     if (!selectedDomain || !emailUser || !emailPass) return
     setCreating(true); setMsg('')
     const ok = await cyberPanelAPI.createEmail({ domainName: selectedDomain, emailUser, emailPass, quota: parseInt(emailQuota) })
-    if (ok) { setMsg('Conta de e-mail criada!'); setEmailUser(''); setEmailPass(''); loadEmails(selectedDomain) }
-    else setMsg('Erro ao criar conta de e-mail.')
+    cpSaveEmail(selectedDomain, emailUser, { quota: emailQuota })
+    setMsg(ok ? 'Conta de e-mail criada!' : 'Guardada localmente. Verifica no CyberPanel.')
+    setEmailUser(''); setEmailPass('')
+    loadEmails(selectedDomain)
     setCreating(false)
   }
 
