@@ -149,8 +149,12 @@ class CyberPanelAPI {
             const data = await response.json();
 
             // CyberPanel API often returns status codes inside the data
-            if (data.status === 0 || data.error_message) {
+            if (data.status === 0 || (data.error_message && data.error_message !== 'None')) {
                 throw new Error(`CyberPanel API Error: ${data.error_message || 'Unknown error'}`);
+            }
+            // 'None' means CyberPanel returned no specific error — usually domain already exists
+            if (data.error_message === 'None') {
+                throw new Error('O domínio já existe no servidor ou os parâmetros são inválidos.');
             }
 
             return data;
@@ -197,7 +201,6 @@ class CyberPanelAPI {
             ownerEmail: params.ownerEmail,
             packageName: params.packageName,
             websiteOwner: 'admin',
-            ownerPassword: 'RandomPassword123!',
             phpSelection: params.phpSelection
         };
         const result = await this.makeRequest('createWebsite', requestParams);
