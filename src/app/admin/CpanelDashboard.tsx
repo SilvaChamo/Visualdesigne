@@ -55,16 +55,6 @@ export function CpanelDashboard({ onNavigate, sites, users, isFetching, onRefres
       ]
     },
     {
-      id: 'databases', name: 'Bases de Dados',
-      headerIcon: <Database className="w-5 h-5" />,
-      color: 'text-orange-700', bgColor: 'bg-orange-50',
-      tools: [
-        { id: 'cp-databases', name: 'Criar Base de Dados', icon: <PlusCircle className="w-9 h-9 text-orange-500" /> },
-        { id: 'cp-databases', name: 'Gerir Bases de Dados', icon: <Database className="w-9 h-9 text-orange-500" /> },
-        { id: 'phpmyadmin', name: 'phpMyAdmin', icon: <ExternalLink className="w-9 h-9 text-orange-500" />, external: 'https://109.199.104.22:8090/dataBases/phpMyAdmin' },
-      ]
-    },
-    {
       id: 'dominios', name: 'Domínios',
       headerIcon: <Globe className="w-5 h-5" />,
       color: 'text-blue-700', bgColor: 'bg-blue-50',
@@ -76,6 +66,20 @@ export function CpanelDashboard({ onNavigate, sites, users, isFetching, onRefres
         { id: 'cp-modify-website', name: 'Modificar Website', icon: <Edit className="w-9 h-9 text-blue-500" /> },
         { id: 'cp-suspend-website', name: 'Suspender/Activar', icon: <Power className="w-9 h-9 text-blue-500" /> },
         { id: 'cp-delete-website', name: 'Apagar Website', icon: <Trash2 className="w-9 h-9 text-red-500" /> },
+      ]
+    },
+    {
+      id: 'dns', name: 'DNS',
+      headerIcon: <Server className="w-5 h-5" />,
+      color: 'text-amber-800', bgColor: 'bg-yellow-50',
+      tools: [
+        { id: 'cp-dns-nameserver', name: 'Criar Nameserver', icon: <Server className="w-9 h-9 text-amber-600" /> },
+        { id: 'cp-dns-default-ns', name: 'Nameservers Padrão', icon: <Settings className="w-9 h-9 text-amber-600" /> },
+        { id: 'cp-dns-create-zone', name: 'Criar Zona DNS', icon: <PlusCircle className="w-9 h-9 text-amber-600" /> },
+        { id: 'cp-dns-delete-zone', name: 'Apagar Zona DNS', icon: <Trash2 className="w-9 h-9 text-red-500" /> },
+        { id: 'domains-dns', name: 'Adicionar Registos', icon: <FileText className="w-9 h-9 text-amber-600" /> },
+        { id: 'cp-dns-cloudflare', name: 'CloudFlare', icon: <Cloud className="w-9 h-9 text-amber-600" /> },
+        { id: 'cp-dns-reset', name: 'Reset DNS', icon: <RotateCcw className="w-9 h-9 text-amber-600" /> },
       ]
     },
     {
@@ -109,17 +113,13 @@ export function CpanelDashboard({ onNavigate, sites, users, isFetching, onRefres
       ]
     },
     {
-      id: 'dns', name: 'DNS',
-      headerIcon: <Server className="w-5 h-5" />,
-      color: 'text-amber-800', bgColor: 'bg-yellow-50',
+      id: 'databases', name: 'Bases de Dados',
+      headerIcon: <Database className="w-5 h-5" />,
+      color: 'text-orange-700', bgColor: 'bg-orange-50',
       tools: [
-        { id: 'cp-dns-nameserver', name: 'Criar Nameserver', icon: <Server className="w-9 h-9 text-amber-600" /> },
-        { id: 'cp-dns-default-ns', name: 'Nameservers Padrão', icon: <Settings className="w-9 h-9 text-amber-600" /> },
-        { id: 'cp-dns-create-zone', name: 'Criar Zona DNS', icon: <PlusCircle className="w-9 h-9 text-amber-600" /> },
-        { id: 'cp-dns-delete-zone', name: 'Apagar Zona DNS', icon: <Trash2 className="w-9 h-9 text-red-500" /> },
-        { id: 'domains-dns', name: 'Adicionar Registos', icon: <FileText className="w-9 h-9 text-amber-600" /> },
-        { id: 'cp-dns-cloudflare', name: 'CloudFlare', icon: <Cloud className="w-9 h-9 text-amber-600" /> },
-        { id: 'cp-dns-reset', name: 'Reset DNS', icon: <RotateCcw className="w-9 h-9 text-amber-600" /> },
+        { id: 'cp-databases', name: 'Criar Base de Dados', icon: <PlusCircle className="w-9 h-9 text-orange-500" /> },
+        { id: 'cp-databases', name: 'Gerir Bases de Dados', icon: <Database className="w-9 h-9 text-orange-500" /> },
+        { id: 'phpmyadmin', name: 'phpMyAdmin', icon: <ExternalLink className="w-9 h-9 text-orange-500" />, external: 'https://109.199.104.22:8090/dataBases/phpMyAdmin' },
       ]
     },
     {
