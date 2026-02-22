@@ -1,7 +1,9 @@
 // Sistema de Autenticação Administrativa
+const AUTH_VERSION = 'v2'
+
 export const ADMIN_CREDENTIALS = {
   email: 'silva.chamo@gmail.com',
-  password: 'Meckito#77'
+  password: '0001'
 }
 
 // Verificar se as credenciais são válidas
@@ -11,7 +13,7 @@ export function validateAdminCredentials(email: string, password: string): boole
 
 // Gerar token de sessão (simplificado)
 export function generateAdminToken(): string {
-  const token = btoa(`${ADMIN_CREDENTIALS.email}:${Date.now()}`)
+  const token = btoa(`${AUTH_VERSION}:${ADMIN_CREDENTIALS.email}:${Date.now()}`)
   return token
 }
 
@@ -19,8 +21,8 @@ export function generateAdminToken(): string {
 export function validateAdminToken(token: string): boolean {
   try {
     const decoded = atob(token)
-    const [email] = decoded.split(':')
-    return email === ADMIN_CREDENTIALS.email
+    const [version, email] = decoded.split(':')
+    return version === AUTH_VERSION && email === ADMIN_CREDENTIALS.email
   } catch {
     return false
   }

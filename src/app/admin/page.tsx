@@ -5,8 +5,32 @@ import { motion, AnimatePresence } from 'framer-motion'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { I18nProvider, useI18n } from '@/lib/i18n'
-import { validateAdminCredentials, generateAdminToken, validateAdminToken } from '@/lib/admin-auth'
-import { vhmAPI, VHMClient, VHMStats } from '@/lib/vhm-api'
+// VHM removido - tipos mantidos localmente para compatibilidade
+interface VHMClient {
+  id: string;
+  username: string;
+  domain: string;
+  plan: string;
+  status: string;
+  created: string;
+  expires: string;
+  disk_usage: number;
+  disk_limit: number;
+  bandwidth_usage: number;
+  bandwidth_limit: number;
+  email: string;
+  package: string;
+  ip: string;
+}
+
+interface VHMStats {
+  total_clients: number;
+  active_clients: number;
+  suspended_clients: number;
+  total_domains: number;
+  disk_usage_total: number;
+  bandwidth_usage_total: number;
+}
 import { whmcsAPI, WhmcsDomain } from '@/lib/whmcs-api'
 import { ciuemAPI } from '@/lib/ciuem-whois-api'
 import { cyberPanelAPI, CyberPanelWebsite, CyberPanelPackage } from '@/lib/cyberpanel-api'
@@ -77,7 +101,10 @@ function AdminPanelContent() {
   const [showClientForm, setShowClientForm] = useState(false)
   const [editingClient, setEditingClient] = useState<VHMClient | null>(null)
   const [isAuthenticated, setIsAuthenticated] = useState(false)
+  const [showPassword, setShowPassword] = useState(false)
   const [authError, setAuthError] = useState('')
+  const [loginEmail, setLoginEmail] = useState('')
+  const [loginPassword, setLoginPassword] = useState('')
   const [searchTerm, setSearchTerm] = useState('')
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false)
   const [editingAccount, setEditingAccount] = useState<VHMClient | null>(null)
@@ -208,31 +235,24 @@ function AdminPanelContent() {
   })
   const router = useRouter()
 
-  // Fetch infrastructure details from VHM and CyberPanel
-  const loadInfrastructureData = async () => {
-    // Check authentication on mount
-    const token = localStorage.getItem('admin-token')
-    if (!token || !validateAdminToken(token)) {
-      router.push('/login')
-    } else {
-      setIsAuthenticated(true)
-    }
-  }
-
+  // Verificar autenticação no mount
   useEffect(() => {
-    // Check authentication on mount
-    const token = localStorage.getItem('admin-token')
-    if (!token || !validateAdminToken(token)) {
-      router.push('/login')
-    } else {
-      setIsAuthenticated(true)
+    const savedToken = localStorage.getItem('admin-token')
+    if (savedToken) {
+      try {
+        const decoded = atob(savedToken)
+        const [email] = decoded.split(':')
+        if (email) setIsAuthenticated(true)
+      } catch {
+        localStorage.removeItem('admin-token')
+      }
     }
-  }, [router])
+  }, [])
   const [isSavingEmail, setIsSavingEmail] = useState(false)
 
   const [selectedWebmailDomain, setSelectedWebmailDomain] = useState<string | null>(null)
   const [ciuemApiKey, setCiuemApiKey] = useState('')
-  const [vhmApiToken, setVhmApiToken] = useState('2WTFJ8YO8QH0PCXMO6YE1QEQFM0W2YX1')
+  const [vhmApiToken, setVhmApiToken] = useState('')
   const [isSavingConfig, setIsSavingConfig] = useState(false)
   // Load settings from localStorage on mount
   useEffect(() => {
@@ -242,9 +262,7 @@ function AdminPanelContent() {
     if (savedVhmToken) setVhmApiToken(savedVhmToken)
   }, [])
 
-  useEffect(() => {
-    vhmAPI.setToken(vhmApiToken)
-  }, [vhmApiToken])
+  // VHM removido - token não utilizado
 
   const [realWebmailAccounts, setRealWebmailAccounts] = useState<any[]>([])
   const [isFetchingWebmailAccounts, setIsFetchingWebmailAccounts] = useState(false)
@@ -275,15 +293,7 @@ function AdminPanelContent() {
   const [domainCheckResult, setDomainCheckResult] = useState<{ available: boolean; status: string } | null>(null)
 
   useEffect(() => {
-    const savedToken = localStorage.getItem('admin-token')
-    if (savedToken && validateAdminToken(savedToken)) {
-      setIsAuthenticated(true)
-    } else {
-      setIsAuthenticated(false)
-    }
-
     if (isAuthenticated) {
-      loadVHMData()
       loadSubscriptions()
       loadCyberPanelData()
     }
@@ -299,8 +309,43 @@ function AdminPanelContent() {
       setCyberPanelSites(sites)
       setCyberPanelPackages(packages)
       console.log(`Loaded ${sites.length} CyberPanel sites and ${packages.length} packages from new VPS`)
+
+      // Sincronizar sites com Supabase
+      if (sites.length > 0) {
+        for (const site of sites) {
+          await supabase.from('cyberpanel_sites').upsert({
+            domain: site.domain,
+            admin_email: site.adminEmail,
+            package: site.package,
+            owner: site.owner,
+            status: site.status,
+            disk_usage: site.diskUsage,
+            bandwidth_usage: site.bandwidthUsage,
+            synced_at: new Date().toISOString(),
+          }, { onConflict: 'domain' })
+        }
+        console.log(`Synced ${sites.length} sites to Supabase`)
+      }
     } catch (err) {
       console.error('Error loading CyberPanel data:', err)
+      // Fallback: tentar carregar do Supabase se CyberPanel falhar
+      try {
+        const { data } = await supabase.from('cyberpanel_sites').select('*')
+        if (data && data.length > 0) {
+          setCyberPanelSites(data.map((s: any) => ({
+            domain: s.domain,
+            adminEmail: s.admin_email,
+            package: s.package,
+            owner: s.owner,
+            status: s.status || 'Active',
+            diskUsage: s.disk_usage || '',
+            bandwidthUsage: s.bandwidth_usage || '',
+          })))
+          console.log(`Loaded ${data.length} sites from Supabase fallback`)
+        }
+      } catch (sbErr) {
+        console.error('Supabase fallback also failed:', sbErr)
+      }
     } finally {
       setIsFetchingCyberPanel(false)
     }
@@ -339,46 +384,12 @@ function AdminPanelContent() {
   const handleSyncVHM = async () => {
     setSyncing(true)
     try {
-      // 1. Get current clients from VHM
-      const vhmClients = await vhmAPI.getAllClients()
-
-      // 2. Prepare records for Supabase upsert
-      const upsertData = vhmClients.map(client => ({
-        vhm_username: client.username,
-        client_email: client.email,
-        domain: client.domain,
-        plan: client.plan,
-        status: client.status === 'active' ? 'active' : 'suspended',
-        ip_address: client.ip,
-        setup_date: client.created ? new Date(client.created).toISOString() : null,
-        quota: client.disk_limit > 0 ? `${client.disk_limit} MB` : 'Unlimited',
-        disk_used: `${client.disk_usage} MB`
-      }))
-
-      // 3. Upsert into Supabase (based on vhm_username)
-      const { error: upsertError } = await supabase
-        .from('subscriptions')
-        .upsert(upsertData, { onConflict: 'vhm_username' })
-
-      if (upsertError) throw upsertError
-
-      // 4. Reload data
+      // VHM removido - recarregar dados do Supabase
       await loadSubscriptions()
-      await loadVHMData()
-      alert('Sincronização com VHM concluída com sucesso!')
+      alert('Dados recarregados do Supabase com sucesso!')
     } catch (err: any) {
       console.error('Sync error:', err)
-      let message = 'Erro na sincronização.'
-
-      if (err.message?.includes('403')) {
-        message = 'Acesso Negado (403). Possíveis causas:\n1. O IP deste servidor foi bloqueado pela MozServer (CSF/Firewall).\n2. O Token da API VHM expirou ou foi revogado.'
-      } else if (err.message?.includes('504') || err.message?.includes('timeout')) {
-        message = 'O servidor VHM não respondeu (Timeout). Provavelmente o seu IP está bloqueado no firewall (DROP).'
-      } else {
-        message += ' ' + (err.message || 'Erro desconhecido')
-      }
-
-      alert(message)
+      alert('Erro ao recarregar dados: ' + (err.message || 'Erro desconhecido'))
     } finally {
       setSyncing(false)
     }
@@ -412,55 +423,7 @@ function AdminPanelContent() {
     }
 
     try {
-      // Login to VHM API
-      const loginSuccess = await vhmAPI.login()
-      if (!loginSuccess) {
-        throw new Error('VHM API indísponivel')
-      }
-
-      // Load ALL clients, stats, and plans
-      const [clientsData, statsData, plansData] = await Promise.all([
-        vhmAPI.getAllClients(),
-        vhmAPI.getStats(),
-        vhmAPI.getPlans()
-      ])
-
-      setClients(clientsData)
-      setStats(statsData)
-      setPlans(plansData)
-      console.log(`Loaded ${clientsData.length} VHM clients (Live Data)`)
-
-      // Fetch Billing Info from WHMCS (Separate API, usually not blocked by VHM)
-      try {
-        const [clientDetails, resellerDomains] = await Promise.all([
-          whmcsAPI.getClientsDetails(),
-          whmcsAPI.getClientDomains()
-        ])
-
-        if (clientDetails) {
-          const hostingDomain = resellerDomains.find(d => d.domainname === 'visualdesigne.com') || resellerDomains[0]
-          const daysToRenew = hostingDomain ? calculateDaysUntilExpiry(hostingDomain.expirydate) : 0
-
-          setBillingInfo({
-            balance: `${clientDetails.credit || '0.00'} MT`,
-            status: clientDetails.status || 'Ativo',
-            nextDueDate: hostingDomain?.expirydate || 'N/A',
-            paidInvoices: 0, // Simplified
-            daysToRenew: daysToRenew
-          })
-        }
-      } catch (billingErr) {
-        console.error('Error loading billing info:', billingErr)
-      }
-    } catch (err: any) {
-      console.warn('VHM API blocked or down. Falling back to Supabase cache...', err)
-      const isBlock = err.message?.includes('403') || err.message?.includes('504') || err.message?.includes('indisponível')
-
-      if (isBlock) {
-        setError('Acceso ao VHM bloqueado ou lento. Mostrando dados do último sincronismo (Sync).')
-      }
-
-      // Fetch from Supabase as fallback
+      // VHM removido - carregar dados do Supabase
       const { data: cachedSubs, error: subError } = await supabase
         .from('subscriptions')
         .select('*')
@@ -485,7 +448,6 @@ function AdminPanelContent() {
         }))
         setClients(mappedClients)
 
-        // Mock stats if API is down
         setStats({
           total_clients: mappedClients.length,
           active_clients: mappedClients.filter(c => c.status === 'active').length,
@@ -495,7 +457,7 @@ function AdminPanelContent() {
           bandwidth_usage_total: 0
         })
       } else {
-        setError(err instanceof Error ? err.message : 'Falha total ao carregar dados')
+        setError('Falha ao carregar dados do Supabase')
       }
     } finally {
       setLoading(false)
@@ -503,11 +465,18 @@ function AdminPanelContent() {
   }
 
   const handleLogin = (email: string, password: string) => {
-    if (validateAdminCredentials(email, password)) {
-      const token = generateAdminToken()
+    const ADMIN_EMAIL = 'silva.chamo@gmail.com'
+    const ADMIN_PASS = '0001'
+    if (email === ADMIN_EMAIL && password === ADMIN_PASS) {
+      // Admin → painel admin
+      const token = btoa(`${email}:${Date.now()}`)
       localStorage.setItem('admin-token', token)
       setIsAuthenticated(true)
       setAuthError('')
+    } else if (email.includes('@') && password.length >= 4) {
+      // Utilizador normal → dashboard cliente
+      localStorage.setItem('user-session', btoa(`${email}:${Date.now()}`))
+      router.push('/dashboard')
     } else {
       setAuthError('Credenciais inválidas')
     }
@@ -527,9 +496,10 @@ function AdminPanelContent() {
     }
 
     try {
-      const success = await vhmAPI.suspendClient(username)
-      if (success) {
-        await loadVHMData() // Reload data
+      // VHM removido - atualizar status no Supabase
+      const { error: updateErr } = await supabase.from('subscriptions').update({ status: 'suspended' }).eq('vhm_username', username)
+      if (!updateErr) {
+        await loadVHMData()
         alert('Cliente suspenso com sucesso!')
       } else {
         alert('Falha ao suspender cliente')
@@ -546,9 +516,10 @@ function AdminPanelContent() {
     }
 
     try {
-      const success = await vhmAPI.unsuspendClient(username)
-      if (success) {
-        await loadVHMData() // Reload data
+      // VHM removido - atualizar status no Supabase
+      const { error: updateErr } = await supabase.from('subscriptions').update({ status: 'active' }).eq('vhm_username', username)
+      if (!updateErr) {
+        await loadVHMData()
         alert('Cliente reativado com sucesso!')
       } else {
         alert('Falha ao reativar cliente')
@@ -583,7 +554,7 @@ function AdminPanelContent() {
     const link = document.createElement('a')
     const url = URL.createObjectURL(blob)
     link.setAttribute('href', url)
-    link.setAttribute('download', `clientes_vhm_${new Date().toISOString().split('T')[0]}.csv`)
+    link.setAttribute('download', `clientes_${new Date().toISOString().split('T')[0]}.csv`)
     link.style.visibility = 'hidden'
     document.body.appendChild(link)
     link.click()
@@ -591,18 +562,8 @@ function AdminPanelContent() {
   }
 
   const openVHMPanel = () => {
-    // Create auto-login URL for VHM
-    const vhmUrl = 'https://za4.mozserver.com:2087/cpsess5574224871/'
-    const params = new URLSearchParams({
-      user: 'yknrnlev',
-      pass: 'FerramentasWeb#2020',
-      login: '1',
-      post_login: '31075548594261'
-    })
-
-    // Open VHM in new tab with auto-login
-    const fullUrl = `${vhmUrl}?${params.toString()}`
-    window.open(fullUrl, '_blank', 'noopener,noreferrer')
+    // Abrir CyberPanel em vez do VHM
+    window.open('https://109.199.104.22:8090', '_blank', 'noopener,noreferrer')
   }
 
   const handleTerminateClient = async (username: string) => {
@@ -611,9 +572,10 @@ function AdminPanelContent() {
     }
 
     try {
-      const success = await vhmAPI.terminateClient(username)
-      if (success) {
-        await loadVHMData() // Reload data
+      // VHM removido - remover do Supabase
+      const { error: delErr } = await supabase.from('subscriptions').delete().eq('vhm_username', username)
+      if (!delErr) {
+        await loadVHMData()
         alert('Cliente terminado com sucesso!')
       } else {
         alert('Falha ao terminar cliente')
@@ -638,20 +600,17 @@ function AdminPanelContent() {
 
     setIsCreatingAccount(true)
     try {
-      const response = await vhmAPI.createAccount({
+      // VHM removido - criar registo no Supabase
+      const { error: insertErr } = await supabase.from('subscriptions').insert({
+        vhm_username: newAccountData.username,
+        client_email: newAccountData.email,
         domain: newAccountData.domain,
-        username: newAccountData.username,
-        password: newAccountData.password || undefined,
         plan: newAccountData.plan,
-        contactemail: newAccountData.email,
-        cgi: newAccountData.cgi,
-        dkim: newAccountData.dkim,
-        spf: newAccountData.spf,
-        quota: newAccountData.quota || undefined,
-        bwlimit: newAccountData.bwlimit || undefined
+        status: 'active',
+        setup_date: new Date().toISOString()
       })
 
-      if (response && (response.metadata?.result === 1 || response.status === 1)) {
+      if (!insertErr) {
         alert('Conta criada com sucesso!')
         setShowCreateModal(false)
         setNewAccountData({
@@ -668,8 +627,7 @@ function AdminPanelContent() {
         })
         await loadVHMData()
       } else {
-        const msg = response?.metadata?.reason || response?.statusmsg || 'Erro desconhecido'
-        alert(`Falha ao criar conta: ${msg}`)
+        alert(`Falha ao criar conta: ${insertErr.message || 'Erro desconhecido'}`)
       }
     } catch (err) {
       console.error('Create account error:', err)
@@ -692,41 +650,24 @@ function AdminPanelContent() {
   }) => {
     setIsSavingAccount(true)
     try {
-      // 1. Core VHM Updates
-      const success = await vhmAPI.updateClient(username, {
-        email: updates.email,
-        quota: updates.quota,
-        plan: updates.plan,
-        shell: updates.shell ? 1 : 0,
-        cgi: updates.cgi ? 1 : 0,
-        bwlimit: updates.bwlimit,
-        newDomain: updates.domain
-      })
-
-      // 2. Password Update if provided
-      let passSuccess = true;
-      if (updates.password) {
-        passSuccess = await vhmAPI.changePassword(username, updates.password);
-      }
-
-      // 3. Supabase Updates (Sync phone and domain if changed)
+      // VHM removido - atualizar apenas no Supabase
       const { error: supabaseError } = await supabase
         .from('subscriptions')
         .update({
           client_phone: updates.phone,
           client_email: updates.email,
-          domain: updates.domain || undefined
+          domain: updates.domain || undefined,
+          plan: updates.plan
         })
         .eq('vhm_username', username)
 
-      if (success && passSuccess) {
-        if (supabaseError) console.error('Supabase sync error:', supabaseError)
+      if (!supabaseError) {
         await loadVHMData()
         setEditingAccount(null)
-        setEditFormPassword('') // Clear password field
+        setEditFormPassword('')
         alert('Dados do cliente atualizados com sucesso!')
       } else {
-        alert('Falha ao atualizar dados do cliente ou senha no VHM')
+        alert('Falha ao atualizar dados do cliente')
       }
     } catch (err) {
       console.error('Update client data error:', err)
@@ -742,7 +683,8 @@ function AdminPanelContent() {
     setIsFetchingEmails(true)
     setSelectedClientForEmails(client)
     try {
-      const pops = await vhmAPI.getEmailAccounts(client.username)
+      // VHM removido - carregar emails do CyberPanel se disponível
+      const pops: any[] = []
       setEmailAccounts(pops)
     } catch (err) {
       console.error('Error loading email accounts:', err)
@@ -760,12 +702,9 @@ function AdminPanelContent() {
 
     setIsSavingEmail(true)
     try {
-      const success = await vhmAPI.createEmailAccount(selectedClientForEmails.username, {
-        email: newEmailData.email,
-        domain: selectedClientForEmails.domain,
-        password: newEmailData.password,
-        quota: newEmailData.quota
-      })
+      // VHM removido - usar CyberPanel para criar emails
+      alert('Use o CyberPanel para criar contas de e-mail')
+      const success = false
 
       if (success) {
         await loadEmailAccounts(selectedClientForEmails)
@@ -787,7 +726,8 @@ function AdminPanelContent() {
     if (!selectedClientForEmails || !confirm(`Tem certeza que deseja apagar o e-mail ${email}@${domain}?`)) return
 
     try {
-      const success = await vhmAPI.deleteEmailAccount(selectedClientForEmails.username, email, domain)
+      // VHM removido
+      const success = false
       if (success) {
         await loadEmailAccounts(selectedClientForEmails)
         alert('Conta de e-mail apagada com sucesso!')
@@ -805,7 +745,8 @@ function AdminPanelContent() {
 
     setIsSavingEmail(true)
     try {
-      const success = await vhmAPI.updateEmailPassword(selectedClientForEmails.username, email, domain, newPass)
+      // VHM removido
+      const success = false
       if (success) {
         alert('Senha de e-mail atualizada com sucesso!')
         setEditingEmail(null)
@@ -1034,13 +975,8 @@ function AdminPanelContent() {
       const startTimestamp = mailFilters.startDate ? Math.floor(new Date(mailFilters.startDate).getTime() / 1000) : undefined
       const endTimestamp = mailFilters.endDate ? Math.floor(new Date(mailFilters.endDate).getTime() / 1000) : undefined
 
-      const results = await vhmAPI.getMailDeliveryReports({
-        recipient: mailFilters.recipient || undefined,
-        sender: mailFilters.sender || undefined,
-        startTime: startTimestamp,
-        endTime: endTimestamp
-      })
-      setMailReports(results)
+      // VHM removido - relatórios de mail não disponíveis
+      setMailReports([])
     } catch (err) {
       console.error('Mail search error:', err)
       alert('Erro ao procurar relatórios de e-mail.')
@@ -1173,7 +1109,7 @@ function AdminPanelContent() {
       });
       const data = await res.json();
       if (data.success) {
-        loadPackages();
+        loadCyberPanelData();
       } else {
         throw new Error(data.error || 'Erro ao apagar pacote');
       }
@@ -1185,11 +1121,83 @@ function AdminPanelContent() {
 
   if (!isAuthenticated) {
     return (
-      <div className="min-h-screen bg-white flex items-center justify-center">
-        <div className="flex flex-col items-center gap-4">
-          <div className="w-12 h-12 border-4 border-red-600 border-t-transparent rounded-full animate-spin" />
-          <p className="text-gray-500 font-medium">Verificando autenticação...</p>
-        </div>
+      <div className="min-h-screen bg-black flex flex-col items-center justify-center p-4 relative overflow-hidden">
+        {/* Gradiente vermelho canto superior esquerdo */}
+        <div className="absolute top-0 left-0 w-[500px] h-[500px] bg-gradient-to-br from-red-600/20 via-red-900/10 to-transparent rounded-full blur-3xl pointer-events-none" />
+
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6 }}
+          className="w-full max-w-sm relative z-10"
+        >
+          {/* Logo */}
+          <div className="flex justify-center mb-10">
+            <img src="/assets/logotipoII.png" alt="Visual Design" className="h-16 object-contain" />
+          </div>
+
+          {/* Form com fundo preto transparente */}
+          <div className="bg-white/5 border border-white/10 p-7" style={{ borderRadius: '10px' }}>
+            <div className="space-y-4">
+              <div className="relative">
+                <div className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500">
+                  <Mail className="w-4 h-4" />
+                </div>
+                <input
+                  type="email"
+                  value={loginEmail}
+                  onChange={(e) => { setLoginEmail(e.target.value); setAuthError('') }}
+                  onKeyDown={(e) => { if (e.key === 'Enter') handleLogin(loginEmail, loginPassword) }}
+                  className="w-full pl-11 pr-4 py-3 bg-black/60 border border-white/10 text-white placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-red-500/40 focus:border-red-500/40 transition-all text-sm"
+                  style={{ borderRadius: '8px' }}
+                  placeholder="E-mail"
+                />
+              </div>
+
+              <div className="relative">
+                <div className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500">
+                  <Lock className="w-4 h-4" />
+                </div>
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  value={loginPassword}
+                  onChange={(e) => { setLoginPassword(e.target.value); setAuthError('') }}
+                  onKeyDown={(e) => { if (e.key === 'Enter') handleLogin(loginEmail, loginPassword) }}
+                  className="w-full pl-11 pr-11 py-3 bg-black/60 border border-white/10 text-white placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-red-500/40 focus:border-red-500/40 transition-all text-sm"
+                  style={{ borderRadius: '8px' }}
+                  placeholder="Palavra-passe"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-500 hover:text-white transition-colors"
+                >
+                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
+
+              {authError && (
+                <div className="bg-red-500/15 border border-red-500/30 text-red-400 px-4 py-2.5 text-xs flex items-center gap-2" style={{ borderRadius: '8px' }}>
+                  <AlertCircle className="w-3.5 h-3.5" />
+                  {authError}
+                </div>
+              )}
+
+              <button
+                onClick={() => handleLogin(loginEmail, loginPassword)}
+                className="w-full bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 text-white py-3 font-bold transition-all shadow-lg shadow-red-600/20 text-sm tracking-wide"
+                style={{ borderRadius: '8px' }}
+              >
+                Entrar
+              </button>
+            </div>
+          </div>
+
+          <p className="text-gray-600 text-[10px] text-center mt-8">Acesso restrito a utilizadores autorizados</p>
+        </motion.div>
+
+        {/* Red bottom line */}
+        <div className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-transparent via-red-600 to-transparent" />
       </div>
     )
   }
@@ -1227,6 +1235,20 @@ function AdminPanelContent() {
 
   const menuItems: Array<{ id: string; label: string; color: string; isNew?: boolean; subItems?: Array<{ id: string; label: string }> }> = [
     { id: 'dashboard', label: 'Dashboard', color: 'bg-blue-500' },
+    {
+      id: 'infrastructure', label: 'Infra-estrutura', color: 'bg-cyan-600', subItems: [
+        { id: 'infrastructure', label: 'Painel CyberPanel' },
+        { id: 'domains', label: 'Domínios' },
+        { id: 'domains-new', label: 'Novo Domínio' },
+        { id: 'domains-dns', label: 'Gestão de DNS' },
+        { id: 'domains-transfer', label: 'Transferir Domínio' },
+        { id: 'wordpress-deploy', label: 'WordPress' },
+        { id: 'emails-webmail', label: 'Webmail' },
+        { id: 'packages-list', label: 'Pacotes' },
+        { id: 'packages-new', label: 'Criar Pacote' },
+        { id: 'backup', label: 'Backup' },
+      ]
+    },
     { id: 'clients', label: 'Clientes', color: 'bg-green-500' },
     { id: 'users', label: 'Usuários', color: 'bg-red-500' },
     {
@@ -1236,37 +1258,12 @@ function AdminPanelContent() {
         { id: 'emails-webmail', label: 'Webmail' },
       ]
     },
-    {
-      id: 'domains', label: 'Domínios', color: 'bg-purple-500', subItems: [
-        { id: 'domains', label: 'Meus Domínios' },
-        { id: 'domains-new', label: 'Novo Domínio' },
-        { id: 'domains-dns', label: 'Gestão de DNS' },
-        { id: 'domains-transfer', label: 'Transferir Domínio' },
-      ]
-    },
-    {
-      id: 'packages', label: 'Pacotes', color: 'bg-emerald-500', isNew: true, subItems: [
-        { id: 'packages-list', label: 'Listar Pacotes' },
-        { id: 'packages-new', label: 'Criar Pacote' },
-      ]
-    },
     { id: 'notifications', label: 'Notificações', color: 'bg-orange-500' },
     { id: 'billing', label: 'Faturação', color: 'bg-indigo-500' },
     { id: 'reports', label: 'Relatórios', color: 'bg-pink-500' },
     { id: 'analytics', label: 'Análises', color: 'bg-teal-500' },
     { id: 'settings', label: 'Configurações', color: 'bg-gray-500' },
     { id: 'security', label: 'Segurança', color: 'bg-red-500' },
-    { id: 'infrastructure', label: 'Infraestrutura', color: 'bg-cyan-600' },
-    {
-      id: 'wordpress', label: 'WordPress', color: 'bg-indigo-500', isNew: true, subItems: [
-        { id: 'wordpress-deploy', label: 'Deploy WordPress' },
-        { id: 'wordpress-list', label: 'List WordPress' },
-        { id: 'wordpress-plugins', label: 'Configure Plugins' },
-        { id: 'wordpress-restore', label: 'Restore Backups' },
-        { id: 'wordpress-remote', label: 'Remote Backup' },
-      ]
-    },
-    { id: 'backup', label: 'Backup', color: 'bg-yellow-500' }
   ]
 
   const SidebarIcon = (id: string) => {
@@ -1579,7 +1576,7 @@ function AdminPanelContent() {
                   </div>
                   <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Usuário VHM</label>
+                      <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Usuário</label>
                       <input
                         type="text"
                         value={userForm.vhm_username}
@@ -1648,7 +1645,7 @@ function AdminPanelContent() {
                     className="bg-red-600 hover:bg-red-700 text-white px-3 py-1.5 rounded-md flex items-center gap-2 transition-colors text-sm"
                   >
                     <Globe className="w-4 h-4" />
-                    Painel VHM
+                    Painel CyberPanel
                   </button>
                   <button
                     onClick={handleLogout}
@@ -1662,7 +1659,7 @@ function AdminPanelContent() {
 
               {loading && (
                 <div className="flex items-center justify-center py-12">
-                  <div className="text-gray-600">Carregando dados do VHM...</div>
+                  <div className="text-gray-600">Carregando dados...</div>
                 </div>
               )}
 
@@ -1672,7 +1669,7 @@ function AdminPanelContent() {
                     <AlertCircle className="w-5 h-5 text-amber-600" />
                   </div>
                   <div className="flex-1">
-                    <p className="font-bold text-amber-800 text-sm">Servidor VHM Indisponível</p>
+                    <p className="font-bold text-amber-800 text-sm">Servidor Indisponível</p>
                     <p className="text-xs text-amber-700 mt-1">{error}</p>
                     <button
                       onClick={() => loadVHMData()}
@@ -1769,7 +1766,7 @@ function AdminPanelContent() {
                     </div>
 
                     <div className="bg-white rounded-xl shadow-md p-6">
-                      <h3 className="text-lg font-semibold text-gray-900 mb-4">Status VHM</h3>
+                      <h3 className="text-lg font-semibold text-gray-900 mb-4">Status Servidor</h3>
                       <div className="space-y-3">
                         <div className="flex items-center justify-between">
                           <span className="text-sm text-gray-600">Conexão API</span>
@@ -1792,7 +1789,7 @@ function AdminPanelContent() {
                         <div className="flex items-center gap-3">
                           <div className="w-2 h-2 bg-green-500 rounded-full"></div>
                           <div className="flex-1">
-                            <div className="text-sm text-gray-900">API VHM Conectada</div>
+                            <div className="text-sm text-gray-900">API CyberPanel</div>
                             <div className="text-xs text-gray-500">za4.mozserver.com</div>
                           </div>
                         </div>
@@ -1993,7 +1990,7 @@ function AdminPanelContent() {
                       </div>
                       <p className="text-sm text-gray-500 max-w-sm mx-auto">
                         Ainda não existem websites criados na nova infraestrutura.
-                        Pode iniciar a migração de sites do VHM para aqui.
+                        Pode iniciar a migração de sites para aqui.
                       </p>
                     </div>
                   ) : (
@@ -2214,7 +2211,7 @@ function AdminPanelContent() {
                       <Server className="w-6 h-6" />
                     </div>
                     <div>
-                      <h3 className="text-xl font-bold text-gray-900">Integração VHM (Za4 MozServer)</h3>
+                      <h3 className="text-xl font-bold text-gray-900">Integração CyberPanel</h3>
                       <p className="text-sm text-gray-500">Controle direto das contas de hospedagem e revenda</p>
                     </div>
                   </div>
@@ -2232,7 +2229,7 @@ function AdminPanelContent() {
                     </div>
 
                     <div>
-                      <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-1.5 ml-1">VHM API Token</label>
+                      <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-1.5 ml-1">API Token</label>
                       <div className="relative group">
                         <div className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-blue-500 transition-colors">
                           <Lock className="w-5 h-5" />
@@ -2250,19 +2247,18 @@ function AdminPanelContent() {
                     <button
                       onClick={async () => {
                         setIsSavingConfig(true)
-                        vhmAPI.setToken(vhmApiToken)
                         localStorage.setItem('vhm_api_token', vhmApiToken)
-                        // Simulate saving to database/localStorage
+                        // Guardar configuração
                         setTimeout(() => {
                           setIsSavingConfig(false)
-                          alert('Configurações do VHM guardadas com sucesso!')
+                          alert('Configurações guardadas com sucesso!')
                         }, 1000)
                       }}
                       disabled={isSavingConfig}
                       className="px-8 py-3 bg-gray-900 hover:bg-black text-white rounded-xl font-bold text-sm transition-all shadow-lg flex items-center gap-2"
                     >
                       {isSavingConfig ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
-                      Guardar Configuração VHM
+                      Guardar Configuração
                     </button>
                   </div>
                 </div>
@@ -2303,7 +2299,7 @@ function AdminPanelContent() {
                   <>
                     <div className="bg-white rounded-xl shadow-md overflow-hidden">
                       <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
-                        <h3 className="text-lg font-semibold text-gray-900">Clientes VHM ({clients.length})</h3>
+                        <h3 className="text-lg font-semibold text-gray-900">Clientes ({clients.length})</h3>
                         <div className="flex items-center gap-4">
                           <button
                             onClick={handleSyncVHM}
@@ -2311,7 +2307,7 @@ function AdminPanelContent() {
                             className={`${syncing ? 'bg-gray-400' : 'bg-blue-600 hover:bg-blue-700'} text-white px-3 py-1.5 rounded-md flex items-center gap-2 transition-colors font-medium text-sm`}
                           >
                             <RefreshCw className={`w-4 h-4 ${syncing ? 'animate-spin' : ''}`} />
-                            {syncing ? 'Sincronizando...' : 'Sincronizar VHM'}
+                            {syncing ? 'Sincronizando...' : 'Sincronizar Dados'}
                           </button>
                           <button
                             onClick={handleExportClientsCSV}
@@ -2325,7 +2321,7 @@ function AdminPanelContent() {
                             className="bg-red-600 hover:bg-red-700 text-white px-3 py-1.5 rounded-md flex items-center gap-2 transition-colors font-medium text-sm"
                           >
                             <Globe className="w-4 h-4" />
-                            Ver Todos no VHM
+                            Ver Todos no CyberPanel
                           </button>
                           <div className="relative">
                             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
@@ -2952,8 +2948,8 @@ function AdminPanelContent() {
                           try {
                             const client = clients.find(c => c.domain === selectedWebmailDomain)
                             if (client) {
-                              const accounts = await vhmAPI.getEmailAccounts(client.username)
-                              setRealWebmailAccounts(accounts)
+                              // VHM removido - usar CyberPanel emails
+                              setRealWebmailAccounts([])
                             }
                           } catch (err) {
                             console.error('Erro ao buscar contas:', err)
@@ -3005,8 +3001,8 @@ function AdminPanelContent() {
                                 try {
                                   const client = clients.find(c => c.domain === selectedWebmailDomain)
                                   if (client) {
-                                    const accounts = await vhmAPI.getEmailAccounts(client.username)
-                                    setRealWebmailAccounts(accounts)
+                                    // VHM removido - usar CyberPanel emails
+                                    setRealWebmailAccounts([])
                                   }
                                 } catch (err) {
                                   console.error('Refresh error:', err)
@@ -3075,12 +3071,9 @@ function AdminPanelContent() {
                                     try {
                                       const client = clients.find(c => c.domain === selectedWebmailDomain)
                                       if (client) {
-                                        const ssoUrl = await vhmAPI.createWebmailSession(client.username, acc.email)
-                                        if (ssoUrl) {
-                                          window.open(ssoUrl, '_blank')
-                                        } else {
-                                          alert('Não foi possível gerar a sessão segura. Tente novamente.')
-                                        }
+                                        // VHM removido - abrir webmail do CyberPanel
+                                        const webmailUrl = `https://${selectedWebmailDomain}:2096`
+                                        window.open(webmailUrl, '_blank')
                                       }
                                     } catch (err) {
                                       console.error('SSO Error:', err)
@@ -3110,39 +3103,23 @@ function AdminPanelContent() {
               <div className="flex justify-between items-center mb-8">
                 <h1 className="text-3xl font-bold text-gray-900">Domínios</h1>
                 <button
-                  onClick={loadDomains}
-                  disabled={isLoadingDomains}
-                  className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-1.5 rounded-md flex items-center gap-2 transition-all shadow-sm text-sm font-bold"
+                  onClick={loadCyberPanelData}
+                  disabled={isFetchingCyberPanel}
+                  className="bg-black hover:bg-red-600 text-white px-4 py-1.5 rounded-md flex items-center gap-2 transition-all shadow-sm text-sm font-bold"
                 >
-                  <RefreshCw className={`w-4 h-4 ${isLoadingDomains ? 'animate-spin' : ''}`} />
-                  {isLoadingDomains ? 'Carregando...' : 'Carregar Domínios'}
+                  <RefreshCw className={`w-4 h-4 ${isFetchingCyberPanel ? 'animate-spin' : ''}`} />
+                  {isFetchingCyberPanel ? 'Carregando...' : 'Atualizar Domínios'}
                 </button>
               </div>
 
-
-
-              {/* Error Message */}
-              {domainError && (
-                <div className="bg-amber-50 border border-amber-200 rounded-md p-4 mb-6 flex items-start gap-3">
-                  <AlertCircle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
-                  <div>
-                    <p className="text-sm font-bold text-amber-800">Erro ao carregar domínios</p>
-                    <p className="text-xs text-amber-700 mt-1">{domainError}</p>
-                    <p className="text-xs text-amber-600 mt-2 italic">
-                      Contacte o suporte da MozServer para liberar o IP na API WHMCS.
-                    </p>
-                  </div>
-                </div>
-              )}
-
-              {/* Domains Table */}
+              {/* Domains Table - CyberPanel */}
               <div className="bg-white rounded-md shadow-sm border border-gray-200 overflow-hidden">
                 <div className="px-6 py-4 border-b border-gray-200 flex justify-between items-center bg-gray-50">
                   <div>
-                    <h3 className="text-sm font-bold text-gray-800">Os Seus Domínios</h3>
-                    <p className="text-xs text-gray-500 mt-0.5">{domains.length} domínio(s) encontrado(s)</p>
+                    <h3 className="text-sm font-bold text-gray-800">Domínios no CyberPanel</h3>
+                    <p className="text-xs text-gray-500 mt-0.5">{cyberPanelSites.length} domínio(s) encontrado(s)</p>
                   </div>
-                  {domains.length > 0 && (
+                  {cyberPanelSites.length > 0 && (
                     <div className="relative">
                       <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
                       <input
@@ -3156,20 +3133,18 @@ function AdminPanelContent() {
                   )}
                 </div>
 
-                {isLoadingDomains ? (
+                {isFetchingCyberPanel ? (
                   <div className="p-12 text-center">
                     <RefreshCw className="w-8 h-8 animate-spin text-purple-500 mx-auto mb-3" />
-                    <p className="text-sm text-gray-500">Carregando domínios da MozServer...</p>
+                    <p className="text-sm text-gray-500">Carregando domínios do CyberPanel...</p>
                   </div>
-                ) : domains.length === 0 ? (
+                ) : cyberPanelSites.length === 0 ? (
                   <div className="p-12 text-center">
                     <Globe className="w-10 h-10 text-gray-300 mx-auto mb-3" />
-                    <p className="text-sm text-gray-500 mb-2">
-                      {domainError ? 'Não foi possível carregar os domínios.' : 'Nenhum domínio carregado ainda.'}
-                    </p>
+                    <p className="text-sm text-gray-500 mb-2">Nenhum domínio encontrado no CyberPanel.</p>
                     <button
-                      onClick={loadDomains}
-                      className="text-purple-600 hover:text-purple-700 text-sm font-semibold"
+                      onClick={loadCyberPanelData}
+                      className="text-black hover:text-red-600 text-sm font-semibold"
                     >
                       Clique para carregar os domínios
                     </button>
@@ -3180,62 +3155,60 @@ function AdminPanelContent() {
                       <thead>
                         <tr className="text-left text-xs font-bold text-gray-500 uppercase tracking-wider border-b border-gray-100">
                           <th className="px-6 py-3">Domínio</th>
-                          <th className="px-6 py-3">Registrado em</th>
-                          <th className="px-6 py-3">Expira em</th>
+                          <th className="px-6 py-3">Pacote</th>
+                          <th className="px-6 py-3">Admin</th>
                           <th className="px-6 py-3">Estado</th>
-                          <th className="px-6 py-3">Registrador</th>
+                          <th className="px-6 py-3">Ações</th>
                         </tr>
                       </thead>
                       <tbody>
-                        {domains
-                          .filter(d => {
+                        {cyberPanelSites
+                          .filter(s => {
                             if (!domainSearchTerm) return true
-                            return d.domainname?.toLowerCase().includes(domainSearchTerm.toLowerCase())
+                            return s.domain?.toLowerCase().includes(domainSearchTerm.toLowerCase())
                           })
-                          .map((domain, idx) => {
-                            const isExpired = domain.expirydate && new Date(domain.expirydate) < new Date()
-                            const isExpiringSoon = domain.expirydate && !isExpired &&
-                              new Date(domain.expirydate) < new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
-
-                            return (
-                              <tr key={domain.id || idx} className="border-b border-gray-50 hover:bg-gray-50 transition-colors">
-                                <td className="px-6 py-3">
-                                  <div className="flex items-center gap-2">
-                                    <div className="w-8 h-8 rounded-full bg-purple-100 flex items-center justify-center">
-                                      <Globe className="w-4 h-4 text-purple-600" />
-                                    </div>
-                                    <span className="font-medium text-gray-900">{domain.domainname}</span>
+                          .map((site, idx) => (
+                            <tr key={idx} className="border-b border-gray-50 hover:bg-gray-50 transition-colors">
+                              <td className="px-6 py-3">
+                                <div className="flex items-center gap-2">
+                                  <div className="w-8 h-8 rounded-full bg-purple-100 flex items-center justify-center">
+                                    <Globe className="w-4 h-4 text-purple-600" />
                                   </div>
-                                </td>
-                                <td className="px-6 py-3 text-gray-600">
-                                  {domain.registrationdate || '—'}
-                                </td>
-                                <td className="px-6 py-3">
-                                  <span className={`text-sm ${isExpired ? 'text-red-600 font-bold' : isExpiringSoon ? 'text-amber-600 font-semibold' : 'text-gray-600'}`}>
-                                    {domain.expirydate || '—'}
-                                    {isExpiringSoon && !isExpired && (
-                                      <span className="ml-1 text-[10px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full">Expira em breve</span>
-                                    )}
-                                    {isExpired && (
-                                      <span className="ml-1 text-[10px] bg-red-100 text-red-700 px-1.5 py-0.5 rounded-full">Expirado</span>
-                                    )}
-                                  </span>
-                                </td>
-                                <td className="px-6 py-3">
-                                  <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${domain.status === 'Active' ? 'bg-green-100 text-green-700' :
-                                    domain.status === 'Pending' ? 'bg-yellow-100 text-yellow-700' :
-                                      domain.status === 'Expired' ? 'bg-red-100 text-red-700' :
-                                        'bg-gray-100 text-gray-600'
-                                    }`}>
-                                    {domain.status || 'Desconhecido'}
-                                  </span>
-                                </td>
-                                <td className="px-6 py-3 text-gray-500 text-xs">
-                                  {domain.registrar || 'MozServer'}
-                                </td>
-                              </tr>
-                            )
-                          })}
+                                  <div>
+                                    <span className="font-medium text-gray-900">{site.domain}</span>
+                                    <p className="text-[10px] text-gray-400">{site.owner || ''}</p>
+                                  </div>
+                                </div>
+                              </td>
+                              <td className="px-6 py-3 text-gray-600">{site.package || '—'}</td>
+                              <td className="px-6 py-3 text-gray-600 text-xs">{site.adminEmail || '—'}</td>
+                              <td className="px-6 py-3">
+                                <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
+                                  site.status === 'Active' || !site.status ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
+                                }`}>
+                                  {site.status || 'Ativo'}
+                                </span>
+                              </td>
+                              <td className="px-6 py-3">
+                                <div className="flex items-center gap-2">
+                                  <button
+                                    onClick={() => { setSelectedDnsDomain(site.domain); setActiveSection('domains-dns'); loadDnsRecords(site.domain) }}
+                                    className="text-black hover:text-red-600 text-xs font-semibold"
+                                    title="Gerir DNS"
+                                  >
+                                    DNS
+                                  </button>
+                                  <button
+                                    onClick={() => { loadCyberEmailAccounts(site.domain) ; setActiveSection('emails') }}
+                                    className="text-black hover:text-red-600 text-xs font-semibold"
+                                    title="E-mails"
+                                  >
+                                    E-mails
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                          ))}
                       </tbody>
                     </table>
                   </div>
@@ -3352,9 +3325,9 @@ function AdminPanelContent() {
                         </div>
                         <div className="col-span-2">
                           <button
-                            onClick={handleAddDnsRecord}
+                            onClick={handleCreateDnsRecord}
                             disabled={isSavingDns || !dnsFormData.name || !dnsFormData.value}
-                            className="w-full px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white font-bold text-sm rounded-lg shadow-sm transition-colors disabled:opacity-50"
+                            className="w-full px-4 py-2 bg-black hover:bg-red-600 text-white font-bold text-sm rounded-lg shadow-sm transition-colors disabled:opacity-50"
                           >
                             {isSavingDns ? <RefreshCw className="w-4 h-4 animate-spin mx-auto" /> : 'Adicionar'}
                           </button>
@@ -3442,7 +3415,7 @@ function AdminPanelContent() {
                 </div>
                 <button
                   onClick={() => {
-                    loadPackages()
+                    loadCyberPanelData()
                   }}
                   className="bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-2 rounded-md flex items-center gap-2 transition-all font-bold"
                 >
@@ -3519,14 +3492,31 @@ function AdminPanelContent() {
                   <div>{error}</div>
                 </div>
               )}
-              {success && (
-                <div className="p-4 bg-emerald-50 border border-emerald-100 text-emerald-600 rounded-lg flex items-start gap-3">
-                  <Check className="w-5 h-5 flex-shrink-0" />
-                  <div>{success}</div>
-                </div>
-              )}
 
-              <form onSubmit={handleAddPackage} className="bg-white rounded-xl shadow-md border border-gray-100 p-8 space-y-6">
+              <form onSubmit={async (e) => {
+                e.preventDefault()
+                setIsSavingPackage(true)
+                setError(null)
+                try {
+                  const res = await fetch('/api/cyberpanel-packages', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(packageFormData)
+                  })
+                  const data = await res.json()
+                  if (data.success) {
+                    alert('Pacote criado com sucesso!')
+                    loadCyberPanelData()
+                    setPackageFormData({ packageName: '', diskSpace: '1000', bandwidth: '10000', emailAccounts: '10', dataBases: '5', ftpAccounts: '2', allowedDomains: '1' })
+                  } else {
+                    throw new Error(data.error || 'Erro ao criar pacote')
+                  }
+                } catch (err: any) {
+                  setError(err.message)
+                } finally {
+                  setIsSavingPackage(false)
+                }
+              }} className="bg-white rounded-xl shadow-md border border-gray-100 p-8 space-y-6">
                 <div>
                   <label className="block text-sm font-bold text-gray-700 mb-2">Nome do Pacote</label>
                   <input
@@ -3658,7 +3648,7 @@ function AdminPanelContent() {
                   <button
                     onClick={handleCheckDomain}
                     disabled={isCheckingDomain || !domainCheckQuery.trim()}
-                    className="bg-purple-600 hover:bg-purple-700 text-white px-5 py-2 rounded-md flex items-center gap-2 transition-all text-sm font-bold disabled:opacity-50"
+                    className="bg-black hover:bg-red-600 text-white px-5 py-2 rounded-md flex items-center gap-2 transition-all text-sm font-bold disabled:opacity-50"
                   >
                     {isCheckingDomain ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
                     Verificar
@@ -3684,7 +3674,7 @@ function AdminPanelContent() {
                           <button
                             onClick={handleRegisterCiuem}
                             disabled={isSavingConfig}
-                            className="ml-auto bg-purple-600 hover:bg-purple-700 text-white px-4 py-1.5 rounded-md text-sm font-bold transition-all flex items-center gap-2"
+                            className="ml-auto bg-black hover:bg-red-600 text-white px-4 py-1.5 rounded-md text-sm font-bold transition-all flex items-center gap-2"
                           >
                             {isSavingConfig ? <RefreshCw className="w-4 h-4 animate-spin" /> : <PlusCircle className="w-4 h-4" />}
                             Registrar via CIUEM
@@ -3698,7 +3688,7 @@ function AdminPanelContent() {
                               href="https://whois.co.mz/whois/"
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-1.5 rounded-md text-sm font-bold transition-all flex items-center gap-2"
+                              className="bg-black hover:bg-red-600 text-white px-4 py-1.5 rounded-md text-sm font-bold transition-all flex items-center gap-2"
                             >
                               <ExternalLink className="w-4 h-4" />
                               Portal Whois.co.mz
@@ -4408,7 +4398,7 @@ function AdminPanelContent() {
                           className="w-full px-3 py-2 border border-orange-200 rounded-md focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-sm bg-white"
                           placeholder="exemplo@gmail.com"
                         />
-                        <p className="mt-1 text-[9px] text-orange-600 italic">Atualiza o e-mail de contacto no servidor VHM e na base de dados.</p>
+                        <p className="mt-1 text-[9px] text-orange-600 italic">Atualiza o e-mail de contacto na base de dados.</p>
                       </div>
                       <div className="md:col-span-2">
                         <label className="block text-[10px] font-bold text-green-700 uppercase tracking-widest mb-2 flex items-center gap-2">
@@ -4501,7 +4491,7 @@ function AdminPanelContent() {
                   <div className="bg-amber-50 border border-amber-100 p-3 rounded-md flex gap-2">
                     <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
                     <p className="text-[10px] text-amber-700 leading-relaxed italic">
-                      <strong>Atenção:</strong> Alterar o plano ou as quotas resultará numa atualização imediata dos limites no servidor VHM.
+                      <strong>Atenção:</strong> Alterar o plano ou as quotas resultará numa atualização imediata dos limites no servidor.
                     </p>
                   </div>
                 </div>
@@ -5109,7 +5099,7 @@ function AdminPanelContent() {
                       <label className="text-xs font-bold text-gray-600 uppercase">TTL</label>
                       <input type="text" value={dnsFormData.ttl} onChange={(e) => setDnsFormData({ ...dnsFormData, ttl: e.target.value })} className="w-full mt-1.5 px-3 py-2 rounded border border-gray-300 focus:outline-none text-sm font-mono" placeholder="3600" />
                     </div>
-                    <button onClick={handleCreateDnsRecord} disabled={isSavingDns} className="bg-purple-600 hover:bg-purple-700 text-white px-5 py-2 rounded shadow-sm text-sm font-bold transition-colors disabled:opacity-50">
+                    <button onClick={handleCreateDnsRecord} disabled={isSavingDns} className="bg-black hover:bg-red-600 text-white px-5 py-2 rounded shadow-sm text-sm font-bold transition-colors disabled:opacity-50">
                       {isSavingDns ? 'Aguarde...' : 'Criar Registo'}
                     </button>
                   </div>
