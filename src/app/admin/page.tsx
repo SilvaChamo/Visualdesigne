@@ -746,28 +746,29 @@ function AdminPanelContent() {
   }
 
   const handleCreateEmail = async () => {
-    if (!selectedClientForEmails || !newEmailData.email || !newEmailData.password) {
+    const domain = selectedClientForEmails?.domain
+    if (!domain || !newEmailData.email || !newEmailData.password) {
       alert('Preencha todos os campos obrigatórios')
       return
     }
 
     setIsSavingEmail(true)
     try {
-      // VHM removido - usar CyberPanel para criar emails
-      alert('Use o CyberPanel para criar contas de e-mail')
-      const success = false
-
-      if (success) {
-        await loadEmailAccounts(selectedClientForEmails)
+      const ok = await cyberPanelAPI.createEmail({
+        domainName: domain,
+        emailUser: newEmailData.email,
+        emailPass: newEmailData.password,
+        quota: newEmailData.quota || 0,
+      })
+      if (ok) {
         setShowCreateEmailModal(false)
         setNewEmailData({ email: '', password: '', quota: 1024 })
-        alert('Conta de e-mail criada com sucesso!')
+        alert(`E-mail ${newEmailData.email}@${domain} criado com sucesso!`)
       } else {
-        alert('Falha ao criar conta de e-mail')
+        alert(`Falha ao criar e-mail. Verifique se o domínio "${domain}" existe no CyberPanel.`)
       }
-    } catch (err) {
-      console.error('Create email error:', err)
-      alert('Erro ao criar conta de e-mail')
+    } catch (err: any) {
+      alert(`Erro: ${err.message || 'Erro ao criar conta de e-mail'}`)
     } finally {
       setIsSavingEmail(false)
     }
@@ -1084,6 +1085,12 @@ function AdminPanelContent() {
     try {
       if (!newCyberSiteData.domainName.trim() || !newCyberSiteData.adminEmail.trim()) {
         throw new Error('Domínio e email são obrigatórios')
+      }
+
+      const domainLower = newCyberSiteData.domainName.trim().toLowerCase()
+      const alreadyExists = cyberPanelSites.some(s => s.domain.toLowerCase() === domainLower)
+      if (alreadyExists) {
+        throw new Error(`O domínio "${newCyberSiteData.domainName.trim()}" já existe no servidor CyberPanel. Usa um domínio diferente.`)
       }
 
       const success = await cyberPanelAPI.createWebsite({
@@ -2926,23 +2933,26 @@ function AdminPanelContent() {
                 </h3>
 
                 <div className="mb-5">
-                  <label className="block text-xs font-semibold text-gray-500 mb-1">Conta de Hosting (cPanel User) *</label>
+                  <label className="block text-xs font-semibold text-gray-500 mb-1">Domínio *</label>
                   <select
-                    value={selectedClientForEmails?.username || ''}
+                    value={selectedClientForEmails?.domain || ''}
                     onChange={(e) => {
-                      const client = clients.find(c => c.username === e.target.value)
-                      if (client) {
-                        setSelectedClientForEmails(client)
+                      const site = cyberPanelSites.find(s => s.domain === e.target.value)
+                      if (site) {
+                        setSelectedClientForEmails({ domain: site.domain, username: site.owner || 'admin' } as any)
                         setNewEmailData({ ...newEmailData, email: '' })
                       }
                     }}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-cyan-500 text-sm"
                   >
-                    <option value="">Selecione um cliente...</option>
-                    {clients.map(c => (
-                      <option key={c.username} value={c.username}>{c.username} — {c.domain}</option>
+                    <option value="">Selecione um domínio...</option>
+                    {cyberPanelSites.map(s => (
+                      <option key={s.domain} value={s.domain}>{s.domain} ({s.status})</option>
                     ))}
                   </select>
+                  {cyberPanelSites.length === 0 && (
+                    <p className="text-[10px] text-amber-600 mt-1">Nenhum domínio encontrado. Crie um website primeiro ou refresca o painel.</p>
+                  )}
                 </div>
 
                 {selectedClientForEmails && (
