@@ -218,13 +218,13 @@ export function CpanelDashboard({ onNavigate, sites, users, isFetching, onRefres
                   {section.tools.map((tool, i) =>
                     tool.external ? (
                       <a key={i} href={tool.external} target="_blank" rel="noopener noreferrer"
-                        className="flex flex-col items-center gap-2 p-3 rounded-xl hover:bg-gray-50 border border-transparent hover:border-gray-200 transition-all group text-center">
+                        className="flex flex-col items-center gap-2 p-3 rounded-lg hover:bg-gray-50 border border-transparent hover:border-gray-200 transition-all group text-center">
                         <div className="group-hover:scale-110 transition-transform">{tool.icon}</div>
                         <span className="text-xs text-gray-600 font-medium leading-tight">{tool.name}</span>
                       </a>
                     ) : (
                       <button key={i} onClick={() => onNavigate(tool.id)}
-                        className="flex flex-col items-center gap-2 p-3 rounded-xl hover:bg-gray-50 border border-transparent hover:border-gray-200 transition-all group text-center w-full">
+                        className="flex flex-col items-center gap-2 p-3 rounded-lg hover:bg-gray-50 border border-transparent hover:border-gray-200 transition-all group text-center w-full">
                         <div className="group-hover:scale-110 transition-transform">{tool.icon}</div>
                         <span className="text-xs text-gray-600 font-medium leading-tight">{tool.name}</span>
                       </button>
@@ -240,7 +240,7 @@ export function CpanelDashboard({ onNavigate, sites, users, isFetching, onRefres
       {/* Right Sidebar */}
       <div className="w-60 shrink-0 space-y-4">
         {/* Server Info */}
-        <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5 space-y-4">
+        <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-5 space-y-4">
           <div className="flex items-center justify-between">
             <p className="text-xs font-bold text-gray-500 uppercase tracking-wider">Servidor</p>
             <button onClick={onRefresh} className="text-gray-400 hover:text-gray-600">
@@ -278,7 +278,7 @@ export function CpanelDashboard({ onNavigate, sites, users, isFetching, onRefres
         </div>
 
         {/* Quick Access */}
-        <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
+        <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-4">
           <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-3">Acesso Rápido</p>
           <div className="space-y-1">
             {[
@@ -301,7 +301,7 @@ export function CpanelDashboard({ onNavigate, sites, users, isFetching, onRefres
 
         {/* Sites list */}
         {sites.length > 0 && (
-          <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
+          <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-4">
             <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-3">Websites ({sites.length})</p>
             <div className="space-y-2 max-h-64 overflow-y-auto">
               {sites.map((s, i) => (
