@@ -1104,7 +1104,7 @@ function AdminPanelContent() {
         })
         alert(`Website ${newCyberSiteData.domainName.trim()} criado com sucesso no CyberPanel!`)
       } else {
-        throw new Error('Falha ao criar o website no CyberPanel')
+        throw new Error('CyberPanel recusou a criação. Domínio já pode existir ou a API está desactivada.')
       }
     } catch (err: any) {
       setError(err.message || 'Ocorreu um erro ao criar o website')

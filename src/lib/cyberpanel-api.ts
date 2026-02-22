@@ -137,7 +137,11 @@ class CyberPanelAPI {
                 let errorMessage = `CyberPanel Proxy error! status: ${response.status}`;
                 try {
                     const errorBody = await response.json();
-                    errorMessage = errorBody.details || errorBody.error || errorMessage;
+                    if (errorBody.fix) {
+                        errorMessage = `${errorBody.error_message || 'CyberPanel API Error'}\n\n${errorBody.fix}`;
+                    } else {
+                        errorMessage = errorBody.error_message || errorBody.details || errorBody.error || errorMessage;
+                    }
                 } catch { }
                 throw new Error(errorMessage);
             }
@@ -188,21 +192,16 @@ class CyberPanelAPI {
         packageName: string;
         phpSelection: string;
     }): Promise<boolean> {
-        try {
-            const requestParams = {
-                domainName: params.domainName,
-                ownerEmail: params.ownerEmail,
-                packageName: params.packageName,
-                websiteOwner: 'admin',      // Defaulting to admin
-                ownerPassword: 'RandomPassword123!', // Required by API but admin can access it anyway
-                phpSelection: params.phpSelection
-            };
-            const result = await this.makeRequest('createWebsite', requestParams);
-            return result.status === 1;
-        } catch (error) {
-            console.error('Failed to create website in CyberPanel:', error);
-            return false;
-        }
+        const requestParams = {
+            domainName: params.domainName,
+            ownerEmail: params.ownerEmail,
+            packageName: params.packageName,
+            websiteOwner: 'admin',
+            ownerPassword: 'RandomPassword123!',
+            phpSelection: params.phpSelection
+        };
+        const result = await this.makeRequest('createWebsite', requestParams);
+        return result.status === 1;
     }
 
     async installWordPress(params: WPInstallParams): Promise<boolean> {
