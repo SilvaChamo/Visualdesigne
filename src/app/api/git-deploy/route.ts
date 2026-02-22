@@ -101,6 +101,13 @@ export async function POST(req: NextRequest) {
         throw e
       }
 
+      try {
+        await execAsync('git pull --rebase origin main', { cwd })
+        steps.push('git pull --rebase → OK')
+      } catch (pullErr: any) {
+        steps.push(`git pull → ${pullErr.message?.split('\n')[0] || 'aviso'}`)
+      }
+
       const { stdout: pushOut, stderr: pushErr } = await execAsync('git push', { cwd })
       steps.push(`git push → OK`)
 

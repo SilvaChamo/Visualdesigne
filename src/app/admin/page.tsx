@@ -92,7 +92,7 @@ interface Subscription {
 
 function AdminPanelContent() {
   const { t } = useI18n()
-  const [activeSection, setActiveSection] = useState<string>('infrastructure')
+  const [activeSection, setActiveSection] = useState<string>('dashboard')
   const [clients, setClients] = useState<VHMClient[]>([])
   const [subscriptions, setSubscriptions] = useState<Subscription[]>([])
   const [stats, setStats] = useState<VHMStats | null>(null)
@@ -216,6 +216,7 @@ function AdminPanelContent() {
   const [selectedWPDomain, setSelectedWPDomain] = useState('')
   const [isInstallingWP, setIsInstallingWP] = useState(false)
   const [wpData, setWpData] = useState({ title: '', user: 'admin', password: '' })
+  const [wpInstallLiteSpeed, setWpInstallLiteSpeed] = useState(true)
 
   // States for DNS Manager
   const [dnsRecords, setDnsRecords] = useState<any[]>([])
@@ -1128,10 +1129,14 @@ function AdminPanelContent() {
       })
 
       if (success) {
+        // Auto-install LiteSpeed Cache if checked
+        if (wpInstallLiteSpeed) {
+          await cyberPanelAPI.installWPPlugin(selectedWPDomain, 'litespeed-cache')
+        }
         setShowWPModal(false)
         setWpData({ title: '', user: 'admin', password: '' })
         await loadCyberPanelData() // refresh + sync Supabase
-        alert(`WordPress instalado com sucesso em ${selectedWPDomain}!`)
+        alert(`WordPress instalado com sucesso em ${selectedWPDomain}!${wpInstallLiteSpeed ? '\nLiteSpeed Cache instalado e activado.' : ''}`)
       } else {
         throw new Error('Falha ao instalar o WordPress via CyberPanel. Verifique as credenciais no servidor via SSH.')
       }
@@ -1719,8 +1724,8 @@ function AdminPanelContent() {
           )}
 
           {activeSection === 'dashboard' && (
-            <div>
-              <div className="flex justify-between items-center mb-8">
+            <div className="space-y-6">
+              <div className="flex justify-between items-center">
                 <h1 className="text-3xl font-bold text-gray-900">Dashboard</h1>
                 <div className="flex items-center gap-4">
                   <button
@@ -1739,6 +1744,14 @@ function AdminPanelContent() {
                   </button>
                 </div>
               </div>
+
+              <CpanelDashboard
+                onNavigate={setActiveSection}
+                sites={cyberPanelSites}
+                users={cyberPanelUsers}
+                isFetching={isFetchingCyberPanel}
+                onRefresh={loadCyberPanelData}
+              />
 
               {loading && (
                 <div className="flex items-center justify-center py-12">
@@ -1937,12 +1950,6 @@ function AdminPanelContent() {
           {/* ── NOVO PAINEL ESTILO CPANEL ── */}
           {activeSection === 'infrastructure' && (
             <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h1 className="text-3xl font-bold text-gray-900">Painel de Controlo</h1>
-                  <p className="text-gray-500 mt-1 text-sm">CyberPanel · Servidor 109.199.104.22 · OpenLiteSpeed</p>
-                </div>
-              </div>
               <CpanelDashboard
                 onNavigate={setActiveSection}
                 sites={cyberPanelSites}
@@ -4148,14 +4155,28 @@ function AdminPanelContent() {
                     </div>
                   </div>
 
-                  <div className="pt-6 border-t border-gray-100 flex justify-end">
-                    <button
-                      onClick={handleInstallWP}
-                      disabled={isInstallingWP || !selectedWPDomain || !wpData.title.trim() || !wpData.user.trim() || !wpData.password.trim()}
-                      className="px-8 py-3 bg-black hover:bg-red-600 text-white text-sm font-bold rounded-lg shadow-md transition-all flex items-center gap-2 disabled:opacity-50"
-                    >
-                      {isInstallingWP ? (<><RefreshCw className="w-4 h-4 animate-spin" /> Instalando...</>) : (<><Globe2 className="w-4 h-4" /> Instalar WordPress Agora</>)}
-                    </button>
+                  <div className="pt-4 border-t border-gray-100 space-y-4">
+                    <label className="flex items-center gap-3 cursor-pointer select-none group">
+                      <input
+                        type="checkbox"
+                        checked={wpInstallLiteSpeed}
+                        onChange={(e) => setWpInstallLiteSpeed(e.target.checked)}
+                        className="w-4 h-4 accent-green-600 cursor-pointer"
+                      />
+                      <div>
+                        <span className="text-sm font-bold text-gray-800">Instalar LiteSpeed Cache</span>
+                        <p className="text-xs text-gray-400">Plugin de cache e optimização instalado e activado automaticamente após o WordPress</p>
+                      </div>
+                    </label>
+                    <div className="flex justify-end">
+                      <button
+                        onClick={handleInstallWP}
+                        disabled={isInstallingWP || !selectedWPDomain || !wpData.title.trim() || !wpData.user.trim() || !wpData.password.trim()}
+                        className="px-8 py-3 bg-black hover:bg-red-600 text-white text-sm font-bold rounded-lg shadow-md transition-all flex items-center gap-2 disabled:opacity-50"
+                      >
+                        {isInstallingWP ? (<><RefreshCw className="w-4 h-4 animate-spin" /> Instalando...</>) : (<><Globe2 className="w-4 h-4" /> Instalar WordPress Agora</>)}
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -5131,15 +5152,29 @@ function AdminPanelContent() {
                     </div>
                   </div>
 
-                  <div className="mt-8 flex justify-end gap-3 pt-4 border-t border-gray-100">
-                    <button onClick={() => setShowWPModal(false)} className="px-5 py-2 text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-50 font-medium rounded-lg transition-colors">Cancelar</button>
-                    <button
-                      onClick={handleInstallWP}
-                      disabled={isInstallingWP || !wpData.title.trim() || !wpData.user.trim() || !wpData.password.trim()}
-                      className="px-6 py-2 bg-[#00749C] hover:bg-[#005a7a] text-white text-sm font-bold rounded-lg shadow-sm transition-all flex items-center gap-2 disabled:opacity-50"
-                    >
-                      {isInstallingWP ? (<><RefreshCw className="w-4 h-4 animate-spin" /> Instalando...</>) : (<>Instalar WP</>)}
-                    </button>
+                  <div className="mt-4 pt-4 border-t border-gray-100 space-y-4">
+                    <label className="flex items-center gap-3 cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        checked={wpInstallLiteSpeed}
+                        onChange={(e) => setWpInstallLiteSpeed(e.target.checked)}
+                        className="w-4 h-4 accent-green-600 cursor-pointer"
+                      />
+                      <div>
+                        <span className="text-sm font-bold text-gray-800">Instalar LiteSpeed Cache</span>
+                        <p className="text-xs text-gray-400">Plugin instalado e activado automaticamente após o WordPress</p>
+                      </div>
+                    </label>
+                    <div className="flex justify-end gap-3">
+                      <button onClick={() => setShowWPModal(false)} className="px-5 py-2 text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-50 font-medium rounded-lg transition-colors">Cancelar</button>
+                      <button
+                        onClick={handleInstallWP}
+                        disabled={isInstallingWP || !wpData.title.trim() || !wpData.user.trim() || !wpData.password.trim()}
+                        className="px-6 py-2 bg-[#00749C] hover:bg-[#005a7a] text-white text-sm font-bold rounded-lg shadow-sm transition-all flex items-center gap-2 disabled:opacity-50"
+                      >
+                        {isInstallingWP ? (<><RefreshCw className="w-4 h-4 animate-spin" /> Instalando...</>) : (<>Instalar WP</>)}
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>
