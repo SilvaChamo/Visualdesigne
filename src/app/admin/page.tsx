@@ -5,7 +5,8 @@ import { motion, AnimatePresence } from 'framer-motion'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { I18nProvider, useI18n } from '@/lib/i18n'
-import { SubdomainsSection, DatabasesSection, FTPSection, EmailManagementSection, CPUsersSection, ResellerSection, PHPConfigSection, SecuritySection, SSLSection, APIConfigSection, ListSubdomainsSection, ModifyWebsiteSection, SuspendWebsiteSection, DeleteWebsiteSection, WPListSection, WPPluginsSection, WPRestoreBackupSection, WPRemoteBackupSection, DNSNameserverSection, DNSDefaultNSSection, DNSCreateZoneSection, DNSDeleteZoneSection, CloudFlareSection, DNSResetSection, EmailDeleteSection, EmailLimitsSection, EmailForwardingSection, CatchAllEmailSection, PatternForwardingSection, PlusAddressingSection, EmailChangePasswordSection, DKIMManagerSection } from './CyberPanelSections'
+import { SubdomainsSection, DatabasesSection, FTPSection, EmailManagementSection, CPUsersSection, ResellerSection, PHPConfigSection, SecuritySection, SSLSection, APIConfigSection, ListSubdomainsSection, ModifyWebsiteSection, SuspendWebsiteSection, DeleteWebsiteSection, WPListSection, WPPluginsSection, WPRestoreBackupSection, WPRemoteBackupSection, DNSNameserverSection, DNSDefaultNSSection, DNSCreateZoneSection, DNSDeleteZoneSection, CloudFlareSection, DNSResetSection, EmailDeleteSection, EmailLimitsSection, EmailForwardingSection, CatchAllEmailSection, PatternForwardingSection, PlusAddressingSection, EmailChangePasswordSection, DKIMManagerSection, GitDeploySection } from './CyberPanelSections'
+import { CpanelDashboard } from './CpanelDashboard'
 // VHM removido - tipos mantidos localmente para compatibilidade
 interface VHMClient {
   id: string;
@@ -34,11 +35,11 @@ interface VHMStats {
 }
 import { whmcsAPI, WhmcsDomain } from '@/lib/whmcs-api'
 import { ciuemAPI } from '@/lib/ciuem-whois-api'
-import { cyberPanelAPI, CyberPanelWebsite, CyberPanelPackage } from '@/lib/cyberpanel-api'
+import { cyberPanelAPI, CyberPanelWebsite, CyberPanelPackage, CyberPanelUser } from '@/lib/cyberpanel-api'
 import { supabase } from '@/lib/supabase'
 import { generateNotificationReport, calculateDaysUntilExpiry } from '@/lib/notification-system'
 import {
-  Users, Plus, Trash2, Mail, AlertCircle, Check, X, Eye, EyeOff, Edit, DollarSign, Calendar, Shield, Search, Filter, Download, Settings, Cpu, Share2, Bell, AlertTriangle, Save, Globe, Info, Server, Key, KeyRound, Monitor, Hash, Lock, Smartphone, MessageCircle, HeartHandshake, UserX, Database, Terminal, ShieldCheck, LogOut, Home, FileText, BarChart3, TrendingUp, Package, CreditCard, UserPlus, Activity, Clock, Star, MessageSquare, Globe2, Archive, RefreshCw, ChevronRight, ChevronDown, MoreVertical, ArrowRightLeft, PlusCircle, Inbox, User, Wallet, Sparkles, ArrowRight, ExternalLink
+  Users, Plus, Trash2, Mail, AlertCircle, Check, X, Eye, EyeOff, Edit, DollarSign, Calendar, Shield, Search, Filter, Download, Settings, Cpu, Share2, Bell, AlertTriangle, Save, Globe, Info, Server, Key, KeyRound, Monitor, Hash, Lock, Smartphone, MessageCircle, HeartHandshake, UserX, Database, Terminal, ShieldCheck, LogOut, Home, FileText, BarChart3, TrendingUp, Package, CreditCard, UserPlus, Activity, Clock, Star, MessageSquare, Globe2, Archive, RefreshCw, ChevronRight, ChevronDown, MoreVertical, ArrowRightLeft, PlusCircle, Inbox, User, Wallet, Sparkles, ArrowRight, ExternalLink, GitBranch, Upload, GitCommit
 } from 'lucide-react'
 
 interface Client {
@@ -91,7 +92,7 @@ interface Subscription {
 
 function AdminPanelContent() {
   const { t } = useI18n()
-  const [activeSection, setActiveSection] = useState<string>('dashboard')
+  const [activeSection, setActiveSection] = useState<string>('infrastructure')
   const [clients, setClients] = useState<VHMClient[]>([])
   const [subscriptions, setSubscriptions] = useState<Subscription[]>([])
   const [stats, setStats] = useState<VHMStats | null>(null)
@@ -185,6 +186,7 @@ function AdminPanelContent() {
   // CyberPanel Infrastructure State
   const [cyberPanelSites, setCyberPanelSites] = useState<CyberPanelWebsite[]>([])
   const [cyberPanelPackages, setCyberPanelPackages] = useState<CyberPanelPackage[]>([])
+  const [cyberPanelUsers, setCyberPanelUsers] = useState<CyberPanelUser[]>([])
   const [isFetchingCyberPanel, setIsFetchingCyberPanel] = useState(false)
 
   // Package Management State
@@ -310,6 +312,7 @@ function AdminPanelContent() {
       ]);
       setCyberPanelSites(sites)
       setCyberPanelPackages(packages)
+      setCyberPanelUsers(users)
       console.log(`Loaded ${sites.length} CyberPanel sites, ${packages.length} packages, ${users.length} users from VPS`)
 
       // Log utilizadores sincronizados (admin + visualdesign)
@@ -1326,86 +1329,14 @@ function AdminPanelContent() {
   )
 
   const menuItems: Array<{ id: string; label: string; color: string; isNew?: boolean; subItems?: Array<{ id: string; label: string }> }> = [
-    { id: 'dashboard', label: 'Dashboard', color: 'bg-blue-500' },
-    {
-      id: 'infrastructure', label: 'Infra-estrutura', color: 'bg-cyan-600', subItems: [
-        { id: 'infrastructure', label: 'Painel CyberPanel' },
-        { id: 'domains', label: 'Domínios' },
-        { id: 'domains-new', label: 'Novo Domínio' },
-        { id: 'cp-subdomains', label: 'Subdomínios' },
-        { id: 'domains-dns', label: 'Gestão de DNS' },
-        { id: 'domains-transfer', label: 'Transferir Domínio' },
-        { id: 'backup', label: 'Backup' },
-      ]
-    },
-    {
-      id: 'websites-mgmt', label: 'Websites', color: 'bg-purple-600', subItems: [
-        { id: 'domains-new', label: 'Create Website' },
-        { id: 'domains', label: 'List Websites' },
-        { id: 'cp-subdomains', label: 'Create Sub/Addon Domain' },
-        { id: 'cp-list-subdomains', label: 'List Sub/Addon Domains' },
-        { id: 'cp-modify-website', label: 'Modify Website' },
-        { id: 'cp-suspend-website', label: 'Suspend/Unsuspend' },
-        { id: 'cp-delete-website', label: 'Delete Website' },
-      ]
-    },
-    {
-      id: 'wordpress-mgmt', label: 'WordPress', color: 'bg-blue-700', subItems: [
-        { id: 'wordpress-deploy', label: 'Deploy WordPress' },
-        { id: 'cp-wp-list', label: 'List WordPress' },
-        { id: 'cp-wp-plugins', label: 'Configure Plugins' },
-        { id: 'cp-wp-restore-backup', label: 'Restore Backups' },
-        { id: 'cp-wp-remote-backup', label: 'Remote Backup' },
-      ]
-    },
-    {
-      id: 'dns-mgmt', label: 'DNS', color: 'bg-amber-600', subItems: [
-        { id: 'cp-dns-nameserver', label: 'Create Nameserver' },
-        { id: 'cp-dns-default-ns', label: 'Config Default Nameservers' },
-        { id: 'cp-dns-create-zone', label: 'Create DNS Zone' },
-        { id: 'cp-dns-delete-zone', label: 'Delete Zone' },
-        { id: 'domains-dns', label: 'Add/Delete Records' },
-        { id: 'cp-dns-cloudflare', label: 'CloudFlare' },
-        { id: 'cp-dns-reset', label: 'Reset DNS Configurations' },
-      ]
-    },
-    {
-      id: 'emails', label: 'E-mail', color: 'bg-cyan-500', subItems: [
-        { id: 'emails-new', label: 'Create Email' },
-        { id: 'cp-email-mgmt', label: 'List Emails' },
-        { id: 'cp-email-delete', label: 'Delete Email' },
-        { id: 'cp-email-limits', label: 'Email Limits' },
-        { id: 'cp-email-forwarding', label: 'Email Forwarding' },
-        { id: 'cp-email-catchall', label: 'Catch-All Email' },
-        { id: 'cp-email-pattern-fwd', label: 'Pattern Forwarding' },
-        { id: 'cp-email-plus-addr', label: 'Plus-Addressing' },
-        { id: 'cp-email-change-pass', label: 'Change Password' },
-        { id: 'cp-email-dkim', label: 'DKIM Manager' },
-        { id: 'emails-webmail', label: 'Access Webmail' },
-      ]
-    },
-    {
-      id: 'cp-users', label: 'Utilizadores', color: 'bg-red-500', subItems: [
-        { id: 'cp-users', label: 'Listar Utilizadores' },
-        { id: 'users', label: 'Usuários do Painel' },
-      ]
-    },
-    {
-      id: 'packages-mgmt', label: 'Pacotes', color: 'bg-emerald-600', subItems: [
-        { id: 'packages-list', label: 'Listar Pacotes' },
-        { id: 'packages-new', label: 'Criar Pacote' },
-      ]
-    },
-    { id: 'cp-reseller', label: 'Centro de Revenda', color: 'bg-violet-600' },
-    { id: 'clients', label: 'Clientes', color: 'bg-green-500' },
-    { id: 'notifications', label: 'Notificações', color: 'bg-orange-500' },
-    { id: 'billing', label: 'Faturação', color: 'bg-indigo-500' },
-    { id: 'reports', label: 'Relatórios', color: 'bg-pink-500' },
-    { id: 'analytics', label: 'Análises', color: 'bg-teal-500' },
-    { id: 'cp-php', label: 'Configurações PHP', color: 'bg-sky-600' },
-    { id: 'cp-api', label: 'Configurações API', color: 'bg-slate-600' },
-    { id: 'cp-security', label: 'Segurança & Firewall', color: 'bg-red-700' },
-    { id: 'settings', label: 'Configurações', color: 'bg-gray-500' },
+    { id: 'dashboard',     label: 'Dashboard',       color: 'bg-blue-500' },
+    { id: 'clients',       label: 'Clientes',        color: 'bg-green-500' },
+    { id: 'billing',       label: 'Faturação',       color: 'bg-indigo-500' },
+    { id: 'notifications', label: 'Notificações',    color: 'bg-orange-500' },
+    { id: 'reports',       label: 'Relatórios',      color: 'bg-pink-500' },
+    { id: 'analytics',     label: 'Análises',        color: 'bg-teal-500' },
+    { id: 'settings',      label: 'Configurações',   color: 'bg-gray-500' },
+    { id: 'git-deploy',    label: 'Deploy / GitHub', color: 'bg-green-700' },
   ]
 
   const SidebarIcon = (id: string) => {
@@ -1434,6 +1365,7 @@ function AdminPanelContent() {
       case 'cp-php': return <Settings className="w-5 h-5" />
       case 'cp-api': return <Database className="w-5 h-5" />
       case 'cp-security': return <Shield className="w-5 h-5" />
+      case 'git-deploy': return <GitBranch className="w-5 h-5" />
       default: return <BarChart3 className="w-5 h-5" />
     }
   }
@@ -1475,7 +1407,7 @@ function AdminPanelContent() {
             </div>
           </div>
 
-          <nav className="flex-1 overflow-y-auto p-4 space-y-1 custom-scrollbar pb-24">
+          <nav className="flex-1 overflow-y-auto p-4 space-y-1 custom-scrollbar">
             {menuItems.map((item) => {
               const hasSubItems = item.subItems && item.subItems.length > 0
               const isExpanded = expandedMenus[item.id]
@@ -1561,7 +1493,7 @@ function AdminPanelContent() {
             })}
           </nav>
 
-          <div className={`absolute bottom-0 p-4 border-t border-gray-200 bg-white z-10 transition-all duration-300 ${isSidebarCollapsed ? 'w-20' : 'w-64'}`}>
+          <div className="shrink-0 p-4 border-t border-gray-200 bg-white">
             <div className={`flex items-start gap-3 ${isSidebarCollapsed ? 'justify-center' : ''}`}>
               <div className="w-10 h-10 rounded-full overflow-hidden relative bg-gradient-to-br from-red-500 to-red-600 shadow-lg flex-shrink-0">
                 <img
@@ -2002,7 +1934,27 @@ function AdminPanelContent() {
           )}
 
 
+          {/* ── NOVO PAINEL ESTILO CPANEL ── */}
           {activeSection === 'infrastructure' && (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h1 className="text-3xl font-bold text-gray-900">Painel de Controlo</h1>
+                  <p className="text-gray-500 mt-1 text-sm">CyberPanel · Servidor 109.199.104.22 · OpenLiteSpeed</p>
+                </div>
+              </div>
+              <CpanelDashboard
+                onNavigate={setActiveSection}
+                sites={cyberPanelSites}
+                users={cyberPanelUsers}
+                isFetching={isFetchingCyberPanel}
+                onRefresh={loadCyberPanelData}
+              />
+            </div>
+          )}
+
+          {/* INFRA ANTIGA: para reactivar, muda 'false' para 'true' e o id para 'infrastructure' */}
+          {false && activeSection === 'infrastructure-old' && (
             <div className="space-y-8">
               <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
@@ -4434,6 +4386,10 @@ function AdminPanelContent() {
                 </div>
               </div>
             )}
+
+          {activeSection === 'git-deploy' && (
+            <GitDeploySection />
+          )}
 
           {
             activeSection === 'reports' && (
