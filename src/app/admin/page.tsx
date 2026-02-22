@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { I18nProvider, useI18n } from '@/lib/i18n'
+import { SubdomainsSection, DatabasesSection, FTPSection, EmailManagementSection, CPUsersSection, ResellerSection, PHPConfigSection, SecuritySection, SSLSection, APIConfigSection, ListSubdomainsSection, ModifyWebsiteSection, SuspendWebsiteSection, DeleteWebsiteSection, WPListSection, WPPluginsSection, WPRestoreBackupSection, WPRemoteBackupSection, DNSNameserverSection, DNSDefaultNSSection, DNSCreateZoneSection, DNSDeleteZoneSection, CloudFlareSection, DNSResetSection, EmailDeleteSection, EmailLimitsSection, EmailForwardingSection, CatchAllEmailSection, PatternForwardingSection, PlusAddressingSection, EmailChangePasswordSection, DKIMManagerSection } from './CyberPanelSections'
 // VHM removido - tipos mantidos localmente para compatibilidade
 interface VHMClient {
   id: string;
@@ -302,13 +303,18 @@ function AdminPanelContent() {
   const loadCyberPanelData = async () => {
     setIsFetchingCyberPanel(true)
     try {
-      const [sites, packages] = await Promise.all([
+      const [sites, packages, users] = await Promise.all([
         cyberPanelAPI.listWebsites(),
-        cyberPanelAPI.listPackages()
+        cyberPanelAPI.listPackages(),
+        cyberPanelAPI.listUsers()
       ]);
       setCyberPanelSites(sites)
       setCyberPanelPackages(packages)
-      console.log(`Loaded ${sites.length} CyberPanel sites and ${packages.length} packages from new VPS`)
+      console.log(`Loaded ${sites.length} CyberPanel sites, ${packages.length} packages, ${users.length} users from VPS`)
+
+      // Log utilizadores sincronizados (admin + visualdesign)
+      const cpUsers = users.map(u => u.userName)
+      console.log('CyberPanel users synced:', cpUsers.join(', '))
 
       // Sincronizar sites com Supabase
       if (sites.length > 0) {
@@ -325,6 +331,23 @@ function AdminPanelContent() {
           }, { onConflict: 'domain' })
         }
         console.log(`Synced ${sites.length} sites to Supabase`)
+      }
+
+      // Sincronizar utilizadores com Supabase
+      if (users.length > 0) {
+        for (const user of users) {
+          await supabase.from('cyberpanel_users').upsert({
+            username: user.userName,
+            first_name: user.firstName,
+            last_name: user.lastName,
+            email: user.email,
+            acl: user.acl,
+            websites_limit: user.websitesLimit,
+            status: user.status || 'Active',
+            synced_at: new Date().toISOString(),
+          }, { onConflict: 'username' })
+        }
+        console.log(`Synced ${users.length} users to Supabase`)
       }
     } catch (err) {
       console.error('Error loading CyberPanel data:', err)
@@ -600,7 +623,28 @@ function AdminPanelContent() {
 
     setIsCreatingAccount(true)
     try {
-      // VHM removido - criar registo no Supabase
+      // 1. Criar website no CyberPanel
+      const cpSiteOk = await cyberPanelAPI.createWebsite({
+        domainName: newAccountData.domain,
+        ownerEmail: newAccountData.email,
+        packageName: newAccountData.plan || 'Default',
+        phpSelection: 'PHP 8.2'
+      })
+
+      // 2. Criar utilizador no CyberPanel
+      const cpUserOk = newAccountData.username && newAccountData.password
+        ? await cyberPanelAPI.createUser({
+            firstName: newAccountData.username,
+            lastName: '',
+            email: newAccountData.email,
+            userName: newAccountData.username,
+            password: newAccountData.password,
+            websitesLimit: 1,
+            acl: 'user'
+          })
+        : true
+
+      // 3. Guardar na Supabase subscriptions
       const { error: insertErr } = await supabase.from('subscriptions').insert({
         vhm_username: newAccountData.username,
         client_email: newAccountData.email,
@@ -611,7 +655,10 @@ function AdminPanelContent() {
       })
 
       if (!insertErr) {
-        alert('Conta criada com sucesso!')
+        await loadCyberPanelData() // sync tudo para Supabase
+        const cpStatus = cpSiteOk ? '✓ Website criado no CyberPanel' : '⚠ Website CyberPanel: verificar manualmente'
+        const userStatus = cpUserOk ? '✓ Utilizador criado no CyberPanel' : '⚠ Utilizador CyberPanel: verificar manualmente'
+        alert(`Conta criada com sucesso!\n${cpStatus}\n${userStatus}`)
         setShowCreateModal(false)
         setNewAccountData({
           domain: '',
@@ -1043,9 +1090,7 @@ function AdminPanelContent() {
       })
 
       if (success) {
-        // Refresh websites
-        const sites = await cyberPanelAPI.listWebsites()
-        setCyberPanelSites(sites)
+        await loadCyberPanelData() // refresh + sync Supabase
         setShowCreateCyberSiteModal(false)
         setNewCyberSiteData({
           domainName: '',
@@ -1053,6 +1098,7 @@ function AdminPanelContent() {
           packageName: 'Default',
           phpSelection: 'PHP 8.2'
         })
+        alert(`Website ${newCyberSiteData.domainName.trim()} criado com sucesso no CyberPanel!`)
       } else {
         throw new Error('Falha ao criar o website no CyberPanel')
       }
@@ -1081,7 +1127,8 @@ function AdminPanelContent() {
       if (success) {
         setShowWPModal(false)
         setWpData({ title: '', user: 'admin', password: '' })
-        loadCyberPanelData() // refresh list
+        await loadCyberPanelData() // refresh + sync Supabase
+        alert(`WordPress instalado com sucesso em ${selectedWPDomain}!`)
       } else {
         throw new Error('Falha ao instalar o WordPress via CyberPanel. Verifique as credenciais no servidor via SSH.')
       }
@@ -1122,58 +1169,73 @@ function AdminPanelContent() {
   if (!isAuthenticated) {
     return (
       <div className="min-h-screen bg-black flex flex-col items-center justify-center p-4 relative overflow-hidden">
-        {/* Gradiente vermelho canto superior esquerdo */}
-        <div className="absolute top-0 left-0 w-[500px] h-[500px] bg-gradient-to-br from-red-600/20 via-red-900/10 to-transparent rounded-full blur-3xl pointer-events-none" />
+        {/* Gradiente vermelho visível - canto superior esquerdo */}
+        <div className="absolute top-[-200px] left-[-200px] w-[800px] h-[800px] bg-gradient-to-br from-red-600/40 via-red-800/20 to-transparent rounded-full blur-[120px] pointer-events-none" />
+        {/* Gradiente vermelho - canto inferior direito */}
+        <div className="absolute bottom-[-200px] right-[-200px] w-[600px] h-[600px] bg-gradient-to-tl from-red-700/30 via-red-900/15 to-transparent rounded-full blur-[100px] pointer-events-none" />
+        {/* Gradiente central subtil */}
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[400px] h-[400px] bg-red-600/5 rounded-full blur-[80px] pointer-events-none" />
 
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6 }}
-          className="w-full max-w-sm relative z-10"
+          className="w-full max-w-md relative z-10"
         >
-          {/* Logo */}
+          {/* Logo grande - apenas logotipo, sem título nem descrição */}
           <div className="flex justify-center mb-10">
-            <img src="/assets/logotipoII.png" alt="Visual Design" className="h-16 object-contain" />
+            <img src="/assets/logotipoII.png" alt="Visual Design" className="h-26 w-auto object-contain" style={{ height: '6.5rem' }} />
           </div>
 
-          {/* Form com fundo preto transparente */}
-          <div className="bg-white/5 border border-white/10 p-7" style={{ borderRadius: '10px' }}>
-            <div className="space-y-4">
-              <div className="relative">
-                <div className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500">
-                  <Mail className="w-4 h-4" />
+          {/* Formulário com fundo preto transparente */}
+          <div className="bg-white/5 border border-white/10 p-7 backdrop-blur-sm" style={{ borderRadius: '10px' }}>
+            <div className="space-y-5">
+              {/* Campo E-mail com label */}
+              <div>
+                <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 ml-1">E-mail</label>
+                <div className="relative group">
+                  <div className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 group-focus-within:text-red-500 transition-colors">
+                    <Mail className="w-4 h-4" />
+                  </div>
+                  <input
+                    type="email"
+                    value={loginEmail}
+                    onChange={(e) => { setLoginEmail(e.target.value); setAuthError('') }}
+                    onKeyDown={(e) => { if (e.key === 'Enter') handleLogin(loginEmail, loginPassword) }}
+                    className="w-full pl-11 pr-4 py-3.5 bg-black/60 border border-white/10 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-red-600/30 focus:border-red-500/40 transition-all text-sm"
+                    style={{ borderRadius: '8px' }}
+                    placeholder="exemplo@gmail.com"
+                  />
                 </div>
-                <input
-                  type="email"
-                  value={loginEmail}
-                  onChange={(e) => { setLoginEmail(e.target.value); setAuthError('') }}
-                  onKeyDown={(e) => { if (e.key === 'Enter') handleLogin(loginEmail, loginPassword) }}
-                  className="w-full pl-11 pr-4 py-3 bg-black/60 border border-white/10 text-white placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-red-500/40 focus:border-red-500/40 transition-all text-sm"
-                  style={{ borderRadius: '8px' }}
-                  placeholder="E-mail"
-                />
               </div>
 
-              <div className="relative">
-                <div className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500">
-                  <Lock className="w-4 h-4" />
+              {/* Campo Palavra-passe com label */}
+              <div>
+                <div className="flex justify-between items-center mb-2 ml-1">
+                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Palavra-passe</label>
+                  <a href="#" className="text-[10px] font-bold text-red-500 hover:text-red-400 uppercase tracking-widest transition-colors">Esqueceu?</a>
                 </div>
-                <input
-                  type={showPassword ? 'text' : 'password'}
-                  value={loginPassword}
-                  onChange={(e) => { setLoginPassword(e.target.value); setAuthError('') }}
-                  onKeyDown={(e) => { if (e.key === 'Enter') handleLogin(loginEmail, loginPassword) }}
-                  className="w-full pl-11 pr-11 py-3 bg-black/60 border border-white/10 text-white placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-red-500/40 focus:border-red-500/40 transition-all text-sm"
-                  style={{ borderRadius: '8px' }}
-                  placeholder="Palavra-passe"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-500 hover:text-white transition-colors"
-                >
-                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                </button>
+                <div className="relative group">
+                  <div className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 group-focus-within:text-red-500 transition-colors">
+                    <Lock className="w-4 h-4" />
+                  </div>
+                  <input
+                    type={showPassword ? 'text' : 'password'}
+                    value={loginPassword}
+                    onChange={(e) => { setLoginPassword(e.target.value); setAuthError('') }}
+                    onKeyDown={(e) => { if (e.key === 'Enter') handleLogin(loginEmail, loginPassword) }}
+                    className="w-full pl-11 pr-11 py-3.5 bg-black/60 border border-white/10 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-red-600/30 focus:border-red-500/40 transition-all text-sm"
+                    style={{ borderRadius: '8px' }}
+                    placeholder="••••••••"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-500 hover:text-white transition-colors"
+                  >
+                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
               </div>
 
               {authError && (
@@ -1185,19 +1247,49 @@ function AdminPanelContent() {
 
               <button
                 onClick={() => handleLogin(loginEmail, loginPassword)}
-                className="w-full bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 text-white py-3 font-bold transition-all shadow-lg shadow-red-600/20 text-sm tracking-wide"
+                className="w-full bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 text-white py-3.5 font-black uppercase tracking-widest transition-all shadow-xl shadow-red-900/30 text-sm flex items-center justify-center gap-2 group"
                 style={{ borderRadius: '8px' }}
               >
-                Entrar
+                Entrar na Conta
+                <svg className="w-4 h-4 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" /></svg>
               </button>
             </div>
           </div>
 
-          <p className="text-gray-600 text-[10px] text-center mt-8">Acesso restrito a utilizadores autorizados</p>
+          {/* Texto + botão horizontal */}
+          <div className="mt-6 flex items-center justify-center gap-4">
+            <p className="text-gray-500 text-xs whitespace-nowrap">Ainda não é nosso cliente?</p>
+            <a href="/precos/hospedagem" className="inline-flex items-center gap-2 px-5 py-2 bg-white/5 hover:bg-white/10 border border-white/10 text-white text-[10px] font-bold uppercase tracking-widest transition-all whitespace-nowrap" style={{ borderRadius: '8px' }}>
+              Ver Planos
+            </a>
+          </div>
+
+          {/* Avatares africanos e texto social */}
+          <div className="mt-6 flex items-center justify-center gap-4">
+            <div className="flex -space-x-2">
+              <div className="w-8 h-8 rounded-full border-2 border-black bg-gray-800 overflow-hidden">
+                <img src="https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=80&h=80&fit=crop&crop=face" alt="" className="w-full h-full object-cover" />
+              </div>
+              <div className="w-8 h-8 rounded-full border-2 border-black bg-gray-800 overflow-hidden">
+                <img src="https://images.unsplash.com/photo-1531746020798-e6953c6e8e04?w=80&h=80&fit=crop&crop=face" alt="" className="w-full h-full object-cover" />
+              </div>
+              <div className="w-8 h-8 rounded-full border-2 border-black bg-gray-800 overflow-hidden">
+                <img src="https://images.unsplash.com/photo-1506277886164-e25aa3f4ef7f?w=80&h=80&fit=crop&crop=face" alt="" className="w-full h-full object-cover" />
+              </div>
+            </div>
+            <p className="text-xs text-gray-500">
+              Junte-se a mais de <span className="text-white font-bold">500+</span> profissionais.
+            </p>
+          </div>
+
+          <div className="mt-5 flex items-center justify-center gap-2 text-gray-600">
+            <Shield className="w-3.5 h-3.5" />
+            <span className="text-[10px] font-bold uppercase tracking-widest">Acesso Seguro SSL 256-bit</span>
+          </div>
         </motion.div>
 
-        {/* Red bottom line */}
-        <div className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-transparent via-red-600 to-transparent" />
+        {/* Linha vermelha sólida no bottom */}
+        <div className="absolute bottom-0 left-0 right-0 h-1 bg-red-600" />
       </div>
     )
   }
@@ -1240,30 +1332,80 @@ function AdminPanelContent() {
         { id: 'infrastructure', label: 'Painel CyberPanel' },
         { id: 'domains', label: 'Domínios' },
         { id: 'domains-new', label: 'Novo Domínio' },
+        { id: 'cp-subdomains', label: 'Subdomínios' },
         { id: 'domains-dns', label: 'Gestão de DNS' },
         { id: 'domains-transfer', label: 'Transferir Domínio' },
-        { id: 'wordpress-deploy', label: 'WordPress' },
-        { id: 'emails-webmail', label: 'Webmail' },
-        { id: 'packages-list', label: 'Pacotes' },
-        { id: 'packages-new', label: 'Criar Pacote' },
         { id: 'backup', label: 'Backup' },
       ]
     },
-    { id: 'clients', label: 'Clientes', color: 'bg-green-500' },
-    { id: 'users', label: 'Usuários', color: 'bg-red-500' },
     {
-      id: 'emails', label: 'E-mails', color: 'bg-cyan-500', subItems: [
-        { id: 'emails', label: 'Meus E-mails' },
-        { id: 'emails-new', label: 'Nova Conta' },
-        { id: 'emails-webmail', label: 'Webmail' },
+      id: 'websites-mgmt', label: 'Websites', color: 'bg-purple-600', subItems: [
+        { id: 'domains-new', label: 'Create Website' },
+        { id: 'domains', label: 'List Websites' },
+        { id: 'cp-subdomains', label: 'Create Sub/Addon Domain' },
+        { id: 'cp-list-subdomains', label: 'List Sub/Addon Domains' },
+        { id: 'cp-modify-website', label: 'Modify Website' },
+        { id: 'cp-suspend-website', label: 'Suspend/Unsuspend' },
+        { id: 'cp-delete-website', label: 'Delete Website' },
       ]
     },
+    {
+      id: 'wordpress-mgmt', label: 'WordPress', color: 'bg-blue-700', subItems: [
+        { id: 'wordpress-deploy', label: 'Deploy WordPress' },
+        { id: 'cp-wp-list', label: 'List WordPress' },
+        { id: 'cp-wp-plugins', label: 'Configure Plugins' },
+        { id: 'cp-wp-restore-backup', label: 'Restore Backups' },
+        { id: 'cp-wp-remote-backup', label: 'Remote Backup' },
+      ]
+    },
+    {
+      id: 'dns-mgmt', label: 'DNS', color: 'bg-amber-600', subItems: [
+        { id: 'cp-dns-nameserver', label: 'Create Nameserver' },
+        { id: 'cp-dns-default-ns', label: 'Config Default Nameservers' },
+        { id: 'cp-dns-create-zone', label: 'Create DNS Zone' },
+        { id: 'cp-dns-delete-zone', label: 'Delete Zone' },
+        { id: 'domains-dns', label: 'Add/Delete Records' },
+        { id: 'cp-dns-cloudflare', label: 'CloudFlare' },
+        { id: 'cp-dns-reset', label: 'Reset DNS Configurations' },
+      ]
+    },
+    {
+      id: 'emails', label: 'E-mail', color: 'bg-cyan-500', subItems: [
+        { id: 'emails-new', label: 'Create Email' },
+        { id: 'cp-email-mgmt', label: 'List Emails' },
+        { id: 'cp-email-delete', label: 'Delete Email' },
+        { id: 'cp-email-limits', label: 'Email Limits' },
+        { id: 'cp-email-forwarding', label: 'Email Forwarding' },
+        { id: 'cp-email-catchall', label: 'Catch-All Email' },
+        { id: 'cp-email-pattern-fwd', label: 'Pattern Forwarding' },
+        { id: 'cp-email-plus-addr', label: 'Plus-Addressing' },
+        { id: 'cp-email-change-pass', label: 'Change Password' },
+        { id: 'cp-email-dkim', label: 'DKIM Manager' },
+        { id: 'emails-webmail', label: 'Access Webmail' },
+      ]
+    },
+    {
+      id: 'cp-users', label: 'Utilizadores', color: 'bg-red-500', subItems: [
+        { id: 'cp-users', label: 'Listar Utilizadores' },
+        { id: 'users', label: 'Usuários do Painel' },
+      ]
+    },
+    {
+      id: 'packages-mgmt', label: 'Pacotes', color: 'bg-emerald-600', subItems: [
+        { id: 'packages-list', label: 'Listar Pacotes' },
+        { id: 'packages-new', label: 'Criar Pacote' },
+      ]
+    },
+    { id: 'cp-reseller', label: 'Centro de Revenda', color: 'bg-violet-600' },
+    { id: 'clients', label: 'Clientes', color: 'bg-green-500' },
     { id: 'notifications', label: 'Notificações', color: 'bg-orange-500' },
     { id: 'billing', label: 'Faturação', color: 'bg-indigo-500' },
     { id: 'reports', label: 'Relatórios', color: 'bg-pink-500' },
     { id: 'analytics', label: 'Análises', color: 'bg-teal-500' },
+    { id: 'cp-php', label: 'Configurações PHP', color: 'bg-sky-600' },
+    { id: 'cp-api', label: 'Configurações API', color: 'bg-slate-600' },
+    { id: 'cp-security', label: 'Segurança & Firewall', color: 'bg-red-700' },
     { id: 'settings', label: 'Configurações', color: 'bg-gray-500' },
-    { id: 'security', label: 'Segurança', color: 'bg-red-500' },
   ]
 
   const SidebarIcon = (id: string) => {
@@ -1282,7 +1424,16 @@ function AdminPanelContent() {
       case 'security': return <Shield className="w-5 h-5" />
       case 'infrastructure': return <Server className="w-5 h-5" />
       case 'wordpress': return <Globe2 className="w-5 h-5" />
+      case 'wordpress-mgmt': return <Globe2 className="w-5 h-5" />
+      case 'websites-mgmt': return <Globe className="w-5 h-5" />
       case 'backup': return <Database className="w-5 h-5" />
+      case 'domains-dns': return <Server className="w-5 h-5" />
+      case 'cp-users': return <Users className="w-5 h-5" />
+      case 'packages-mgmt': return <Package className="w-5 h-5" />
+      case 'cp-reseller': return <Shield className="w-5 h-5" />
+      case 'cp-php': return <Settings className="w-5 h-5" />
+      case 'cp-api': return <Database className="w-5 h-5" />
+      case 'cp-security': return <Shield className="w-5 h-5" />
       default: return <BarChart3 className="w-5 h-5" />
     }
   }
@@ -3608,9 +3759,50 @@ function AdminPanelContent() {
           )}
 
           {activeSection === 'domains-new' && (
-            <div>
-              <div className="flex justify-between items-center mb-8">
-                <h1 className="text-3xl font-bold text-gray-900">Novo Domínio</h1>
+            <div className="space-y-8">
+              <div className="flex justify-between items-center">
+                <h1 className="text-3xl font-bold text-gray-900">Criar Website</h1>
+              </div>
+
+              {/* Create Website in CyberPanel */}
+              <div className="bg-white rounded-xl shadow-md border border-gray-100 p-8">
+                <h3 className="text-sm font-bold text-gray-700 uppercase tracking-wider mb-6 flex items-center gap-2">
+                  <Server className="w-4 h-4 text-red-600" />
+                  Criar Website no Servidor CyberPanel
+                </h3>
+                {error && <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-700 rounded-lg text-sm">{error}</div>}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mb-6">
+                  <div>
+                    <label className="block text-xs font-bold text-gray-700 mb-1.5">Domínio <span className="text-red-500">*</span></label>
+                    <input type="text" value={newCyberSiteData.domainName} onChange={(e) => setNewCyberSiteData({ ...newCyberSiteData, domainName: e.target.value })}
+                      placeholder="exemplo.co.mz" className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-500" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-gray-700 mb-1.5">E-mail do Admin <span className="text-red-500">*</span></label>
+                    <input type="email" value={newCyberSiteData.adminEmail} onChange={(e) => setNewCyberSiteData({ ...newCyberSiteData, adminEmail: e.target.value })}
+                      placeholder="admin@exemplo.co.mz" className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-500" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-gray-700 mb-1.5">Pacote de Hosting</label>
+                    <select value={newCyberSiteData.packageName} onChange={(e) => setNewCyberSiteData({ ...newCyberSiteData, packageName: e.target.value })}
+                      className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-500">
+                      {cyberPanelPackages.length > 0 ? cyberPanelPackages.map(p => <option key={p.packageName} value={p.packageName}>{p.packageName}</option>) : <option value="Default">Default</option>}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-gray-700 mb-1.5">Versão PHP</label>
+                    <select value={newCyberSiteData.phpSelection} onChange={(e) => setNewCyberSiteData({ ...newCyberSiteData, phpSelection: e.target.value })}
+                      className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-500">
+                      <option>PHP 7.4</option><option>PHP 8.0</option><option>PHP 8.1</option><option>PHP 8.2</option><option>PHP 8.3</option>
+                    </select>
+                  </div>
+                </div>
+                <div className="flex justify-end">
+                  <button onClick={handleCreateCyberSite} disabled={isSavingCyberSite || !newCyberSiteData.domainName.trim() || !newCyberSiteData.adminEmail.trim()}
+                    className="bg-black hover:bg-red-600 text-white px-7 py-2.5 rounded-lg text-sm font-bold transition-all disabled:opacity-50 flex items-center gap-2">
+                    {isSavingCyberSite ? <><RefreshCw className="w-4 h-4 animate-spin" /> A criar...</> : <><Globe2 className="w-4 h-4" /> Criar Website no CyberPanel</>}
+                  </button>
+                </div>
               </div>
 
               {/* Domain Availability Check */}
@@ -5061,6 +5253,40 @@ function AdminPanelContent() {
               </div>
             </div>
           )}
+
+          {/* CyberPanel Sections */}
+          {activeSection === 'cp-subdomains' && <SubdomainsSection sites={cyberPanelSites} />}
+          {activeSection === 'cp-list-subdomains' && <ListSubdomainsSection sites={cyberPanelSites} />}
+          {activeSection === 'cp-databases' && <DatabasesSection sites={cyberPanelSites} />}
+          {activeSection === 'cp-ftp' && <FTPSection sites={cyberPanelSites} />}
+          {activeSection === 'cp-modify-website' && <ModifyWebsiteSection sites={cyberPanelSites} packages={cyberPanelPackages} />}
+          {activeSection === 'cp-suspend-website' && <SuspendWebsiteSection sites={cyberPanelSites} onRefresh={loadCyberPanelData} />}
+          {activeSection === 'cp-delete-website' && <DeleteWebsiteSection sites={cyberPanelSites} onRefresh={loadCyberPanelData} />}
+          {activeSection === 'cp-email-mgmt' && <EmailManagementSection sites={cyberPanelSites} />}
+          {activeSection === 'cp-email-delete' && <EmailDeleteSection sites={cyberPanelSites} />}
+          {activeSection === 'cp-email-limits' && <EmailLimitsSection sites={cyberPanelSites} />}
+          {activeSection === 'cp-email-forwarding' && <EmailForwardingSection sites={cyberPanelSites} />}
+          {activeSection === 'cp-email-catchall' && <CatchAllEmailSection sites={cyberPanelSites} />}
+          {activeSection === 'cp-email-pattern-fwd' && <PatternForwardingSection sites={cyberPanelSites} />}
+          {activeSection === 'cp-email-plus-addr' && <PlusAddressingSection sites={cyberPanelSites} />}
+          {activeSection === 'cp-email-change-pass' && <EmailChangePasswordSection sites={cyberPanelSites} />}
+          {activeSection === 'cp-email-dkim' && <DKIMManagerSection sites={cyberPanelSites} />}
+          {activeSection === 'cp-users' && <CPUsersSection />}
+          {activeSection === 'cp-reseller' && <ResellerSection />}
+          {activeSection === 'cp-php' && <PHPConfigSection sites={cyberPanelSites} />}
+          {activeSection === 'cp-security' && <SecuritySection sites={cyberPanelSites} />}
+          {activeSection === 'cp-ssl' && <SSLSection sites={cyberPanelSites} />}
+          {activeSection === 'cp-api' && <APIConfigSection />}
+          {activeSection === 'cp-wp-list' && <WPListSection sites={cyberPanelSites} />}
+          {activeSection === 'cp-wp-plugins' && <WPPluginsSection sites={cyberPanelSites} />}
+          {activeSection === 'cp-wp-restore-backup' && <WPRestoreBackupSection sites={cyberPanelSites} />}
+          {activeSection === 'cp-wp-remote-backup' && <WPRemoteBackupSection sites={cyberPanelSites} />}
+          {activeSection === 'cp-dns-nameserver' && <DNSNameserverSection sites={cyberPanelSites} />}
+          {activeSection === 'cp-dns-default-ns' && <DNSDefaultNSSection />}
+          {activeSection === 'cp-dns-create-zone' && <DNSCreateZoneSection sites={cyberPanelSites} />}
+          {activeSection === 'cp-dns-delete-zone' && <DNSDeleteZoneSection sites={cyberPanelSites} />}
+          {activeSection === 'cp-dns-cloudflare' && <CloudFlareSection sites={cyberPanelSites} />}
+          {activeSection === 'cp-dns-reset' && <DNSResetSection sites={cyberPanelSites} />}
 
           {/* DNS Manager Modal */}
           {selectedDnsDomain && (
