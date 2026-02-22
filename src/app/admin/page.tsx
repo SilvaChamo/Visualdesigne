@@ -2627,18 +2627,18 @@ function AdminPanelContent() {
                 </h3>
                 <div className="flex gap-4 items-end">
                   <div className="flex-1">
-                    <label className="block text-xs font-semibold text-gray-500 mb-1">Cliente (cPanel User)</label>
+                    <label className="block text-xs font-semibold text-gray-500 mb-1">Domínio</label>
                     <select
-                      value={selectedClientForEmails?.username || ''}
+                      value={selectedClientForEmails?.domain || ''}
                       onChange={(e) => {
-                        const client = clients.find(c => c.username === e.target.value)
-                        if (client) loadEmailAccounts(client)
+                        const site = cyberPanelSites.find(s => s.domain === e.target.value)
+                        if (site) loadEmailAccounts({ domain: site.domain, username: site.owner || 'admin' } as any)
                       }}
                       className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 text-sm"
                     >
-                      <option value="">Selecione um cliente...</option>
-                      {clients.map(c => (
-                        <option key={c.username} value={c.username}>{c.username} — {c.domain}</option>
+                      <option value="">Selecione um domínio...</option>
+                      {cyberPanelSites.map(s => (
+                        <option key={s.domain} value={s.domain}>{s.domain} ({s.status})</option>
                       ))}
                     </select>
                   </div>
@@ -3057,8 +3057,8 @@ function AdminPanelContent() {
                       className="w-full max-w-sm px-4 py-3 border border-gray-300 rounded-md focus:ring-2 focus:ring-red-500 text-sm font-medium bg-white"
                     >
                       <option value="">Seleccione um domínio...</option>
-                      {clients.map(c => (
-                        <option key={c.username} value={c.domain}>{c.domain}</option>
+                      {cyberPanelSites.map(s => (
+                        <option key={s.domain} value={s.domain}>{s.domain} ({s.status})</option>
                       ))}
                     </select>
                     <button
@@ -3066,11 +3066,8 @@ function AdminPanelContent() {
                         if (selectedWebmailDomain) {
                           setIsFetchingWebmailAccounts(true)
                           try {
-                            const client = clients.find(c => c.domain === selectedWebmailDomain)
-                            if (client) {
-                              // VHM removido - usar CyberPanel emails
-                              setRealWebmailAccounts([])
-                            }
+                            const emails = await cyberPanelAPI.listEmails(selectedWebmailDomain)
+                            setRealWebmailAccounts(emails)
                           } catch (err) {
                             console.error('Erro ao buscar contas:', err)
                           } finally {
