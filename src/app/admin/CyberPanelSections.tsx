@@ -1276,7 +1276,7 @@ export function WPListSection({ sites }: { sites: CyberPanelWebsite[] }) {
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {allSites.map((s, i) => (
-            <div key={i} className="bg-white rounded-xl border border-gray-200 shadow-sm p-5 space-y-4 hover:shadow-md transition-shadow">
+            <div key={i} className="bg-white rounded-lg border border-gray-200 shadow-sm p-5 space-y-4 hover:shadow-md transition-shadow">
               <div className="flex items-start gap-3">
                 <div className="w-10 h-10 rounded-xl bg-indigo-100 flex items-center justify-center shrink-0">
                   <Globe className="w-5 h-5 text-indigo-600" />
@@ -2156,7 +2156,7 @@ export function GitDeploySection() {
       </div>
 
       {/* Repo info */}
-      <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6 space-y-5">
+      <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-6 space-y-5">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 bg-gray-900 rounded-xl flex items-center justify-center shrink-0">
             <svg className="w-6 h-6 text-white" viewBox="0 0 24 24" fill="currentColor">
@@ -2209,13 +2209,13 @@ export function GitDeploySection() {
               />
             </div>
             <button onClick={handleDeploy} disabled={deploying || !commitMsg.trim()}
-              className="w-full bg-black hover:bg-green-700 text-white py-3 rounded-xl text-sm font-bold transition-all disabled:opacity-50 flex items-center justify-center gap-2">
+              className="bg-black hover:bg-green-700 text-white py-2.5 px-6 rounded-lg text-sm font-bold transition-all disabled:opacity-50 flex items-center gap-2">
               {deploying ? <><RefreshCw className="w-4 h-4 animate-spin" /> A fazer commit e push...</> : <><Upload className="w-4 h-4" /> Commit + Push → Deploy Vercel</>}
             </button>
           </div>
         ) : (
           <button onClick={handleDeploy} disabled={deploying}
-            className="w-full bg-black hover:bg-green-700 text-white py-3 rounded-xl text-sm font-bold transition-all disabled:opacity-50 flex items-center justify-center gap-2">
+            className="bg-black hover:bg-green-700 text-white py-2.5 px-6 rounded-lg text-sm font-bold transition-all disabled:opacity-50 flex items-center gap-2">
             {deploying ? <><RefreshCw className="w-4 h-4 animate-spin" /> A iniciar deploy...</> : <><Upload className="w-4 h-4" /> Trigger Vercel Deploy</>}
           </button>
         )}
@@ -2241,7 +2241,7 @@ export function GitDeploySection() {
       </div>
 
       {/* Recent commits */}
-      <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
+      <div className="bg-white rounded-lg border border-indigo-100 shadow-sm p-6">
         <h3 className="text-sm font-bold text-gray-700 uppercase tracking-wider mb-4">Commits Recentes</h3>
         {loading ? (
           <div className="space-y-3">{[1,2,3].map(i => <div key={i} className="h-10 bg-gray-100 rounded animate-pulse" />)}</div>
