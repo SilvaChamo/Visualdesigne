@@ -720,6 +720,51 @@ export function PHPConfigSection({ sites }: { sites: CyberPanelWebsite[] }) {
           </>
         )}
       </div>
+
+      {/* PHP Extensions */}
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+        <div className="flex items-center justify-between mb-5">
+          <div>
+            <h3 className="text-sm font-bold text-gray-800 uppercase tracking-wider">Extensões PHP</h3>
+            <p className="text-xs text-gray-500 mt-0.5">Extensões recomendadas para WordPress e aplicações web</p>
+          </div>
+          <a href="https://109.199.104.22:8090/php/phpExtensions" target="_blank" rel="noopener noreferrer"
+            className="bg-black hover:bg-red-600 text-white text-xs font-bold px-4 py-2 rounded-lg transition-all flex items-center gap-2">
+            <ExternalLink className="w-3.5 h-3.5" /> Gerir no CyberPanel
+          </a>
+        </div>
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2">
+          {[
+            { name: 'mbstring', desc: 'Texto multibyte', wp: true },
+            { name: 'mysqli', desc: 'MySQL melhorado', wp: true },
+            { name: 'curl', desc: 'Transferência HTTP', wp: true },
+            { name: 'gd', desc: 'Imagens GD', wp: true },
+            { name: 'xml', desc: 'Processamento XML', wp: true },
+            { name: 'zip', desc: 'Compressão ZIP', wp: true },
+            { name: 'intl', desc: 'Internacionalização', wp: false },
+            { name: 'bcmath', desc: 'Matemática precisão', wp: false },
+            { name: 'imagick', desc: 'Processamento imagens', wp: false },
+            { name: 'redis', desc: 'Cache Redis', wp: false },
+            { name: 'opcache', desc: 'Cache PHP', wp: true },
+            { name: 'soap', desc: 'Serviços SOAP', wp: false },
+            { name: 'imap', desc: 'Email IMAP', wp: false },
+            { name: 'exif', desc: 'Metadados imagens', wp: true },
+            { name: 'fileinfo', desc: 'Info de ficheiros', wp: true },
+          ].map(ext => (
+            <div key={ext.name} className={`flex flex-col gap-1 p-3 rounded-xl border ${ext.wp ? 'border-indigo-100 bg-indigo-50/50' : 'border-gray-100 bg-gray-50'}`}>
+              <div className="flex items-center justify-between">
+                <code className="text-xs font-bold text-gray-800">{ext.name}</code>
+                {ext.wp && <span className="text-[9px] font-bold text-indigo-600 bg-indigo-100 px-1 rounded">WP</span>}
+              </div>
+              <p className="text-[10px] text-gray-500 leading-tight">{ext.desc}</p>
+            </div>
+          ))}
+        </div>
+        <p className="text-xs text-gray-400 mt-4">
+          As extensões marcadas <span className="font-bold text-indigo-600">WP</span> são necessárias para WordPress.
+          Para instalar, clica em "Gerir no CyberPanel" → selecciona a versão PHP → activa a extensão.
+        </p>
+      </div>
     </div>
   )
 }
@@ -1206,33 +1251,58 @@ export function WPListSection({ sites }: { sites: CyberPanelWebsite[] }) {
 
   useEffect(() => { (async () => { setLoading(true); const data = await cyberPanelAPI.listWordPress(); setWpSites(data); setLoading(false) })() }, [])
 
+  const allSites = wpSites.length > 0
+    ? wpSites.map((wp: any) => ({ domain: wp.domain || wp.domainName, version: wp.version || null, owner: wp.owner || '' }))
+    : sites.map(s => ({ domain: s.domain, version: null, owner: s.owner }))
+
   return (
     <div className="space-y-6 max-w-5xl">
-      <div><h1 className="text-3xl font-bold text-gray-900">List WordPress</h1><p className="text-gray-500 mt-1">View all WordPress installations on your server.</p></div>
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
-        {loading ? <div className="py-12 text-center"><RefreshCw className="w-8 h-8 animate-spin text-gray-400 mx-auto" /></div> : wpSites.length === 0 ? (
-          <div className="py-12 text-center text-gray-400"><Globe className="w-10 h-10 mx-auto mb-2 opacity-50" /><p className="text-sm">No WordPress installations found. Use the sites list as reference:</p>
-            <div className="mt-4 space-y-2 max-w-md mx-auto">{sites.map((s, i) => (
-              <div key={i} className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg border">
-                <Globe className="w-5 h-5 text-blue-600" />
-                <div className="text-left"><p className="font-bold text-sm text-gray-900">{s.domain}</p><p className="text-xs text-gray-500">{s.package} • {s.owner}</p></div>
-                <a href={`https://${s.domain}/wp-admin`} target="_blank" rel="noopener noreferrer" className="ml-auto text-blue-600 hover:text-blue-800"><ExternalLink className="w-4 h-4" /></a>
-              </div>
-            ))}</div>
-          </div>
-        ) : (
-          <table className="w-full text-sm">
-            <thead><tr className="text-left text-xs font-bold text-gray-500 uppercase border-b bg-gray-50"><th className="px-4 py-3">Domain</th><th className="px-4 py-3">Version</th><th className="px-4 py-3">Admin URL</th></tr></thead>
-            <tbody>{wpSites.map((wp, i) => (
-              <tr key={i} className="border-b border-gray-50 hover:bg-gray-50">
-                <td className="px-4 py-3 font-bold">{wp.domain || wp.domainName}</td>
-                <td className="px-4 py-3 text-gray-600">{wp.version || 'N/A'}</td>
-                <td className="px-4 py-3"><a href={`https://${wp.domain || wp.domainName}/wp-admin`} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline text-xs flex items-center gap-1"><ExternalLink className="w-3 h-3" /> wp-admin</a></td>
-              </tr>
-            ))}</tbody>
-          </table>
-        )}
+      <div>
+        <h1 className="text-3xl font-bold text-gray-900">Painel WP Admin</h1>
+        <p className="text-gray-500 mt-1">Acesso directo ao painel de administração WordPress de cada site.</p>
       </div>
+
+      {loading ? (
+        <div className="py-16 text-center"><RefreshCw className="w-8 h-8 animate-spin text-gray-400 mx-auto" /></div>
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {allSites.map((s, i) => (
+            <div key={i} className="bg-white rounded-xl border border-gray-200 shadow-sm p-5 space-y-4 hover:shadow-md transition-shadow">
+              <div className="flex items-start gap-3">
+                <div className="w-10 h-10 rounded-xl bg-indigo-100 flex items-center justify-center shrink-0">
+                  <Globe className="w-5 h-5 text-indigo-600" />
+                </div>
+                <div className="min-w-0">
+                  <p className="font-bold text-gray-900 truncate text-sm">{s.domain}</p>
+                  <p className="text-xs text-gray-400">{s.owner || 'admin'}{s.version ? ` · WP ${s.version}` : ''}</p>
+                </div>
+              </div>
+              <div className="space-y-2">
+                <a
+                  href={`https://${s.domain}/wp-admin`}
+                  target="_blank" rel="noopener noreferrer"
+                  className="w-full bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold py-2.5 px-4 rounded-lg transition-all flex items-center justify-center gap-2">
+                  <ExternalLink className="w-3.5 h-3.5" /> Abrir WP Admin
+                </a>
+                <a
+                  href={`https://109.199.104.22:8090/filemanager/?path=/home/${s.owner || 'admin'}/public_html`}
+                  target="_blank" rel="noopener noreferrer"
+                  className="w-full bg-amber-50 hover:bg-amber-100 text-amber-700 text-xs font-bold py-2 px-4 rounded-lg border border-amber-200 transition-all flex items-center justify-center gap-2">
+                  <FolderOpen className="w-3.5 h-3.5" /> Ficheiros WordPress
+                </a>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {!loading && allSites.length === 0 && (
+        <div className="py-16 text-center text-gray-400">
+          <Globe className="w-12 h-12 mx-auto mb-3 opacity-30" />
+          <p className="font-medium">Nenhum site encontrado.</p>
+          <p className="text-sm mt-1">Instala um WordPress primeiro na secção "Instalar WordPress".</p>
+        </div>
+      )}
     </div>
   )
 }
@@ -2001,6 +2071,176 @@ export function DKIMManagerSection({ sites }: { sites: CyberPanelWebsite[] }) {
             <p className="text-sm mb-2">Status: <span className={`font-bold ${dkim.enabled ? 'text-green-600' : 'text-red-600'}`}>{dkim.enabled ? 'Enabled' : 'Disabled'}</span></p>
             {dkim.record && <div className="bg-gray-50 border border-gray-200 rounded-lg p-3"><p className="text-xs font-bold text-gray-600 uppercase mb-1">DKIM Record</p><code className="text-xs font-mono text-gray-700 break-all">{dkim.record}</code></div>}
           </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// ============================================================
+// GIT DEPLOY SECTION
+// ============================================================
+export function GitDeploySection() {
+  const [data, setData] = useState<any>(null)
+  const [loading, setLoading] = useState(true)
+  const [deploying, setDeploying] = useState(false)
+  const [commitMsg, setCommitMsg] = useState('')
+  const [result, setResult] = useState<any>(null)
+
+  const loadStatus = async () => {
+    setLoading(true)
+    try { setData(await (await fetch('/api/git-deploy')).json()) }
+    catch { setData(null) }
+    setLoading(false)
+  }
+
+  useEffect(() => { loadStatus() }, [])
+
+  const handleDeploy = async () => {
+    const isLocal = data?.isLocal
+    if (isLocal && !commitMsg.trim()) return
+    setDeploying(true); setResult(null)
+    try {
+      const res = await fetch('/api/git-deploy', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(isLocal
+          ? { action: 'git-push', message: commitMsg.trim() }
+          : { action: 'deploy-hook' }
+        )
+      })
+      const r = await res.json()
+      setResult(r)
+      if (r.success) { setCommitMsg(''); loadStatus() }
+    } catch (e: any) { setResult({ success: false, error: e.message }) }
+    setDeploying(false)
+  }
+
+  const isLocal: boolean = data?.isLocal ?? false
+  const localGit = data?.localGit
+  const repo = data?.repo
+  const commits: any[] = data?.commits || []
+
+  return (
+    <div className="space-y-6 max-w-3xl">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900">Deploy / GitHub</h1>
+          <p className="text-gray-500 mt-1">
+            {isLocal ? 'Modo local — commit + push → Vercel faz deploy automático.' : 'Modo produção — Vercel Deploy Hook.'}
+          </p>
+        </div>
+        <button onClick={loadStatus} className="bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-2 rounded-lg text-sm font-bold transition-all flex items-center gap-2">
+          <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} /> Actualizar
+        </button>
+      </div>
+
+      {/* Repo info */}
+      <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6 space-y-5">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 bg-gray-900 rounded-xl flex items-center justify-center shrink-0">
+            <svg className="w-6 h-6 text-white" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M12 0C5.374 0 0 5.373 0 12c0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23A11.509 11.509 0 0112 5.803c1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576C20.566 21.797 24 17.3 24 12c0-6.627-5.373-12-12-12z"/>
+            </svg>
+          </div>
+          <div className="flex-1 min-w-0">
+            {loading ? <div className="h-4 w-40 bg-gray-200 rounded animate-pulse" /> : repo ? (
+              <>
+                <a href={repo.url} target="_blank" rel="noopener noreferrer"
+                  className="font-bold text-gray-900 hover:text-blue-600 flex items-center gap-1 text-sm">
+                  {repo.fullName} <ExternalLink className="w-3 h-3" />
+                </a>
+                <p className="text-xs text-gray-400">branch: <span className="font-mono font-bold text-gray-700">{repo.branch}</span> · {repo.lastPush ? new Date(repo.lastPush).toLocaleString('pt-PT') : ''}</p>
+              </>
+            ) : <p className="text-sm text-amber-600">GitHub sem token — commits não visíveis (repositório público OK)</p>}
+          </div>
+          <span className={`text-[10px] font-bold px-2 py-1 rounded-full border shrink-0 ${isLocal ? 'bg-blue-50 text-blue-700 border-blue-200' : 'bg-green-50 text-green-700 border-green-200'}`}>
+            {isLocal ? '⚡ Local Dev' : '☁ Produção'}
+          </span>
+        </div>
+
+        {/* Local git status */}
+        {isLocal && localGit && (
+          <div className={`rounded-lg p-3 border text-sm ${localGit.hasChanges ? 'bg-amber-50 border-amber-200' : 'bg-green-50 border-green-200'}`}>
+            <p className="font-bold text-xs uppercase text-gray-500 mb-1.5">Estado Git Local · branch <span className="font-mono text-gray-700">{localGit.branch}</span></p>
+            {localGit.hasChanges ? (
+              <div className="space-y-0.5 max-h-28 overflow-y-auto">
+                {localGit.changedFiles.map((f: string, i: number) => (
+                  <p key={i} className="font-mono text-xs text-amber-800">{f}</p>
+                ))}
+              </div>
+            ) : (
+              <p className="text-xs text-green-700 flex items-center gap-1.5"><CheckCircle className="w-3.5 h-3.5" /> Working tree limpo — sem alterações pendentes</p>
+            )}
+          </div>
+        )}
+
+        {/* Action */}
+        {isLocal ? (
+          <div className="space-y-3">
+            <div>
+              <label className="text-xs font-bold text-gray-600 uppercase block mb-1.5">Mensagem do Commit</label>
+              <input
+                value={commitMsg}
+                onChange={e => setCommitMsg(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && !deploying && handleDeploy()}
+                placeholder="ex: feat: melhoria no painel de clientes"
+                className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500/20 focus:border-green-500"
+              />
+            </div>
+            <button onClick={handleDeploy} disabled={deploying || !commitMsg.trim()}
+              className="w-full bg-black hover:bg-green-700 text-white py-3 rounded-xl text-sm font-bold transition-all disabled:opacity-50 flex items-center justify-center gap-2">
+              {deploying ? <><RefreshCw className="w-4 h-4 animate-spin" /> A fazer commit e push...</> : <><Upload className="w-4 h-4" /> Commit + Push → Deploy Vercel</>}
+            </button>
+          </div>
+        ) : (
+          <button onClick={handleDeploy} disabled={deploying}
+            className="w-full bg-black hover:bg-green-700 text-white py-3 rounded-xl text-sm font-bold transition-all disabled:opacity-50 flex items-center justify-center gap-2">
+            {deploying ? <><RefreshCw className="w-4 h-4 animate-spin" /> A iniciar deploy...</> : <><Upload className="w-4 h-4" /> Trigger Vercel Deploy</>}
+          </button>
+        )}
+
+        {/* Result */}
+        {result && (
+          <div className={`p-4 rounded-xl border ${result.success ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'}`}>
+            <div className="flex items-start gap-2">
+              {result.success ? <CheckCircle className="w-4 h-4 text-green-600 mt-0.5 shrink-0" /> : <AlertCircle className="w-4 h-4 text-red-600 mt-0.5 shrink-0" />}
+              <div className="space-y-1 flex-1">
+                <p className={`text-sm font-bold ${result.success ? 'text-green-700' : 'text-red-700'}`}>{result.message || result.error}</p>
+                {result.steps?.map((s: string, i: number) => <p key={i} className="text-xs text-gray-600 font-mono">✓ {s}</p>)}
+                {result.vercelDashboard && (
+                  <a href={result.vercelDashboard} target="_blank" rel="noopener noreferrer" className="text-xs text-green-600 hover:underline flex items-center gap-1">
+                    Ver deployments no Vercel <ExternalLink className="w-3 h-3" />
+                  </a>
+                )}
+                {result.setup?.map((s: string, i: number) => <p key={i} className="text-xs text-red-700 font-mono">{s}</p>)}
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Recent commits */}
+      <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
+        <h3 className="text-sm font-bold text-gray-700 uppercase tracking-wider mb-4">Commits Recentes</h3>
+        {loading ? (
+          <div className="space-y-3">{[1,2,3].map(i => <div key={i} className="h-10 bg-gray-100 rounded animate-pulse" />)}</div>
+        ) : commits.length > 0 ? (
+          <div className="space-y-1">
+            {commits.map((c, i) => (
+              <a key={i} href={c.url} target="_blank" rel="noopener noreferrer"
+                className="flex items-start gap-3 p-3 rounded-lg hover:bg-gray-50 border border-transparent hover:border-gray-200 group transition-colors">
+                <code className="text-[10px] font-mono bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded mt-0.5 shrink-0">{c.sha}</code>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm text-gray-800 font-medium truncate group-hover:text-blue-600">{c.message}</p>
+                  <p className="text-xs text-gray-400">{c.author} · {c.date ? new Date(c.date).toLocaleString('pt-PT') : ''}</p>
+                </div>
+                <ExternalLink className="w-3.5 h-3.5 text-gray-300 group-hover:text-blue-400 shrink-0 mt-1" />
+              </a>
+            ))}
+          </div>
+        ) : (
+          <p className="text-sm text-gray-400 text-center py-6">Sem commits. O repositório é público — não precisas de GITHUB_TOKEN para ver commits.</p>
         )}
       </div>
     </div>

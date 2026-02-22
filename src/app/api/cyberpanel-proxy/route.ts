@@ -62,6 +62,17 @@ export async function POST(request: NextRequest) {
 
         try {
             const jsonData = JSON.parse(data);
+
+            // Specific known error: API Access Disabled in CyberPanel settings
+            if (jsonData.error_message === 'API Access Disabled.' || jsonData.error_message?.includes('API Access Disabled')) {
+                console.warn('[CyberPanel] API Access is disabled on the server side.');
+                return NextResponse.json({
+                    status: 0,
+                    error_message: 'API Access Disabled.',
+                    fix: 'Acede ao CyberPanel → https://109.199.104.22:8090 → Clica em "Security" → "API Access" → Activa o toggle e guarda.',
+                }, { status: 403 });
+            }
+
             console.log(`[CyberPanel SUCCESS] Content: ${endpoint}`);
             return NextResponse.json(jsonData);
         } catch {
