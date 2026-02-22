@@ -494,8 +494,10 @@ export function CPUsersSection() {
   const handleDelete = async (userName: string) => {
     if (!confirm(`Eliminar utilizador ${userName}?`)) return
     const ok = await cyberPanelAPI.deleteUser(userName)
-    if (ok) { await removeUserFromSupabase(userName); loadUsers() }
-    else setMsg('Erro ao eliminar.')
+    // Always remove from Supabase regardless of CyberPanel API result
+    await removeUserFromSupabase(userName)
+    await loadUsers()
+    if (!ok) setMsg('Removido do painel. Verifica manualmente no CyberPanel se foi eliminado.')
   }
 
   return (

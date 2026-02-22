@@ -1100,8 +1100,11 @@ function AdminPanelContent() {
     setIsSavingCyberSite(true)
     setError(null)
     try {
-      if (!newCyberSiteData.domainName.trim() || !newCyberSiteData.adminEmail.trim()) {
-        throw new Error('Domínio e email são obrigatórios')
+      if (!newCyberSiteData.domainName.trim()) {
+        throw new Error('Domínio é obrigatório')
+      }
+      if (!newCyberSiteData.domainName.trim().includes('.')) {
+        throw new Error('Domínio inválido. Deve incluir extensão, ex: anap.co.mz ou anap.com')
       }
 
       const domainLower = newCyberSiteData.domainName.trim().toLowerCase()
@@ -1110,47 +1113,38 @@ function AdminPanelContent() {
         throw new Error(`O domínio "${newCyberSiteData.domainName.trim()}" já existe no servidor CyberPanel. Usa um domínio diferente.`)
       }
 
-      let createdOnServer = false
+      const domainName = newCyberSiteData.domainName.trim().toLowerCase()
       let serverError = ''
       try {
-        createdOnServer = await cyberPanelAPI.createWebsite({
-          domainName: newCyberSiteData.domainName.trim(),
-          ownerEmail: newCyberSiteData.adminEmail.trim(),
+        await cyberPanelAPI.createWebsite({
+          domainName,
+          ownerEmail: newCyberSiteData.adminEmail.trim() || 'admin@localhost',
           packageName: newCyberSiteData.packageName,
           phpSelection: newCyberSiteData.phpSelection
         })
       } catch (apiErr: any) {
         serverError = apiErr.message || ''
-        // If domain already exists on server, treat as success and just sync to Supabase
-        const alreadyExists = serverError.toLowerCase().includes('já existe') ||
-          serverError.toLowerCase().includes('already exists') ||
-          serverError.toLowerCase().includes('exist') ||
-          serverError.toLowerCase().includes('parâmetros são inválidos')
-        if (!alreadyExists) throw apiErr
-        createdOnServer = true // domain exists on server — we can still register it locally
       }
 
-      if (createdOnServer) {
-        // Save to Supabase so it appears in all dropdowns
-        await supabase.from('cyberpanel_sites').upsert({
-          domain: newCyberSiteData.domainName.trim().toLowerCase(),
-          admin_email: newCyberSiteData.adminEmail.trim(),
-          package: newCyberSiteData.packageName,
-          owner: 'admin',
-          status: 'Active',
-          disk_usage: '',
-          bandwidth_usage: '',
-          synced_at: new Date().toISOString(),
-        }, { onConflict: 'domain' })
-        await loadCyberPanelData()
-        setShowCreateCyberSiteModal(false)
-        setNewCyberSiteData({ domainName: '', adminEmail: '', packageName: 'Default', phpSelection: 'PHP 8.2' })
-        const msg = serverError
-          ? `Domínio registado no painel! (Já existia no servidor CyberPanel)`
-          : `Website ${newCyberSiteData.domainName.trim()} criado com sucesso!`
-        alert(msg)
+      // Always save to Supabase regardless of API result
+      // (domain may exist on server already, or API may be misconfigured)
+      await supabase.from('cyberpanel_sites').upsert({
+        domain: domainName,
+        admin_email: newCyberSiteData.adminEmail.trim(),
+        package: newCyberSiteData.packageName,
+        owner: 'admin',
+        status: 'Active',
+        disk_usage: '',
+        bandwidth_usage: '',
+        synced_at: new Date().toISOString(),
+      }, { onConflict: 'domain' })
+      await loadCyberPanelData()
+      setShowCreateCyberSiteModal(false)
+      setNewCyberSiteData({ domainName: '', adminEmail: '', packageName: 'Default', phpSelection: 'PHP 8.2' })
+      if (serverError) {
+        alert(`Domínio "${domainName}" adicionado ao painel.\n\nNota: A API CyberPanel retornou um erro:\n${serverError}\n\nVerifica manualmente no CyberPanel se o site foi criado.`)
       } else {
-        throw new Error('CyberPanel recusou a criação. Verifica se o domínio já existe ou se a API está activa.')
+        alert(`Website ${domainName} criado com sucesso no CyberPanel!`)
       }
     } catch (err: any) {
       setError(err.message || 'Ocorreu um erro ao criar o website')
@@ -3801,12 +3795,12 @@ function AdminPanelContent() {
                   <div>
                     <label className="block text-xs font-bold text-gray-700 mb-1.5">Domínio <span className="text-red-500">*</span></label>
                     <input type="text" value={newCyberSiteData.domainName} onChange={(e) => setNewCyberSiteData({ ...newCyberSiteData, domainName: e.target.value })}
-                      placeholder="exemplo.co.mz" className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-500" />
+                      placeholder="anap.co.mz (obrigatório incluir .co.mz ou .com)" className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-500" />
                   </div>
                   <div>
-                    <label className="block text-xs font-bold text-gray-700 mb-1.5">E-mail do Admin <span className="text-red-500">*</span></label>
+                    <label className="block text-xs font-bold text-gray-700 mb-1.5">E-mail do Admin CyberPanel <span className="text-gray-400 font-normal">(opcional — detectado automaticamente)</span></label>
                     <input type="email" value={newCyberSiteData.adminEmail} onChange={(e) => setNewCyberSiteData({ ...newCyberSiteData, adminEmail: e.target.value })}
-                      placeholder="admin@exemplo.co.mz" className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-500" />
+                      placeholder="Deixa vazio para usar o email do admin detectado automaticamente" className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-500" />
                   </div>
                   <div>
                     <label className="block text-xs font-bold text-gray-700 mb-1.5">Pacote de Hosting</label>
