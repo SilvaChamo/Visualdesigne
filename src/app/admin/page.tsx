@@ -361,16 +361,52 @@ function AdminPanelContent() {
         cyberPanelAPI.listPackages().catch(() => [{ packageName: 'Default', diskSpace: 1000, bandwidth: 10000, emailAccounts: 10, dataBases: 1, ftpAccounts: 1, allowedDomains: 1 }]),
         cyberPanelAPI.listUsers().catch(() => [] as any[]),
       ]);
-      // Save packages + users to localStorage so they're available immediately next load
-      if (packages.length > 0) { setCyberPanelPackages(packages); lsSavePackages(packages) }
-      else { const lsPkgs = lsGetPackages(); if (lsPkgs.length > 0) setCyberPanelPackages(lsPkgs) }
+      // ── Packages: API → Supabase → localStorage ──────────────────────────────
+      if (packages.length > 0) {
+        setCyberPanelPackages(packages); lsSavePackages(packages)
+        void (async () => {
+          try {
+            for (const p of packages) {
+              await supabase.from('cyberpanel_packages').upsert({
+                package_name: p.packageName, disk_space: p.diskSpace, bandwidth: p.bandwidth,
+                email_accounts: p.emailAccounts, databases: p.dataBases,
+                ftp_accounts: p.ftpAccounts, allowed_domains: p.allowedDomains
+              }, { onConflict: 'package_name' })
+            }
+          } catch { /* Supabase table may not exist yet */ }
+        })()
+      } else {
+        // Fallback 1: Supabase
+        let pkgLoaded = false
+        try {
+          const { data: sbPkgs, error: sbErr } = await supabase.from('cyberpanel_packages').select('*')
+          if (!sbErr && sbPkgs && sbPkgs.length > 0) {
+            const mapped = sbPkgs.map((p: any) => ({ packageName: p.package_name, diskSpace: p.disk_space, bandwidth: p.bandwidth, emailAccounts: p.email_accounts, dataBases: p.databases, ftpAccounts: p.ftp_accounts, allowedDomains: p.allowed_domains }))
+            setCyberPanelPackages(mapped); lsSavePackages(mapped); pkgLoaded = true
+          }
+        } catch { /* ignore */ }
+        // Fallback 2: localStorage
+        if (!pkgLoaded) { const lsPkgs = lsGetPackages(); if (lsPkgs.length > 0) setCyberPanelPackages(lsPkgs) }
+      }
 
+      // ── Users: API → Supabase → localStorage ─────────────────────────────────
       if (users.length > 0) {
         setCyberPanelUsers(users)
         users.forEach((u: any) => lsSaveUser(u.userName, { firstName: u.firstName, lastName: u.lastName, email: u.email, acl: u.acl, websitesLimit: u.websitesLimit }))
       } else {
-        const lsUsers = lsGetUsers()
-        if (lsUsers.length > 0) setCyberPanelUsers(lsUsers)
+        // Fallback 1: Supabase
+        let userLoaded = false
+        try {
+          const { data: sbUsers, error: sbErr } = await supabase.from('cyberpanel_users').select('*').order('username')
+          if (!sbErr && sbUsers && sbUsers.length > 0) {
+            const mapped = sbUsers.map((u: any) => ({ userName: u.username, firstName: u.first_name || '', lastName: u.last_name || '', email: u.email || '', acl: u.acl || 'user', websitesLimit: u.websites_limit || 0, status: u.status || 'Active' }))
+            setCyberPanelUsers(mapped)
+            mapped.forEach((u: any) => lsSaveUser(u.userName, u))
+            userLoaded = true
+          }
+        } catch { /* ignore */ }
+        // Fallback 2: localStorage
+        if (!userLoaded) { const lsUsers = lsGetUsers(); if (lsUsers.length > 0) setCyberPanelUsers(lsUsers) }
       }
 
       if (sites.length === 0) {
@@ -1163,6 +1199,7 @@ function AdminPanelContent() {
       const updatedPkgs = [...cyberPanelPackages.filter(p => p.packageName !== pkgEntry.packageName), pkgEntry]
       setCyberPanelPackages(updatedPkgs)
       lsSavePackages(updatedPkgs)
+      void (async () => { try { await supabase.from('cyberpanel_packages').upsert({ package_name: pkgEntry.packageName, disk_space: pkgEntry.diskSpace, bandwidth: pkgEntry.bandwidth, email_accounts: pkgEntry.emailAccounts, databases: pkgEntry.dataBases, ftp_accounts: pkgEntry.ftpAccounts, allowed_domains: pkgEntry.allowedDomains }, { onConflict: 'package_name' }) } catch {} })()
       setShowCreatePackageModal(false)
       setNewPackageData({ packageName: '', diskSpace: 1000, bandwidth: 10000, emailAccounts: 10, dataBases: 1, ftpAccounts: 1, allowedDomains: 1 })
       if (!success) {
