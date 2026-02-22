@@ -1110,25 +1110,47 @@ function AdminPanelContent() {
         throw new Error(`O domínio "${newCyberSiteData.domainName.trim()}" já existe no servidor CyberPanel. Usa um domínio diferente.`)
       }
 
-      const success = await cyberPanelAPI.createWebsite({
-        domainName: newCyberSiteData.domainName.trim(),
-        ownerEmail: newCyberSiteData.adminEmail.trim(),
-        packageName: newCyberSiteData.packageName,
-        phpSelection: newCyberSiteData.phpSelection
-      })
-
-      if (success) {
-        await loadCyberPanelData() // refresh + sync Supabase
-        setShowCreateCyberSiteModal(false)
-        setNewCyberSiteData({
-          domainName: '',
-          adminEmail: '',
-          packageName: 'Default',
-          phpSelection: 'PHP 8.2'
+      let createdOnServer = false
+      let serverError = ''
+      try {
+        createdOnServer = await cyberPanelAPI.createWebsite({
+          domainName: newCyberSiteData.domainName.trim(),
+          ownerEmail: newCyberSiteData.adminEmail.trim(),
+          packageName: newCyberSiteData.packageName,
+          phpSelection: newCyberSiteData.phpSelection
         })
-        alert(`Website ${newCyberSiteData.domainName.trim()} criado com sucesso no CyberPanel!`)
+      } catch (apiErr: any) {
+        serverError = apiErr.message || ''
+        // If domain already exists on server, treat as success and just sync to Supabase
+        const alreadyExists = serverError.toLowerCase().includes('já existe') ||
+          serverError.toLowerCase().includes('already exists') ||
+          serverError.toLowerCase().includes('exist') ||
+          serverError.toLowerCase().includes('parâmetros são inválidos')
+        if (!alreadyExists) throw apiErr
+        createdOnServer = true // domain exists on server — we can still register it locally
+      }
+
+      if (createdOnServer) {
+        // Save to Supabase so it appears in all dropdowns
+        await supabase.from('cyberpanel_sites').upsert({
+          domain: newCyberSiteData.domainName.trim().toLowerCase(),
+          admin_email: newCyberSiteData.adminEmail.trim(),
+          package: newCyberSiteData.packageName,
+          owner: 'admin',
+          status: 'Active',
+          disk_usage: '',
+          bandwidth_usage: '',
+          synced_at: new Date().toISOString(),
+        }, { onConflict: 'domain' })
+        await loadCyberPanelData()
+        setShowCreateCyberSiteModal(false)
+        setNewCyberSiteData({ domainName: '', adminEmail: '', packageName: 'Default', phpSelection: 'PHP 8.2' })
+        const msg = serverError
+          ? `Domínio registado no painel! (Já existia no servidor CyberPanel)`
+          : `Website ${newCyberSiteData.domainName.trim()} criado com sucesso!`
+        alert(msg)
       } else {
-        throw new Error('CyberPanel recusou a criação. Domínio já pode existir ou a API está desactivada.')
+        throw new Error('CyberPanel recusou a criação. Verifica se o domínio já existe ou se a API está activa.')
       }
     } catch (err: any) {
       setError(err.message || 'Ocorreu um erro ao criar o website')

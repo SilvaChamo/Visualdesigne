@@ -7,6 +7,7 @@ import type {
   CyberPanelFTPAccount, CyberPanelEmail, CyberPanelPHPConfig, CyberPanelPackage
 } from '@/lib/cyberpanel-api'
 import { syncUserToSupabase, removeUserFromSupabase, syncWebsiteToSupabase, removeWebsiteFromSupabase, markWPInstalledInSupabase } from '@/lib/supabase-sync'
+import { supabase } from '@/lib/supabase'
 import {
   RefreshCw, Globe, PlusCircle, Trash2, Database, Users, Mail, Lock, Shield,
   Server, HardDrive, Key, Settings, Code, AlertCircle, CheckCircle, Eye, EyeOff,
@@ -451,8 +452,23 @@ export function CPUsersSection() {
 
   const loadUsers = async () => {
     setLoading(true)
-    const [u, a] = await Promise.all([cyberPanelAPI.listUsers(), cyberPanelAPI.listACLs()])
-    setUsers(u); setAcls(a)
+    const [u, a] = await Promise.all([
+      cyberPanelAPI.listUsers().catch(() => [] as CyberPanelUser[]),
+      cyberPanelAPI.listACLs().catch(() => ['user', 'reseller'])
+    ])
+    setAcls(a)
+    if (u.length > 0) {
+      setUsers(u)
+    } else {
+      // Fallback: load from Supabase cyberpanel_users table
+      const { data: sbUsers } = await supabase.from('cyberpanel_users').select('*').order('username')
+      if (sbUsers && sbUsers.length > 0) {
+        setUsers(sbUsers.map((u: any) => ({
+          userName: u.username, firstName: u.first_name || '', lastName: u.last_name || '',
+          email: u.email || '', acl: u.acl || 'user', websitesLimit: u.websites_limit || 0, status: u.status || 'Active'
+        })))
+      }
+    }
     setLoading(false)
   }
 
@@ -462,10 +478,16 @@ export function CPUsersSection() {
     if (!form.userName || !form.email || !form.password) return
     setCreating(true); setMsg('')
     const ok = await cyberPanelAPI.createUser(form)
+    // Always save to Supabase so user appears in list even if CyberPanel API is unreliable
+    await syncUserToSupabase({ username: form.userName, firstName: form.firstName, lastName: form.lastName, email: form.email, acl: form.acl, websitesLimit: form.websitesLimit, status: 'Active' })
     if (ok) {
-      await syncUserToSupabase({ username: form.userName, firstName: form.firstName, lastName: form.lastName, email: form.email, acl: form.acl, websitesLimit: form.websitesLimit, status: 'Active' })
-      setMsg('Utilizador criado e sincronizado!'); setShowForm(false); setForm({ firstName: '', lastName: '', email: '', userName: '', password: '', websitesLimit: 10, acl: 'user' }); loadUsers()
-    } else setMsg('Erro ao criar utilizador.')
+      setMsg('Utilizador criado e sincronizado!')
+    } else {
+      setMsg('Guardado localmente. Verifica se foi criado no CyberPanel.')
+    }
+    setShowForm(false)
+    setForm({ firstName: '', lastName: '', email: '', userName: '', password: '', websitesLimit: 10, acl: 'user' })
+    loadUsers()
     setCreating(false)
   }
 
