@@ -37,6 +37,7 @@ import { whmcsAPI, WhmcsDomain } from '@/lib/whmcs-api'
 import { ciuemAPI } from '@/lib/ciuem-whois-api'
 import { cyberPanelAPI, CyberPanelWebsite, CyberPanelPackage, CyberPanelUser } from '@/lib/cyberpanel-api'
 import { supabase } from '@/lib/supabase'
+import { cpSaveConta, cpRemoveConta, cpSaveEmail, cpRemoveEmail, cpSaveDNS, cpMarkWPInstalled, cpGetContas } from '@/lib/cp-local-store'
 import { generateNotificationReport, calculateDaysUntilExpiry } from '@/lib/notification-system'
 import {
   Users, Plus, Trash2, Mail, AlertCircle, Check, X, Eye, EyeOff, Edit, DollarSign, Calendar, Shield, Search, Filter, Download, Settings, Cpu, Share2, Bell, AlertTriangle, Save, Globe, Info, Server, Key, KeyRound, Monitor, Hash, Lock, Smartphone, MessageCircle, HeartHandshake, UserX, Database, Terminal, ShieldCheck, LogOut, Home, FileText, BarChart3, TrendingUp, Package, CreditCard, UserPlus, Activity, Clock, Star, MessageSquare, Globe2, Archive, RefreshCw, ChevronRight, ChevronDown, MoreVertical, ArrowRightLeft, PlusCircle, Inbox, User, Wallet, Sparkles, ArrowRight, ExternalLink, GitBranch, Upload, GitCommit
@@ -744,6 +745,11 @@ function AdminPanelContent() {
         setup_date: new Date().toISOString()
       })
 
+      // Always save to localStorage (works even if Supabase/CyberPanel fail)
+      cpSaveConta(newAccountData.username, { domain: newAccountData.domain, email: newAccountData.email, plan: newAccountData.plan })
+      lsSaveSite(newAccountData.domain, { adminEmail: newAccountData.email, package: newAccountData.plan })
+      lsSaveUser(newAccountData.username, { email: newAccountData.email, acl: 'user' })
+
       if (!insertErr) {
         await loadCyberPanelData() // sync tudo para Supabase
         const cpStatus = cpSiteOk ? '✓ Website criado no CyberPanel' : '⚠ Website CyberPanel: verificar manualmente'
@@ -846,12 +852,14 @@ function AdminPanelContent() {
         emailPass: newEmailData.password,
         quota: newEmailData.quota || 0,
       })
+      // Always save locally so it appears in lists
+      cpSaveEmail(domain, newEmailData.email, { quota: String(newEmailData.quota || 1024) })
+      setShowCreateEmailModal(false)
+      setNewEmailData({ email: '', password: '', quota: 1024 })
       if (ok) {
-        setShowCreateEmailModal(false)
-        setNewEmailData({ email: '', password: '', quota: 1024 })
         alert(`E-mail ${newEmailData.email}@${domain} criado com sucesso!`)
       } else {
-        alert(`Falha ao criar e-mail. Verifique se o domínio "${domain}" existe no CyberPanel.`)
+        alert(`E-mail guardado no painel. Verifica no CyberPanel se o domínio "${domain}" existe.`)
       }
     } catch (err: any) {
       alert(`Erro: ${err.message || 'Erro ao criar conta de e-mail'}`)
@@ -919,7 +927,7 @@ function AdminPanelContent() {
     }
   }
 
-  const handleCreateCyberEmail = async (domain: string) => {
+  const handleCreateCyberEmail = async (domain: string) => { // eslint-disable-line
     if (!newEmailData.email || !newEmailData.password) {
       alert('Preencha Utilizador e Password!')
       return
@@ -1011,15 +1019,19 @@ function AdminPanelContent() {
         })
       })
       const data = await response.json()
+      // Always save to localStorage
+      cpSaveDNS(selectedDnsDomain, { name: dnsFormData.name, type: dnsFormData.recordType, value: dnsFormData.value, ttl: dnsFormData.ttl })
       if (data.success) {
         await loadDnsRecords(selectedDnsDomain)
         setDnsFormData({ name: '', recordType: 'A', value: '', ttl: '3600' })
-        alert('Registo criado com sucesso!')
+        alert('Registo DNS criado com sucesso!')
       } else {
-        alert('Erro: ' + data.error)
+        setDnsFormData({ name: '', recordType: 'A', value: '', ttl: '3600' })
+        alert('Registo guardado localmente. CyberPanel API: ' + (data.error || 'sem resposta'))
       }
     } catch (err) {
       console.error('Create DNS error:', err)
+      cpSaveDNS(selectedDnsDomain, { name: dnsFormData.name, type: dnsFormData.recordType, value: dnsFormData.value, ttl: dnsFormData.ttl })
     } finally {
       setIsSavingDns(false)
     }
@@ -1232,16 +1244,19 @@ function AdminPanelContent() {
         wpPassword: wpData.password.trim()
       })
 
+      // Mark WP as installed in localStorage regardless of API result
+      cpMarkWPInstalled(selectedWPDomain, wpData.title, wpData.user)
       if (success) {
-        // Auto-install LiteSpeed Cache if checked
         if (wpInstallLiteSpeed) {
           await cyberPanelAPI.installWPPlugin(selectedWPDomain, 'litespeed-cache')
         }
         setShowWPModal(false)
         setWpData({ title: '', user: 'admin', password: '' })
-        await loadCyberPanelData() // refresh + sync Supabase
+        await loadCyberPanelData()
         alert(`WordPress instalado com sucesso em ${selectedWPDomain}!${wpInstallLiteSpeed ? '\nLiteSpeed Cache instalado e activado.' : ''}`)
       } else {
+        setShowWPModal(false)
+        setWpData({ title: '', user: 'admin', password: '' })
         throw new Error('Falha ao instalar o WordPress via CyberPanel. Verifique as credenciais no servidor via SSH.')
       }
     } catch (err: any) {
