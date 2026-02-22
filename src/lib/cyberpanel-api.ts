@@ -148,13 +148,13 @@ class CyberPanelAPI {
 
             const data = await response.json();
 
-            // CyberPanel API often returns status codes inside the data
-            if (data.status === 0 || (data.error_message && data.error_message !== 'None')) {
-                throw new Error(`CyberPanel API Error: ${data.error_message || 'Unknown error'}`);
-            }
-            // 'None' means CyberPanel returned no specific error — usually domain already exists
-            if (data.error_message === 'None') {
-                throw new Error('O domínio já existe no servidor ou os parâmetros são inválidos.');
+            // CyberPanel returns status:0 on failure, status:1 on success
+            // error_message:'None' is Python None — normal on success responses, only meaningful when status:0
+            if (data.status === 0) {
+                const msg = (!data.error_message || data.error_message === 'None')
+                    ? 'O domínio já existe no servidor ou os parâmetros são inválidos.'
+                    : `CyberPanel API Error: ${data.error_message}`;
+                throw new Error(msg);
             }
 
             return data;
@@ -167,27 +167,37 @@ class CyberPanelAPI {
     // --- Website Management ---
 
     async listWebsites(): Promise<CyberPanelWebsite[]> {
-        try {
-            // Note: CyberPanel doesn't have a direct "listAll" in some API versions, 
-            // sometimes we need to fetch info about the admin user
-            const result = await this.makeRequest('fetchWebsites');
+        const parseSites = (arr: any[]): CyberPanelWebsite[] =>
+            arr.map((site: any) => ({
+                domain: site.domain || site.domainName || '',
+                adminEmail: site.adminEmail || site.ownerEmail || '',
+                package: site.package || site.packageName || 'Default',
+                owner: site.owner || site.websiteOwner || 'admin',
+                status: site.status || site.state || 'Active',
+                diskUsage: site.diskUsage || site.diskspace || '',
+                bandwidthUsage: site.bandwidthUsage || site.bandwidth || '',
+            })).filter(s => s.domain);
 
-            if (result.status === 1 && Array.isArray(result.data)) {
-                return result.data.map((site: any) => ({
-                    domain: site.domain,
-                    adminEmail: site.adminEmail,
-                    package: site.package,
-                    owner: site.owner,
-                    status: site.status,
-                    diskUsage: site.diskUsage,
-                    bandwidthUsage: site.bandwidthUsage
-                }));
-            }
-            return [];
-        } catch (error) {
-            console.error('Failed to fetch CyberPanel websites:', error);
-            return [];
-        }
+        const tryFetch = async (endpoint: string, extra: Record<string, any> = {}) => {
+            try {
+                const result = await this.makeRequest(endpoint, extra);
+                console.log(`[listWebsites] ${endpoint}:`, JSON.stringify(result).substring(0, 200));
+                // CyberPanel uses different keys depending on version
+                const arr = result.data || result.websitesData || result.websites || result.websiteList || [];
+                if (Array.isArray(arr) && arr.length > 0) return parseSites(arr);
+            } catch { /* try next */ }
+            return null;
+        };
+
+        // Try endpoints in order until one returns results
+        return (
+            await tryFetch('fetchWebsites', { ownerEmail: 'admin' }) ||
+            await tryFetch('fetchWebsites', { websiteOwner: 'admin' }) ||
+            await tryFetch('fetchWebsites') ||
+            await tryFetch('listWebsites') ||
+            await tryFetch('fetchSitesv2') ||
+            []
+        );
     }
 
     async createWebsite(params: {
