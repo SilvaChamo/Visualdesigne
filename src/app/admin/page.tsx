@@ -361,12 +361,16 @@ function AdminPanelContent() {
         cyberPanelAPI.listPackages().catch(() => [{ packageName: 'Default', diskSpace: 1000, bandwidth: 10000, emailAccounts: 10, dataBases: 1, ftpAccounts: 1, allowedDomains: 1 }]),
         cyberPanelAPI.listUsers().catch(() => [] as any[]),
       ]);
-      // ── Packages: API → Supabase → localStorage ──────────────────────────────
+      // ── Packages: API → merge with localStorage → Supabase → localStorage ──────
+      const lsPkgs = lsGetPackages()
       if (packages.length > 0) {
-        setCyberPanelPackages(packages); lsSavePackages(packages)
+        // Merge: API packages + any localStorage packages not yet in API
+        const apiNames = new Set(packages.map((p: any) => p.packageName))
+        const merged = [...packages, ...lsPkgs.filter((p: any) => !apiNames.has(p.packageName))]
+        setCyberPanelPackages(merged); lsSavePackages(merged)
         void (async () => {
           try {
-            for (const p of packages) {
+            for (const p of merged) {
               await supabase.from('cyberpanel_packages').upsert({
                 package_name: p.packageName, disk_space: p.diskSpace, bandwidth: p.bandwidth,
                 email_accounts: p.emailAccounts, databases: p.dataBases,
@@ -382,11 +386,14 @@ function AdminPanelContent() {
           const { data: sbPkgs, error: sbErr } = await supabase.from('cyberpanel_packages').select('*')
           if (!sbErr && sbPkgs && sbPkgs.length > 0) {
             const mapped = sbPkgs.map((p: any) => ({ packageName: p.package_name, diskSpace: p.disk_space, bandwidth: p.bandwidth, emailAccounts: p.email_accounts, dataBases: p.databases, ftpAccounts: p.ftp_accounts, allowedDomains: p.allowed_domains }))
-            setCyberPanelPackages(mapped); lsSavePackages(mapped); pkgLoaded = true
+            // Merge Supabase packages with localStorage packages
+            const sbNames = new Set(mapped.map((p: any) => p.packageName))
+            const mergedSb = [...mapped, ...lsPkgs.filter((p: any) => !sbNames.has(p.packageName))]
+            setCyberPanelPackages(mergedSb); lsSavePackages(mergedSb); pkgLoaded = true
           }
         } catch { /* ignore */ }
-        // Fallback 2: localStorage
-        if (!pkgLoaded) { const lsPkgs = lsGetPackages(); if (lsPkgs.length > 0) setCyberPanelPackages(lsPkgs) }
+        // Fallback 2: localStorage (always works)
+        if (!pkgLoaded && lsPkgs.length > 0) setCyberPanelPackages(lsPkgs)
       }
 
       // ── Users: API → Supabase → localStorage ─────────────────────────────────
@@ -980,17 +987,25 @@ function AdminPanelContent() {
         })
       })
       const data = await response.json()
+      // Always save to localStorage regardless of API result
+      cpSaveEmail(domain, newEmailData.email, { quota: String(newEmailData.quota || 500) })
+      void (async () => { try { await supabase.from('cyberpanel_emails').upsert({ domain, email_user: newEmailData.email, quota: String(newEmailData.quota || 500) }, { onConflict: 'domain,email_user' }) } catch {} })()
       if (data.success) {
         await loadCyberEmailAccounts(domain)
         setShowCreateEmailModal(false)
         setNewEmailData({ email: '', password: '', quota: 1024 })
         alert('Conta de E-mail criada com sucesso!')
       } else {
-        alert('Falha: ' + data.error)
+        await loadCyberEmailAccounts(domain)
+        setShowCreateEmailModal(false)
+        setNewEmailData({ email: '', password: '', quota: 1024 })
+        alert(`E-mail ${newEmailData.email}@${domain} guardado no painel. API: ${data.error || 'verifique o CyberPanel'}`)
       }
-    } catch (err) {
-      console.error('Create Cyber email error:', err)
-      alert('Erro inesperado ao criar e-mail.')
+    } catch (err: any) {
+      cpSaveEmail(domain, newEmailData.email, { quota: '500' })
+      setShowCreateEmailModal(false)
+      setNewEmailData({ email: '', password: '', quota: 1024 })
+      alert(`E-mail guardado localmente. Erro de ligação: ${err?.message || 'sem SSH configurado'}`)
     } finally {
       setIsSavingEmail(false)
     }
@@ -1201,6 +1216,7 @@ function AdminPanelContent() {
       lsSavePackages(updatedPkgs)
       void (async () => { try { await supabase.from('cyberpanel_packages').upsert({ package_name: pkgEntry.packageName, disk_space: pkgEntry.diskSpace, bandwidth: pkgEntry.bandwidth, email_accounts: pkgEntry.emailAccounts, databases: pkgEntry.dataBases, ftp_accounts: pkgEntry.ftpAccounts, allowed_domains: pkgEntry.allowedDomains }, { onConflict: 'package_name' }) } catch {} })()
       setShowCreatePackageModal(false)
+      setActiveSection('packages-list')
       setNewPackageData({ packageName: '', diskSpace: 1000, bandwidth: 10000, emailAccounts: 10, dataBases: 1, ftpAccounts: 1, allowedDomains: 1 })
       if (!success) {
         setError('Aviso: API CyberPanel não confirmou. Pacote guardado no painel local.')
@@ -1283,18 +1299,17 @@ function AdminPanelContent() {
 
       // Mark WP as installed in localStorage regardless of API result
       cpMarkWPInstalled(selectedWPDomain, wpData.title, wpData.user)
+      setShowWPModal(false)
+      setWpData({ title: '', user: 'admin', password: '' })
       if (success) {
         if (wpInstallLiteSpeed) {
           await cyberPanelAPI.installWPPlugin(selectedWPDomain, 'litespeed-cache')
         }
-        setShowWPModal(false)
-        setWpData({ title: '', user: 'admin', password: '' })
         await loadCyberPanelData()
         alert(`WordPress instalado com sucesso em ${selectedWPDomain}!${wpInstallLiteSpeed ? '\nLiteSpeed Cache instalado e activado.' : ''}`)
       } else {
-        setShowWPModal(false)
-        setWpData({ title: '', user: 'admin', password: '' })
-        throw new Error('Falha ao instalar o WordPress via CyberPanel. Verifique as credenciais no servidor via SSH.')
+        setError(`WordPress guardado localmente para ${selectedWPDomain}. Se o domínio existe no CyberPanel, use o painel em https://109.199.104.22:8090 para instalar manualmente via SSH.`)
+        setActiveSection('wordpress-deploy')
       }
     } catch (err: any) {
       setError(err.message || 'Erro ao comunicar com o servidor CyberPanel')
@@ -1492,7 +1507,7 @@ function AdminPanelContent() {
   const menuItems: Array<{ id: string; label: string; color: string; isNew?: boolean; subItems?: Array<{ id: string; label: string }> }> = [
     { id: 'dashboard',     label: 'Dashboard',       color: 'bg-blue-500' },
     { id: 'clients',       label: 'Contas',          color: 'bg-green-500' },
-    { id: 'packages-list', label: 'Pacotes',         color: 'bg-teal-500' },
+    { id: 'packages-list', label: 'Pacotes de Alojamento', color: 'bg-teal-500' },
     { id: 'billing',       label: 'Faturação',       color: 'bg-indigo-500' },
     { id: 'notifications', label: 'Notificações',    color: 'bg-orange-500' },
     { id: 'reports',       label: 'Relatórios',      color: 'bg-pink-500' },
@@ -3396,14 +3411,22 @@ function AdminPanelContent() {
             <div>
               <div className="flex justify-between items-center mb-8">
                 <h1 className="text-3xl font-bold text-gray-900">Domínios</h1>
-                <button
-                  onClick={loadCyberPanelData}
-                  disabled={isFetchingCyberPanel}
-                  className="bg-black hover:bg-red-600 text-white px-4 py-1.5 rounded-md flex items-center gap-2 transition-all shadow-sm text-sm font-bold"
-                >
-                  <RefreshCw className={`w-4 h-4 ${isFetchingCyberPanel ? 'animate-spin' : ''}`} />
-                  {isFetchingCyberPanel ? 'Carregando...' : 'Atualizar Domínios'}
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setActiveSection('domains-new')}
+                    className="bg-black hover:bg-red-600 text-white px-4 py-1.5 rounded-md flex items-center gap-2 transition-all shadow-sm text-sm font-bold"
+                  >
+                    <PlusCircle className="w-4 h-4" /> Novo Website
+                  </button>
+                  <button
+                    onClick={loadCyberPanelData}
+                    disabled={isFetchingCyberPanel}
+                    className="bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-1.5 rounded-md flex items-center gap-2 transition-all shadow-sm text-sm font-bold"
+                  >
+                    <RefreshCw className={`w-4 h-4 ${isFetchingCyberPanel ? 'animate-spin' : ''}`} />
+                    {isFetchingCyberPanel ? 'Carregando...' : 'Atualizar'}
+                  </button>
+                </div>
               </div>
 
               {/* Domains Table - CyberPanel */}
@@ -3707,15 +3730,21 @@ function AdminPanelContent() {
                   <h1 className="text-3xl font-bold text-gray-900">Pacotes de Alojamento</h1>
                   <p className="text-gray-500 mt-1">Gira as quotas de armazenamento, tráfego e limites da sua revenda.</p>
                 </div>
-                <button
-                  onClick={() => {
-                    loadCyberPanelData()
-                  }}
-                  className="bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-2 rounded-md flex items-center gap-2 transition-all font-bold"
-                >
-                  <RefreshCw className={`w-4 h-4 ${isFetchingPackages ? 'animate-spin text-emerald-600' : ''}`} />
-                  Atualizar
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setActiveSection('packages-new')}
+                    className="bg-black hover:bg-red-600 text-white px-4 py-2 rounded-md flex items-center gap-2 transition-all font-bold text-sm"
+                  >
+                    <PlusCircle className="w-4 h-4" /> Criar Novo Pacote
+                  </button>
+                  <button
+                    onClick={() => loadCyberPanelData()}
+                    className="bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-2 rounded-md flex items-center gap-2 transition-all font-bold"
+                  >
+                    <RefreshCw className={`w-4 h-4 ${isFetchingCyberPanel ? 'animate-spin text-emerald-600' : ''}`} />
+                    Atualizar
+                  </button>
+                </div>
               </div>
 
               {error && (
@@ -3798,13 +3827,13 @@ function AdminPanelContent() {
                     body: JSON.stringify(packageFormData)
                   })
                   const data = await res.json()
-                  if (data.success) {
-                    alert('Pacote criado com sucesso!')
-                    loadCyberPanelData()
-                    setPackageFormData({ packageName: '', diskSpace: '1000', bandwidth: '10000', emailAccounts: '10', dataBases: '5', ftpAccounts: '2', allowedDomains: '1' })
-                  } else {
-                    throw new Error(data.error || 'Erro ao criar pacote')
-                  }
+                  const pkgEntry = { packageName: packageFormData.packageName.trim().replace(/\s+/g,'_'), diskSpace: Number(packageFormData.diskSpace), bandwidth: Number(packageFormData.bandwidth), emailAccounts: Number(packageFormData.emailAccounts), dataBases: Number(packageFormData.dataBases), ftpAccounts: Number(packageFormData.ftpAccounts), allowedDomains: Number(packageFormData.allowedDomains) }
+                  const updatedPkgs = [...cyberPanelPackages.filter(p => p.packageName !== pkgEntry.packageName), pkgEntry]
+                  setCyberPanelPackages(updatedPkgs); lsSavePackages(updatedPkgs)
+                  void (async () => { try { await supabase.from('cyberpanel_packages').upsert({ package_name: pkgEntry.packageName, disk_space: pkgEntry.diskSpace, bandwidth: pkgEntry.bandwidth, email_accounts: pkgEntry.emailAccounts, databases: pkgEntry.dataBases, ftp_accounts: pkgEntry.ftpAccounts, allowed_domains: pkgEntry.allowedDomains }, { onConflict: 'package_name' }) } catch {} })()
+                  setPackageFormData({ packageName: '', diskSpace: '1000', bandwidth: '10000', emailAccounts: '10', dataBases: '5', ftpAccounts: '2', allowedDomains: '1' })
+                  setActiveSection('packages-list')
+                  if (!data.success) setError(`Pacote guardado localmente. API: ${data.error || 'verifica o CyberPanel'}`)
                 } catch (err: any) {
                   setError(err.message)
                 } finally {
@@ -5423,9 +5452,12 @@ function AdminPanelContent() {
                               <p className="font-bold text-gray-900 text-sm">{account.email}</p>
                             </div>
                           </div>
-                          <button onClick={() => handleDeleteCyberEmail(account.email, selectedClientForEmails.domain)} className="text-red-500 hover:text-red-700 p-2 bg-white rounded-md border border-gray-200 shadow-sm transition-colors">
-                            <Trash2 className="w-4 h-4" />
-                          </button>
+                          <div className="flex items-center gap-2">
+                            <a href={`https://webmail.${selectedClientForEmails.domain}`} target="_blank" rel="noopener noreferrer" className="text-xs bg-blue-100 hover:bg-blue-200 text-blue-700 px-3 py-1.5 rounded-md font-bold transition-colors">Webmail</a>
+                            <button onClick={() => handleDeleteCyberEmail(account.email, selectedClientForEmails.domain)} className="text-red-500 hover:text-red-700 p-2 bg-white rounded-md border border-gray-200 shadow-sm transition-colors">
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
                         </div>
                       ))}
                     </div>

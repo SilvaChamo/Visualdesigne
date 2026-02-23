@@ -132,6 +132,7 @@ export function DatabasesSection({ sites }: { sites: CyberPanelWebsite[] }) {
   const [dbPass, setDbPass] = useState('')
   const [creating, setCreating] = useState(false)
   const [msg, setMsg] = useState('')
+  const [lastCreated, setLastCreated] = useState<{dbName: string; dbUser: string; dbPass: string} | null>(null)
 
   const loadDBs = async (domain: string) => {
     if (!domain) return
@@ -153,6 +154,8 @@ export function DatabasesSection({ sites }: { sites: CyberPanelWebsite[] }) {
     const ok = await cyberPanelAPI.createDatabase(selectedDomain, dbName, dbUser, dbPass)
     cpSaveDatabase(selectedDomain, dbName, dbUser)
     void (async () => { try { await supabase.from('cyberpanel_databases').upsert({ domain: selectedDomain, db_name: dbName, db_user: dbUser }, { onConflict: 'domain,db_name' }) } catch {} })()
+    const createdPass = dbPass
+    setLastCreated({ dbName, dbUser, dbPass: createdPass })
     setMsg(ok ? 'Base de dados criada!' : 'Guardada localmente. Verifica no CyberPanel.')
     setDbName(''); setDbUser(''); setDbPass('')
     loadDBs(selectedDomain)
@@ -201,15 +204,33 @@ export function DatabasesSection({ sites }: { sites: CyberPanelWebsite[] }) {
 
         {msg && <div className={`mt-4 px-4 py-2.5 rounded-lg text-sm font-medium ${msg.includes('criada') ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-700 border border-red-200'}`}>{msg}</div>}
 
+        {lastCreated && (
+          <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg text-sm">
+            <p className="font-bold text-blue-800 mb-2">Credenciais da Base de Dados Criada:</p>
+            <div className="grid grid-cols-3 gap-3 font-mono text-xs">
+              <div><span className="text-blue-600 font-bold">BD:</span> {lastCreated.dbName}</div>
+              <div><span className="text-blue-600 font-bold">User:</span> {lastCreated.dbUser}</div>
+              <div><span className="text-blue-600 font-bold">Pass:</span> {lastCreated.dbPass}</div>
+            </div>
+            <div className="mt-2 flex gap-2">
+              <a href="https://109.199.104.22:8090/dataBases/phpMyAdmin" target="_blank" rel="noopener noreferrer" className="text-xs bg-orange-500 hover:bg-orange-600 text-white px-3 py-1.5 rounded font-bold">Abrir phpMyAdmin</a>
+              <button onClick={() => setLastCreated(null)} className="text-xs text-blue-600 hover:underline">Fechar</button>
+            </div>
+          </div>
+        )}
+
         {loading ? <div className="py-12 text-center"><RefreshCw className="w-8 h-8 animate-spin text-gray-400 mx-auto" /></div> : databases.length > 0 && (
           <table className="w-full text-sm mt-6">
-            <thead><tr className="text-left text-xs font-bold text-gray-500 uppercase border-b"><th className="px-4 py-3">Base de Dados</th><th className="px-4 py-3">Utilizador</th><th className="px-4 py-3 w-20">Ações</th></tr></thead>
+            <thead><tr className="text-left text-xs font-bold text-gray-500 uppercase border-b"><th className="px-4 py-3">Base de Dados</th><th className="px-4 py-3">Utilizador</th><th className="px-4 py-3 w-32">Ações</th></tr></thead>
             <tbody>
               {databases.map((db, i) => (
                 <tr key={i} className="border-b border-gray-50 hover:bg-gray-50">
                   <td className="px-4 py-3 font-medium font-mono text-sm">{db.dbName}</td>
                   <td className="px-4 py-3 text-gray-600 font-mono text-sm">{db.dbUser}</td>
-                  <td className="px-4 py-3"><button onClick={() => handleDelete(db.dbName)} className="text-red-500 hover:text-red-700"><Trash2 className="w-4 h-4" /></button></td>
+                  <td className="px-4 py-3 flex items-center gap-2">
+                    <a href="https://109.199.104.22:8090/dataBases/phpMyAdmin" target="_blank" rel="noopener noreferrer" className="text-xs bg-orange-100 hover:bg-orange-200 text-orange-700 px-2 py-1 rounded font-medium">phpMyAdmin</a>
+                    <button onClick={() => handleDelete(db.dbName)} className="text-red-500 hover:text-red-700"><Trash2 className="w-4 h-4" /></button>
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -442,6 +463,7 @@ export function EmailManagementSection({ sites }: { sites: CyberPanelWebsite[] }
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
+                    <a href={`https://webmail.${selectedDomain}`} target="_blank" rel="noopener noreferrer" className="text-xs bg-blue-100 hover:bg-blue-200 text-blue-700 px-3 py-1.5 rounded-md font-bold transition-colors">Webmail</a>
                     <button onClick={() => setChangingPass(changingPass === em.email ? null : em.email)} className="text-xs bg-gray-100 hover:bg-gray-200 px-3 py-1.5 rounded-md font-medium transition-colors">Alterar Senha</button>
                     <button onClick={() => loadForwards(em.email)} className="text-xs bg-gray-100 hover:bg-gray-200 px-3 py-1.5 rounded-md font-medium transition-colors">Reencaminhar</button>
                     <button onClick={() => handleDelete(em.email)} className="text-red-500 hover:text-red-700 p-1.5"><Trash2 className="w-4 h-4" /></button>
