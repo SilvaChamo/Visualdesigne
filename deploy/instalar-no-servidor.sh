@@ -10,7 +10,7 @@ set -e
 SERVER_IP="109.199.104.22"
 SERVER_USER="root"
 SSH_KEY="/Users/macbook/.ssh/visualdesign_cyberpanel_key"
-APP_DOMAIN="admin.visualdesign.ao"   # Muda para o teu domínio
+APP_DOMAIN="visualdesign.ao"
 APP_DIR="/home/${APP_DOMAIN}/public_html"
 APP_PORT=3002
 LOCAL_PROJECT="/Users/macbook/Desktop/APP/visualdesign"
