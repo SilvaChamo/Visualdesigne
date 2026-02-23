@@ -71,6 +71,13 @@ cat /Users/macbook/.ssh/visualdesign_cyberpanel_key
 
 Após configurar os secrets, cada `git push origin main` faz deploy automático ao servidor.
 
+**NOTA:** Se o token GitHub não tiver scope `workflow`, o push do workflow falha. Solução:
+- Criar novo token em `https://github.com/settings/tokens/new` com scopes `repo` + `workflow`
+- Atualizar remote: `git remote set-url origin https://USER:TOKEN@github.com/SilvaChamo/Visualdesigne.git`
+- Tentar `git push origin main` novamente
+
+**Enquanto isso, use deploy manual (abaixo).**
+
 ---
 
 ## Emitir SSL (após DNS propagar)
