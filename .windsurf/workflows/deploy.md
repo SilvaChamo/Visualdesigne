@@ -50,6 +50,29 @@ ssh -i /Users/macbook/.ssh/visualdesign_cyberpanel_key root@109.199.104.22 \
   "pm2 list && curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:3002"
 ```
 
+## GitHub Actions — Deploy Automático (CI/CD)
+O ficheiro `.github/workflows/deploy.yml` faz deploy automático cada vez que é feito `git push origin main`.
+
+### Configurar Secrets no GitHub (só uma vez)
+Vai a: `https://github.com/SilvaChamo/Visualdesigne/settings/secrets/actions` → **New repository secret**
+
+| Secret | Valor |
+|--------|-------|
+| `SERVER_HOST` | `109.199.104.22` |
+| `SERVER_USER` | `root` |
+| `SERVER_SSH_KEY` | conteúdo de `/Users/macbook/.ssh/visualdesign_cyberpanel_key` |
+| `NEXT_PUBLIC_SUPABASE_URL` | `https://gwankhxcbkrtgxopbxwd.supabase.co` |
+| `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY` | `sb_publishable_NkNwKuVE-AyGgyxKB6zpmQ_b-HdjWOA` |
+
+Para copiar a chave SSH:
+```bash
+cat /Users/macbook/.ssh/visualdesign_cyberpanel_key
+```
+
+Após configurar os secrets, cada `git push origin main` faz deploy automático ao servidor.
+
+---
+
 ## Emitir SSL (após DNS propagar)
 4. No CyberPanel `https://109.199.104.22:8090`:
 ```
