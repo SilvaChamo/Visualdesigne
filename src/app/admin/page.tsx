@@ -1399,17 +1399,16 @@ function AdminPanelContent() {
           transition={{ duration: 0.6 }}
           className="w-full max-w-md relative z-10"
         >
-          {/* Logo grande - apenas logotipo, sem título nem descrição */}
-          <div className="flex justify-center mb-10">
-            <img src="/assets/logotipoII.png" alt="Visual Design" className="h-26 w-auto object-contain" style={{ height: '6.5rem' }} />
-          </div>
-
           {/* Formulário com fundo preto transparente */}
           <div className="bg-white/5 border border-white/10 p-7 backdrop-blur-sm" style={{ borderRadius: '10px' }}>
+            {/* Logo dentro do formulário */}
+            <div className="flex justify-center mb-3">
+              <img src="/assets/logotipoII.png" alt="Visual Design" className="w-auto object-contain" style={{ height: '9rem' }} />
+            </div>
             <div className="space-y-5">
               {/* Campo E-mail com label */}
               <div>
-                <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 ml-1">E-mail</label>
+                <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 ml-1">{t('admin.login.email')}</label>
                 <div className="relative group">
                   <div className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 group-focus-within:text-red-500 transition-colors">
                     <Mail className="w-4 h-4" />
@@ -1429,8 +1428,8 @@ function AdminPanelContent() {
               {/* Campo Palavra-passe com label */}
               <div>
                 <div className="flex justify-between items-center mb-2 ml-1">
-                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Palavra-passe</label>
-                  <a href="#" className="text-[10px] font-bold text-red-500 hover:text-red-400 uppercase tracking-widest transition-colors">Esqueceu?</a>
+                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">{t('admin.login.password')}</label>
+                  <a href="#" className="text-[10px] font-bold text-red-500 hover:text-red-400 uppercase tracking-widest transition-colors">{t('admin.login.forgot')}</a>
                 </div>
                 <div className="relative group">
                   <div className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 group-focus-within:text-red-500 transition-colors">
@@ -1467,7 +1466,7 @@ function AdminPanelContent() {
                 className="w-full bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 text-white py-3.5 font-black uppercase tracking-widest transition-all shadow-xl shadow-red-900/30 text-sm flex items-center justify-center gap-2 group"
                 style={{ borderRadius: '8px' }}
               >
-                Entrar na Conta
+                {t('admin.login.submit')}
                 <svg className="w-4 h-4 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" /></svg>
               </button>
             </div>
@@ -1475,9 +1474,9 @@ function AdminPanelContent() {
 
           {/* Texto + botão horizontal */}
           <div className="mt-6 flex items-center justify-center gap-4">
-            <p className="text-gray-500 text-xs whitespace-nowrap">Ainda não é nosso cliente?</p>
+            <p className="text-gray-500 text-xs whitespace-nowrap">{t('admin.login.noaccount')}</p>
             <a href="/precos/hospedagem" className="inline-flex items-center gap-2 px-5 py-2 bg-white/5 hover:bg-white/10 border border-white/10 text-white text-[10px] font-bold uppercase tracking-widest transition-all whitespace-nowrap" style={{ borderRadius: '8px' }}>
-              Ver Planos
+              {t('admin.login.plans')}
             </a>
           </div>
 
@@ -1495,13 +1494,13 @@ function AdminPanelContent() {
               </div>
             </div>
             <p className="text-xs text-gray-500">
-              Junte-se a mais de <span className="text-white font-bold">500+</span> profissionais.
+              {t('admin.login.social')} <span className="text-white font-bold">500+</span> {t('admin.login.social2')}
             </p>
           </div>
 
           <div className="mt-5 flex items-center justify-center gap-2 text-gray-600">
             <Shield className="w-3.5 h-3.5" />
-            <span className="text-[10px] font-bold uppercase tracking-widest">Acesso Seguro SSL 256-bit</span>
+            <span className="text-[10px] font-bold uppercase tracking-widest">{t('admin.login.ssl')}</span>
           </div>
         </motion.div>
 
