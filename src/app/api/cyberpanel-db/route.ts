@@ -176,12 +176,12 @@ export async function POST(request: NextRequest) {
                 return NextResponse.json({ error: 'domainName, ownerEmail e packageName são obrigatórios' }, { status: 400 });
             }
             const clean = (s: string) => s.replace(/[^a-zA-Z0-9._@-]/g, '');
-            const php = phpVersion || 'PHP 8.2';
+            const php = phpVersion ? phpVersion.replace('PHP ', '') : '8.2';
             
             // Create website in CyberPanel
-            const cmd = `cyberpanel createWebsite --domainName "${clean(domainName)}" --email "${clean(ownerEmail)}" --packageName "${clean(packageName)}" --owner "${clean(adminUser || 'admin')}" --php "${php}"`;
+            const cmd = `cyberpanel createWebsite --package "${clean(packageName)}" --owner "${clean(adminUser || 'admin')}" --domainName "${clean(domainName)}" --email "${clean(ownerEmail)}" --php "${php}"`;
             const output = await executeCyberPanelCommand(cmd);
-            const ok = output.includes('successful') || output.includes('created') || !output.toLowerCase().includes('error');
+            const ok = output.includes('"success": 1') || output.includes('successful') || output.includes('created') || !output.toLowerCase().includes('error');
             
             if (ok) {
                 // Also create in MySQL for consistency
@@ -204,7 +204,7 @@ export async function POST(request: NextRequest) {
             
             if (ownerEmail) cmd += ` --email "${clean(ownerEmail)}"`;
             if (packageName && packageName !== 'Default') cmd += ` --package "${clean(packageName)}"`;
-            if (phpVersion) cmd += ` --php "${clean(phpVersion)}"`;
+            if (phpVersion) cmd += ` --php "${clean(phpVersion.replace('PHP ', ''))}"`;
             if (ssl !== undefined) cmd += ` --ssl ${ssl ? '1' : '0'}`;
             if (state !== undefined) cmd += ` --state ${state ? '1' : '0'}`;
             
@@ -267,7 +267,7 @@ export async function POST(request: NextRequest) {
             // Create subdomain in CyberPanel
             const cmd = `cyberpanel createChildDomain --masterDomain "${clean(body.masterDomain)}" --childDomain "${clean(domainName)}" --path "${clean(body.path)}"`;
             const output = await executeCyberPanelCommand(cmd);
-            const ok = output.includes('successful') || output.includes('created') || !output.toLowerCase().includes('error');
+            const ok = output.includes('"success": 1') || output.includes('successful') || output.includes('created') || !output.toLowerCase().includes('error');
             
             if (ok) {
                 // Also create in MySQL for consistency
@@ -285,7 +285,7 @@ export async function POST(request: NextRequest) {
             const clean = (s: string) => s.replace(/[^a-zA-Z0-9._-]/g, '');
             const cmd = `cyberpanel deleteWebsite --domainName "${clean(domainName)}" --adminUser "${clean(adminUser || 'admin')}" --adminPass "${adminPass || ''}"`;
             const output = await executeCyberPanelCommand(cmd);
-            const ok = output.includes('successful') || output.includes('deleted') || !output.toLowerCase().includes('error');
+            const ok = output.includes('"success": 1') || output.includes('successful') || output.includes('deleted') || !output.toLowerCase().includes('error');
             return NextResponse.json({ success: ok, message: ok ? 'Website removido' : 'Erro ao remover', details: output });
         }
 
