@@ -7,6 +7,8 @@ import { useRouter } from 'next/navigation'
 import { I18nProvider, useI18n } from '@/lib/i18n'
 import { SubdomainsSection, DatabasesSection, FTPSection, EmailManagementSection, CPUsersSection, ResellerSection, PHPConfigSection, SecuritySection, SSLSection, APIConfigSection, ListSubdomainsSection, ModifyWebsiteSection, SuspendWebsiteSection, DeleteWebsiteSection, WPListSection, WPPluginsSection, WPRestoreBackupSection, WPRemoteBackupSection, DNSNameserverSection, DNSDefaultNSSection, DNSCreateZoneSection, DNSDeleteZoneSection, CloudFlareSection, DNSResetSection, EmailDeleteSection, EmailLimitsSection, EmailForwardingSection, CatchAllEmailSection, PatternForwardingSection, PlusAddressingSection, EmailChangePasswordSection, DKIMManagerSection, GitDeploySection } from './CyberPanelSections'
 import { CpanelDashboard } from './CpanelDashboard'
+import { EditSiteModal } from '@/components/admin/EditSiteModal'
+import { DNSModal } from '@/components/admin/DNSModal'
 // VHM removido - tipos mantidos localmente para compatibilidade
 interface VHMClient {
   id: string;
@@ -152,6 +154,10 @@ function AdminPanelContent() {
   const [isSavingAccount, setIsSavingAccount] = useState(false)
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [isCreatingAccount, setIsCreatingAccount] = useState(false)
+  const [showEditSiteModal, setShowEditSiteModal] = useState(false)
+  const [showDNSModal, setShowDNSModal] = useState(false)
+  const [selectedSite, setSelectedSite] = useState<any>(null)
+  const [dnsRecords, setDnsRecords] = useState<any[]>([])
   const [newAccountData, setNewAccountData] = useState({
     domain: '',
     username: '',
@@ -258,7 +264,6 @@ function AdminPanelContent() {
   const [wpInstallLiteSpeed, setWpInstallLiteSpeed] = useState(true)
 
   // States for DNS Manager
-  const [dnsRecords, setDnsRecords] = useState<any[]>([])
   const [isFetchingDns, setIsFetchingDns] = useState(false)
   const [isSavingDns, setIsSavingDns] = useState(false)
   const [selectedDnsDomain, setSelectedDnsDomain] = useState('')
@@ -773,6 +778,101 @@ function AdminPanelContent() {
       setEditFormQuota(editingAccount.disk_limit || 0)
     }
   }, [editingAccount])
+
+  const handleEditSite = (site: any) => {
+    setSelectedSite(site)
+    setShowEditSiteModal(true)
+  }
+
+  const handleSaveSite = async (siteData: any) => {
+    const response = await fetch('/api/cyberpanel-db', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'updateWebsite',
+        domainName: siteData.domain,
+        ownerEmail: siteData.ownerEmail,
+        packageName: siteData.packageName,
+        phpVersion: siteData.phpVersion,
+        ssl: siteData.ssl,
+        state: siteData.state
+      })
+    })
+
+    const result = await response.json()
+    if (result.success) {
+      await loadCyberPanelData()
+      alert('Site atualizado com sucesso!')
+    } else {
+      alert('Erro ao atualizar site: ' + result.message)
+    }
+  }
+
+  const handleDeleteSite = async (domain: string) => {
+    const response = await fetch('/api/cyberpanel-db', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'deleteWebsite',
+        domainName: domain
+      })
+    })
+
+    const result = await response.json()
+    if (result.success) {
+      await loadCyberPanelData()
+      alert('Site apagado com sucesso!')
+    } else {
+      alert('Erro ao apagar site: ' + result.message)
+    }
+  }
+
+  const handleManageDNS = (site: any) => {
+    setSelectedSite(site)
+    setShowDNSModal(true)
+    // TODO: Load DNS records for this domain
+    setDnsRecords([])
+  }
+
+  const handleAddDNSRecord = async (record: any) => {
+    const response = await fetch('/api/cyberpanel-db', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'addDNSRecord',
+        domainName: selectedSite.domain,
+        ...record
+      })
+    })
+
+    const result = await response.json()
+    if (result.success) {
+      alert('Registo DNS adicionado com sucesso!')
+      // TODO: Reload DNS records
+    } else {
+      alert('Erro ao adicionar registo DNS: ' + result.message)
+    }
+  }
+
+  const handleDeleteDNSRecord = async (recordId: string) => {
+    const response = await fetch('/api/cyberpanel-db', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'deleteDNSRecord',
+        domainName: selectedSite.domain,
+        recordId
+      })
+    })
+
+    const result = await response.json()
+    if (result.success) {
+      alert('Registo DNS apagado com sucesso!')
+      // TODO: Reload DNS records
+    } else {
+      alert('Erro ao apagar registo DNS: ' + result.message)
+    }
+  }
 
   const handleCreateAccount = async () => {
     if (!newAccountData.domain || !newAccountData.username || !newAccountData.plan || !newAccountData.email) {
@@ -2363,6 +2463,20 @@ function AdminPanelContent() {
                                 </span>
                               </td>
                               <td className="px-6 py-4 text-right flex justify-end gap-2">
+                                <button
+                                  onClick={() => handleEditSite(site)}
+                                  title="Editar Site"
+                                  className="text-gray-400 hover:text-blue-600 p-1.5 transition-colors bg-gray-50 hover:bg-blue-50 rounded-md border border-transparent hover:border-blue-200"
+                                >
+                                  <Edit className="w-4 h-4" />
+                                </button>
+                                <button
+                                  onClick={() => handleManageDNS(site)}
+                                  title="Gerir DNS (Registos A, TXT, CNAME)"
+                                  className="text-gray-400 hover:text-purple-600 p-1.5 transition-colors bg-gray-50 hover:bg-purple-50 rounded-md border border-transparent hover:border-purple-200"
+                                >
+                                  <Server className="w-4 h-4" />
+                                </button>
                                 <button
                                   onClick={() => loadDnsRecords(site.domain)}
                                   title="Gerir DNS (Registos A, TXT, CNAME)"
@@ -5619,6 +5733,25 @@ function AdminPanelContent() {
             </div>
           )}
         </div>
+
+        {/* Modals */}
+        <EditSiteModal
+          site={selectedSite}
+          packages={cyberPanelPackages}
+          isOpen={showEditSiteModal}
+          onClose={() => setShowEditSiteModal(false)}
+          onSave={handleSaveSite}
+          onDelete={handleDeleteSite}
+        />
+
+        <DNSModal
+          domain={selectedSite?.domain || ''}
+          isOpen={showDNSModal}
+          onClose={() => setShowDNSModal(false)}
+          onAddRecord={handleAddDNSRecord}
+          onDeleteRecord={handleDeleteDNSRecord}
+          records={dnsRecords}
+        />
       </div>
     </div>
   )
