@@ -112,7 +112,7 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
     const body = await request.json();
-    const { action, domainName, ownerEmail, packageName, phpVersion, adminUser, adminPass } = body;
+    const { action, domainName, ownerEmail, packageName, phpVersion, adminUser, adminPass, ssl, state } = body;
 
     try {
         if (action === 'createWebsite') {
@@ -125,6 +125,50 @@ export async function POST(request: NextRequest) {
             const output = await executeCyberPanelCommand(cmd);
             const ok = output.includes('successful') || output.includes('created') || !output.toLowerCase().includes('error');
             return NextResponse.json({ success: ok, message: ok ? 'Website criado no CyberPanel' : 'Erro ao criar website', details: output });
+        }
+
+        if (action === 'updateWebsite') {
+            if (!domainName) {
+                return NextResponse.json({ error: 'domainName é obrigatório' }, { status: 400 });
+            }
+            const clean = (s: string) => s.replace(/[^a-zA-Z0-9._@-]/g, '');
+            let cmd = `cyberpanel modifyWebsite --domainName "${clean(domainName)}"`;
+            
+            if (ownerEmail) cmd += ` --email "${clean(ownerEmail)}"`;
+            if (packageName && packageName !== 'Default') cmd += ` --package "${clean(packageName)}"`;
+            if (phpVersion) cmd += ` --php "${clean(phpVersion)}"`;
+            if (ssl !== undefined) cmd += ` --ssl ${ssl ? '1' : '0'}`;
+            if (state !== undefined) cmd += ` --state ${state ? '1' : '0'}`;
+            
+            const output = await executeCyberPanelCommand(cmd);
+            const ok = output.includes('successful') || output.includes('modified') || !output.toLowerCase().includes('error');
+            return NextResponse.json({ success: ok, message: ok ? 'Website atualizado' : 'Erro ao atualizar', details: output });
+        }
+
+        if (action === 'addDNSRecord') {
+            if (!domainName || !body.name || !body.recordType || !body.value) {
+                return NextResponse.json({ error: 'domainName, name, recordType e value são obrigatórios' }, { status: 400 });
+            }
+            const clean = (s: string) => s.replace(/[^a-zA-Z0-9._-]/g, '');
+            let cmd = `cyberpanel addDNSRecord --domainName "${clean(domainName)}" --name "${clean(body.name)}" --recordType "${body.recordType}" --value "${clean(body.value)}"`;
+            if (body.priority) cmd += ` --priority ${body.priority}`;
+            if (body.ttl) cmd += ` --ttl ${body.ttl}`;
+            
+            const output = await executeCyberPanelCommand(cmd);
+            const ok = output.includes('successful') || output.includes('added') || !output.toLowerCase().includes('error');
+            return NextResponse.json({ success: ok, message: ok ? 'Registo DNS adicionado' : 'Erro ao adicionar registo DNS', details: output });
+        }
+
+        if (action === 'deleteDNSRecord') {
+            if (!domainName || !body.recordID) {
+                return NextResponse.json({ error: 'domainName e recordID são obrigatórios' }, { status: 400 });
+            }
+            const clean = (s: string) => s.replace(/[^a-zA-Z0-9._-]/g, '');
+            const cmd = `cyberpanel deleteDNSRecord --domainName "${clean(domainName)}" --recordID "${body.recordID}"`;
+            
+            const output = await executeCyberPanelCommand(cmd);
+            const ok = output.includes('successful') || output.includes('deleted') || !output.toLowerCase().includes('error');
+            return NextResponse.json({ success: ok, message: ok ? 'Registo DNS removido' : 'Erro ao remover registo DNS', details: output });
         }
 
         if (action === 'deleteWebsite') {
