@@ -355,12 +355,28 @@ function AdminPanelContent() {
   const loadCyberPanelData = async () => {
     setIsFetchingCyberPanel(true)
     try {
-      // Resilient: each call has its own fallback so one failure doesn't break everything
-      const [sites, packages, users] = await Promise.all([
-        cyberPanelAPI.listWebsites().catch(() => [] as any[]),
-        cyberPanelAPI.listPackages().catch(() => [{ packageName: 'Default', diskSpace: 1000, bandwidth: 10000, emailAccounts: 10, dataBases: 1, ftpAccounts: 1, allowedDomains: 1 }]),
-        cyberPanelAPI.listUsers().catch(() => [] as any[]),
-      ]);
+      // PRIMARY: try direct MySQL access (works when app runs on same server as CyberPanel)
+      let sites: any[] = [], packages: any[] = [], users: any[] = [];
+      try {
+        const dbRes = await fetch('/api/cyberpanel-db?type=all');
+        const dbData = await dbRes.json();
+        if (dbData.success) {
+          sites = dbData.sites || [];
+          users = dbData.users || [];
+          packages = dbData.packages || [];
+        }
+      } catch { /* fall through to REST API */ }
+
+      // FALLBACK: REST API proxy (if MySQL not available)
+      if (sites.length === 0) {
+        sites = await cyberPanelAPI.listWebsites().catch(() => []);
+      }
+      if (packages.length === 0) {
+        packages = await cyberPanelAPI.listPackages().catch(() => []);
+      }
+      if (users.length === 0) {
+        users = await cyberPanelAPI.listUsers().catch(() => []);
+      }
       // ── Packages: API → merge with localStorage → Supabase → localStorage ──────
       const lsPkgs = lsGetPackages()
       if (packages.length > 0) {
@@ -444,11 +460,20 @@ function AdminPanelContent() {
           }
         }
       } else {
-        setCyberPanelSites(sites)
-        // Save API results to localStorage for future offline use
-        sites.forEach((s: any) => lsSaveSite(s.domain, { adminEmail: s.adminEmail, package: s.package, owner: s.owner }))
+        // Normalize: MySQL returns {domain, package, admin, state, ip}; REST API returns {domain, adminEmail, package, owner}
+        const normalized = sites.map((s: any) => ({
+          domain: s.domain,
+          adminEmail: s.adminEmail || s.admin || '',
+          package: s.package || s.packageName || 'Default',
+          owner: s.owner || s.admin || 'admin',
+          status: s.status || s.state || 'Active',
+          diskUsage: s.diskUsage || '',
+          bandwidthUsage: s.bandwidthUsage || '',
+        }))
+        setCyberPanelSites(normalized)
+        normalized.forEach((s: any) => lsSaveSite(s.domain, { adminEmail: s.adminEmail, package: s.package, owner: s.owner }))
       }
-      console.log(`Loaded ${sites.length} CyberPanel sites, ${packages.length} packages, ${users.length} users from VPS`)
+      console.log(`Loaded ${sites.length} CyberPanel sites, ${packages.length} packages, ${users.length} users from CyberPanel MySQL/API`)
 
       // Log utilizadores sincronizados (admin + visualdesign)
       const cpUsers = users.map(u => u.userName)
@@ -757,13 +782,26 @@ function AdminPanelContent() {
 
     setIsCreatingAccount(true)
     try {
-      // 1. Criar website no CyberPanel
-      const cpSiteOk = await cyberPanelAPI.createWebsite({
-        domainName: newAccountData.domain,
-        ownerEmail: newAccountData.email,
-        packageName: newAccountData.plan || 'Default',
-        phpSelection: 'PHP 8.2'
-      })
+      // 1. Criar website no CyberPanel (MySQL/local exec primeiro, REST API como fallback)
+      let cpSiteOk = false
+      try {
+        const dbRes = await fetch('/api/cyberpanel-db', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'createWebsite', domainName: newAccountData.domain, ownerEmail: newAccountData.email, packageName: newAccountData.plan || 'Default', phpVersion: 'PHP 8.2' })
+        })
+        const dbData = await dbRes.json()
+        cpSiteOk = dbData.success === true
+      } catch { /* ignore */ }
+
+      if (!cpSiteOk) {
+        cpSiteOk = await cyberPanelAPI.createWebsite({
+          domainName: newAccountData.domain,
+          ownerEmail: newAccountData.email,
+          packageName: newAccountData.plan || 'Default',
+          phpSelection: 'PHP 8.2'
+        })
+      }
 
       // 2. Criar utilizador no CyberPanel
       const cpUserOk = newAccountData.username && newAccountData.password
