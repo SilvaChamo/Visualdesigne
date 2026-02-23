@@ -1,49 +1,5 @@
 import { NextResponse } from 'next/server';
-import { Client } from 'ssh2';
-
-import * as fs from 'fs';
-
-// Helper function to execute SSH commands
-function executeSSHCommand(command: string): Promise<string> {
-    return new Promise((resolve, reject) => {
-        const conn = new Client();
-
-        conn.on('ready', () => {
-            conn.exec(command, (err, stream) => {
-                if (err) {
-                    conn.end();
-                    return reject(err);
-                }
-
-                let output = '';
-                let errorOutput = '';
-
-                stream.on('close', (code: any, signal: any) => {
-                    conn.end();
-                    if (code !== 0 && errorOutput) {
-                        reject(new Error(`SSH Command failed with code ${code}: ${errorOutput}`));
-                    } else {
-                        resolve(output);
-                    }
-                }).on('data', (data: any) => {
-                    output += data;
-                }).stderr.on('data', (data: any) => {
-                    errorOutput += data;
-                });
-            });
-        }).on('error', (err) => {
-            reject(new Error(`SSH Connection Error: ${err.message}`));
-        }).connect({
-            host: process.env.CYBERPANEL_IP,
-            port: Number(process.env.CYBERPANEL_SSH_PORT || 22),
-            username: process.env.CYBERPANEL_SSH_USER || 'root',
-            privateKey: process.env.CYBERPANEL_SSH_KEY_PATH
-                ? fs.readFileSync(process.env.CYBERPANEL_SSH_KEY_PATH, 'utf8')
-                : (process.env.CYBERPANEL_SSH_KEY ? process.env.CYBERPANEL_SSH_KEY.replace(/\\n/g, '\n') : undefined),
-            password: process.env.CYBERPANEL_SSH_PASS, // fallback if no key
-        });
-    });
-}
+import { executeCyberPanelCommand } from '@/lib/cyberpanel-exec';
 
 // Format CLI output into structured package array
 function parsePackageSQLOutput(output: string) {
@@ -80,7 +36,7 @@ export async function GET() {
         // Using sed to format instead of awk to avoid bash escape issues. dataBases is a reserved keyword in MySQL, so using backticks.
         const query = `mysql -D cyberpanel -e "SELECT packageName, diskSpace, bandwidth, emailAccounts, \\\`dataBases\\\`, ftpAccounts, allowedDomains FROM packages_package;" | tr '\\t' '|' | grep -v "packageName|diskSpace"`;
 
-        const output = await executeSSHCommand(query);
+        const output = await executeCyberPanelCommand(query);
         const packages = parsePackageSQLOutput(output);
 
         return NextResponse.json({ success: true, packages });
@@ -106,7 +62,7 @@ export async function POST(request: Request) {
         // Generate the CyberPanel CLI command
         const command = `cyberpanel createPackage --packageName "${cleanName}" --diskSpace "${diskSpace}" --bandwidth "${bandwidth}" --emailAccounts "${emailAccounts}" --dataBases "${dataBases}" --ftpAccounts "${ftpAccounts}" --allowedDomains "${allowedDomains}"`;
 
-        const output = await executeSSHCommand(command);
+        const output = await executeCyberPanelCommand(command);
 
         if (output.includes('successfully created') || output.includes('Package Created') || !output.toLowerCase().includes('error')) {
             return NextResponse.json({ success: true, message: 'Pacote criado com sucesso!' });
@@ -137,7 +93,7 @@ export async function DELETE(request: Request) {
         const cleanName = packageName.replace(/[^a-zA-Z0-9_-]/g, '');
         const command = `cyberpanel deletePackage --packageName "${cleanName}"`;
 
-        const output = await executeSSHCommand(command);
+        const output = await executeCyberPanelCommand(command);
 
         if (output.includes('successfully deleted') || output.includes('Package Deleted') || (!output.toLowerCase().includes('error') && !output.includes('does not exist'))) {
             return NextResponse.json({ success: true, message: 'Pacote removido com sucesso!' });

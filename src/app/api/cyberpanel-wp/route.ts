@@ -1,12 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { Client } from 'ssh2';
-
-// CyberPanel Server SSH Configuration
-const CYBERPANEL_HOST = process.env.CYBERPANEL_IP || '109.199.104.22';
-const CYBERPANEL_SSH_PORT = parseInt(process.env.CYBERPANEL_SSH_PORT || '22');
-const CYBERPANEL_SSH_USER = process.env.CYBERPANEL_SSH_USER || 'root';
-const CYBERPANEL_SSH_PASS = process.env.CYBERPANEL_SSH_PASS || '';
-const CYBERPANEL_SSH_KEY = process.env.CYBERPANEL_SSH_KEY || ''; // Preferred method
+import { executeCyberPanelCommand } from '@/lib/cyberpanel-exec';
 
 export async function POST(request: NextRequest) {
     try {
@@ -43,7 +36,7 @@ export async function POST(request: NextRequest) {
         } catch { /* fall through to SSH */ }
 
         // SSH fallback
-        if (!CYBERPANEL_SSH_PASS && !CYBERPANEL_SSH_KEY) {
+        if (!process.env.CYBERPANEL_SSH_PASS && !process.env.CYBERPANEL_SSH_KEY && !process.env.CYBERPANEL_SSH_KEY_PATH && process.env.CYBERPANEL_USE_LOCAL_EXEC !== 'true') {
             return NextResponse.json({ success: true, message: 'WordPress marcado para instalação. Configure SSH ou instale manualmente via CyberPanel.', warning: true });
         }
 
@@ -94,7 +87,7 @@ export async function POST(request: NextRequest) {
         echo "SUCESSO: WordPress instalado"
         `;
 
-        const result = await executeSSH(installScript);
+        const result = await executeCyberPanelCommand(installScript);
 
         if (result.includes("ERRO:")) {
             return NextResponse.json({ error: 'Falha ao instalar o WordPress', details: result }, { status: 400 });
@@ -114,33 +107,3 @@ export async function POST(request: NextRequest) {
     }
 }
 
-function executeSSH(command: string): Promise<string> {
-    return new Promise((resolve, reject) => {
-        const conn = new Client();
-        conn.on('ready', () => {
-            conn.exec(command, (err: Error | undefined, stream: any) => {
-                if (err) {
-                    conn.end();
-                    return reject(err);
-                }
-                let output = '';
-                stream.on('close', (code: any, signal: any) => {
-                    conn.end();
-                    resolve(output);
-                }).on('data', (data: any) => {
-                    output += data;
-                }).stderr.on('data', (data: any) => {
-                    output += data; // include stderr in output for debug
-                });
-            });
-        }).on('error', (err: Error) => {
-            reject(err);
-        }).connect({
-            host: CYBERPANEL_HOST,
-            port: CYBERPANEL_SSH_PORT,
-            username: CYBERPANEL_SSH_USER,
-            password: CYBERPANEL_SSH_PASS,
-            privateKey: CYBERPANEL_SSH_KEY ? Buffer.from(CYBERPANEL_SSH_KEY, 'base64') : undefined
-        });
-    });
-}
