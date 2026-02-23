@@ -379,28 +379,10 @@ class CyberPanelAPI {
                 }));
             }
 
-            // Fallback: If the API doesn't return data, we can at least return the Default package
-            return [{
-                packageName: 'Default',
-                diskSpace: 1000,
-                bandwidth: 10000,
-                emailAccounts: 10,
-                dataBases: 1,
-                ftpAccounts: 1,
-                allowedDomains: 1
-            }];
+            return [];
         } catch (error) {
             console.error('Failed to fetch CyberPanel packages:', error);
-            // Fallback to ensuring at least 'Default' exists on error
-            return [{
-                packageName: 'Default',
-                diskSpace: 1000,
-                bandwidth: 10000,
-                emailAccounts: 10,
-                dataBases: 1,
-                ftpAccounts: 1,
-                allowedDomains: 1
-            }];
+            return [];
         }
     }
 
