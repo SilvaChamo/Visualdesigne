@@ -50,12 +50,36 @@ ssh -i /Users/macbook/.ssh/visualdesign_cyberpanel_key root@109.199.104.22 \
   "pm2 list && curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:3002"
 ```
 
-## GitHub Actions — Futuro (CI/CD)
-Para deploy automático com GitHub Actions, precisa de:
-- Token com scope `workflow` (o atual não tem)
-- Configurar secrets no repositório
+## GitHub Actions — Deploy Automático (Webhook)
+O ficheiro `.github/workflows/deploy-webhook.yml` permite deploy automático via webhook (não precisa de scope `workflow`).
 
-**Por enquanto, use deploy manual (abaixo).** Quando tiver token com scope `workflow`, pode criar `.github/workflows/deploy.yml`.
+### Configurar Secrets no GitHub (só uma vez)
+Vai a: `https://github.com/SilvaChamo/Visualdesigne/settings/secrets/actions` → **New repository secret**
+
+| Secret | Valor |
+|--------|-------|
+| `SERVER_HOST` | `109.199.104.22` |
+| `SERVER_USER` | `root` |
+| `SERVER_SSH_KEY` | conteúdo de `/Users/macbook/.ssh/visualdesign_cyberpanel_key` |
+| `NEXT_PUBLIC_SUPABASE_URL` | `https://gwankhxcbkrtgxopbxwd.supabase.co` |
+| `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY` | `sb_publishable_NkNwKuVE-AyGgyxKB6zpmQ_b-HdjWOA` |
+
+### Configurar token GitHub (só uma vez)
+1. Cria token em `https://github.com/settings/tokens/new` com scope `repo`
+2. Adiciona ao `.env.local` local:
+```
+GITHUB_TOKEN=ghp_XXXXXXXXXXXXXXXXXXXX
+```
+
+### Usar deploy automático
+Após fazer `git push origin main`, corre:
+```bash
+bash /Users/macbook/Desktop/APP/visualdesign/deploy/trigger-deploy.sh
+```
+
+Este script dispara o GitHub Actions que faz deploy automático ao servidor.
+
+---
 
 ---
 

@@ -17,7 +17,7 @@ export async function GET(request: NextRequest) {
 
     try {
         if (type === 'websites') {
-            const query = `mysql -D cyberpanel -e "SELECT domain, package, admin, state, ip FROM websiteBase_websites WHERE type='main' OR type='subdomain';" | tr '\\t' '|' | grep -v "^domain"`;
+            const query = `mysql -D cyberpanel -e "SELECT w.domain, p.packageName, w.adminEmail, w.state, w.ssl FROM websiteFunctions_websites w LEFT JOIN packages_package p ON w.package_id = p.id;" | tr '\\t' '|' | grep -v "^domain"`;
             const output = await executeCyberPanelCommand(query);
 
             if (!output.trim()) return NextResponse.json({ success: true, data: [] });
@@ -25,8 +25,8 @@ export async function GET(request: NextRequest) {
             const sites = output.trim().split('\n')
                 .filter(l => l.includes('|'))
                 .map(line => {
-                    const [domain, packageName, admin, state, ip] = line.split('|').map(s => s.trim());
-                    return { domain, package: packageName, admin, state, ip };
+                    const [domain, packageName, adminEmail, state, ssl] = line.split('|').map(s => s.trim());
+                    return { domain, package: packageName || 'Default', admin: adminEmail, state: state === '1' ? 'Active' : 'Inactive', ssl: ssl === '1' ? 'Enabled' : 'Disabled' };
                 })
                 .filter(s => s.domain);
 
@@ -34,7 +34,7 @@ export async function GET(request: NextRequest) {
         }
 
         if (type === 'users') {
-            const query = `mysql -D cyberpanel -e "SELECT userName, email, type FROM loginSystem_users;" | tr '\\t' '|' | grep -v "^userName"`;
+            const query = `mysql -D cyberpanel -e "SELECT userName, email, type FROM loginSystem_administrator;" | tr '\\t' '|' | grep -v "^userName"`;
             const output = await executeCyberPanelCommand(query);
 
             if (!output.trim()) return NextResponse.json({ success: true, data: [] });
@@ -43,7 +43,8 @@ export async function GET(request: NextRequest) {
                 .filter(l => l.includes('|'))
                 .map(line => {
                     const [userName, email, userType] = line.split('|').map(s => s.trim());
-                    return { userName, email, type: userType };
+                    const role = userType === '1' ? 'admin' : userType === '3' ? 'user' : 'user';
+                    return { userName, email, type: role };
                 })
                 .filter(u => u.userName);
 
@@ -51,7 +52,7 @@ export async function GET(request: NextRequest) {
         }
 
         if (type === 'packages') {
-            const query = `mysql -D cyberpanel -e "SELECT packageName, diskSpace, bandwidth, emailAccounts, \\\`dataBases\\\`, ftpAccounts, allowedDomains FROM packages_package;" | tr '\\t' '|' | grep -v "^packageName"`;
+            const query = `mysql -D cyberpanel -e "SELECT packageName, diskSpace, bandwidth, emailAccounts, dataBases, ftpAccounts, allowedDomains FROM packages_package;" | tr '\\t' '|' | grep -v "^packageName"`;
             const output = await executeCyberPanelCommand(query);
 
             if (!output.trim()) return NextResponse.json({ success: true, data: [] });
@@ -69,9 +70,9 @@ export async function GET(request: NextRequest) {
 
         if (type === 'all') {
             const [sitesOut, usersOut, pkgsOut] = await Promise.all([
-                executeCyberPanelCommand(`mysql -D cyberpanel -e "SELECT domain, package, admin, state, ip FROM websiteBase_websites WHERE type='main';" | tr '\\t' '|' | grep -v "^domain"`),
-                executeCyberPanelCommand(`mysql -D cyberpanel -e "SELECT userName, email, type FROM loginSystem_users;" | tr '\\t' '|' | grep -v "^userName"`),
-                executeCyberPanelCommand(`mysql -D cyberpanel -e "SELECT packageName, diskSpace, bandwidth, emailAccounts, \\\`dataBases\\\`, ftpAccounts, allowedDomains FROM packages_package;" | tr '\\t' '|' | grep -v "^packageName"`),
+                executeCyberPanelCommand(`mysql -D cyberpanel -e "SELECT w.domain, p.packageName, w.adminEmail, w.state, w.ssl FROM websiteFunctions_websites w LEFT JOIN packages_package p ON w.package_id = p.id;" | tr '\\t' '|' | grep -v "^domain"`),
+                executeCyberPanelCommand(`mysql -D cyberpanel -e "SELECT userName, email, type FROM loginSystem_administrator;" | tr '\\t' '|' | grep -v "^userName"`),
+                executeCyberPanelCommand(`mysql -D cyberpanel -e "SELECT packageName, diskSpace, bandwidth, emailAccounts, dataBases, ftpAccounts, allowedDomains FROM packages_package;" | tr '\\t' '|' | grep -v "^packageName"`),
             ]);
 
             const parse = (out: string, cols: string[]) =>
@@ -80,10 +81,23 @@ export async function GET(request: NextRequest) {
                     return Object.fromEntries(cols.map((c, i) => [c, parts[i] || '']));
                 }).filter(r => r[cols[0]]);
 
+            const sites = parse(sitesOut, ['domain', 'packageName', 'adminEmail', 'state', 'ssl']).map(s => ({
+                ...s,
+                package: s.packageName || 'Default',
+                admin: s.adminEmail,
+                state: s.state === '1' ? 'Active' : 'Inactive',
+                ssl: s.ssl === '1' ? 'Enabled' : 'Disabled'
+            }));
+
+            const users = parse(usersOut, ['userName', 'email', 'type']).map(u => ({
+                ...u,
+                type: u.type === '1' ? 'admin' : u.type === '3' ? 'user' : 'user'
+            }));
+
             return NextResponse.json({
                 success: true,
-                sites: parse(sitesOut, ['domain', 'package', 'admin', 'state', 'ip']),
-                users: parse(usersOut, ['userName', 'email', 'type']),
+                sites,
+                users,
                 packages: parse(pkgsOut, ['packageName', 'diskSpace', 'bandwidth', 'emailAccounts', 'dataBases', 'ftpAccounts', 'allowedDomains']),
             });
         }
