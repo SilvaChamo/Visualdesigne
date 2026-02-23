@@ -1,48 +1,5 @@
 import { NextResponse } from 'next/server';
-import { Client } from 'ssh2';
-import * as fs from 'fs';
-
-// Helper function to execute SSH commands
-function executeSSHCommand(command: string): Promise<string> {
-    return new Promise((resolve, reject) => {
-        const conn = new Client();
-
-        conn.on('ready', () => {
-            conn.exec(command, (err, stream) => {
-                if (err) {
-                    conn.end();
-                    return reject(err);
-                }
-
-                let output = '';
-                let errorOutput = '';
-
-                stream.on('close', (code: any, signal: any) => {
-                    conn.end();
-                    if (code !== 0 && errorOutput) {
-                        reject(new Error(`SSH Command failed with code ${code}: ${errorOutput}`));
-                    } else {
-                        resolve(output);
-                    }
-                }).on('data', (data: any) => {
-                    output += data;
-                }).stderr.on('data', (data: any) => {
-                    errorOutput += data;
-                });
-            });
-        }).on('error', (err) => {
-            reject(new Error(`SSH Connection Error: ${err.message}`));
-        }).connect({
-            host: process.env.CYBERPANEL_IP,
-            port: Number(process.env.CYBERPANEL_SSH_PORT || 22),
-            username: process.env.CYBERPANEL_SSH_USER || 'root',
-            privateKey: process.env.CYBERPANEL_SSH_KEY_PATH
-                ? fs.readFileSync(process.env.CYBERPANEL_SSH_KEY_PATH, 'utf8')
-                : (process.env.CYBERPANEL_SSH_KEY ? process.env.CYBERPANEL_SSH_KEY.replace(/\\n/g, '\n') : undefined),
-            password: process.env.CYBERPANEL_SSH_PASS, // fallback if no key
-        });
-    });
-}
+import { executeCyberPanelCommand } from '@/lib/cyberpanel-exec';
 
 function parseEmailOutput(output: string, domain: string) {
     const lines = output.trim().split('\n');
@@ -84,7 +41,7 @@ export async function GET(request: Request) {
         // Fetch emails associated to a specific domain name directly
         const query = `mysql -D cyberpanel -e "SELECT id, email FROM email_emails WHERE domain_id=(SELECT id FROM websiteBase_websites WHERE domain='${cleanDomain}');" | tr '\\t' '|' | grep -v "email"`;
 
-        const output = await executeSSHCommand(query);
+        const output = await executeCyberPanelCommand(query);
         const emails = parseEmailOutput(output, cleanDomain);
 
         return NextResponse.json({ success: true, emails });
@@ -142,7 +99,7 @@ export async function POST(request: Request) {
         }
 
         const command = `cyberpanel createEmail --domainName "${cleanDomain}" --userName "${cleanUser}" --password "${cleanPassword}"`;
-        const output = await executeSSHCommand(command);
+        const output = await executeCyberPanelCommand(command);
 
         if (output.includes('successfully') || !output.toLowerCase().includes('error')) {
             return NextResponse.json({ success: true, message: 'Conta de E-mail criada com sucesso!' });
@@ -171,7 +128,7 @@ export async function DELETE(request: Request) {
         // CyberPanel command: cyberpanel deleteEmail --emailAddress <email@dom.com>
         const command = `cyberpanel deleteEmail --emailAddress "${cleanEmail}"`;
 
-        const output = await executeSSHCommand(command);
+        const output = await executeCyberPanelCommand(command);
 
         if (output.includes('successfully') || !output.toLowerCase().includes('error') || output.includes('Deleted')) {
             return NextResponse.json({ success: true, message: 'Conta de E-mail removida com sucesso!' });

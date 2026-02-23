@@ -1,48 +1,5 @@
 import { NextResponse } from 'next/server';
-import { Client } from 'ssh2';
-import * as fs from 'fs';
-
-// Helper function to execute SSH commands
-function executeSSHCommand(command: string): Promise<string> {
-    return new Promise((resolve, reject) => {
-        const conn = new Client();
-
-        conn.on('ready', () => {
-            conn.exec(command, (err, stream) => {
-                if (err) {
-                    conn.end();
-                    return reject(err);
-                }
-
-                let output = '';
-                let errorOutput = '';
-
-                stream.on('close', (code: any, signal: any) => {
-                    conn.end();
-                    if (code !== 0 && errorOutput) {
-                        reject(new Error(`SSH Command failed with code ${code}: ${errorOutput}`));
-                    } else {
-                        resolve(output);
-                    }
-                }).on('data', (data: any) => {
-                    output += data;
-                }).stderr.on('data', (data: any) => {
-                    errorOutput += data;
-                });
-            });
-        }).on('error', (err) => {
-            reject(new Error(`SSH Connection Error: ${err.message}`));
-        }).connect({
-            host: process.env.CYBERPANEL_IP,
-            port: Number(process.env.CYBERPANEL_SSH_PORT || 22),
-            username: process.env.CYBERPANEL_SSH_USER || 'root',
-            privateKey: process.env.CYBERPANEL_SSH_KEY_PATH
-                ? fs.readFileSync(process.env.CYBERPANEL_SSH_KEY_PATH, 'utf8')
-                : (process.env.CYBERPANEL_SSH_KEY ? process.env.CYBERPANEL_SSH_KEY.replace(/\\n/g, '\n') : undefined),
-            password: process.env.CYBERPANEL_SSH_PASS, // fallback if no key
-        });
-    });
-}
+import { executeCyberPanelCommand } from '@/lib/cyberpanel-exec';
 
 function parseDnsOutput(output: string) {
     const lines = output.trim().split('\n');
@@ -83,7 +40,7 @@ export async function GET(request: Request) {
         // Query the PowerDNS (pdns) database directly
         const query = `mysql -D pdns -e "SELECT id, name, type, content, ttl FROM records WHERE domain_id=(SELECT id FROM domains WHERE name='${cleanDomain}');" | tr '\\t' '|' | grep -v "type|content"`;
 
-        const output = await executeSSHCommand(query);
+        const output = await executeCyberPanelCommand(query);
         const records = parseDnsOutput(output);
 
         return NextResponse.json({ success: true, records });
@@ -113,7 +70,7 @@ export async function POST(request: Request) {
         // Envolve value with double quotes in the CLI command
         const command = `cyberpanel createDnsRecord --domainName "${cleanDomain}" --name "${cleanName}" --type "${cleanType}" --value "${cleanValue}" --ttl ${cleanTtl}`;
 
-        const output = await executeSSHCommand(command);
+        const output = await executeCyberPanelCommand(command);
 
         if (output.includes('successfully created') || output.includes('Record Created') || !output.toLowerCase().includes('error')) {
             return NextResponse.json({ success: true, message: 'Registo DNS criado com sucesso!' });
@@ -143,9 +100,9 @@ export async function DELETE(request: Request) {
         // Since CyberPanel CLI deleteDnsRecord asks for name, we might just run a MySQL statement or try to pass what cyberpanel expects: cyberpanel deleteDnsRecord --domainName DOMAIN --id ID
         // Often, CLI implementation of CyberPanel lacks ID-based deletion easily without interacting directly with PowerDNS DB
         // Let's use the DB approach directly for deletions to be 100% precise avoiding CLI regex matches
-        const command = `mysql -D pdns -e "DELETE FROM records WHERE id=${cleanId} AND domain_id=(SELECT id FROM domains WHERE name='${cleanDomain}');"`;
+        const command = `mysql -D pdns -e "DELETE FROM records WHERE id=${cleanId} AND domain_id=(SELECT id FROM domains WHERE name='${cleanDomain}');" `;
 
-        const output = await executeSSHCommand(command);
+        const output = await executeCyberPanelCommand(command);
 
         // Since mysql command output is empty on success DELETE statement:
         if (!output.toLowerCase().includes('error')) {
