@@ -2357,3 +2357,108 @@ export function GitDeploySection() {
     </div>
   )
 }
+
+export function PackagesSection({ packages, onRefresh }: { packages: any[], onRefresh: () => void }) {
+  const [form, setForm] = useState({ packageName: '', diskSpace: '1000', bandwidth: '1000', emailAccounts: '10', dataBases: '5' })
+  const [creating, setCreating] = useState(false)
+  const [deleting, setDeleting] = useState<string | null>(null)
+  const [msg, setMsg] = useState('')
+
+  const handleCreate = async () => {
+    if (!form.packageName) return
+    setCreating(true); setMsg('')
+    try {
+      const res = await fetch('/api/server-exec', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'createPackage', params: form })
+      })
+      const data = await res.json()
+      if (data.success) {
+        setMsg('Pacote criado com sucesso!')
+        setForm({ packageName: '', diskSpace: '1000', bandwidth: '1000', emailAccounts: '10', dataBases: '5' })
+        onRefresh()
+      } else {
+        setMsg('Erro: ' + (data.error || 'Falha ao criar pacote'))
+      }
+    } catch (e: any) {
+      setMsg('Erro: ' + e.message)
+    }
+    setCreating(false)
+  }
+
+  const handleDelete = async (name: string) => {
+    if (!confirm(`Apagar pacote "${name}"?`)) return
+    setDeleting(name); setMsg('')
+    try {
+      const res = await fetch('/api/server-exec', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'deletePackage', params: { packageName: name } })
+      })
+      const data = await res.json()
+      if (data.success) {
+        setMsg('Pacote apagado com sucesso!')
+        onRefresh()
+      } else {
+        setMsg('Erro: ' + (data.error || 'Falha ao apagar pacote'))
+      }
+    } catch (e: any) {
+      setMsg('Erro: ' + e.message)
+    }
+    setDeleting(null)
+  }
+
+  return (
+    <div className="space-y-6 max-w-5xl">
+      <div><h1 className="text-3xl font-bold text-gray-900">Pacotes</h1><p className="text-gray-500 mt-1">Crie e gerencie pacotes de hospedagem.</p></div>
+
+      {/* Criar Pacote */}
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+        <h2 className="text-xl font-semibold text-gray-800 mb-4">Criar Novo Pacote</h2>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
+          <div><label className="text-xs font-bold text-gray-600 uppercase block mb-1.5">Nome do Pacote</label><input value={form.packageName} onChange={e => setForm({...form, packageName: e.target.value})} placeholder="Basic" className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm" /></div>
+          <div><label className="text-xs font-bold text-gray-600 uppercase block mb-1.5">Espaço em Disco (MB)</label><input type="number" value={form.diskSpace} onChange={e => setForm({...form, diskSpace: e.target.value})} className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm" /></div>
+          <div><label className="text-xs font-bold text-gray-600 uppercase block mb-1.5">Banda Largura (MB)</label><input type="number" value={form.bandwidth} onChange={e => setForm({...form, bandwidth: e.target.value})} className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm" /></div>
+          <div><label className="text-xs font-bold text-gray-600 uppercase block mb-1.5">Contas de Email</label><input type="number" value={form.emailAccounts} onChange={e => setForm({...form, emailAccounts: e.target.value})} className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm" /></div>
+          <div><label className="text-xs font-bold text-gray-600 uppercase block mb-1.5">Bases de Dados</label><input type="number" value={form.dataBases} onChange={e => setForm({...form, dataBases: e.target.value})} className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm" /></div>
+        </div>
+        <button onClick={handleCreate} disabled={creating || !form.packageName.trim()} className="bg-black hover:bg-red-600 text-white py-2.5 px-6 rounded-lg text-sm font-bold transition-all disabled:opacity-50 flex items-center gap-2">
+          {creating ? <><RefreshCw className="w-4 h-4 animate-spin" /> A criar...</> : <>Criar Pacote</>}
+        </button>
+      </div>
+
+      {/* Lista de Pacotes */}
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+        <h2 className="text-xl font-semibold text-gray-800 mb-4">Pacotes Existentes</h2>
+        {packages && packages.length > 0 ? (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead><tr className="border-b border-gray-200"><th className="text-left py-3 px-2 font-semibold text-gray-700">Nome</th><th className="text-left py-3 px-2 font-semibold text-gray-700">Disco</th><th className="text-left py-3 px-2 font-semibold text-gray-700">Banda</th><th className="text-left py-3 px-2 font-semibold text-gray-700">Emails</th><th className="text-left py-3 px-2 font-semibold text-gray-700">BDs</th><th className="text-left py-3 px-2 font-semibold text-gray-700">Ações</th></tr></thead>
+              <tbody>
+                {packages.map((pkg: any, i: number) => (
+                  <tr key={i} className="border-b border-gray-100 hover:bg-gray-50">
+                    <td className="py-3 px-2 font-medium">{pkg.packageName || pkg.name || '-'}</td>
+                    <td className="py-3 px-2">{pkg.diskSpace || pkg.disk || '-'} MB</td>
+                    <td className="py-3 px-2">{pkg.bandwidth || '-'} MB</td>
+                    <td className="py-3 px-2">{pkg.emailAccounts || pkg.emails || '-'}</td>
+                    <td className="py-3 px-2">{pkg.dataBases || pkg.databases || '-'}</td>
+                    <td className="py-3 px-2">
+                      <button onClick={() => handleDelete(pkg.packageName || pkg.name)} disabled={deleting === pkg.packageName} className="text-red-600 hover:text-red-800 text-xs font-bold disabled:opacity-50">
+                        {deleting === pkg.packageName ? 'A apagar...' : 'Apagar'}
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <p className="text-gray-500 text-center py-8">Nenhum pacote encontrado.</p>
+        )}
+      </div>
+
+      {msg && <div className={`p-4 rounded-lg border ${msg.includes('sucesso') ? 'bg-green-50 border-green-200 text-green-800' : 'bg-red-50 border-red-200 text-red-800'}`}>{msg}</div>}
+    </div>
+  )
+}
