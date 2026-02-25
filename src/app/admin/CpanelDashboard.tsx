@@ -307,7 +307,7 @@ export function CpanelDashboard({ onNavigate, sites, users, isFetching, onRefres
               {sites.map((s, i) => (
                 <div key={i} className="space-y-1">
                   <div className="flex items-center gap-2 text-xs">
-                    <div className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${s.status === 'Active' ? 'bg-green-500' : 'bg-red-400'}`}></div>
+                    <div className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${s.state === 'Active' ? 'bg-green-500' : 'bg-red-400'}`}></div>
                     <span className="text-gray-700 truncate font-medium flex-1">{s.domain}</span>
                   </div>
                   <div className="flex gap-1.5 pl-3.5">

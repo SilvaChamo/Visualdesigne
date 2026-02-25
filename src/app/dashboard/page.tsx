@@ -15,7 +15,7 @@ import {
 } from 'lucide-react'
 import Link from 'next/link'
 import UsageProgress from '@/components/dashboard/UsageProgress'
-
+import { useAuth } from '@/components/auth/AuthProvider'
 import { supabase } from '@/lib/supabase'
 
 export default function DashboardHome() {

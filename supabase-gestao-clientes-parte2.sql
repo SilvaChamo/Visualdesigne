@@ -1,76 +1,6 @@
 -- ==========================================
--- SISTEMA COMPLETO DE GESTÃO DE CLIENTES
--- VisualDesign - Template Tudo-Pronto
+-- PARTE 2: TABELAS RESTANTES E CONFIGURAÇÕES
 -- ==========================================
-
--- 1. TABELA DE CLIENTES
-CREATE TABLE IF NOT EXISTS clientes (
-    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-    nome TEXT NOT NULL,
-    email TEXT UNIQUE NOT NULL,
-    telefone TEXT,
-    nif TEXT,
-    empresa TEXT,
-    morada TEXT,
-    cidade TEXT,
-    pais TEXT DEFAULT 'Moçambique',
-    status TEXT DEFAULT 'active' CHECK (status IN ('active', 'suspended', 'inactive')),
-    data_cadastro DATE DEFAULT CURRENT_DATE,
-    ultimo_acesso TIMESTAMP,
-    observacoes TEXT,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-);
-
--- 2. TABELA DE SITES DOS CLIENTES
-CREATE TABLE IF NOT EXISTS sites_cliente (
-    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-    cliente_id UUID REFERENCES clientes(id) ON DELETE CASCADE,
-    dominio TEXT UNIQUE NOT NULL,
-    titulo_site TEXT,
-    descricao TEXT,
-    plano TEXT DEFAULT 'basic' CHECK (plano IN ('basic', 'premium', 'enterprise', 'custom')),
-    preco_mensal DECIMAL(10,2) DEFAULT 0.00,
-    moeda TEXT DEFAULT 'MZN',
-    data_criacao DATE DEFAULT CURRENT_DATE,
-    data_renovacao DATE,
-    dias_aviso_pre_renovacao INTEGER DEFAULT 7,
-    status TEXT DEFAULT 'active' CHECK (status IN ('active', 'suspended', 'expired', 'pending')),
-    cyberpanel_id INTEGER,
-    ssl BOOLEAN DEFAULT false,
-    ssl_expira DATE,
-    backup_diario BOOLEAN DEFAULT true,
-    backup_semanal BOOLEAN DEFAULT true,
-    espaco_disco_gb INTEGER DEFAULT 5,
-    banda_largura_gb INTEGER DEFAULT 100,
-    php_version TEXT DEFAULT '8.2',
-    wordpress_instalado BOOLEAN DEFAULT false,
-    wp_version TEXT,
-    wp_atualizacoes BOOLEAN DEFAULT true,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-);
-
--- 3. TABELA DE PAGAMENTOS
-CREATE TABLE IF NOT EXISTS pagamentos (
-    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-    cliente_id UUID REFERENCES clientes(id) ON DELETE CASCADE,
-    site_id UUID REFERENCES sites_cliente(id) ON DELETE CASCADE,
-    valor DECIMAL(10,2) NOT NULL,
-    moeda TEXT DEFAULT 'MZN',
-    data_pagamento DATE,
-    data_vencimento DATE NOT NULL,
-    metodo_pagamento TEXT CHECK (metodo_pagamento IN ('mpesa', 'transferencia', 'paypal', 'multicaixa', 'referencia', 'cash')),
-    status TEXT DEFAULT 'pending' CHECK (status IN ('pending', 'paid', 'overdue', 'cancelled', 'refunded')),
-    referencia TEXT,
-    descricao TEXT,
-    notas TEXT,
-    fatura_gerada BOOLEAN DEFAULT false,
-    fatura_enviada BOOLEAN DEFAULT false,
-    recibo_gerado BOOLEAN DEFAULT false,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-);
 
 -- 4. TABELA DE NOTIFICAÇÕES
 CREATE TABLE IF NOT EXISTS notificacoes (
@@ -97,7 +27,7 @@ CREATE TABLE IF NOT EXISTS email_contas (
     cliente_id UUID REFERENCES clientes(id) ON DELETE CASCADE,
     site_id UUID REFERENCES sites_cliente(id) ON DELETE CASCADE,
     email TEXT UNIQUE NOT NULL,
-    senha_cyberpanel TEXT, -- Apenas referência, senha real fica no CyberPanel
+    senha_cyberpanel TEXT,
     quota_mb INTEGER DEFAULT 1024,
     quota_usada_mb INTEGER DEFAULT 0,
     status TEXT DEFAULT 'active' CHECK (status IN ('active', 'suspended', 'deleted')),
@@ -120,7 +50,7 @@ CREATE TABLE IF NOT EXISTS tickets_suporte (
     categoria TEXT DEFAULT 'general' CHECK (categoria IN ('general', 'technical', 'billing', 'domain', 'email', 'ssl', 'backup')),
     prioridade TEXT DEFAULT 'normal' CHECK (prioridade IN ('low', 'normal', 'high', 'urgent')),
     status TEXT DEFAULT 'open' CHECK (status IN ('open', 'in_progress', 'waiting_client', 'resolved', 'closed')),
-    atribuido_a TEXT, -- ID do admin ou suporte
+    atribuido_a TEXT,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     resolvido_em TIMESTAMP
@@ -134,7 +64,7 @@ CREATE TABLE IF NOT EXISTS ticket_respostas (
     resposta TEXT NOT NULL,
     anexo_url TEXT,
     respondente TEXT CHECK (respondente IN ('client', 'admin', 'support')),
-    criado_por TEXT, -- Nome de quem respondeu
+    criado_por TEXT,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
@@ -154,7 +84,7 @@ CREATE TABLE IF NOT EXISTS config_sistema (
 -- 9. TABELA DE LOGS DE ATIVIDADES
 CREATE TABLE IF NOT EXISTS activity_logs (
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-    usuario_id TEXT, -- Pode ser admin ou cliente
+    usuario_id TEXT,
     usuario_tipo TEXT CHECK (usuario_tipo IN ('admin', 'client')),
     cliente_id UUID REFERENCES clientes(id) ON DELETE CASCADE,
     site_id UUID REFERENCES sites_cliente(id) ON DELETE CASCADE,
@@ -184,24 +114,6 @@ CREATE TABLE IF NOT EXISTS documentos_cliente (
 -- ÍNDICES PARA PERFORMANCE
 -- ==========================================
 
--- Clientes
-CREATE INDEX IF NOT EXISTS idx_clientes_email ON clientes(email);
-CREATE INDEX IF NOT EXISTS idx_clientes_status ON clientes(status);
-CREATE INDEX IF NOT EXISTS idx_clientes_nome ON clientes(nome);
-
--- Sites
-CREATE INDEX IF NOT EXISTS idx_sites_cliente_id ON sites_cliente(cliente_id);
-CREATE INDEX IF NOT EXISTS idx_sites_dominio ON sites_cliente(dominio);
-CREATE INDEX IF NOT EXISTS idx_sites_status ON sites_cliente(status);
-CREATE INDEX IF NOT EXISTS idx_sites_renovacao ON sites_cliente(data_renovacao);
-CREATE INDEX IF NOT EXISTS idx_sites_plano ON sites_cliente(plano);
-
--- Pagamentos
-CREATE INDEX IF NOT EXISTS idx_pagamentos_cliente_id ON pagamentos(cliente_id);
-CREATE INDEX IF NOT EXISTS idx_pagamentos_site_id ON pagamentos(site_id);
-CREATE INDEX IF NOT EXISTS idx_pagamentos_vencimento ON pagamentos(data_vencimento);
-CREATE INDEX IF NOT EXISTS idx_pagamentos_status ON pagamentos(status);
-
 -- Notificações
 CREATE INDEX IF NOT EXISTS idx_notificacoes_cliente_id ON notificacoes(cliente_id);
 CREATE INDEX IF NOT EXISTS idx_notificacoes_site_id ON notificacoes(site_id);
@@ -223,6 +135,13 @@ CREATE INDEX IF NOT EXISTS idx_activity_usuario_id ON activity_logs(usuario_id);
 CREATE INDEX IF NOT EXISTS idx_activity_cliente_id ON activity_logs(cliente_id);
 CREATE INDEX IF NOT EXISTS idx_activity_created_at ON activity_logs(created_at);
 
+-- Config sistema
+CREATE INDEX IF NOT EXISTS idx_config_chave ON config_sistema(chave);
+
+-- Documentos
+CREATE INDEX IF NOT EXISTS idx_documentos_cliente_id ON documentos_cliente(cliente_id);
+CREATE INDEX IF NOT EXISTS idx_documentos_tipo ON documentos_cliente(tipo_documento);
+
 -- ==========================================
 -- TRIGGERS PARA updated_at
 -- ==========================================
@@ -236,12 +155,27 @@ END;
 $$ language 'plpgsql';
 
 -- Aplicar triggers às tabelas
-CREATE TRIGGER update_clientes_updated_at BEFORE UPDATE ON clientes FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
-CREATE TRIGGER update_sites_cliente_updated_at BEFORE UPDATE ON sites_cliente FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
-CREATE TRIGGER update_pagamentos_updated_at BEFORE UPDATE ON pagamentos FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER update_notificacoes_updated_at BEFORE UPDATE ON notificacoes FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER update_email_contas_updated_at BEFORE UPDATE ON email_contas FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER update_config_sistema_updated_at BEFORE UPDATE ON config_sistema FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER update_tickets_suporte_updated_at BEFORE UPDATE ON tickets_suporte FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
-CREATE TRIGGER update_email_contas_updated_at BEFORE UPDATE ON email_contas FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+-- ==========================================
+-- CONFIGURAÇÕES INICIAIS DO SISTEMA
+-- ==========================================
+
+INSERT INTO config_sistema (chave, valor, descricao, tipo, categoria) VALUES
+('nome_empresa', 'VisualDesign', 'Nome da empresa', 'string', 'general'),
+('email_empresa', 'geral@visualdesign.ao', 'Email da empresa', 'string', 'general'),
+('telefone_empresa', '+258 8XX XXX XXX', 'Telefone da empresa', 'string', 'general'),
+('moeda_padrao', 'MZN', 'Moeda padrão', 'string', 'billing'),
+('dias_aviso_renovacao', '7', 'Dias de aviso antes da renovação', 'number', 'billing'),
+('dias_suspensao', '3', 'Dias após vencimento para suspender', 'number', 'billing'),
+('backup_retention_days', '30', 'Dias para reter backups', 'number', 'backup'),
+('ssl_auto_renew', 'true', 'Renovação automática de SSL', 'boolean', 'security'),
+('notificacoes_email', 'true', 'Enviar notificações por email', 'boolean', 'notifications'),
+('notificacoes_sms', 'false', 'Enviar notificações por SMS', 'boolean', 'notifications')
+ON CONFLICT (chave) DO NOTHING;
 
 -- ==========================================
 -- VIEWS PARA DASHBOARDS
@@ -281,7 +215,6 @@ SELECT
     sc.status as site_status,
     sc.data_renovacao,
     sc.ssl,
-    sc.wordpress_instalado,
     p.data_vencimento as proximo_vencimento,
     p.status as pagamento_status,
     CASE 
@@ -299,49 +232,11 @@ LEFT JOIN pagamentos p ON sc.id = p.site_id AND p.data_vencimento = (
 LEFT JOIN email_contas ec ON sc.id = ec.site_id AND ec.status = 'active'
 GROUP BY c.id, sc.id, p.id;
 
--- Relatório Financeiro Mensal
-CREATE OR REPLACE VIEW relatorio_financeiro_mensal AS
-SELECT 
-    DATE_TRUNC('month', p.data_vencimento) as mes,
-    COUNT(DISTINCT c.id) as numero_clientes,
-    COUNT(DISTINCT sc.id) as numero_sites,
-    SUM(p.valor) as valor_total,
-    SUM(CASE WHEN p.status = 'paid' THEN p.valor ELSE 0 END) as valor_pago,
-    SUM(CASE WHEN p.status = 'pending' AND p.data_vencimento >= CURRENT_DATE THEN p.valor ELSE 0 END) as valor_pendente,
-    SUM(CASE WHEN p.status = 'overdue' OR (p.status = 'pending' AND p.data_vencimento < CURRENT_DATE) THEN p.valor ELSE 0 END) as valor_atrasado,
-    COUNT(DISTINCT CASE WHEN p.status = 'paid' THEN c.id END) as clientes_pagos,
-    COUNT(DISTINCT CASE WHEN p.status != 'paid' AND p.data_vencimento < CURRENT_DATE THEN c.id END) as clientes_inadimplentes
-FROM pagamentos p
-JOIN sites_cliente sc ON p.site_id = sc.id
-JOIN clientes c ON sc.cliente_id = c.id
-GROUP BY DATE_TRUNC('month', p.data_vencimento)
-ORDER BY mes DESC;
-
--- ==========================================
--- CONFIGURAÇÕES INICIAIS DO SISTEMA
--- ==========================================
-
-INSERT INTO config_sistema (chave, valor, descricao, tipo, categoria) VALUES
-('nome_empresa', 'VisualDesign', 'Nome da empresa', 'string', 'general'),
-('email_empresa', 'geral@visualdesign.ao', 'Email da empresa', 'string', 'general'),
-('telefone_empresa', '+258 8XX XXX XXX', 'Telefone da empresa', 'string', 'general'),
-('moeda_padrao', 'MZN', 'Moeda padrão', 'string', 'billing'),
-('dias_aviso_renovacao', '7', 'Dias de aviso antes da renovação', 'number', 'billing'),
-('dias_suspensao', '3', 'Dias após vencimento para suspender', 'number', 'billing'),
-('backup_retention_days', '30', 'Dias para reter backups', 'number', 'backup'),
-('ssl_auto_renew', 'true', 'Renovação automática de SSL', 'boolean', 'security'),
-('notificacoes_email', 'true', 'Enviar notificações por email', 'boolean', 'notifications'),
-('notificacoes_sms', 'false', 'Enviar notificações por SMS', 'boolean', 'notifications')
-ON CONFLICT (chave) DO NOTHING;
-
 -- ==========================================
 -- ROW LEVEL SECURITY (RLS)
 -- ==========================================
 
 -- Habilitar RLS nas tabelas principais
-ALTER TABLE clientes ENABLE ROW LEVEL SECURITY;
-ALTER TABLE sites_cliente ENABLE ROW LEVEL SECURITY;
-ALTER TABLE pagamentos ENABLE ROW LEVEL SECURITY;
 ALTER TABLE notificacoes ENABLE ROW LEVEL SECURITY;
 ALTER TABLE email_contas ENABLE ROW LEVEL SECURITY;
 ALTER TABLE tickets_suporte ENABLE ROW LEVEL SECURITY;
@@ -349,28 +244,6 @@ ALTER TABLE ticket_respostas ENABLE ROW LEVEL SECURITY;
 ALTER TABLE documentos_cliente ENABLE ROW LEVEL SECURITY;
 
 -- Políticas para Clientes (ver apenas seus dados)
-CREATE POLICY "Clientes verem próprios dados" ON clientes
-    FOR ALL USING (
-        auth.uid()::text = id::text OR 
-        auth.jwt()->>'role' = 'admin'
-    );
-
-CREATE POLICY "Clientes verem próprios sites" ON sites_cliente
-    FOR ALL USING (
-        cliente_id IN (
-            SELECT id FROM clientes WHERE auth.uid()::text = id::text
-        ) OR 
-        auth.jwt()->>'role' = 'admin'
-    );
-
-CREATE POLICY "Clientes verem próprios pagamentos" ON pagamentos
-    FOR ALL USING (
-        cliente_id IN (
-            SELECT id FROM clientes WHERE auth.uid()::text = id::text
-        ) OR 
-        auth.jwt()->>'role' = 'admin'
-    );
-
 CREATE POLICY "Clientes verem próprias notificações" ON notificacoes
     FOR ALL USING (
         cliente_id IN (
@@ -396,15 +269,12 @@ CREATE POLICY "Clientes verem próprios tickets" ON tickets_suporte
     );
 
 -- Admin pode tudo (via service_role)
-CREATE POLICY "Admin acesso total" ON clientes FOR ALL USING (auth.jwt()->>'role' = 'service_role');
-CREATE POLICY "Admin acesso total sites" ON sites_cliente FOR ALL USING (auth.jwt()->>'role' = 'service_role');
-CREATE POLICY "Admin acesso total pagamentos" ON pagamentos FOR ALL USING (auth.jwt()->>'role' = 'service_role');
 CREATE POLICY "Admin acesso total notificacoes" ON notificacoes FOR ALL USING (auth.jwt()->>'role' = 'service_role');
 CREATE POLICY "Admin acesso total emails" ON email_contas FOR ALL USING (auth.jwt()->>'role' = 'service_role');
 CREATE POLICY "Admin acesso total tickets" ON tickets_suporte FOR ALL USING (auth.jwt()->>'role' = 'service_role');
 
 -- ==========================================
--- FUNÇÕES AUTOMÁTICAS
+-- FUNÇÃO PARA NOTIFICAÇÕES AUTOMÁTICAS
 -- ==========================================
 
 -- Função para verificar renovações e criar notificações
@@ -451,26 +321,8 @@ CREATE TRIGGER trigger_verificar_renovacoes
     AFTER INSERT OR UPDATE ON sites_cliente
     FOR EACH ROW EXECUTE FUNCTION verificar_renovacoes();
 
--- Função para registrar atividade (simplificada)
-CREATE OR REPLACE FUNCTION registrar_atividade(
-    p_usuario_id TEXT,
-    p_usuario_tipo TEXT,
-    p_cliente_id UUID,
-    p_site_id UUID,
-    p_acao TEXT,
-    p_detalhes TEXT
-)
-RETURNS VOID AS $$
-BEGIN
-    INSERT INTO activity_logs (usuario_id, usuario_tipo, cliente_id, site_id, acao, detalhes, ip_address, user_agent)
-    VALUES (p_usuario_id, p_usuario_tipo, p_cliente_id, p_site_id, p_acao, p_detalhes, '127.0.0.1', 'system');
-END;
-$$ LANGUAGE plpgsql;
-
 -- ==========================================
 -- FINALIZADO
 -- ==========================================
 
--- Este SQL cria um sistema completo de gestão de clientes
--- Pronto para uso com VisualDesign Dashboard
--- Todas as funcionalidades estão incluídas e testadas
+-- Sistema completo de gestão de clientes pronto para uso!
