@@ -88,18 +88,18 @@ export const cyberPanelAPI = {
 
   // Databases
   listDatabases:           (domain: string)      => cmd(`mysql -u root -e "SELECT db FROM mysql.db WHERE db LIKE '${domain.replace(/\./g,'_')}%';" 2>/dev/null`),
-  createDatabase:          (domain: string, dbName: string, dbUser: string, dbPassword: string)              => cmd(`/usr/local/CyberCP/bin/python /usr/local/CyberCP/plogical/mysqlUtilities.py createDatabase --domainName ${p.domain} --dbName ${p.dbName} --dbUsername ${p.dbUser} --dbPassword '${p.dbPassword}'`),
-  deleteDatabase:          (domain: string, dbName: string)              => cmd(`/usr/local/CyberCP/bin/python /usr/local/CyberCP/plogical/mysqlUtilities.py deleteDatabase --dbName ${p.dbName}`),
+  createDatabase:          (p: any)              => cmd(`/usr/local/CyberCP/bin/python /usr/local/CyberCP/plogical/mysqlUtilities.py createDatabase --domainName ${p.domain} --dbName ${p.dbName} --dbUsername ${p.dbUser} --dbPassword '${p.dbPassword}'`),
+  deleteDatabase:          (p: any)              => cmd(`/usr/local/CyberCP/bin/python /usr/local/CyberCP/plogical/mysqlUtilities.py deleteDatabase --dbName ${p.dbName}`),
 
   // FTP
   listFTPAccounts:         (domain: string)      => cmd(`cat /etc/pure-ftpd/pureftpd.passwd 2>/dev/null | grep ${domain} || echo ""`),
-  createFTPAccount:        (domain: string, username: string, password: string, path: string)              => cmd(`/usr/local/CyberCP/bin/python /usr/local/CyberCP/plogical/ftpUtilities.py createFTPAccount --domainName ${p.domain} --ftpUser ${p.username} --ftpPassword '${p.password}'`),
-  deleteFTPAccount:        (domain: string, username: string)              => cmd(`/usr/local/CyberCP/bin/python /usr/local/CyberCP/plogical/ftpUtilities.py deleteFTPAccount --ftpUser ${p.username}`),
+  createFTPAccount:        (p: any)              => cmd(`/usr/local/CyberCP/bin/python /usr/local/CyberCP/plogical/ftpUtilities.py createFTPAccount --domainName ${p.domain} --ftpUser ${p.username} --ftpPassword '${p.password}'`),
+  deleteFTPAccount:        (p: any)              => cmd(`/usr/local/CyberCP/bin/python /usr/local/CyberCP/plogical/ftpUtilities.py deleteFTPAccount --ftpUser ${p.username}`),
 
   // Email
   listEmails:              (domain: string)      => run('listEmails', { domain }),
   createEmail:             (p: any)              => run('createEmail', p),
-  deleteEmail:             (domain: string, email: string)              => run('deleteEmail', p),
+  deleteEmail:             (p: any)              => run('deleteEmail', p),
   changeEmailPassword:     (p: any)              => cmd(`/usr/local/CyberCP/bin/python /usr/local/CyberCP/plogical/mailUtilities.py changeEmailPassword --email ${p.email} --newPassword '${p.password}'`),
   setEmailLimits:          (p: any)              => cmd(`echo "limits set for ${p.email}"`),
   getEmailForwarding:      (p: any)              => cmd(`cat /etc/postfix/virtual 2>/dev/null | grep ${p.email} || echo ""`),

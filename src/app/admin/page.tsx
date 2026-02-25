@@ -2,41 +2,107 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { 
-  Menu, 
-  X, 
-  Home, 
-  Globe, 
-  Users, 
-  Package, 
-  Settings, 
-  Server,
-  Database,
-  Mail,
-  FileText,
-  Shield,
-  GitBranch,
-  Code,
-  UserPlus,
-  Building,
-  Key,
-  Lock,
-  FolderOpen,
-  Upload,
-  Download,
-  RefreshCw,
-  ChevronLeft,
-  ChevronRight
+import {
+  Home, Globe, Users, Package, Server, Database, Mail,
+  Shield, Settings, Download, FolderOpen, Lock, RefreshCw,
+  ChevronLeft, ChevronRight, UserPlus, LogOut
 } from 'lucide-react'
 import { CpanelDashboard } from './CpanelDashboard'
-import { lsGet, lsSet } from '@/lib/local-storage'
+import {
+  SubdomainsSection, DatabasesSection, FTPSection, EmailManagementSection,
+  CPUsersSection, SSLSection, SecuritySection, PHPConfigSection,
+  APIConfigSection, GitDeploySection, WPListSection, WPPluginsSection,
+  ResellerSection, ModifyWebsiteSection, SuspendWebsiteSection,
+  DeleteWebsiteSection, DNSNameserverSection, DNSDefaultNSSection,
+  DNSCreateZoneSection, DNSDeleteZoneSection, CloudFlareSection,
+  DNSResetSection, EmailDeleteSection, EmailLimitsSection,
+  EmailForwardingSection, CatchAllEmailSection, PatternForwardingSection,
+  PlusAddressingSection, EmailChangePasswordSection, DKIMManagerSection,
+  WPRestoreBackupSection, WPRemoteBackupSection, ListSubdomainsSection
+} from './CyberPanelSections'
 import { cyberPanelAPI } from '@/lib/cyberpanel-api'
 import type { CyberPanelWebsite, CyberPanelUser, CyberPanelPackage } from '@/lib/cyberpanel-api'
 
+// Secções que precisam de criar websites
+function CreateWebsiteSection({ packages, onRefresh }: { packages: CyberPanelPackage[], onRefresh: () => void }) {
+  const [form, setForm] = useState({ domain: '', email: '', username: 'admin', packageName: 'Default', php: '8.2' })
+  const [creating, setCreating] = useState(false)
+  const [msg, setMsg] = useState('')
+
+  const handleCreate = async () => {
+    if (!form.domain || !form.email) return
+    setCreating(true); setMsg('')
+    try {
+      const ok = await cyberPanelAPI.createWebsite(form)
+      setMsg('Website criado com sucesso!')
+      onRefresh()
+    } catch (e: any) {
+      setMsg('Erro: ' + e.message)
+    }
+    setCreating(false)
+  }
+
+  return (
+    <div className="space-y-6 max-w-2xl">
+      <div><h1 className="text-3xl font-bold text-gray-900">Criar Website</h1><p className="text-gray-500 mt-1">Adicione um novo website ao servidor.</p></div>
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+          <div><label className="text-xs font-bold text-gray-600 uppercase block mb-1.5">Domínio</label><input value={form.domain} onChange={e => setForm({...form, domain: e.target.value})} placeholder="exemplo.com" className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm" /></div>
+          <div><label className="text-xs font-bold text-gray-600 uppercase block mb-1.5">Email Admin</label><input value={form.email} onChange={e => setForm({...form, email: e.target.value})} placeholder="admin@exemplo.com" className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm" /></div>
+          <div><label className="text-xs font-bold text-gray-600 uppercase block mb-1.5">Pacote</label>
+            <select value={form.packageName} onChange={e => setForm({...form, packageName: e.target.value})} className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm">
+              <option value="Default">Default</option>
+              {packages.map(p => <option key={p.packageName} value={p.packageName}>{p.packageName}</option>)}
+            </select>
+          </div>
+          <div><label className="text-xs font-bold text-gray-600 uppercase block mb-1.5">Versão PHP</label>
+            <select value={form.php} onChange={e => setForm({...form, php: e.target.value})} className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm">
+              <option>7.4</option><option>8.0</option><option>8.1</option><option>8.2</option><option>8.3</option>
+            </select>
+          </div>
+        </div>
+        {msg && <div className={`mb-4 px-4 py-2.5 rounded-lg text-sm font-medium ${msg.includes('sucesso') ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-700 border border-red-200'}`}>{msg}</div>}
+        <button onClick={handleCreate} disabled={creating || !form.domain || !form.email} className="bg-black hover:bg-red-600 text-white px-5 py-2.5 rounded-lg text-sm font-bold transition-all disabled:opacity-50 flex items-center gap-2">
+          {creating ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Globe className="w-4 h-4" />} Criar Website
+        </button>
+      </div>
+    </div>
+  )
+}
+
+function ListWebsitesSection({ sites, onRefresh }: { sites: CyberPanelWebsite[], onRefresh: () => void }) {
+  return (
+    <div className="space-y-6 max-w-5xl">
+      <div className="flex justify-between items-center">
+        <div><h1 className="text-3xl font-bold text-gray-900">Websites</h1><p className="text-gray-500 mt-1">Todos os websites no servidor.</p></div>
+        <button onClick={onRefresh} className="bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2"><RefreshCw className="w-4 h-4" /> Actualizar</button>
+      </div>
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+        <table className="w-full text-sm">
+          <thead><tr className="text-left text-xs font-bold text-gray-500 uppercase border-b bg-gray-50"><th className="px-4 py-3">Domínio</th><th className="px-4 py-3">Pacote</th><th className="px-4 py-3">Email Admin</th><th className="px-4 py-3">Estado</th><th className="px-4 py-3">SSL</th></tr></thead>
+          <tbody>
+            {sites.length === 0 ? (
+              <tr><td colSpan={5} className="px-4 py-8 text-center text-gray-400">Nenhum website encontrado.</td></tr>
+            ) : sites.map((s, i) => (
+              <tr key={i} className="border-b border-gray-50 hover:bg-gray-50">
+                <td className="px-4 py-3 font-bold">{s.domain}</td>
+                <td className="px-4 py-3 text-gray-600">{(s as any).package || 'Default'}</td>
+                <td className="px-4 py-3 text-gray-600">{(s as any).admin || s.adminEmail || '-'}</td>
+                <td className="px-4 py-3"><span className={`px-2 py-0.5 rounded text-xs font-bold ${s.state === 'Active' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>{s.state || 'Active'}</span></td>
+                <td className="px-4 py-3"><span className={`px-2 py-0.5 rounded text-xs font-bold ${(s as any).ssl === 'Enabled' ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-600'}`}>{(s as any).ssl || 'Disabled'}</span></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  )
+}
+
 export default function AdminPage() {
   const [activeSection, setActiveSection] = useState('dashboard')
-  const [sidebarWidth, setSidebarWidth] = useState(180)
-  const [isCollapsed, setIsCollapsed] = useState(true)
+  const [sidebarWidth, setSidebarWidth] = useState(220)
+  const [isCollapsed, setIsCollapsed] = useState(false)
   const [isResizing, setIsResizing] = useState(false)
   const [cyberPanelSites, setCyberPanelSites] = useState<CyberPanelWebsite[]>([])
   const [cyberPanelUsers, setCyberPanelUsers] = useState<CyberPanelUser[]>([])
@@ -44,7 +110,7 @@ export default function AdminPage() {
   const [isFetchingCyberPanel, setIsFetchingCyberPanel] = useState(false)
   const sidebarRef = useRef<HTMLDivElement>(null)
 
-  const minSidebarWidth = 200
+  const minSidebarWidth = 180
   const maxSidebarWidth = 400
   const collapsedWidth = 64
 
@@ -55,134 +121,196 @@ export default function AdminPage() {
   const loadCyberPanelData = async () => {
     setIsFetchingCyberPanel(true)
     try {
-      const adminToken = lsGet('admin-token')
-      if (!adminToken) return
-
       const [sites, users, packages] = await Promise.all([
-        cyberPanelAPI.listWebsites(),
-        cyberPanelAPI.listUsers(),
-        cyberPanelAPI.listPackages()
+        cyberPanelAPI.listWebsites().catch(() => []),
+        cyberPanelAPI.listUsers().catch(() => []),
+        cyberPanelAPI.listPackages().catch(() => []),
       ])
-
-      setCyberPanelSites(sites)
-      setCyberPanelUsers(users)
-      setCyberPanelPackages(packages)
-
-      lsSet('cp_sites_v1', sites)
-      lsSet('cp_users_v1', users)
-      lsSet('cp_packages_v1', packages)
+      setCyberPanelSites(Array.isArray(sites) ? sites : [])
+      setCyberPanelUsers(Array.isArray(users) ? users : [])
+      setCyberPanelPackages(Array.isArray(packages) ? packages : [])
     } catch (error) {
-      console.error('Error loading CyberPanel data:', error)
+      console.error('Erro ao carregar dados CyberPanel:', error)
     } finally {
       setIsFetchingCyberPanel(false)
     }
   }
 
-  const handleMouseDown = (e: React.MouseEvent) => {
-    e.preventDefault()
-    setIsResizing(true)
-  }
-
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
       if (!isResizing) return
-
       const newWidth = e.clientX
       if (newWidth >= minSidebarWidth && newWidth <= maxSidebarWidth) {
         setSidebarWidth(newWidth)
       }
     }
-
-    const handleMouseUp = () => {
-      setIsResizing(false)
-    }
-
+    const handleMouseUp = () => setIsResizing(false)
     if (isResizing) {
       document.addEventListener('mousemove', handleMouseMove)
       document.addEventListener('mouseup', handleMouseUp)
     }
-
     return () => {
       document.removeEventListener('mousemove', handleMouseMove)
       document.removeEventListener('mouseup', handleMouseUp)
     }
   }, [isResizing])
 
-  const toggleSidebar = () => {
-    setIsCollapsed(!isCollapsed)
-  }
-
   const menuItems = [
     { id: 'dashboard', label: 'Dashboard', icon: Home },
-    { id: 'websites', label: 'Websites', icon: Globe },
-    { id: 'users', label: 'Users', icon: Users },
-    { id: 'packages', label: 'Packages', icon: Package },
-    { id: 'subdomains', label: 'Subdomains', icon: Server },
-    { id: 'databases', label: 'Databases', icon: Database },
-    { id: 'ftp', label: 'FTP', icon: FolderOpen },
-    { id: 'email', label: 'Email', icon: Mail },
-    { id: 'ssl', label: 'SSL', icon: Lock },
-    { id: 'dns', label: 'DNS', icon: Server },
-    { id: 'backup', label: 'Backup', icon: Download },
-    { id: 'settings', label: 'Settings', icon: Settings },
+    { id: 'domains', label: 'Websites', icon: Globe },
+    { id: 'cp-users', label: 'Contas', icon: Users },
+    { id: 'packages-list', label: 'Pacotes', icon: Package },
+    { id: 'cp-databases', label: 'Databases', icon: Database },
+    { id: 'emails-new', label: 'Email', icon: Mail },
+    { id: 'cp-ssl', label: 'SSL', icon: Lock },
+    { id: 'cp-security', label: 'Segurança', icon: Shield },
+    { id: 'cp-php', label: 'PHP', icon: Server },
+    { id: 'git-deploy', label: 'Deploy / GitHub', icon: Download },
+    { id: 'cp-api', label: 'Configurações', icon: Settings },
   ]
 
   const currentSidebarWidth = isCollapsed ? collapsedWidth : sidebarWidth
+
+  const renderSection = () => {
+    switch (activeSection) {
+      case 'dashboard':
+        return <CpanelDashboard sites={cyberPanelSites} users={cyberPanelUsers} isFetching={isFetchingCyberPanel} onNavigate={setActiveSection} onRefresh={loadCyberPanelData} />
+      case 'domains':
+      case 'domains-list':
+        return <ListWebsitesSection sites={cyberPanelSites} onRefresh={loadCyberPanelData} />
+      case 'domains-new':
+        return <CreateWebsiteSection packages={cyberPanelPackages} onRefresh={loadCyberPanelData} />
+      case 'cp-subdomains':
+        return <SubdomainsSection sites={cyberPanelSites} />
+      case 'cp-list-subdomains':
+        return <ListSubdomainsSection sites={cyberPanelSites} />
+      case 'cp-modify-website':
+        return <ModifyWebsiteSection sites={cyberPanelSites} packages={cyberPanelPackages} />
+      case 'cp-suspend-website':
+        return <SuspendWebsiteSection sites={cyberPanelSites} onRefresh={loadCyberPanelData} />
+      case 'cp-delete-website':
+        return <DeleteWebsiteSection sites={cyberPanelSites} onRefresh={loadCyberPanelData} />
+      case 'cp-databases':
+        return <DatabasesSection sites={cyberPanelSites} />
+      case 'cp-ftp':
+        return <FTPSection sites={cyberPanelSites} />
+      case 'emails-new':
+      case 'cp-email-mgmt':
+        return <EmailManagementSection sites={cyberPanelSites} />
+      case 'cp-email-delete':
+        return <EmailDeleteSection sites={cyberPanelSites} />
+      case 'cp-email-limits':
+        return <EmailLimitsSection sites={cyberPanelSites} />
+      case 'cp-email-forwarding':
+        return <EmailForwardingSection sites={cyberPanelSites} />
+      case 'cp-email-catchall':
+        return <CatchAllEmailSection sites={cyberPanelSites} />
+      case 'cp-email-pattern-fwd':
+        return <PatternForwardingSection sites={cyberPanelSites} />
+      case 'cp-email-plus-addr':
+        return <PlusAddressingSection sites={cyberPanelSites} />
+      case 'cp-email-change-pass':
+        return <EmailChangePasswordSection sites={cyberPanelSites} />
+      case 'cp-email-dkim':
+        return <DKIMManagerSection sites={cyberPanelSites} />
+      case 'cp-users':
+        return <CPUsersSection />
+      case 'cp-reseller':
+        return <ResellerSection />
+      case 'cp-ssl':
+        return <SSLSection sites={cyberPanelSites} />
+      case 'cp-security':
+        return <SecuritySection sites={cyberPanelSites} />
+      case 'cp-php':
+        return <PHPConfigSection sites={cyberPanelSites} />
+      case 'cp-api':
+      case 'infrastructure':
+        return <APIConfigSection />
+      case 'cp-wp-list':
+        return <WPListSection sites={cyberPanelSites} />
+      case 'cp-wp-plugins':
+        return <WPPluginsSection sites={cyberPanelSites} />
+      case 'cp-wp-restore-backup':
+        return <WPRestoreBackupSection sites={cyberPanelSites} />
+      case 'cp-wp-remote-backup':
+        return <WPRemoteBackupSection sites={cyberPanelSites} />
+      case 'cp-dns-nameserver':
+        return <DNSNameserverSection sites={cyberPanelSites} />
+      case 'cp-dns-default-ns':
+        return <DNSDefaultNSSection />
+      case 'cp-dns-create-zone':
+      case 'domains-dns':
+        return <DNSCreateZoneSection sites={cyberPanelSites} />
+      case 'cp-dns-delete-zone':
+        return <DNSDeleteZoneSection sites={cyberPanelSites} />
+      case 'cp-dns-cloudflare':
+        return <CloudFlareSection sites={cyberPanelSites} />
+      case 'cp-dns-reset':
+        return <DNSResetSection sites={cyberPanelSites} />
+      case 'git-deploy':
+        return <GitDeploySection />
+      default:
+        return <CpanelDashboard sites={cyberPanelSites} users={cyberPanelUsers} isFetching={isFetchingCyberPanel} onNavigate={setActiveSection} onRefresh={loadCyberPanelData} />
+    }
+  }
 
   return (
     <div className="flex h-screen bg-gray-50 overflow-hidden">
       {/* Sidebar */}
       <motion.div
         ref={sidebarRef}
-        className="relative bg-slate-800 text-white flex flex-col shadow-xl"
+        className="relative bg-white border-r border-gray-200 text-gray-800 flex flex-col shadow-sm"
         style={{ width: `${currentSidebarWidth}px` }}
-        initial={false}
         animate={{ width: currentSidebarWidth }}
         transition={{ duration: 0.2, ease: 'easeInOut' }}
       >
         {/* Sidebar Header */}
-        <div className="p-3 border-b border-slate-700">
+        <div className="p-4 border-b border-gray-100">
           <div className="flex items-center justify-between">
-            {isCollapsed && (
-              <button
-                onClick={toggleSidebar}
-                className="p-1.5 rounded hover:bg-slate-700 transition-colors"
-              >
-                <ChevronRight size={18} />
-              </button>
-            )}
             {!isCollapsed && (
-              <>
-                <h1 className="font-bold text-sm">Admin Panel</h1>
-                <button
-                  onClick={toggleSidebar}
-                  className="p-1.5 rounded hover:bg-slate-700 transition-colors"
-                >
-                  <ChevronLeft size={18} />
-                </button>
-              </>
+              <div className="flex items-center gap-2">
+                <div className="w-7 h-7 bg-red-600 rounded-lg flex items-center justify-center">
+                  <span className="text-white text-xs font-bold">VD</span>
+                </div>
+                <div>
+                  <p className="font-bold text-sm text-gray-900">Painel Admin</p>
+                  <p className="text-[10px] text-gray-400">Painel Completo</p>
+                </div>
+              </div>
             )}
+            <button onClick={() => setIsCollapsed(!isCollapsed)} className="p-1.5 rounded-lg hover:bg-gray-100 transition-colors ml-auto">
+              {isCollapsed ? <ChevronRight size={16} className="text-gray-500" /> : <ChevronLeft size={16} className="text-gray-500" />}
+            </button>
           </div>
         </div>
 
         {/* Menu Items */}
         <nav className="flex-1 overflow-y-auto p-2">
-          <div className="space-y-1">
+          <div className="space-y-0.5">
             {menuItems.map((item) => {
               const Icon = item.icon
+              const isActive = activeSection === item.id ||
+                (item.id === 'domains' && ['domains', 'domains-new', 'domains-list'].includes(activeSection)) ||
+                (item.id === 'emails-new' && activeSection.startsWith('cp-email')) ||
+                (item.id === 'cp-security' && activeSection === 'cp-security')
               return (
                 <button
                   key={item.id}
                   onClick={() => setActiveSection(item.id)}
-                  className={`w-full flex items-center p-2 rounded transition-colors ${
-                    activeSection === item.id
-                      ? 'bg-blue-600 text-white'
-                      : 'hover:bg-slate-700 text-gray-300'
+                  className={`w-full flex items-center p-2.5 rounded-lg transition-colors ${
+                    isActive
+                      ? 'bg-red-50 text-red-600 font-bold'
+                      : 'hover:bg-gray-100 text-gray-600'
                   }`}
-                  title={item.label}
+                  title={isCollapsed ? item.label : ''}
                 >
-                  <Icon size={16} />
-                  {!isCollapsed && <span className="ml-3 text-sm">{item.label}</span>}
+                  <Icon size={17} className={isActive ? 'text-red-600' : 'text-gray-500'} />
+                  {!isCollapsed && (
+                    <span className="ml-3 text-sm">{item.label}</span>
+                  )}
+                  {!isCollapsed && isActive && (
+                    <ChevronRight size={14} className="ml-auto text-red-400" />
+                  )}
                 </button>
               )
             })}
@@ -190,15 +318,15 @@ export default function AdminPage() {
         </nav>
 
         {/* Sidebar Footer */}
-        <div className="p-3 border-t border-slate-700">
-          <div className={`flex items-center ${isCollapsed ? 'justify-center' : 'space-x-3'}`}>
-            <div className="w-6 h-6 bg-blue-500 rounded-full flex items-center justify-center">
-              <UserPlus size={12} />
+        <div className="p-3 border-t border-gray-100">
+          <div className={`flex items-center ${isCollapsed ? 'justify-center' : 'gap-3'}`}>
+            <div className="w-8 h-8 bg-red-600 rounded-full flex items-center justify-center shrink-0">
+              <span className="text-white text-xs font-bold">SC</span>
             </div>
             {!isCollapsed && (
-              <div>
-                <p className="text-xs font-medium">Admin</p>
-                <p className="text-xs text-gray-400">silva.chamo@gmail.com</p>
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-bold text-gray-900 truncate">Silva Chamo</p>
+                <p className="text-[10px] text-gray-400 truncate">silva.chamo@gmail.com</p>
               </div>
             )}
           </div>
@@ -207,8 +335,8 @@ export default function AdminPage() {
         {/* Resize Handle */}
         {!isCollapsed && (
           <div
-            className="absolute right-0 top-0 h-full w-1 cursor-col-resize hover:bg-blue-500 transition-colors"
-            onMouseDown={handleMouseDown}
+            className="absolute right-0 top-0 h-full w-1 cursor-col-resize hover:bg-red-400 transition-colors opacity-0 hover:opacity-100"
+            onMouseDown={(e) => { e.preventDefault(); setIsResizing(true) }}
           />
         )}
       </motion.div>
@@ -216,164 +344,36 @@ export default function AdminPage() {
       {/* Main Content */}
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* Top Header */}
-        <header className="bg-white shadow-sm border-b border-gray-200 px-4 py-3">
+        <header className="bg-white border-b border-gray-200 px-6 py-3">
           <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-3">
-              <h2 className="text-lg font-semibold text-gray-800 capitalize">
-                {activeSection}
-              </h2>
-            </div>
-            <div className="flex items-center space-x-2">
-              <button
-                onClick={loadCyberPanelData}
-                className="p-1.5 rounded hover:bg-gray-100 transition-colors"
-                disabled={isFetchingCyberPanel}
-              >
-                <RefreshCw size={16} className={isFetchingCyberPanel ? 'animate-spin' : ''} />
+            <h2 className="text-base font-bold text-gray-800 capitalize">
+              {activeSection === 'dashboard' ? 'Dashboard' : menuItems.find(m => m.id === activeSection)?.label || activeSection}
+            </h2>
+            <div className="flex items-center gap-2">
+              <a href="https://109.199.104.22:8090" target="_blank" rel="noopener noreferrer"
+                className="bg-red-600 hover:bg-red-700 text-white text-xs font-bold px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-colors">
+                <Globe size={13} /> Painel CyberPanel
+              </a>
+              <button onClick={loadCyberPanelData} disabled={isFetchingCyberPanel}
+                className="p-1.5 rounded-lg hover:bg-gray-100 transition-colors text-gray-500" title="Actualizar dados">
+                <RefreshCw size={15} className={isFetchingCyberPanel ? 'animate-spin' : ''} />
               </button>
             </div>
           </div>
         </header>
 
         {/* Content Area */}
-        <main className="flex-1 overflow-y-auto p-4">
+        <main className="flex-1 overflow-y-auto p-6">
           <AnimatePresence mode="wait">
-            {activeSection === 'dashboard' && (
-              <motion.div
-                key="dashboard"
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -20 }}
-                transition={{ duration: 0.3 }}
-              >
-                <CpanelDashboard
-                  sites={cyberPanelSites}
-                  users={cyberPanelUsers}
-                  isFetching={isFetchingCyberPanel}
-                  onNavigate={(section) => setActiveSection(section)}
-                  onRefresh={loadCyberPanelData}
-                />
-              </motion.div>
-            )}
-
-            {activeSection === 'websites' && (
-              <motion.div
-                key="websites"
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -20 }}
-                transition={{ duration: 0.3 }}
-                className="space-y-4"
-              >
-                <div className="bg-white rounded-lg shadow-sm p-4">
-                  <h3 className="text-lg font-semibold mb-4">Websites Management</h3>
-                  <div className="grid gap-3">
-                    {cyberPanelSites.map((site, index) => (
-                      <div key={index} className="border border-gray-200 rounded-lg p-3">
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <h4 className="font-medium">{site.domain}</h4>
-                            <p className="text-sm text-gray-600">Owner: {site.owner || 'admin'}</p>
-                            <p className="text-sm text-gray-600">Package: {site.package || 'Default'}</p>
-                          </div>
-                          <div className={`px-2 py-1 rounded text-xs font-medium ${
-                            site.state === 'Active' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
-                          }`}>
-                            {site.state || 'Unknown'}
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </motion.div>
-            )}
-
-            {activeSection === 'users' && (
-              <motion.div
-                key="users"
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -20 }}
-                transition={{ duration: 0.3 }}
-                className="space-y-4"
-              >
-                <div className="bg-white rounded-lg shadow-sm p-4">
-                  <h3 className="text-lg font-semibold mb-4">Users Management</h3>
-                  <div className="grid gap-3">
-                    {cyberPanelUsers.map((user, index) => (
-                      <div key={index} className="border border-gray-200 rounded-lg p-3">
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <h4 className="font-medium">{user.userName}</h4>
-                            <p className="text-sm text-gray-600">Email: {user.email || 'N/A'}</p>
-                            <p className="text-sm text-gray-600">Type: {user.type || 'User'}</p>
-                          </div>
-                          <div className={`px-2 py-1 rounded text-xs font-medium ${
-                            user.suspended ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800'
-                          }`}>
-                            {user.suspended ? 'Suspended' : 'Active'}
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </motion.div>
-            )}
-
-            {activeSection === 'packages' && (
-              <motion.div
-                key="packages"
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -20 }}
-                transition={{ duration: 0.3 }}
-                className="space-y-4"
-              >
-                <div className="bg-white rounded-lg shadow-sm p-4">
-                  <h3 className="text-lg font-semibold mb-4">Packages Management</h3>
-                  <div className="grid gap-3">
-                    {cyberPanelPackages.map((pkg, index) => (
-                      <div key={index} className="border border-gray-200 rounded-lg p-3">
-                        <div>
-                          <h4 className="font-medium">{pkg.packageName}</h4>
-                          <div className="grid grid-cols-2 gap-2 mt-2 text-sm text-gray-600">
-                            <p>Disk Space: {pkg.diskSpace || 'Unlimited'}</p>
-                            <p>Bandwidth: {pkg.bandwidth || 'Unlimited'}</p>
-                            <p>Email Accounts: {pkg.emailAccounts || 'Unlimited'}</p>
-                            <p>Databases: {pkg.dataBases || 'Unlimited'}</p>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </motion.div>
-            )}
-
-            {['subdomains', 'databases', 'ftp', 'email', 'ssl', 'dns', 'backup', 'settings'].includes(activeSection) && (
-              <motion.div
-                key={activeSection}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -20 }}
-                transition={{ duration: 0.3 }}
-                className="bg-white rounded-lg shadow-sm p-4"
-              >
-                <h3 className="text-lg font-semibold mb-4 capitalize">
-                  {activeSection} Management
-                </h3>
-                <p className="text-gray-600">
-                  {activeSection} section will be implemented with CyberPanel integration.
-                </p>
-                <div className="mt-4 p-4 bg-gray-50 rounded-lg">
-                  <p className="text-sm text-gray-500">
-                    This section will connect to CyberPanel API to manage {activeSection}.
-                  </p>
-                </div>
-              </motion.div>
-            )}
+            <motion.div
+              key={activeSection}
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              transition={{ duration: 0.15 }}
+            >
+              {renderSection()}
+            </motion.div>
           </AnimatePresence>
         </main>
       </div>

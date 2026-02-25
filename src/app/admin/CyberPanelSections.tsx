@@ -151,7 +151,7 @@ export function DatabasesSection({ sites }: { sites: CyberPanelWebsite[] }) {
   const handleCreate = async () => {
     if (!selectedDomain || !dbName || !dbUser || !dbPass) return
     setCreating(true); setMsg('')
-    const ok = await cyberPanelAPI.createDatabase(selectedDomain, dbName, dbUser, dbPass)
+    const ok = await cyberPanelAPI.createDatabase({ domain: selectedDomain, dbName, dbUser, dbPassword: dbPass })
     cpSaveDatabase(selectedDomain, dbName, dbUser)
     void (async () => { try { await supabase.from('cyberpanel_databases').upsert({ domain: selectedDomain, db_name: dbName, db_user: dbUser }, { onConflict: 'domain,db_name' }) } catch {} })()
     const createdPass = dbPass
@@ -164,7 +164,7 @@ export function DatabasesSection({ sites }: { sites: CyberPanelWebsite[] }) {
 
   const handleDelete = async (name: string) => {
     if (!confirm(`Eliminar base de dados ${name}?`)) return
-    await cyberPanelAPI.deleteDatabase(selectedDomain, name)
+    await cyberPanelAPI.deleteDatabase({ dbName: name })
     cpRemoveDatabase(selectedDomain, name)
     void (async () => { try { await supabase.from('cyberpanel_databases').delete().eq('domain', selectedDomain).eq('db_name', name) } catch {} })()
     loadDBs(selectedDomain)
@@ -271,7 +271,7 @@ export function FTPSection({ sites }: { sites: CyberPanelWebsite[] }) {
   const handleCreate = async () => {
     if (!selectedDomain || !ftpUser || !ftpPass) return
     setCreating(true); setMsg('')
-    const ok = await cyberPanelAPI.createFTPAccount(selectedDomain, ftpUser, ftpPass, ftpPath)
+    const ok = await cyberPanelAPI.createFTPAccount({ domain: selectedDomain, username: ftpUser, password: ftpPass, path: ftpPath })
     cpSaveFTP(selectedDomain, ftpUser, ftpPath)
     void (async () => { try { await supabase.from('cyberpanel_ftp').upsert({ domain: selectedDomain, username: ftpUser, path: ftpPath }, { onConflict: 'domain,username' }) } catch {} })()
     setMsg(ok ? 'Conta FTP criada!' : 'Guardada localmente. Verifica no CyberPanel.')
@@ -282,7 +282,7 @@ export function FTPSection({ sites }: { sites: CyberPanelWebsite[] }) {
 
   const handleDelete = async (user: string) => {
     if (!confirm(`Eliminar conta FTP ${user}?`)) return
-    await cyberPanelAPI.deleteFTPAccount(selectedDomain, user)
+    await cyberPanelAPI.deleteFTPAccount({ username: user })
     cpRemoveFTP(selectedDomain, user)
     void (async () => { try { await supabase.from('cyberpanel_ftp').delete().eq('domain', selectedDomain).eq('username', user) } catch {} })()
     loadFTP(selectedDomain)
@@ -388,7 +388,7 @@ export function EmailManagementSection({ sites }: { sites: CyberPanelWebsite[] }
 
   const handleDelete = async (email: string) => {
     if (!confirm(`Eliminar ${email}?`)) return
-    const ok = await cyberPanelAPI.deleteEmail(selectedDomain, email)
+    const ok = await cyberPanelAPI.deleteEmail({ domain: selectedDomain, email })
     if (ok) loadEmails(selectedDomain)
     else setMsg('Erro ao eliminar.')
   }
@@ -915,7 +915,7 @@ export function SecuritySection({ sites }: { sites: CyberPanelWebsite[] }) {
   const handleToggleModSec = async () => {
     if (!selectedDomain) return
     setModsecLoading(true)
-    const ok = await cyberPanelAPI.toggleModSecurity(selectedDomain, !modsecOn)
+    const ok = await cyberPanelAPI.toggleModSecurity({ enable: !modsecOn })
     if (ok) setModsecOn(!modsecOn)
     else setMsg('Erro ao alterar ModSecurity.')
     setModsecLoading(false)
@@ -1200,7 +1200,7 @@ export function ModifyWebsiteSection({ sites, packages }: { sites: CyberPanelWeb
   const handleModify = async () => {
     if (!selectedDomain) return
     setSaving(true); setMsg('')
-    const ok = await cyberPanelAPI.modifyWebsite(selectedDomain, packageName, phpVersion)
+    const ok = await cyberPanelAPI.modifyWebsite({ domain: selectedDomain, packageName, phpVersion })
     setMsg(ok ? 'Website modified successfully!' : 'Error modifying website.')
     setSaving(false)
   }
@@ -1212,7 +1212,7 @@ export function ModifyWebsiteSection({ sites, packages }: { sites: CyberPanelWeb
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
           <div>
             <label className="text-xs font-bold text-gray-600 uppercase block mb-1.5">Website</label>
-            <select value={selectedDomain} onChange={(e) => { setSelectedDomain(e.target.value); const s = sites.find(x => x.domain === e.target.value); if (s) setPackageName(s.package) }}
+            <select value={selectedDomain} onChange={(e) => { setSelectedDomain(e.target.value); const s = sites.find(x => x.domain === e.target.value); if (s && s.package) setPackageName(s.package) }}
               className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm"><option value="">Select...</option>
               {sites.map(s => <option key={s.domain} value={s.domain}>{s.domain}</option>)}
             </select>
@@ -1342,11 +1342,11 @@ export function WPListSection({ sites }: { sites: CyberPanelWebsite[] }) {
   const [installingLS, setInstallingLS] = useState<string | null>(null)
   const [lsMsg, setLsMsg] = useState<{ domain: string; ok: boolean; text: string } | null>(null)
 
-  useEffect(() => { (async () => { setLoading(true); const data = await cyberPanelAPI.listWordPress(); setWpSites(data); setLoading(false) })() }, [])
+  useEffect(() => { (async () => { setLoading(true); const data = await cyberPanelAPI.listWordPress(''); setWpSites(data); setLoading(false) })() }, [])
 
   const handleInstallLiteSpeed = async (domain: string) => {
     setInstallingLS(domain); setLsMsg(null)
-    const ok = await cyberPanelAPI.installWPPlugin(domain, 'litespeed-cache')
+    const ok = await cyberPanelAPI.installWPPlugin({ domain, plugin: 'litespeed-cache' })
     setLsMsg({ domain, ok, text: ok ? 'LiteSpeed Cache instalado!' : 'Erro ao instalar LiteSpeed Cache.' })
     setInstallingLS(null)
   }
@@ -1438,7 +1438,7 @@ export function WPPluginsSection({ sites }: { sites: CyberPanelWebsite[] }) {
 
   const handleToggle = async (pluginName: string, activate: boolean) => {
     setToggling(pluginName); setMsg('')
-    const ok = await cyberPanelAPI.toggleWPPlugin(selectedDomain, pluginName, activate)
+    const ok = await cyberPanelAPI.toggleWPPlugin({ domain: selectedDomain, plugin: pluginName, activate })
     setMsg(ok ? `Plugin ${activate ? 'activated' : 'deactivated'}!` : 'Error toggling plugin.')
     setToggling('')
     if (ok) loadPlugins(selectedDomain)
@@ -1496,7 +1496,7 @@ export function WPRestoreBackupSection({ sites }: { sites: CyberPanelWebsite[] }
   const handleRestore = async (backupFile: string) => {
     if (!confirm(`Restore backup ${backupFile}?`)) return
     setRestoring(backupFile); setMsg('')
-    const ok = await cyberPanelAPI.restoreWPBackup(selectedDomain, backupFile)
+    const ok = await cyberPanelAPI.restoreWPBackup({ domain: selectedDomain, backup: backupFile })
     setMsg(ok ? 'Backup restored successfully!' : 'Error restoring backup.')
     setRestoring('')
   }
@@ -1540,7 +1540,7 @@ export function WPRemoteBackupSection({ sites }: { sites: CyberPanelWebsite[] })
   const handleCreate = async () => {
     if (!selectedDomain) return
     setCreating(true); setMsg('')
-    const ok = await cyberPanelAPI.createRemoteBackup(selectedDomain, destination)
+    const ok = await cyberPanelAPI.createRemoteBackup({ domain: selectedDomain, destination })
     setMsg(ok ? 'Remote backup initiated!' : 'Error creating remote backup.')
     setCreating(false)
   }
@@ -1586,7 +1586,7 @@ export function DNSNameserverSection({ sites }: { sites: CyberPanelWebsite[] }) 
   const handleCreate = async () => {
     if (!selectedDomain || !ns1 || !ns1IP || !ns2 || !ns2IP) return
     setSaving(true); setMsg('')
-    const ok = await cyberPanelAPI.createNameserver(selectedDomain, ns1, ns1IP, ns2, ns2IP)
+    const ok = await cyberPanelAPI.createNameserver({ domain: selectedDomain, ns1, ns1IP, ns2, ns2IP })
     setMsg(ok ? 'Nameservers created!' : 'Error creating nameservers.')
     setSaving(false)
   }
@@ -1630,7 +1630,7 @@ export function DNSDefaultNSSection() {
   const handleSave = async () => {
     if (!ns1 || !ns2) return
     setSaving(true); setMsg('')
-    const ok = await cyberPanelAPI.configDefaultNameservers(ns1, ns2)
+    const ok = await cyberPanelAPI.configDefaultNameservers({ ns1, ns2 })
     setMsg(ok ? 'Default nameservers configured!' : 'Error configuring nameservers.')
     setSaving(false)
   }
@@ -1736,7 +1736,7 @@ export function CloudFlareSection({ sites }: { sites: CyberPanelWebsite[] }) {
   const handleSave = async () => {
     if (!selectedDomain || !email || !apiKey) return
     setSaving(true); setMsg('')
-    const ok = await cyberPanelAPI.configCloudFlare(selectedDomain, email, apiKey)
+    const ok = await cyberPanelAPI.configCloudFlare({ domain: selectedDomain, email, apiKey })
     setMsg(ok ? 'CloudFlare configured!' : 'Error configuring CloudFlare.')
     setSaving(false)
   }
@@ -1815,7 +1815,7 @@ export function EmailDeleteSection({ sites }: { sites: CyberPanelWebsite[] }) {
   const handleDelete = async (email: string) => {
     if (!confirm(`Delete ${email}?`)) return
     setDeleting(email); setMsg('')
-    const ok = await cyberPanelAPI.deleteEmail(selectedDomain, email)
+    const ok = await cyberPanelAPI.deleteEmail({ domain: selectedDomain, email })
     setMsg(ok ? `${email} deleted!` : 'Error deleting email.')
     setDeleting('')
     if (ok) loadEmails(selectedDomain)
@@ -1862,7 +1862,7 @@ export function EmailLimitsSection({ sites }: { sites: CyberPanelWebsite[] }) {
 
   const handleSave = async (email: string) => {
     setSaving(true); setMsg('')
-    const ok = await cyberPanelAPI.setEmailLimits(selectedDomain, email, parseInt(limit))
+    const ok = await cyberPanelAPI.setEmailLimits({ domain: selectedDomain, email, limit: parseInt(limit) })
     setMsg(ok ? 'Limit updated!' : 'Error updating limit.')
     setSaving(false); setEditingEmail('')
   }
@@ -1913,13 +1913,13 @@ export function EmailForwardingSection({ sites }: { sites: CyberPanelWebsite[] }
 
   const loadForwards = async (email: string) => {
     setSelectedEmail(email)
-    const fwds = await cyberPanelAPI.getEmailForwarding(selectedDomain, email)
+    const fwds = await cyberPanelAPI.getEmailForwarding({ email })
     setForwards(fwds)
   }
 
   const handleAdd = async () => {
     if (!selectedEmail || !forwardTo) return
-    const ok = await cyberPanelAPI.addEmailForwarding(selectedDomain, selectedEmail, forwardTo)
+    const ok = await cyberPanelAPI.addEmailForwarding({ email: selectedEmail, forward: forwardTo })
     if (ok) { setForwardTo(''); loadForwards(selectedEmail) }
     else setMsg('Error adding forwarding.')
   }
@@ -1973,7 +1973,7 @@ export function CatchAllEmailSection({ sites }: { sites: CyberPanelWebsite[] }) 
   const handleSave = async () => {
     if (!selectedDomain) return
     setSaving(true); setMsg('')
-    const ok = await cyberPanelAPI.setCatchAllEmail(selectedDomain, catchAll)
+    const ok = await cyberPanelAPI.setCatchAllEmail({ domain: selectedDomain, email: catchAll })
     setMsg(ok ? 'Catch-all configured!' : 'Error configuring catch-all.')
     setSaving(false)
   }
@@ -2017,7 +2017,7 @@ export function PatternForwardingSection({ sites }: { sites: CyberPanelWebsite[]
 
   const handleAdd = async () => {
     if (!selectedDomain || !pattern || !destination) return
-    const ok = await cyberPanelAPI.addPatternForwarding(selectedDomain, pattern, destination)
+    const ok = await cyberPanelAPI.addPatternForwarding({ domain: selectedDomain, pattern, destination })
     if (ok) { setPattern(''); setDestination(''); loadPatterns(selectedDomain) }
     else setMsg('Error adding pattern.')
   }
@@ -2060,7 +2060,7 @@ export function PlusAddressingSection({ sites }: { sites: CyberPanelWebsite[] })
   const handleToggle = async () => {
     if (!selectedDomain) return
     setToggling(true); setMsg('')
-    const ok = await cyberPanelAPI.togglePlusAddressing(selectedDomain, !enabled)
+    const ok = await cyberPanelAPI.togglePlusAddressing({ domain: selectedDomain, enable: !enabled })
     if (ok) setEnabled(!enabled)
     else setMsg('Error toggling plus-addressing.')
     setToggling(false)
@@ -2107,7 +2107,7 @@ export function EmailChangePasswordSection({ sites }: { sites: CyberPanelWebsite
   const handleChange = async () => {
     if (!selectedEmail || !newPass) return
     setSaving(true); setMsg('')
-    const ok = await cyberPanelAPI.changeEmailPassword(selectedDomain, selectedEmail, newPass)
+    const ok = await cyberPanelAPI.changeEmailPassword({ email: selectedEmail, password: newPass })
     setMsg(ok ? 'Password changed!' : 'Error changing password.')
     setSaving(false); setNewPass('')
   }
