@@ -17,56 +17,18 @@ export async function GET(request: NextRequest) {
 
     try {
         if (type === 'websites') {
-            // Get main websites
-            const mainSitesQuery = `mysql -D cyberpanel -e "SELECT w.domain, p.packageName, w.adminEmail, w.state, w.ssl FROM websiteFunctions_websites w LEFT JOIN packages_package p ON w.package_id = p.id;" | tr '\\t' '|' | grep -v "^domain"`
-            const mainOutput = await executeCyberPanelCommand(mainSitesQuery);
+            const query = `mysql -D cyberpanel -e "SELECT w.domain, p.packageName, w.adminEmail, w.state, w.ssl FROM websiteFunctions_websites w LEFT JOIN packages_package p ON w.package_id = p.id;" | tr '\\t' '|' | grep -v "^domain"`;
+            const output = await executeCyberPanelCommand(query);
 
-            // Get subdomains
-            const subdomainsQuery = `mysql -D cyberpanel -e "SELECT cd.domain, cd.path, cd.ssl, cd.phpSelection, w.domain as master_domain FROM websiteFunctions_childdomains cd LEFT JOIN websiteFunctions_websites w ON cd.master_id = w.id;" | tr '\\t' '|' | grep -v "^domain"`
-            const subdomainsOutput = await executeCyberPanelCommand(subdomainsQuery);
+            if (!output.trim()) return NextResponse.json({ success: true, data: [] });
 
-            let sites: any[] = [];
-            
-            // Process main sites
-            if (mainOutput.trim()) {
-                const mainSites = mainOutput.trim().split('\n')
-                    .filter(l => l.includes('|'))
-                    .map(line => {
-                        const [domain, packageName, adminEmail, state, ssl] = line.split('|').map(s => s.trim());
-                        return { 
-                            domain, 
-                            package: packageName || 'Default', 
-                            admin: adminEmail, 
-                            state: state === '1' ? 'Active' : 'Inactive', 
-                            ssl: ssl === '1' ? 'Enabled' : 'Disabled',
-                            type: 'main'
-                        };
-                    })
-                    .filter(s => s.domain);
-                sites = sites.concat(mainSites);
-            }
-
-            // Process subdomains
-            if (subdomainsOutput.trim()) {
-                const subdomains = subdomainsOutput.trim().split('\n')
-                    .filter(l => l.includes('|'))
-                    .map(line => {
-                        const [domain, path, ssl, phpSelection, masterDomain] = line.split('|').map(s => s.trim());
-                        return { 
-                            domain, 
-                            package: 'Subdomain', 
-                            admin: `subdomain of ${masterDomain}`, 
-                            state: 'Active', 
-                            ssl: ssl === '1' ? 'Enabled' : 'Disabled',
-                            type: 'subdomain',
-                            masterDomain,
-                            path,
-                            phpVersion: phpSelection
-                        };
-                    })
-                    .filter(s => s.domain);
-                sites = sites.concat(subdomains);
-            }
+            const sites = output.trim().split('\n')
+                .filter(l => l.includes('|'))
+                .map(line => {
+                    const [domain, packageName, adminEmail, state, ssl] = line.split('|').map(s => s.trim());
+                    return { domain, package: packageName || 'Default', admin: adminEmail, state: state === '1' ? 'Active' : 'Inactive', ssl: ssl === '1' ? 'Enabled' : 'Disabled' };
+                })
+                .filter(s => s.domain);
 
             return NextResponse.json({ success: true, data: sites });
         }
@@ -107,9 +69,8 @@ export async function GET(request: NextRequest) {
         }
 
         if (type === 'all') {
-            const [mainSitesOut, subdomainsOut, usersOut, pkgsOut] = await Promise.all([
+            const [sitesOut, usersOut, pkgsOut] = await Promise.all([
                 executeCyberPanelCommand(`mysql -D cyberpanel -e "SELECT w.domain, p.packageName, w.adminEmail, w.state, w.ssl FROM websiteFunctions_websites w LEFT JOIN packages_package p ON w.package_id = p.id;" | tr '\\t' '|' | grep -v "^domain"`),
-                executeCyberPanelCommand(`mysql -D cyberpanel -e "SELECT cd.domain, cd.path, cd.ssl, cd.phpSelection, w.domain as master_domain FROM websiteFunctions_childdomains cd LEFT JOIN websiteFunctions_websites w ON cd.master_id = w.id;" | tr '\\t' '|' | grep -v "^domain"`),
                 executeCyberPanelCommand(`mysql -D cyberpanel -e "SELECT userName, email, type FROM loginSystem_administrator;" | tr '\\t' '|' | grep -v "^userName"`),
                 executeCyberPanelCommand(`mysql -D cyberpanel -e "SELECT packageName, diskSpace, bandwidth, emailAccounts, dataBases, ftpAccounts, allowedDomains FROM packages_package;" | tr '\\t' '|' | grep -v "^packageName"`),
             ]);
@@ -120,30 +81,13 @@ export async function GET(request: NextRequest) {
                     return Object.fromEntries(cols.map((c, i) => [c, parts[i] || '']));
                 }).filter(r => r[cols[0]]);
 
-            // Parse main sites
-            const mainSites = parse(mainSitesOut, ['domain', 'packageName', 'adminEmail', 'state', 'ssl']).map(s => ({
+            const sites = parse(sitesOut, ['domain', 'packageName', 'adminEmail', 'state', 'ssl']).map(s => ({
                 ...s,
                 package: s.packageName || 'Default',
                 admin: s.adminEmail,
                 state: s.state === '1' ? 'Active' : 'Inactive',
-                ssl: s.ssl === '1' ? 'Enabled' : 'Disabled',
-                type: 'main'
+                ssl: s.ssl === '1' ? 'Enabled' : 'Disabled'
             }));
-
-            // Parse subdomains
-            const subdomains = parse(subdomainsOut, ['domain', 'path', 'ssl', 'phpSelection', 'master_domain']).map(s => ({
-                domain: s.domain,
-                package: 'Subdomain',
-                admin: `subdomain of ${s.master_domain}`,
-                state: 'Active',
-                ssl: s.ssl === '1' ? 'Enabled' : 'Disabled',
-                type: 'subdomain',
-                masterDomain: s.master_domain,
-                path: s.path,
-                phpVersion: s.phpSelection
-            }));
-
-            const sites = [...mainSites, ...subdomains];
 
             const users = parse(usersOut, ['userName', 'email', 'type']).map(u => ({
                 ...u,
@@ -176,22 +120,10 @@ export async function POST(request: NextRequest) {
                 return NextResponse.json({ error: 'domainName, ownerEmail e packageName são obrigatórios' }, { status: 400 });
             }
             const clean = (s: string) => s.replace(/[^a-zA-Z0-9._@-]/g, '');
-            const php = phpVersion ? phpVersion.replace('PHP ', '') : '8.2';
-            
-            // Create website in CyberPanel
-            const cmd = `cyberpanel createWebsite --package "${clean(packageName)}" --owner "${clean(adminUser || 'admin')}" --domainName "${clean(domainName)}" --email "${clean(ownerEmail)}" --php "${php}"`;
+            const php = phpVersion || 'PHP 8.2';
+            const cmd = `cyberpanel createWebsite --domainName "${clean(domainName)}" --ownerEmail "${clean(ownerEmail)}" --packageName "${clean(packageName)}" --websiteOwner "${clean(adminUser || 'admin')}" --php "${php}"`;
             const output = await executeCyberPanelCommand(cmd);
-            const ok = output.includes('"success": 1') || output.includes('successful') || output.includes('created') || !output.toLowerCase().includes('error');
-            
-            if (ok) {
-                // Also create in MySQL for consistency
-                try {
-                    await executeCyberPanelCommand(`mysql -D cyberpanel -e "INSERT INTO websiteFunctions_websites (domain, adminEmail, phpSelection, ssl, state, externalApp, config, BackupLock, admin_id, package_id) VALUES ('${clean(domainName)}', '${clean(ownerEmail)}', '${php}', 0, 1, 'OLS', '', 0, 1, 1);"`);
-                } catch (mysqlError) {
-                    console.error('MySQL insert error:', mysqlError);
-                }
-            }
-            
+            const ok = output.includes('successful') || output.includes('created') || !output.toLowerCase().includes('error');
             return NextResponse.json({ success: ok, message: ok ? 'Website criado no CyberPanel' : 'Erro ao criar website', details: output });
         }
 
@@ -204,31 +136,12 @@ export async function POST(request: NextRequest) {
             
             if (ownerEmail) cmd += ` --email "${clean(ownerEmail)}"`;
             if (packageName && packageName !== 'Default') cmd += ` --package "${clean(packageName)}"`;
-            if (phpVersion) cmd += ` --php "${clean(phpVersion.replace('PHP ', ''))}"`;
+            if (phpVersion) cmd += ` --php "${clean(phpVersion)}"`;
             if (ssl !== undefined) cmd += ` --ssl ${ssl ? '1' : '0'}`;
             if (state !== undefined) cmd += ` --state ${state ? '1' : '0'}`;
             
             const output = await executeCyberPanelCommand(cmd);
             const ok = output.includes('successful') || output.includes('modified') || !output.toLowerCase().includes('error');
-            
-            if (ok) {
-                // Also update MySQL for consistency
-                try {
-                    let mysqlUpdates = [];
-                    if (ownerEmail) mysqlUpdates.push(`adminEmail = '${clean(ownerEmail)}'`);
-                    if (phpVersion) mysqlUpdates.push(`phpSelection = '${clean(phpVersion)}'`);
-                    if (ssl !== undefined) mysqlUpdates.push(`ssl = ${ssl ? '1' : '0'}`);
-                    if (state !== undefined) mysqlUpdates.push(`state = ${state ? '1' : '0'}`);
-                    
-                    if (mysqlUpdates.length > 0) {
-                        const mysqlCmd = `mysql -D cyberpanel -e "UPDATE websiteFunctions_websites SET ${mysqlUpdates.join(', ')} WHERE domain = '${clean(domainName)}';"`;
-                        await executeCyberPanelCommand(mysqlCmd);
-                    }
-                } catch (mysqlError) {
-                    console.error('MySQL update error:', mysqlError);
-                }
-            }
-            
             return NextResponse.json({ success: ok, message: ok ? 'Website atualizado' : 'Erro ao atualizar', details: output });
         }
 
@@ -258,34 +171,11 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ success: ok, message: ok ? 'Registo DNS removido' : 'Erro ao remover registo DNS', details: output });
         }
 
-        if (action === 'createSubdomain') {
-            if (!domainName || !body.masterDomain || !body.path) {
-                return NextResponse.json({ error: 'domainName, masterDomain e path são obrigatórios' }, { status: 400 });
-            }
-            const clean = (s: string) => s.replace(/[^a-zA-Z0-9._-]/g, '');
-            
-            // Create subdomain in CyberPanel
-            const cmd = `cyberpanel createChildDomain --masterDomain "${clean(body.masterDomain)}" --childDomain "${clean(domainName)}" --path "${clean(body.path)}"`;
-            const output = await executeCyberPanelCommand(cmd);
-            const ok = output.includes('"success": 1') || output.includes('successful') || output.includes('created') || !output.toLowerCase().includes('error');
-            
-            if (ok) {
-                // Also create in MySQL for consistency
-                try {
-                    await executeCyberPanelCommand(`mysql -D cyberpanel -e "INSERT INTO websiteFunctions_childdomains (domain, path, ssl, phpSelection, alais, master_id) VALUES ('${clean(domainName)}', '${clean(body.path)}', 0, 'PHP 8.2', 0, (SELECT id FROM websiteFunctions_websites WHERE domain = '${clean(body.masterDomain)}'));"`);
-                } catch (mysqlError) {
-                    console.error('MySQL insert error:', mysqlError);
-                }
-            }
-            
-            return NextResponse.json({ success: ok, message: ok ? 'Subdomínio criado no CyberPanel' : 'Erro ao criar subdomínio', details: output });
-        }
-
         if (action === 'deleteWebsite') {
             const clean = (s: string) => s.replace(/[^a-zA-Z0-9._-]/g, '');
             const cmd = `cyberpanel deleteWebsite --domainName "${clean(domainName)}" --adminUser "${clean(adminUser || 'admin')}" --adminPass "${adminPass || ''}"`;
             const output = await executeCyberPanelCommand(cmd);
-            const ok = output.includes('"success": 1') || output.includes('successful') || output.includes('deleted') || !output.toLowerCase().includes('error');
+            const ok = output.includes('successful') || output.includes('deleted') || !output.toLowerCase().includes('error');
             return NextResponse.json({ success: ok, message: ok ? 'Website removido' : 'Erro ao remover', details: output });
         }
 

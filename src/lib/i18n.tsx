@@ -365,7 +365,43 @@ const dict: Record<Lang, Dict> = {
     'admin.btn.cancel': 'Cancel',
     'admin.btn.create': 'Create',
     'admin.btn.refresh': 'Refresh',
-    'admin.btn.logout': 'Sign Out'
+    'admin.btn.logout': 'Sign Out',
+
+    // Authentication
+    'auth.login.title': 'Entrar',
+    'auth.login.subtitle': 'Gestão de Clientes',
+    'auth.login.email': 'E-mail',
+    'auth.login.password': 'Palavra-passe',
+    'auth.login.signIn': 'Entrar',
+    'auth.login.signingIn': 'A entrar...',
+    'auth.login.forgotPassword': 'Esqueceu a palavra-passe?',
+    'auth.login.noAccount': 'Não tem conta?',
+    'auth.login.signUp': 'Registar',
+    'auth.login.invalidCredentials': 'Credenciais inválidas',
+    'auth.login.error': 'Erro ao fazer login',
+
+    'auth.register.title': 'Criar Conta',
+    'auth.register.fullName': 'Nome Completo',
+    'auth.register.phone': 'Telefone',
+    'auth.register.confirmPassword': 'Confirmar Palavra-passe',
+    'auth.register.alreadyHaveAccount': 'Já tem conta?',
+    'auth.register.signIn': 'Entrar',
+
+    'auth.forgotPassword.title': 'Recuperar Palavra-passe',
+    'auth.forgotPassword.description': 'Enviaremos um link para o seu email',
+    'auth.forgotPassword.sendReset': 'Enviar Link de Recuperação',
+    'auth.forgotPassword.backToLogin': 'Voltar ao Login',
+    'auth.forgotPassword.checkEmail': 'Verifique seu email',
+
+    'auth.resetPassword.title': 'Nova Palavra-passe',
+    'auth.resetPassword.newPassword': 'Nova Palavra-passe',
+    'auth.resetPassword.confirmPassword': 'Confirmar Nova Palavra-passe',
+    'auth.resetPassword.updatePassword': 'Atualizar Palavra-passe',
+
+    'auth.common.required': 'Campo obrigatório',
+    'auth.common.invalidEmail': 'Email inválido',
+    'auth.common.passwordMinLength': 'Palavra-passe deve ter pelo menos 6 caracteres',
+    'auth.common.passwordMismatch': 'Palavra-passes não coincidem'
   },
 }
 

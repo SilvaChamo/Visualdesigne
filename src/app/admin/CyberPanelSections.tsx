@@ -330,7 +330,7 @@ export function FTPSection({ sites }: { sites: CyberPanelWebsite[] }) {
                 <tr key={i} className="border-b border-gray-50 hover:bg-gray-50">
                   <td className="px-4 py-3 font-medium">{a.userName}</td>
                   <td className="px-4 py-3 text-gray-500 font-mono text-xs">{a.path}</td>
-                  <td className="px-4 py-3"><button onClick={() => handleDelete(a.userName)} className="text-red-500 hover:text-red-700"><Trash2 className="w-4 h-4" /></button></td>
+                  <td className="px-4 py-3"><button onClick={() => handleDelete(a.userName || a.username || "")} className="text-red-500 hover:text-red-700"><Trash2 className="w-4 h-4" /></button></td>
                 </tr>
               ))}
             </tbody>
@@ -395,20 +395,20 @@ export function EmailManagementSection({ sites }: { sites: CyberPanelWebsite[] }
 
   const handleChangePass = async (email: string) => {
     if (!newPass) return
-    const ok = await cyberPanelAPI.changeEmailPassword(selectedDomain, email, newPass)
+    const ok = await cyberPanelAPI.changeEmailPassword({ email, password: newPass })
     if (ok) { setMsg('Senha alterada!'); setChangingPass(null); setNewPass('') }
     else setMsg('Erro ao alterar senha.')
   }
 
   const loadForwards = async (email: string) => {
     setForwardEmail(email)
-    const fwds = await cyberPanelAPI.getEmailForwarding(selectedDomain, email)
+    const fwds = await cyberPanelAPI.getEmailForwarding({ email })
     setForwards(fwds)
   }
 
   const handleAddForward = async () => {
     if (!forwardEmail || !forwardTo) return
-    const ok = await cyberPanelAPI.addEmailForwarding(selectedDomain, forwardEmail, forwardTo)
+    const ok = await cyberPanelAPI.addEmailForwarding({ email: forwardEmail, forward: forwardTo })
     if (ok) { setForwardTo(''); loadForwards(forwardEmail) }
     else setMsg('Erro ao adicionar reencaminhamento.')
   }
@@ -459,7 +459,7 @@ export function EmailManagementSection({ sites }: { sites: CyberPanelWebsite[] }
                     <div className="w-10 h-10 bg-red-50 rounded-full flex items-center justify-center"><Mail className="w-5 h-5 text-red-600" /></div>
                     <div>
                       <p className="font-bold text-gray-900 text-sm">{em.email}</p>
-                      <p className="text-xs text-gray-500">Quota: {em.quota} • Uso: {em.usage}</p>
+                      <p className="text-xs text-gray-500">Quota: {em.quota || 'Unlimited'}</p>
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
@@ -522,8 +522,14 @@ export function CPUsersSection() {
         const { data: sbUsers, error: sbErr } = await supabase.from('cyberpanel_users').select('*').order('username')
         if (!sbErr && sbUsers && sbUsers.length > 0) {
           setUsers(sbUsers.map((u: any) => ({
-            userName: u.username, firstName: u.first_name || '', lastName: u.last_name || '',
-            email: u.email || '', acl: u.acl || 'user', websitesLimit: u.websites_limit || 0, status: u.status || 'Active'
+            id: u.id,
+            userName: u.username, 
+            firstName: u.first_name || '',
+            lastName: u.last_name || '',
+            email: u.email || '', 
+            acl: u.acl || 'user', 
+            websitesLimit: u.websites_limit || 0, 
+            status: u.status || 'Active'
           })))
           loaded = true
         }
@@ -601,15 +607,14 @@ export function CPUsersSection() {
           <div className="py-12 text-center text-gray-400"><Users className="w-10 h-10 mx-auto mb-2 opacity-50" /><p className="text-sm">Nenhum utilizador encontrado.</p></div>
         ) : (
           <table className="w-full text-sm">
-            <thead><tr className="text-left text-xs font-bold text-gray-500 uppercase border-b bg-gray-50"><th className="px-4 py-3">Username</th><th className="px-4 py-3">Nome</th><th className="px-4 py-3">E-mail</th><th className="px-4 py-3">ACL</th><th className="px-4 py-3">Websites</th><th className="px-4 py-3 w-20">Ações</th></tr></thead>
+            <thead><tr className="text-left text-xs font-bold text-gray-500 uppercase border-b bg-gray-50"><th className="px-4 py-3">Username</th><th className="px-4 py-3">E-mail</th><th className="px-4 py-3">Type</th><th className="px-4 py-3">Websites</th><th className="px-4 py-3 w-20">Ações</th></tr></thead>
             <tbody>
               {users.map((u, i) => (
                 <tr key={i} className="border-b border-gray-50 hover:bg-gray-50">
-                  <td className="px-4 py-3 font-bold">{u.userName}</td>
-                  <td className="px-4 py-3">{u.firstName} {u.lastName}</td>
-                  <td className="px-4 py-3 text-gray-600">{u.email}</td>
-                  <td className="px-4 py-3"><span className="bg-gray-100 text-gray-700 px-2 py-0.5 rounded text-xs font-bold">{u.acl}</span></td>
-                  <td className="px-4 py-3">{u.websitesLimit}</td>
+                  <td className="px-4 py-3">{u.userName}</td>
+                  <td className="px-4 py-3 text-gray-600">{u.email || 'N/A'}</td>
+                  <td className="px-4 py-3"><span className="bg-gray-100 text-gray-700 px-2 py-0.5 rounded text-xs font-bold">{u.type || 'User'}</span></td>
+                  <td className="px-4 py-3">-</td>
                   <td className="px-4 py-3">{u.userName !== 'admin' && <button onClick={() => handleDelete(u.userName)} className="text-red-500 hover:text-red-700"><Trash2 className="w-4 h-4" /></button>}</td>
                 </tr>
               ))}
@@ -735,7 +740,7 @@ export function PHPConfigSection({ sites }: { sites: CyberPanelWebsite[] }) {
   const handleSave = async () => {
     if (!selectedDomain || !config) return
     setSaving(true); setMsg('')
-    const ok = await cyberPanelAPI.savePHPConfig(selectedDomain, config)
+    const ok = await cyberPanelAPI.savePHPConfig({ domain: selectedDomain, config })
     if (ok) setMsg('Configurações PHP guardadas!')
     else setMsg('Erro ao guardar configurações.')
     setSaving(false)
@@ -744,7 +749,7 @@ export function PHPConfigSection({ sites }: { sites: CyberPanelWebsite[] }) {
   const handleChangePHP = async () => {
     if (!selectedDomain) return
     setSaving(true); setMsg('')
-    const ok = await cyberPanelAPI.changePHPVersion(selectedDomain, phpVersion)
+    const ok = await cyberPanelAPI.changePHPVersion({ domain: selectedDomain, phpVersion })
     if (ok) setMsg(`Versão PHP alterada para ${phpVersion}!`)
     else setMsg('Erro ao alterar versão PHP.')
     setSaving(false)
@@ -902,7 +907,7 @@ export function SecuritySection({ sites }: { sites: CyberPanelWebsite[] }) {
   const loadModSec = async (domain: string) => {
     if (!domain) return
     setModsecLoading(true)
-    const status = await cyberPanelAPI.getModSecurityStatus(domain)
+    const status = await cyberPanelAPI.getModSecurityStatus()
     setModsecOn(status)
     setModsecLoading(false)
   }

@@ -76,7 +76,7 @@ async function listSites() {
   try {
     const sites = await cyberPanelAPI.listWebsites()
     
-    const visualdesignSite = sites.find(site => site.domain === 'visualdesign.com')
+    const visualdesignSite = sites.find((site: any) => site.domain === 'visualdesign.com')
     
     return NextResponse.json({
       success: true,
