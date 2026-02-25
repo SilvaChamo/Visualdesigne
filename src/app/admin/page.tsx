@@ -71,11 +71,11 @@ function CreateWebsiteSection({ packages, onRefresh }: { packages: CyberPanelPac
   )
 }
 
-function ListWebsitesSection({ sites, onRefresh }: { sites: CyberPanelWebsite[], onRefresh: () => void }) {
+function ListWebsitesSection({ sites, onRefresh, onOpenDNS }: { sites: CyberPanelWebsite[], onRefresh: () => void, onOpenDNS?: (domain: string) => void }) {
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedSites, setSelectedSites] = useState<string[]>([])
   const [editingSite, setEditingSite] = useState<string | null>(null)
-  const [editForm, setEditForm] = useState({ packageName: '', php: '' })
+  const [editForm, setEditForm] = useState({ packageName: '', php: '', email: '' })
 
   const filteredSites = sites.filter(site => 
     site.domain.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -83,15 +83,22 @@ function ListWebsitesSection({ sites, onRefresh }: { sites: CyberPanelWebsite[],
   )
 
   const handleEdit = (site: CyberPanelWebsite) => {
-    if (editingSite === site.domain) {
-      // Save edit
+    setEditingSite(site.domain)
+    setEditForm({
+      packageName: (site as any).package || 'Default',
+      php: (site as any).phpSelection || 'PHP 8.2',
+      email: site.adminEmail || ''
+    })
+  }
+
+  const handleSaveEdit = async (domain: string) => {
+    try {
+      // TODO: Call API to update website
+      console.log('Saving website:', domain, editForm)
       setEditingSite(null)
-    } else {
-      setEditingSite(site.domain)
-      setEditForm({
-        packageName: (site as any).package || 'Default',
-        php: (site as any).phpSelection || 'PHP 8.2'
-      })
+      onRefresh()
+    } catch (e) {
+      console.error('Error saving website:', e)
     }
   }
 
@@ -259,69 +266,43 @@ function ListWebsitesSection({ sites, onRefresh }: { sites: CyberPanelWebsite[],
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-1">
-                      {editingSite === site.domain ? (
-                        <>
-                          <input
-                            type="text"
-                            value={editForm.packageName}
-                            onChange={(e) => setEditForm({...editForm, packageName: e.target.value})}
-                            className="w-20 px-2 py-1 border border-gray-300 rounded text-xs mr-1"
-                            placeholder="Pacote"
-                          />
-                          <input
-                            type="text"
-                            value={editForm.php}
-                            onChange={(e) => setEditForm({...editForm, php: e.target.value})}
-                            className="w-20 px-2 py-1 border border-gray-300 rounded text-xs mr-1"
-                            placeholder="PHP"
-                          />
-                          <button
-                            onClick={() => handleEdit(site)}
-                            className="text-green-600 hover:text-green-800 text-xs font-bold"
-                          >
-                            Salvar
-                          </button>
-                          <button
-                            onClick={() => setEditingSite(null)}
-                            className="text-gray-600 hover:text-gray-800 text-xs font-bold"
-                          >
-                            Cancelar
-                          </button>
-                        </>
-                      ) : (
-                        <>
-                          <button
-                            onClick={() => handleEdit(site)}
-                            className="text-blue-600 hover:text-blue-800 text-xs font-bold"
-                            title="Editar"
-                          >
-                            <Edit2 className="w-3 h-3" />
-                          </button>
-                          <button
-                            onClick={() => handleSuspend(site.domain)}
-                            className={`text-${site.state === 'Suspended' ? 'green' : 'orange'}-600 hover:text-${site.state === 'Suspended' ? 'green' : 'orange'}-800 text-xs font-bold`}
-                            title={site.state === 'Suspended' ? 'Ativar' : 'Suspender'}
-                          >
-                            {site.state === 'Suspended' ? <Play className="w-3 h-3" /> : <Pause className="w-3 h-3" />}
-                          </button>
-                          <button
-                            onClick={() => handleDelete(site.domain)}
-                            className="text-red-600 hover:text-red-800 text-xs font-bold"
-                            title="Apagar"
-                          >
-                            <Trash2 className="w-3 h-3" />
-                          </button>
-                          <a
-                            href={`http://${site.domain}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-gray-600 hover:text-gray-800 text-xs font-bold"
-                            title="Abrir site"
-                          >
-                            <ExternalLink className="w-3 h-3" />
-                          </a>
-                        </>
-                      )}
+                      <button
+                        onClick={() => handleEdit(site)}
+                        className="text-blue-600 hover:text-blue-800 text-xs font-bold"
+                        title="Editar"
+                      >
+                        <Edit2 className="w-3 h-3" />
+                      </button>
+                      <button
+                        onClick={() => handleSuspend(site.domain)}
+                        className={`text-${site.state === 'Suspended' ? 'green' : 'orange'}-600 hover:text-${site.state === 'Suspended' ? 'green' : 'orange'}-800 text-xs font-bold`}
+                        title={site.state === 'Suspended' ? 'Ativar' : 'Suspender'}
+                      >
+                        {site.state === 'Suspended' ? <Play className="w-3 h-3" /> : <Pause className="w-3 h-3" />}
+                      </button>
+                      <button
+                        onClick={() => handleDelete(site.domain)}
+                        className="text-red-600 hover:text-red-800 text-xs font-bold"
+                        title="Apagar"
+                      >
+                        <Trash2 className="w-3 h-3" />
+                      </button>
+                      <a
+                        href={`http://${site.domain}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-gray-600 hover:text-gray-800 text-xs font-bold"
+                        title="Abrir site"
+                      >
+                        <ExternalLink className="w-3 h-3" />
+                      </a>
+                      <button
+                        onClick={() => onOpenDNS && onOpenDNS(site.domain)}
+                        className="p-1.5 rounded bg-purple-50 hover:bg-purple-100 text-purple-600"
+                        title="Editar DNS"
+                      >
+                        <Server className="w-3.5 h-3.5" />
+                      </button>
                     </div>
                   </td>
                 </tr>
@@ -330,6 +311,56 @@ function ListWebsitesSection({ sites, onRefresh }: { sites: CyberPanelWebsite[],
           </table>
         </div>
       </div>
+
+      {/* Modal de edição */}
+      {editingSite && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl shadow-2xl p-6 w-full max-w-md mx-4">
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-lg font-bold text-gray-900">Editar Website</h2>
+              <button onClick={() => setEditingSite(null)} className="text-gray-400 hover:text-gray-600">✕</button>
+            </div>
+            
+            <div className="space-y-4">
+              <div>
+                <label className="text-xs font-bold text-gray-600 uppercase block mb-1.5">Domínio</label>
+                <input value={editingSite} disabled className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm bg-gray-50 text-gray-500" />
+              </div>
+              <div>
+                <label className="text-xs font-bold text-gray-600 uppercase block mb-1.5">Pacote</label>
+                <select value={editForm.packageName} onChange={e => setEditForm({...editForm, packageName: e.target.value})}
+                  className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm">
+                  <option value="Default">Default</option>
+                  {/* TODO: Add packages from props */}
+                </select>
+              </div>
+              <div>
+                <label className="text-xs font-bold text-gray-600 uppercase block mb-1.5">Versão PHP</label>
+                <select value={editForm.php} onChange={e => setEditForm({...editForm, php: e.target.value})}
+                  className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm">
+                  <option>7.4</option><option>8.0</option><option>8.1</option><option>8.2</option><option>8.3</option>
+                </select>
+              </div>
+              <div>
+                <label className="text-xs font-bold text-gray-600 uppercase block mb-1.5">Email Admin</label>
+                <input value={editForm.email || ''} onChange={e => setEditForm({...editForm, email: e.target.value})}
+                  className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm" />
+              </div>
+            </div>
+
+            <div className="flex gap-3 mt-6">
+              <button onClick={() => handleSaveEdit(editingSite)}
+                className="flex-1 bg-black hover:bg-red-600 text-white py-2.5 rounded-lg text-sm font-bold transition-colors">
+                Guardar Alterações
+              </button>
+              <button onClick={() => setEditingSite(null)}
+                className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 py-2.5 rounded-lg text-sm font-bold">
+                Cancelar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -343,6 +374,7 @@ export default function AdminPage() {
   const [cyberPanelUsers, setCyberPanelUsers] = useState<CyberPanelUser[]>([])
   const [cyberPanelPackages, setCyberPanelPackages] = useState<CyberPanelPackage[]>([])
   const [isFetchingCyberPanel, setIsFetchingCyberPanel] = useState(false)
+  const [selectedDNSDomain, setSelectedDNSDomain] = useState<string>('')
   const sidebarRef = useRef<HTMLDivElement>(null)
 
   const minSidebarWidth = 180
@@ -412,7 +444,7 @@ export default function AdminPage() {
         return <CpanelDashboard sites={cyberPanelSites} users={cyberPanelUsers} isFetching={isFetchingCyberPanel} onNavigate={setActiveSection} onRefresh={loadCyberPanelData} />
       case 'domains':
       case 'domains-list':
-        return <ListWebsitesSection sites={cyberPanelSites} onRefresh={loadCyberPanelData} />
+        return <ListWebsitesSection sites={cyberPanelSites} onRefresh={loadCyberPanelData} onOpenDNS={(domain) => { setSelectedDNSDomain(domain); setActiveSection('domains-dns') }} />
       case 'domains-new':
         return <CreateWebsiteSection packages={cyberPanelPackages} onRefresh={loadCyberPanelData} />
       case 'cp-subdomains':
@@ -476,13 +508,15 @@ export default function AdminPage() {
       case 'cp-dns-create-zone':
         return <DNSCreateZoneSection sites={cyberPanelSites} />
       case 'domains-dns':
-        return <DNSZoneEditorSection sites={cyberPanelSites} />
+        return <DNSZoneEditorSection sites={cyberPanelSites} selectedDomain={selectedDNSDomain} />
       case 'cp-dns-delete-zone':
         return <DNSDeleteZoneSection sites={cyberPanelSites} />
       case 'cp-dns-cloudflare':
         return <CloudFlareSection sites={cyberPanelSites} />
       case 'cp-dns-reset':
         return <DNSResetSection sites={cyberPanelSites} />
+      case 'cp-dns-zone-editor':
+        return <DNSZoneEditorSection sites={cyberPanelSites} />
       case 'cp-dns-zone-editor':
         return <DNSZoneEditorSection sites={cyberPanelSites} />
       case 'git-deploy':

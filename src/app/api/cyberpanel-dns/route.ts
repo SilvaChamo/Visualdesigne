@@ -67,21 +67,31 @@ export async function GET(request: Request) {
     
     const cleanDomain = domain.replace(/[^a-zA-Z0-9_.-]/g, '');
     
-    // Tentar diferentes localizações do ficheiro de zona BIND
-    const zoneContent = await execSSH(
-      `cat /etc/named/domains/${cleanDomain}.db 2>/dev/null || ` +
-      `cat /var/named/${cleanDomain}.db 2>/dev/null || ` +
-      `cat /etc/bind/zones/${cleanDomain}.db 2>/dev/null || ` +
-      `cat /etc/named/${cleanDomain}.zone 2>/dev/null || ` +
-      `named-compilezone -o - ${cleanDomain} /etc/named/domains/${cleanDomain}.db 2>/dev/null || ` +
-      `echo "ZONE_NOT_FOUND"`
+    const output = await execSSH(
+      `mysql cyberpanel -e "SELECT r.id, r.name, r.type, r.content, r.ttl FROM records r ` +
+      `INNER JOIN domains d ON r.domain_id = d.id ` +
+      `WHERE d.name='${cleanDomain}';" 2>&1`
     );
     
-    if (zoneContent.includes('ZONE_NOT_FOUND')) {
-      return NextResponse.json({ success: true, records: [], message: 'Zona DNS não encontrada para este domínio' });
+    if (output.toLowerCase().includes('error')) {
+      const output2 = await execSSH(
+        `mysql cyberpanel -e "SHOW TABLES LIKE '%dns%'; SHOW TABLES LIKE '%record%'; SHOW TABLES LIKE '%domain%';" 2>&1`
+      );
+      return NextResponse.json({ success: false, error: output, tables: output2 });
     }
     
-    const records = parseBindZone(zoneContent, cleanDomain);
+    const lines = output.trim().split('\n').filter(l => l && !l.startsWith('id'));
+    const records = lines.map((line, i) => {
+      const parts = line.split('\t');
+      return {
+        id: (parts[0]?.trim() || String(i)),
+        name: parts[1]?.trim() || '',
+        type: parts[2]?.trim() || '',
+        content: parts[3]?.trim() || '',
+        ttl: parts[4]?.trim() || '14400',
+      };
+    }).filter(r => r.name && r.type);
+    
     return NextResponse.json({ success: true, records });
     
   } catch (error: any) {

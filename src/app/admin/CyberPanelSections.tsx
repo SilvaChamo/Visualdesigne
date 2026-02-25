@@ -138,7 +138,7 @@ type DNSFormState = {
   priority?: string
 }
 
-export function DNSZoneEditorSection({ sites }: { sites: CyberPanelWebsite[] }) {
+export function DNSZoneEditorSection({ sites, selectedDomain: selectedDomainProp }: { sites: CyberPanelWebsite[]; selectedDomain?: string }) {
   const [selectedDomain, setSelectedDomain] = useState('')
   const [records, setRecords] = useState<DNSRecordRow[]>([])
   const [loading, setLoading] = useState(false)
@@ -200,10 +200,16 @@ export function DNSZoneEditorSection({ sites }: { sites: CyberPanelWebsite[] }) 
   }
 
   useEffect(() => {
-    if (sites.length > 0 && !selectedDomain) {
+    if (sites.length > 0 && !selectedDomain && !selectedDomainProp) {
       setSelectedDomain(sites[0].domain)
     }
-  }, [sites])
+  }, [sites, selectedDomain, selectedDomainProp])
+
+  useEffect(() => {
+    if (selectedDomainProp && selectedDomainProp !== selectedDomain) {
+      setSelectedDomain(selectedDomainProp)
+    }
+  }, [selectedDomainProp, selectedDomain])
 
   useEffect(() => {
     if (selectedDomain) {
@@ -1351,17 +1357,18 @@ export function CPUsersSection() {
       setMsg('Utilizador atualizado com sucesso!')
     } else {
       setEditingUser(user.userName)
+      const u = user as any
       setEditForm({
-        firstName: user.firstName || '',
-        lastName: user.lastName || '',
-        email: user.email || '',
-        acl: user.acl || 'user'
+        firstName: u.firstName || '',
+        lastName: u.lastName || '',
+        email: u.email || '',
+        acl: u.acl || 'user'
       })
     }
   }
 
   const handleSuspend = async (userName: string) => {
-    const user = users.find(u => u.userName === userName)
+    const user = users.find(u => u.userName === userName) as any
     const isSuspended = user?.state === 'Suspended'
     
     try {
@@ -1452,7 +1459,7 @@ export function CPUsersSection() {
                         {acls.map(a => <option key={a} value={a}>{a}</option>)}
                       </select>
                     ) : (
-                      <span className="bg-gray-100 text-gray-700 px-2 py-0.5 rounded text-xs font-bold">{u.acl || 'User'}</span>
+                      <span className="bg-gray-100 text-gray-700 px-2 py-0.5 rounded text-xs font-bold">{(u as any).acl || 'User'}</span>
                     )}
                   </td>
                   <td className="px-4 py-3">
