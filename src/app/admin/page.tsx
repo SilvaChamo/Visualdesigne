@@ -2,10 +2,10 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import {
-  Home, Globe, Users, Package, Server, Database, Mail,
-  Shield, Settings, Download, FolderOpen, Lock, RefreshCw,
-  ChevronLeft, ChevronRight, UserPlus, LogOut
+import { 
+  Home, Globe, Users, Mail, Shield, Database, Settings, 
+  ChevronLeft, ChevronRight, Plus, Search, Download, ExternalLink,
+  Edit2, Pause, Play, Trash2, RefreshCw, LogOut, Package, Server, Lock
 } from 'lucide-react'
 import { CpanelDashboard } from './CpanelDashboard'
 import {
@@ -19,7 +19,7 @@ import {
   EmailForwardingSection, CatchAllEmailSection, PatternForwardingSection,
   PlusAddressingSection, EmailChangePasswordSection, DKIMManagerSection,
   WPRestoreBackupSection, WPRemoteBackupSection, ListSubdomainsSection,
-  PackagesSection
+  PackagesSection, DNSZoneEditorSection
 } from './CyberPanelSections'
 import { cyberPanelAPI } from '@/lib/cyberpanel-api'
 import type { CyberPanelWebsite, CyberPanelUser, CyberPanelPackage } from '@/lib/cyberpanel-api'
@@ -44,7 +44,7 @@ function CreateWebsiteSection({ packages, onRefresh }: { packages: CyberPanelPac
   }
 
   return (
-    <div className="space-y-6 max-w-2xl">
+    <div className="space-y-6 w-full">
       <div><h1 className="text-3xl font-bold text-gray-900">Criar Website</h1><p className="text-gray-500 mt-1">Adicione um novo website ao servidor.</p></div>
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
@@ -72,29 +72,263 @@ function CreateWebsiteSection({ packages, onRefresh }: { packages: CyberPanelPac
 }
 
 function ListWebsitesSection({ sites, onRefresh }: { sites: CyberPanelWebsite[], onRefresh: () => void }) {
+  const [searchTerm, setSearchTerm] = useState('')
+  const [selectedSites, setSelectedSites] = useState<string[]>([])
+  const [editingSite, setEditingSite] = useState<string | null>(null)
+  const [editForm, setEditForm] = useState({ packageName: '', php: '' })
+
+  const filteredSites = sites.filter(site => 
+    site.domain.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    site.adminEmail?.toLowerCase().includes(searchTerm.toLowerCase())
+  )
+
+  const handleEdit = (site: CyberPanelWebsite) => {
+    if (editingSite === site.domain) {
+      // Save edit
+      setEditingSite(null)
+    } else {
+      setEditingSite(site.domain)
+      setEditForm({
+        packageName: (site as any).package || 'Default',
+        php: (site as any).phpSelection || 'PHP 8.2'
+      })
+    }
+  }
+
+  const handleSuspend = async (domain: string) => {
+    try {
+      const res = await fetch('/api/server-exec', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          action: (sites.find(s => s.domain === domain)?.state === 'Suspended') ? 'unsuspendWebsite' : 'suspendWebsite',
+          params: { domain }
+        })
+      })
+      if (res.ok) {
+        onRefresh()
+      }
+    } catch (e) {
+      console.error('Error suspending site:', e)
+    }
+  }
+
+  const handleDelete = async (domain: string) => {
+    if (!confirm(`Tem certeza que deseja apagar o website "${domain}"? Esta ação é irreversível!`)) return
+    try {
+      const res = await fetch('/api/server-exec', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          action: 'deleteWebsite',
+          params: { domain }
+        })
+      })
+      if (res.ok) {
+        onRefresh()
+      }
+    } catch (e) {
+      console.error('Error deleting site:', e)
+    }
+  }
+
+  const exportCSV = () => {
+    const csv = [
+      ['Domínio', 'IP', 'Utilizador', 'Email', 'Pacote', 'Estado', 'SSL'],
+      ...filteredSites.map(site => [
+        site.domain,
+        '109.199.104.22',
+        'admin',
+        site.adminEmail || '',
+        (site as any).package || 'Default',
+        site.state || 'Active',
+        (site as any).ssl || 'Disabled'
+      ])
+    ].map(row => row.join(',')).join('\n')
+
+    const blob = new Blob([csv], { type: 'text/csv' })
+    const url = window.URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = 'websites.csv'
+    a.click()
+  }
+
   return (
-    <div className="space-y-6 max-w-5xl">
+    <div className="space-y-6 w-full">
       <div className="flex justify-between items-center">
         <div><h1 className="text-3xl font-bold text-gray-900">Websites</h1><p className="text-gray-500 mt-1">Todos os websites no servidor.</p></div>
-        <button onClick={onRefresh} className="bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2"><RefreshCw className="w-4 h-4" /> Actualizar</button>
+        <div className="flex items-center gap-2">
+          <button onClick={onRefresh} className="bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2">
+            <RefreshCw className="w-4 h-4" /> Sincronizar
+          </button>
+          <button onClick={exportCSV} className="bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2">
+            <Download className="w-4 h-4" /> Exportar CSV
+          </button>
+          <a href="https://109.199.104.22:8090" target="_blank" rel="noopener noreferrer" className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2">
+            <ExternalLink className="w-4 h-4" /> Ver no CyberPanel
+          </a>
+        </div>
       </div>
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
-        <table className="w-full text-sm">
-          <thead><tr className="text-left text-xs font-bold text-gray-500 uppercase border-b bg-gray-50"><th className="px-4 py-3">Domínio</th><th className="px-4 py-3">Pacote</th><th className="px-4 py-3">Email Admin</th><th className="px-4 py-3">Estado</th><th className="px-4 py-3">SSL</th></tr></thead>
-          <tbody>
-            {sites.length === 0 ? (
-              <tr><td colSpan={5} className="px-4 py-8 text-center text-gray-400">Nenhum website encontrado.</td></tr>
-            ) : sites.map((s, i) => (
-              <tr key={i} className="border-b border-gray-50 hover:bg-gray-50">
-                <td className="px-4 py-3 font-bold">{s.domain}</td>
-                <td className="px-4 py-3 text-gray-600">{(s as any).package || 'Default'}</td>
-                <td className="px-4 py-3 text-gray-600">{(s as any).admin || s.adminEmail || '-'}</td>
-                <td className="px-4 py-3"><span className={`px-2 py-0.5 rounded text-xs font-bold ${s.state === 'Active' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>{s.state || 'Active'}</span></td>
-                <td className="px-4 py-3"><span className={`px-2 py-0.5 rounded text-xs font-bold ${(s as any).ssl === 'Enabled' ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-600'}`}>{(s as any).ssl || 'Disabled'}</span></td>
+
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
+        <div className="flex items-center gap-4 mb-4">
+          <div className="flex-1 relative">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+            <input
+              type="text"
+              placeholder="Pesquisar websites..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-500 focus:border-transparent"
+            />
+          </div>
+          <div className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              id="selectAll"
+              checked={selectedSites.length === filteredSites.length && filteredSites.length > 0}
+              onChange={(e) => {
+                if (e.target.checked) {
+                  setSelectedSites(filteredSites.map(s => s.domain))
+                } else {
+                  setSelectedSites([])
+                }
+              }}
+              className="rounded border-gray-300 text-red-600 focus:ring-red-500"
+            />
+            <label htmlFor="selectAll" className="text-sm text-gray-600">Selecionar todos</label>
+          </div>
+        </div>
+
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="text-left text-xs font-bold text-gray-500 uppercase border-b bg-gray-50">
+                <th className="px-4 py-3 w-12"></th>
+                <th className="px-4 py-3">Domínio</th>
+                <th className="px-4 py-3">IP</th>
+                <th className="px-4 py-3">Utilizador</th>
+                <th className="px-4 py-3">Email</th>
+                <th className="px-4 py-3">Quota</th>
+                <th className="px-4 py-3">Disco Usado</th>
+                <th className="px-4 py-3">Estado</th>
+                <th className="px-4 py-3">Acções</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {filteredSites.length === 0 ? (
+                <tr>
+                  <td colSpan={9} className="px-4 py-8 text-center text-gray-400">
+                    {searchTerm ? 'Nenhum website encontrado para esta pesquisa.' : 'Nenhum website encontrado.'}
+                  </td>
+                </tr>
+              ) : filteredSites.map((site, i) => (
+                <tr key={i} className="border-b border-gray-50 hover:bg-gray-50">
+                  <td className="px-4 py-3">
+                    <input
+                      type="checkbox"
+                      checked={selectedSites.includes(site.domain)}
+                      onChange={(e) => {
+                        if (e.target.checked) {
+                          setSelectedSites([...selectedSites, site.domain])
+                        } else {
+                          setSelectedSites(selectedSites.filter(d => d !== site.domain))
+                        }
+                      }}
+                      className="rounded border-gray-300 text-red-600 focus:ring-red-500"
+                    />
+                  </td>
+                  <td className="px-4 py-3 font-bold">
+                    <a href={`http://${site.domain}`} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:text-blue-800 flex items-center gap-1">
+                      <Globe className="w-3 h-3" />
+                      {site.domain}
+                    </a>
+                  </td>
+                  <td className="px-4 py-3 text-gray-600">109.199.104.22</td>
+                  <td className="px-4 py-3 text-gray-600">admin</td>
+                  <td className="px-4 py-3 text-gray-600">{site.adminEmail || '-'}</td>
+                  <td className="px-4 py-3 text-gray-600">Ilimitado</td>
+                  <td className="px-4 py-3 text-gray-600">-</td>
+                  <td className="px-4 py-3">
+                    <span className={`px-2 py-0.5 rounded text-xs font-bold ${
+                      site.state === 'Active' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
+                    }`}>
+                      {site.state || 'Active'}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3">
+                    <div className="flex items-center gap-1">
+                      {editingSite === site.domain ? (
+                        <>
+                          <input
+                            type="text"
+                            value={editForm.packageName}
+                            onChange={(e) => setEditForm({...editForm, packageName: e.target.value})}
+                            className="w-20 px-2 py-1 border border-gray-300 rounded text-xs mr-1"
+                            placeholder="Pacote"
+                          />
+                          <input
+                            type="text"
+                            value={editForm.php}
+                            onChange={(e) => setEditForm({...editForm, php: e.target.value})}
+                            className="w-20 px-2 py-1 border border-gray-300 rounded text-xs mr-1"
+                            placeholder="PHP"
+                          />
+                          <button
+                            onClick={() => handleEdit(site)}
+                            className="text-green-600 hover:text-green-800 text-xs font-bold"
+                          >
+                            Salvar
+                          </button>
+                          <button
+                            onClick={() => setEditingSite(null)}
+                            className="text-gray-600 hover:text-gray-800 text-xs font-bold"
+                          >
+                            Cancelar
+                          </button>
+                        </>
+                      ) : (
+                        <>
+                          <button
+                            onClick={() => handleEdit(site)}
+                            className="text-blue-600 hover:text-blue-800 text-xs font-bold"
+                            title="Editar"
+                          >
+                            <Edit2 className="w-3 h-3" />
+                          </button>
+                          <button
+                            onClick={() => handleSuspend(site.domain)}
+                            className={`text-${site.state === 'Suspended' ? 'green' : 'orange'}-600 hover:text-${site.state === 'Suspended' ? 'green' : 'orange'}-800 text-xs font-bold`}
+                            title={site.state === 'Suspended' ? 'Ativar' : 'Suspender'}
+                          >
+                            {site.state === 'Suspended' ? <Play className="w-3 h-3" /> : <Pause className="w-3 h-3" />}
+                          </button>
+                          <button
+                            onClick={() => handleDelete(site.domain)}
+                            className="text-red-600 hover:text-red-800 text-xs font-bold"
+                            title="Apagar"
+                          >
+                            <Trash2 className="w-3 h-3" />
+                          </button>
+                          <a
+                            href={`http://${site.domain}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-gray-600 hover:text-gray-800 text-xs font-bold"
+                            title="Abrir site"
+                          >
+                            <ExternalLink className="w-3 h-3" />
+                          </a>
+                        </>
+                      )}
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   )
@@ -240,14 +474,17 @@ export default function AdminPage() {
       case 'cp-dns-default-ns':
         return <DNSDefaultNSSection />
       case 'cp-dns-create-zone':
-      case 'domains-dns':
         return <DNSCreateZoneSection sites={cyberPanelSites} />
+      case 'domains-dns':
+        return <DNSZoneEditorSection sites={cyberPanelSites} />
       case 'cp-dns-delete-zone':
         return <DNSDeleteZoneSection sites={cyberPanelSites} />
       case 'cp-dns-cloudflare':
         return <CloudFlareSection sites={cyberPanelSites} />
       case 'cp-dns-reset':
         return <DNSResetSection sites={cyberPanelSites} />
+      case 'cp-dns-zone-editor':
+        return <DNSZoneEditorSection sites={cyberPanelSites} />
       case 'git-deploy':
         return <GitDeploySection />
       case 'packages-list':
@@ -266,17 +503,16 @@ export default function AdminPage() {
         style={{ width: `${currentSidebarWidth}px` }}
         animate={{ width: currentSidebarWidth }}
         transition={{ duration: 0.2, ease: 'easeInOut' }}
+        initial={{ width: 250 }}
       >
         {/* Sidebar Header */}
         <div className="p-4 border-b border-gray-100">
           <div className="flex items-center justify-between">
             {!isCollapsed && (
               <div className="flex items-center gap-2">
-                <div className="w-7 h-7 bg-red-600 rounded-lg flex items-center justify-center">
-                  <span className="text-white text-xs font-bold">VD</span>
-                </div>
+                <img src="/assets/simbolo.png" alt="Logo" className="w-8 h-8 object-contain" />
                 <div>
-                  <p className="font-bold text-sm text-gray-900">Painel Admin</p>
+                  <p className="font-bold text-sm text-gray-900 font-bold">Painel Admin</p>
                   <p className="text-[10px] text-gray-400">Painel Completo</p>
                 </div>
               </div>
@@ -288,7 +524,7 @@ export default function AdminPage() {
         </div>
 
         {/* Menu Items */}
-        <nav className="flex-1 overflow-y-auto p-2">
+        <nav className="flex-1 overflow-y-auto p-3">
           <div className="space-y-0.5">
             {menuItems.map((item) => {
               const Icon = item.icon
@@ -300,16 +536,16 @@ export default function AdminPage() {
                 <button
                   key={item.id}
                   onClick={() => setActiveSection(item.id)}
-                  className={`w-full flex items-center p-2.5 rounded-lg transition-colors ${
+                  className={`w-full flex items-center p-3 rounded-lg transition-colors ${
                     isActive
                       ? 'bg-red-50 text-red-600 font-bold'
                       : 'hover:bg-gray-100 text-gray-600'
                   }`}
                   title={isCollapsed ? item.label : ''}
                 >
-                  <Icon size={17} className={isActive ? 'text-red-600' : 'text-gray-500'} />
+                  <Icon size={18} className={isActive ? 'text-red-600' : 'text-gray-500'} />
                   {!isCollapsed && (
-                    <span className="ml-3 text-sm">{item.label}</span>
+                    <span className="ml-3 text-[15px]">{item.label}</span>
                   )}
                   {!isCollapsed && isActive && (
                     <ChevronRight size={14} className="ml-auto text-red-400" />
@@ -349,14 +585,33 @@ export default function AdminPage() {
         {/* Top Header */}
         <header className="bg-white border-b border-gray-200 px-6 py-3">
           <div className="flex items-center justify-between">
-            <h2 className="text-base font-bold text-gray-800 capitalize">
-              {activeSection === 'dashboard' ? 'Dashboard' : menuItems.find(m => m.id === activeSection)?.label || activeSection}
-            </h2>
+            <div>
+              <h1 className="text-lg font-bold text-gray-900">
+                {activeSection === 'dashboard' ? 'Dashboard' :
+                 menuItems.find(m => m.id === activeSection)?.label || activeSection}
+              </h1>
+              <p className="text-xs text-gray-400 mt-0.5">
+                {activeSection === 'dashboard' ? 'Visão geral do servidor' :
+                 activeSection === 'domains' ? 'Gerir todos os websites do servidor' :
+                 activeSection === 'packages-list' ? 'Gerir pacotes de alojamento' :
+                 activeSection === 'cp-users' ? 'Gerir contas de utilizadores' :
+                 activeSection === 'emails-new' ? 'Gerir contas de email' :
+                 activeSection === 'cp-ssl' ? 'Gerir certificados SSL' :
+                 activeSection === 'cp-security' ? 'Configurações de segurança' :
+                 activeSection === 'cp-databases' ? 'Gerir bases de dados' :
+                 activeSection === 'git-deploy' ? 'Deploy via GitHub' :
+                 activeSection === 'cp-api' ? 'Configurações do servidor' : ''}
+              </p>
+            </div>
             <div className="flex items-center gap-2">
               <a href="https://109.199.104.22:8090" target="_blank" rel="noopener noreferrer"
                 className="bg-red-600 hover:bg-red-700 text-white text-xs font-bold px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-colors">
                 <Globe size={13} /> Painel CyberPanel
               </a>
+              <button onClick={() => window.location.href = '/'}
+                className="p-1.5 rounded-lg hover:bg-gray-100 transition-colors text-gray-500" title="Sair">
+                <LogOut size={15} />
+              </button>
               <button onClick={loadCyberPanelData} disabled={isFetchingCyberPanel}
                 className="p-1.5 rounded-lg hover:bg-gray-100 transition-colors text-gray-500" title="Actualizar dados">
                 <RefreshCw size={15} className={isFetchingCyberPanel ? 'animate-spin' : ''} />
