@@ -117,6 +117,21 @@ print({'success': deleted > 0, 'deleted': deleted})
         break;
       }
 
+      case 'editPackage': {
+        const raw = await execSSH(`/usr/local/CyberPanel/bin/python /usr/local/CyberCP/manage.py shell -c "
+from packages.models import Package
+Package.objects.filter(packageName='${params.packageName}').update(
+  diskSpace=${params.diskSpace || 1000},
+  bandwidth=${params.bandwidth || 1000},
+  emailAccounts=${params.emailAccounts || 10},
+  dataBases=${params.dataBases || 5}
+)
+print('ok')
+"`);
+        data = { success: raw.includes('ok'), output: raw };
+        break;
+      }
+
       case 'listUsers': {
         const raw = await execSSH(`/usr/local/CyberPanel/bin/python /usr/local/CyberCP/manage.py shell -c "
 from loginSystem.models import Administrator
@@ -178,11 +193,15 @@ print('ok')
 
       case 'createWebsite': {
         const raw = await execSSH(
-          `/usr/local/CyberCP/bin/python /usr/local/CyberCP/plogical/websiteManager.py createWebsite ` +
-          `--domainName ${params.domain} --ownerEmail ${params.email} --websiteOwner ${params.username} ` +
-          `--packageName "${params.packageName}" --websiteEmail ${params.email} --php ${params.php || '8.2'} --ssl 1 --dkim 1 2>&1` 
+          `cyberpanel createWebsite ` +
+          `--domainName ${params.domain} ` +
+          `--email ${params.email} ` +
+          `--owner ${params.username || 'admin'} ` +
+          `--package "${params.packageName || 'Default'}" ` +
+          `--php "${params.php || 'PHP 8.2'}" ` +
+          `--ssl 1 --dkim 1 2>&1` 
         );
-        data = { output: raw };
+        data = { output: raw, success: !raw.toLowerCase().includes('error') && !raw.toLowerCase().includes('traceback') };
         break;
       }
 
