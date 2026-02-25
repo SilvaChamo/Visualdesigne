@@ -18,7 +18,8 @@ import {
   DNSResetSection, EmailDeleteSection, EmailLimitsSection,
   EmailForwardingSection, CatchAllEmailSection, PatternForwardingSection,
   PlusAddressingSection, EmailChangePasswordSection, DKIMManagerSection,
-  WPRestoreBackupSection, WPRemoteBackupSection, ListSubdomainsSection
+  WPRestoreBackupSection, WPRemoteBackupSection, ListSubdomainsSection,
+  PackagesSection
 } from './CyberPanelSections'
 import { cyberPanelAPI } from '@/lib/cyberpanel-api'
 import type { CyberPanelWebsite, CyberPanelUser, CyberPanelPackage } from '@/lib/cyberpanel-api'
@@ -249,6 +250,8 @@ export default function AdminPage() {
         return <DNSResetSection sites={cyberPanelSites} />
       case 'git-deploy':
         return <GitDeploySection />
+      case 'packages-list':
+        return <PackagesSection packages={cyberPanelPackages} onRefresh={loadCyberPanelData} />
       default:
         return <CpanelDashboard sites={cyberPanelSites} users={cyberPanelUsers} isFetching={isFetchingCyberPanel} onNavigate={setActiveSection} onRefresh={loadCyberPanelData} />
     }

@@ -35,47 +35,106 @@ export async function POST(req: NextRequest) {
     switch (action) {
 
       case 'listWebsites': {
-        const raw = await execSSH(`python3 -c "
-import json, sys
-sys.path.insert(0, '/usr/local/CyberCP')
-import django, os
-os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'CyberCP.settings')
-django.setup()
+        const raw = await execSSH(`/usr/local/CyberPanel/bin/python /usr/local/CyberCP/manage.py shell -c "
 from websiteFunctions.models import Websites
-sites = list(Websites.objects.values('id','domain','adminEmail','package','state','diskUsage','bandwidth'))
-print(json.dumps(sites, default=str))
+sites = list(Websites.objects.values('id','domain','adminEmail','package','state','phpSelection','ssl'))
+print(sites)
 "`);
-        try { data = JSON.parse(raw); } catch { data = []; }
+        try { 
+          // Parse do output do Django shell
+          const lines = raw.trim().split('\n');
+          const dataLine = lines.find(line => line.startsWith('[') && line.endsWith(']'));
+          if (dataLine) {
+            data = eval(dataLine); // Avalia a lista Python
+          } else {
+            data = [];
+          }
+        } catch { 
+          data = []; 
+        }
         break;
       }
 
       case 'listPackages': {
-        const raw = await execSSH(`python3 -c "
-import json, sys
-sys.path.insert(0, '/usr/local/CyberCP')
-import django, os
-os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'CyberCP.settings')
-django.setup()
+        const raw = await execSSH(`/usr/local/CyberPanel/bin/python /usr/local/CyberCP/manage.py shell -c "
 from packages.models import Package
 pkgs = list(Package.objects.values())
-print(json.dumps(pkgs, default=str))
+print(pkgs)
 "`);
-        try { data = JSON.parse(raw); } catch { data = []; }
+        try { 
+          // Parse do output do Django shell
+          const lines = raw.trim().split('\n');
+          const dataLine = lines.find(line => line.startsWith('[') && line.endsWith(']'));
+          if (dataLine) {
+            data = eval(dataLine); // Avalia a lista Python
+          } else {
+            data = [];
+          }
+        } catch { 
+          data = []; 
+        }
+        break;
+      }
+
+      case 'createPackage': {
+        const raw = await execSSH(`/usr/local/CyberPanel/bin/python /usr/local/CyberCP/manage.py shell -c "
+from packages.models import Package
+from loginSystem.models import Administrator
+admin = Administrator.objects.first()
+pkg = Package.objects.create(
+  admin=admin,
+  packageName='${params.packageName}',
+  diskSpace='${params.diskSpace}',
+  bandwidth='${params.bandwidth}',
+  emailAccounts='${params.emailAccounts}',
+  dataBases='${params.dataBases}'
+)
+print({'success': True, 'id': pkg.id})
+"`);
+        // Parse do output do Django shell
+        const match = raw.match(/\{'success': True, 'id': (\d+)\}/);
+        if (match) {
+          data = { success: true, id: parseInt(match[1]) };
+        } else {
+          data = { success: false, error: raw };
+        }
+        break;
+      }
+
+      case 'deletePackage': {
+        const raw = await execSSH(`/usr/local/CyberPanel/bin/python /usr/local/CyberCP/manage.py shell -c "
+from packages.models import Package
+deleted, _ = Package.objects.filter(packageName='${params.packageName}').delete()
+print({'success': deleted > 0, 'deleted': deleted})
+"`);
+        // Parse do output do Django shell
+        const match = raw.match(/\{'success': (True|False), 'deleted': (\d+)\}/);
+        if (match) {
+          data = { success: match[1] === 'True', deleted: parseInt(match[2]) };
+        } else {
+          data = { success: false, error: raw };
+        }
         break;
       }
 
       case 'listUsers': {
-        const raw = await execSSH(`python3 -c "
-import json, sys
-sys.path.insert(0, '/usr/local/CyberCP')
-import django, os
-os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'CyberCP.settings')
-django.setup()
+        const raw = await execSSH(`/usr/local/CyberPanel/bin/python /usr/local/CyberCP/manage.py shell -c "
 from loginSystem.models import Administrator
-users = list(Administrator.objects.values('id','userName','email','type','suspended'))
-print(json.dumps(users, default=str))
+users = list(Administrator.objects.values('id','userName','email','type','state'))
+print(users)
 "`);
-        try { data = JSON.parse(raw); } catch { data = []; }
+        try { 
+          // Parse do output do Django shell
+          const lines = raw.trim().split('\n');
+          const dataLine = lines.find(line => line.startsWith('[') && line.endsWith(']'));
+          if (dataLine) {
+            data = eval(dataLine); // Avalia a lista Python
+          } else {
+            data = [];
+          }
+        } catch { 
+          data = []; 
+        }
         break;
       }
 
