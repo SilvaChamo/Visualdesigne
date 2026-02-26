@@ -3785,35 +3785,56 @@ export function BackupManagerSection({ sites }: { sites: CyberPanelWebsite[] }) 
     setTimeout(() => setMsg(''), 4000)
   }
 
-  const loadBackups = async (domain: string, tab: string) => {
+  const loadBackups = async (domain: string) => {
     if (!domain) return
     setLoading(true)
     const res = await fetch('/api/server-exec', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         action: 'execCommand',
-        params: { command: `ls -lht /home/backup/${tab}/ 2>/dev/null | grep ${domain} || echo "NO_BACKUPS"` }
+        params: { command: `ls -lht /home/${domain}/backup/*.tar.gz 2>/dev/null || echo "NO_BACKUPS"` }
       })
     })
     const data = await res.json()
-    const lines = (data.data?.output || '').split('\n').filter((l: string) =>
-      l.trim() && !l.startsWith('total') && l.includes(domain)
+    const output = data.data?.output || ''
+    
+    if (output.includes('NO_BACKUPS') || output.includes('No such file') || !output.trim()) {
+      setBackups([])
+      setLoading(false)
+      return
+    }
+
+    const lines = output.split('\n').filter((l: string) => 
+      l.trim() && l.includes('.tar.gz')
     )
+    
     setBackups(lines.map((line: string) => {
       const parts = line.trim().split(/\s+/)
+      const filename = parts[parts.length - 1].split('/').pop() || ''
       return {
         size: parts[4] || 'N/A',
         date: `${parts[5] || ''} ${parts[6] || ''} ${parts[7] || ''}`,
-        filename: parts[8] || '',
-        path: `/home/backup/${tab}/${parts[8] || ''}` 
+        filename,
+        path: `/home/${domain}/backup/${filename}` 
       }
-    }).filter((b: any) => b.filename))
+    }).filter((b: any) => b.filename && b.filename.includes('.tar.gz')))
+    
     setLoading(false)
   }
 
   useEffect(() => {
-    if (selectedDomain) loadBackups(selectedDomain, activeTab)
-  }, [selectedDomain, activeTab])
+    if (selectedDomain) loadBackups(selectedDomain)
+  }, []) // Disparar ao montar
+
+  useEffect(() => {
+    if (selectedDomain) loadBackups(selectedDomain)
+  }, [selectedDomain]) // Disparar quando selectedDomain muda
+
+  useEffect(() => {
+    if (sites.length > 0 && !selectedDomain) {
+      setSelectedDomain(sites[0].domain)
+    }
+  }, [sites])
 
   const handleCreate = async () => {
     if (!selectedDomain) return
@@ -3833,7 +3854,7 @@ export function BackupManagerSection({ sites }: { sites: CyberPanelWebsite[] }) 
     const output = data.data?.output || ''
     if (output.includes('SUCCESS') || !output.toLowerCase().includes('error')) {
       showMsg(`Backup criado com sucesso!`)
-      await loadBackups(selectedDomain, activeTab)
+      await loadBackups(selectedDomain)
     } else {
       showMsg('Erro: ' + output, 'error')
     }
@@ -3846,13 +3867,13 @@ export function BackupManagerSection({ sites }: { sites: CyberPanelWebsite[] }) 
     const res = await fetch('/api/server-exec', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        action: 'execCommand',
-        params: { command: `cyberpanel restoreBackup --domainName ${selectedDomain} --fileName ${filename} --backupPath /home/backup/${activeTab} 2>&1` }
+        action: 'restoreBackup',
+        params: { domain: selectedDomain, filename: filename, tab: activeTab }
       })
     })
     const data = await res.json()
     const output = data.data?.output || ''
-    if (!output.toLowerCase().includes('error')) showMsg('Restaurado com sucesso!')
+    if (data.success) showMsg('Restaurado com sucesso!')
     else showMsg('Erro: ' + output, 'error')
     setLoading(false)
   }
@@ -3901,6 +3922,11 @@ export function BackupManagerSection({ sites }: { sites: CyberPanelWebsite[] }) 
             <option value="">Seleccionar domínio...</option>
             {sites.map(s => <option key={s.domain} value={s.domain}>{s.domain}</option>)}
           </select>
+          <button onClick={() => loadBackups(selectedDomain)}
+            disabled={!selectedDomain || loading}
+            className="bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-2.5 rounded-lg text-sm font-bold flex items-center gap-2 disabled:opacity-50">
+            <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+          </button>
           <button onClick={handleCreate} disabled={!selectedDomain || creating}
             className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 disabled:opacity-50 transition-colors">
             {creating ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
@@ -3941,30 +3967,31 @@ export function BackupManagerSection({ sites }: { sites: CyberPanelWebsite[] }) 
               <th className="px-4 py-3">Ficheiro</th>
               <th className="px-4 py-3">Data</th>
               <th className="px-4 py-3">Tamanho</th>
-              <th className="px-4 py-3">Notas</th>
               <th className="px-4 py-3">Acções</th>
             </tr>
           </thead>
           <tbody>
             {!selectedDomain ? (
-              <tr><td colSpan={5} className="px-4 py-10 text-center text-gray-400">
+              <tr><td colSpan={4} className="px-4 py-10 text-center text-gray-400">
                 Selecciona um domínio para ver os backups
               </td></tr>
             ) : loading ? (
-              <tr><td colSpan={5} className="px-4 py-10 text-center">
+              <tr><td colSpan={4} className="px-4 py-10 text-center">
                 <RefreshCw className="w-5 h-5 animate-spin mx-auto text-gray-400" />
               </td></tr>
             ) : backups.length === 0 ? (
-              <tr><td colSpan={5} className="px-4 py-10 text-center text-gray-400">
-                Nenhum backup encontrado para {selectedDomain}.<br/>
-                <span className="text-xs">Clica em "Criar Backup" para criar o primeiro.</span>
+              <tr><td colSpan={4} className="px-4 py-10 text-center">
+                <div className="space-y-2">
+                  <Archive className="w-8 h-8 text-gray-300 mx-auto" />
+                  <p className="text-gray-500 font-medium">Nenhum backup encontrado para {selectedDomain}</p>
+                  <p className="text-gray-400 text-xs">Clica em "Criar Backup" para criar o primeiro backup deste site.</p>
+                </div>
               </td></tr>
             ) : backups.map((b, i) => (
               <tr key={i} className="border-b border-gray-50 hover:bg-gray-50">
                 <td className="px-4 py-3 font-mono text-xs text-gray-700">{b.filename}</td>
                 <td className="px-4 py-3 text-gray-500 text-xs">{b.date}</td>
                 <td className="px-4 py-3 text-gray-500 text-xs">{b.size}</td>
-                <td className="px-4 py-3 text-gray-400 text-xs italic">—</td>
                 <td className="px-4 py-3">
                   <div className="flex items-center gap-2">
                     <button onClick={() => handleRestore(b.filename, b.path)}
@@ -3974,6 +4001,23 @@ export function BackupManagerSection({ sites }: { sites: CyberPanelWebsite[] }) 
                     <button onClick={() => handleDownload(b.path, b.filename)}
                       className="bg-gray-700 hover:bg-gray-800 text-white px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1 transition-colors">
                       ↓ Download
+                    </button>
+                    <button onClick={async () => {
+                      if (!confirm(`Eliminar "${b.filename}"? Irreversível!`)) return
+                      setLoading(true)
+                      await fetch('/api/server-exec', {
+                        method: 'POST', headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                          action: 'execCommand',
+                          params: { command: `rm -f ${b.path} 2>&1 && echo "DELETED"` }
+                        })
+                      })
+                      await loadBackups(selectedDomain)
+                      showMsg('Backup eliminado!')
+                      setLoading(false)
+                    }}
+                      className="bg-red-600 hover:bg-red-700 text-white px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1 transition-colors">
+                      <Trash2 className="w-3 h-3" /> Eliminar
                     </button>
                   </div>
                 </td>

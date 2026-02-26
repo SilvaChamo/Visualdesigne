@@ -303,6 +303,16 @@ print('ok')
         break;
       }
 
+      case 'restoreBackup': {
+        const { domain, filename, tab = 'full' } = params
+        const filepath = `/home/backup/${tab}/${filename}` 
+        const raw = await execSSH(
+          `cyberpanel restoreBackup --domainName ${domain} --fileName ${filename} --backupPath /home/backup/${tab} 2>&1` 
+        )
+        data = { output: raw, success: !raw.toLowerCase().includes('error') && !raw.toLowerCase().includes('traceback') }
+        break;
+      }
+
       case 'execCommand': {
         data = { output: await execSSH(params.command) };
         break;
