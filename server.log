@@ -755,3 +755,20 @@ MozServer Proxy Request: GET /health
 ✓ Compiled in 232ms
 ⚠ You are using an experimental edge runtime, the API might change.
 ✓ Compiled in 105ms
+ POST /api/server-exec 200 in 7.0s (compile: 7ms, render: 7.0s)
+ POST /api/server-exec 200 in 7.0s (compile: 21ms, render: 6.9s)
+⚠ You are using an experimental edge runtime, the API might change.
+✓ Compiled in 79ms
+⚠ You are using an experimental edge runtime, the API might change.
+⚠ You are using an experimental edge runtime, the API might change.
+✓ Compiled in 80ms
+⚠ You are using an experimental edge runtime, the API might change.
+✓ Compiled in 579ms
+⚠ You are using an experimental edge runtime, the API might change.
+✓ Compiled in 280ms
+⚠ You are using an experimental edge runtime, the API might change.
+✓ Compiled in 308ms
+⚠ You are using an experimental edge runtime, the API might change.
+✓ Compiled in 251ms
+⚠ You are using an experimental edge runtime, the API might change.
+✓ Compiled in 226ms

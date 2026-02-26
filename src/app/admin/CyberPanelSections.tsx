@@ -4753,24 +4753,18 @@ export function DomainManagerSection({ sites }: { sites: CyberPanelWebsite[] }) 
     setLoading(true)
     const res = await fetch('/api/server-exec', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        action: 'execCommand',
-        params: { command: `mysql cyberpanel -e "SELECT d.name, w.adminEmail, w.package FROM websiteFunctions_websites w RIGHT JOIN domains d ON d.name = w.domain WHERE d.type='NATIVE' ORDER BY d.name;" 2>&1` }
-      })
+      body: JSON.stringify({ action: 'listWebsites', params: {} })
     })
     const data = await res.json()
-    const lines = (data.data?.output || '').split('\n').filter((l: string) => 
-      l.trim() && !l.startsWith('name') && !l.includes('NULL')
-    )
-    setDomains(lines.map((line: string) => {
-      const parts = line.split('\t')
-      return {
-        name: parts[0] || '',
-        email: parts[1] || '—',
-        package: parts[2] || '—',
-        isWebsite: !!parts[1]
-      }
-    }).filter((d: any) => d.name))
+    const allSites = data.data?.sites || []
+    
+    // Mostrar apenas domínios não activos e sem hostname do servidor
+    setDomains(allSites.filter((s: any) => 
+      !s.domain.includes('contaboserver') &&
+      !s.domain.includes('localhost') &&
+      s.isActive !== true &&
+      !s.hasWordPress
+    ))
     setLoading(false)
   }
 
@@ -4861,14 +4855,12 @@ export function DomainManagerSection({ sites }: { sites: CyberPanelWebsite[] }) 
               </td></tr>
             ) : domains.map((d, i) => (
               <tr key={i} className="border-b border-gray-50 hover:bg-gray-50">
-                <td className="px-4 py-3 font-medium text-blue-600">{d.name}</td>
-                <td className="px-4 py-3 text-gray-500 text-xs">/public_html/{d.name}</td>
+                <td className="px-4 py-3 font-medium text-blue-600">{d.domain}</td>
+                <td className="px-4 py-3 text-gray-500 text-xs">/public_html/{d.domain}</td>
                 <td className="px-4 py-3 text-gray-400 text-xs">Not Redirected</td>
                 <td className="px-4 py-3">
-                  <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${
-                    d.isWebsite ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'
-                  }`}>
-                    {d.isWebsite ? 'Website' : 'Domínio'}
+                  <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-gray-100 text-gray-500">
+                    Domínio
                   </span>
                 </td>
                 <td className="px-4 py-3">
@@ -5009,7 +5001,7 @@ export function DomainManagerSection({ sites }: { sites: CyberPanelWebsite[] }) 
       </div>
 
       <h1 className="text-xl font-bold text-gray-900">
-        Manage the "{selectedDomain.name}" Domain
+        Manage the "{selectedDomain.domain}" Domain
       </h1>
 
       {msg && (
@@ -5056,9 +5048,9 @@ export function DomainManagerSection({ sites }: { sites: CyberPanelWebsite[] }) 
             </div>
             <div className="px-6 py-4">
               <p className="text-sm text-gray-700 mb-4">
-                <strong>Warning:</strong> If you remove the <strong>"{selectedDomain.name}"</strong> domain, it will permanently delete the domain from your account. You cannot undo this action.
+                <strong>Warning:</strong> If you remove the <strong>"{selectedDomain.domain}"</strong> domain, it will permanently delete the domain from your account. You cannot undo this action.
               </p>
-              <button onClick={() => handleRemove(selectedDomain.name)}
+              <button onClick={() => handleRemove(selectedDomain.domain)}
                 className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 transition-colors">
                 <Trash2 className="w-4 h-4" /> Remove Domain
               </button>
@@ -5075,7 +5067,7 @@ export function DomainManagerSection({ sites }: { sites: CyberPanelWebsite[] }) 
             <div className="px-4 py-4 space-y-3 text-sm">
               <div className="flex justify-between">
                 <span className="text-gray-500">Domain:</span>
-                <span className="font-medium text-gray-800">{selectedDomain.name}</span>
+                <span className="font-medium text-gray-800">{selectedDomain.domain}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-gray-500">Redirects To:</span>
@@ -5083,7 +5075,7 @@ export function DomainManagerSection({ sites }: { sites: CyberPanelWebsite[] }) 
               </div>
               <div>
                 <span className="text-gray-500">Document Root:</span>
-                <p className="text-blue-600 text-xs mt-1">🏠 /public_html/{selectedDomain.name}</p>
+                <p className="text-blue-600 text-xs mt-1">🏠 /public_html/{selectedDomain.domain}</p>
               </div>
             </div>
           </div>

@@ -101,10 +101,12 @@ function ListWebsitesSection({ sites, onRefresh, packages, setActiveSection, set
   const [creating, setCreating] = useState(false)
   const [createMsg, setCreateMsg] = useState('')
 
-  const filtered = sites.filter(s =>
+  // Filtrar sites activos — tem conteúdo real instalado
+  const filtered = sites.filter(s => 
     s.domain.toLowerCase().includes(search.toLowerCase()) &&
     !s.domain.includes('contaboserver') &&
-    !s.domain.includes('localhost')
+    !s.domain.includes('localhost') &&
+    (s.isActive === true || s.hasWordPress === true || (s.size && s.size > 8))
   )
 
   const totalPages = Math.ceil(filtered.length / itemsPerPage)
