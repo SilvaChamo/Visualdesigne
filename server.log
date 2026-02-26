@@ -1,0 +1,50 @@
+
+> visualdesign-react@0.1.0 dev
+> next dev --port 3002
+
+▲ Next.js 16.1.6 (Turbopack)
+- Local:         http://localhost:3002
+- Network:       http://192.168.8.106:3002
+- Environments: .env.local
+
+✓ Starting...
+⚠ The "middleware" file convention is deprecated. Please use "proxy" instead. Learn more: https://nextjs.org/docs/messages/middleware-to-proxy
+⚠ You are using an experimental edge runtime, the API might change.
+✓ Ready in 1331ms
+Auth state changed: INITIAL_SESSION undefined
+ GET /admin 200 in 1045ms (compile: 476ms, render: 569ms)
+ GET /admin 200 in 1064ms (compile: 562ms, render: 503ms)
+ POST /api/server-exec 200 in 4.4s (compile: 4ms, render: 4.4s)
+ POST /api/server-exec 200 in 4.7s (compile: 189ms, render: 4.5s)
+ POST /api/server-exec 200 in 4.7s (compile: 179ms, render: 4.6s)
+ POST /api/server-exec 200 in 4.6s (compile: 13ms, render: 4.5s)
+ POST /api/server-exec 200 in 4.9s (compile: 148ms, render: 4.7s)
+ POST /api/server-exec 200 in 4.9s (compile: 9ms, render: 4.9s)
+ POST /api/cyberpanel-dns 200 in 3.8s (compile: 69ms, render: 3.7s)
+ POST /api/server-exec 200 in 3.5s (compile: 2ms, render: 3.5s)
+ DELETE /api/cyberpanel-dns 200 in 3.6s (compile: 3ms, render: 3.6s)
+ POST /api/server-exec 200 in 3.8s (compile: 8ms, render: 3.7s)
+ GET /api/cyberpanel-dns?domain=visualdesigne.com 200 in 3.8s (compile: 4ms, render: 3.8s)
+ GET /admin 200 in 184ms (compile: 6ms, render: 178ms)
+ POST /api/server-exec 200 in 4.9s (compile: 16ms, render: 4.9s)
+ POST /api/server-exec 200 in 4.9s (compile: 14ms, render: 4.9s)
+ POST /api/server-exec 200 in 4.9s (compile: 7ms, render: 4.9s)
+⚠ You are using an experimental edge runtime, the API might change.
+✓ Compiled in 955ms
+⚠ You are using an experimental edge runtime, the API might change.
+✓ Compiled in 84ms
+⚠ You are using an experimental edge runtime, the API might change.
+✓ Compiled in 226ms
+⚠ You are using an experimental edge runtime, the API might change.
+✓ Compiled in 261ms
+⚠ You are using an experimental edge runtime, the API might change.
+✓ Compiled in 79ms
+⚠ You are using an experimental edge runtime, the API might change.
+✓ Compiled in 77ms
+⚠ You are using an experimental edge runtime, the API might change.
+✓ Compiled in 271ms
+⚠ You are using an experimental edge runtime, the API might change.
+✓ Compiled in 325ms
+ GET /api/cyberpanel-dns?domain=visualdesigne.com 200 in 4.3s (compile: 4ms, render: 4.3s)
+ GET /api/cyberpanel-dns?domain=visualdesigne.com 200 in 3.5s (compile: 3ms, render: 3.5s)
+ GET /api/cyberpanel-dns?domain=visualdesigne.com 200 in 3.7s (compile: 2ms, render: 3.7s)

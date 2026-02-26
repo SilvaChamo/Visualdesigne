@@ -29,15 +29,28 @@ interface Section {
 
 interface Props {
   onNavigate: (section: string) => void
+  onSetDNSDomain?: (domain: string) => void
   sites: CyberPanelWebsite[]
   users: CyberPanelUser[]
   isFetching: boolean
   onRefresh: () => void
 }
 
-export function CpanelDashboard({ onNavigate, sites, users, isFetching, onRefresh }: Props) {
+export function CpanelDashboard({ onNavigate, onSetDNSDomain, sites, users, isFetching, onRefresh }: Props) {
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({})
   const [search, setSearch] = useState('')
+
+  // Definir domínio principal
+  const primaryDomain = sites.length > 0 
+    ? sites.find(s => !s.domain.includes('contaboserver'))?.domain || sites[0].domain
+    : 'visualdesigne.com'
+
+  const handleDNSNavigate = (section: string) => {
+    if (section === 'domains-dns' && onSetDNSDomain) {
+      onSetDNSDomain(primaryDomain)
+    }
+    onNavigate(section)
+  }
 
   const toggle = (id: string) => setCollapsed(p => ({ ...p, [id]: !p[id] }))
 
@@ -223,7 +236,7 @@ export function CpanelDashboard({ onNavigate, sites, users, isFetching, onRefres
                         <span className="text-xs text-gray-600 font-medium leading-tight">{tool.name}</span>
                       </a>
                     ) : (
-                      <button key={i} onClick={() => onNavigate(tool.id)}
+                      <button key={i} onClick={() => handleDNSNavigate(tool.id)}
                         className="flex flex-col items-center gap-2 p-3 rounded-lg hover:bg-gray-50 border border-transparent hover:border-gray-200 transition-all group text-center w-full">
                         <div className="group-hover:scale-110 transition-transform">{tool.icon}</div>
                         <span className="text-xs text-gray-600 font-medium leading-tight">{tool.name}</span>

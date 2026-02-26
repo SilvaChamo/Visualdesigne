@@ -627,6 +627,11 @@ export default function AdminPage() {
     }
   }
 
+  // Definir domínio principal
+  const primaryDomain = cyberPanelSites.length > 0 
+    ? cyberPanelSites.find(s => !s.domain.includes('contaboserver'))?.domain || cyberPanelSites[0].domain
+    : 'visualdesigne.com'
+
   const menuItems = [
     { id: 'dashboard', label: 'Dashboard', icon: Home },
     { id: 'domains', label: 'Websites', icon: Globe },
@@ -646,7 +651,14 @@ export default function AdminPage() {
   const renderSection = () => {
     switch (activeSection) {
       case 'dashboard':
-        return <CpanelDashboard sites={cyberPanelSites} users={cyberPanelUsers} isFetching={isFetchingCyberPanel} onNavigate={setActiveSection} onRefresh={loadCyberPanelData} />
+        return <CpanelDashboard 
+          sites={cyberPanelSites} 
+          users={cyberPanelUsers} 
+          isFetching={isFetchingCyberPanel} 
+          onNavigate={setActiveSection} 
+          onRefresh={loadCyberPanelData}
+          onSetDNSDomain={setSelectedDNSDomain}
+        />
       case 'domains':
       case 'domains-list':
         return <ListWebsitesSection 
@@ -725,7 +737,10 @@ export default function AdminPage() {
       case 'cp-dns-create-zone':
         return <DNSCreateZoneSection sites={cyberPanelSites} />
       case 'domains-dns':
-        return <DNSZoneEditorSection sites={cyberPanelSites} selectedDomain={selectedDNSDomain} />
+        return <DNSZoneEditorSection 
+          sites={cyberPanelSites} 
+          initialDomain={selectedDNSDomain || primaryDomain} 
+        />
       case 'cp-dns-delete-zone':
         return <DNSDeleteZoneSection sites={cyberPanelSites} />
       case 'cp-dns-cloudflare':
