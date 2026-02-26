@@ -19,7 +19,8 @@ import {
   EmailForwardingSection, CatchAllEmailSection, PatternForwardingSection,
   PlusAddressingSection, EmailChangePasswordSection, DKIMManagerSection,
   WPRestoreBackupSection, WPRemoteBackupSection, ListSubdomainsSection,
-  PackagesSection, DNSZoneEditorSection, FileManagerSection, BackupManagerSection
+  PackagesSection, DNSZoneEditorSection, FileManagerSection, BackupManagerSection,
+  WPBackupSection
 } from './CyberPanelSections'
 import { cyberPanelAPI } from '@/lib/cyberpanel-api'
 import type { CyberPanelWebsite, CyberPanelUser, CyberPanelPackage } from '@/lib/cyberpanel-api'
@@ -754,6 +755,8 @@ export default function AdminPage() {
       case 'backup-manager':
       case 'cp-backup':
         return <BackupManagerSection sites={cyberPanelSites} />
+      case 'cp-wp-backup':
+        return <WPBackupSection sites={cyberPanelSites} />
       case 'packages-list':
         return <PackagesSection packages={cyberPanelPackages} onRefresh={loadCyberPanelData} />
       default:
