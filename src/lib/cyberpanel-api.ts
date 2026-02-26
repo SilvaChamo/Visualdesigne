@@ -21,6 +21,7 @@ export interface CyberPanelWebsite {
   status?: string;
   diskUsage?: number;
   bandwidth?: number;
+  ssl?: boolean;
 }
 export interface CyberPanelPackage {
   id: string | number;

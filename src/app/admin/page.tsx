@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { 
   Home, Globe, Users, Mail, Shield, Database, Settings, 
   ChevronLeft, ChevronRight, Plus, Search, Download, ExternalLink,
-  Edit2, Pause, Play, Trash2, RefreshCw, LogOut, Package, Server, Lock, LockOpen, Edit, Power, FolderOpen, FileText
+  Edit2, Pause, Play, Trash2, RefreshCw, LogOut, Package, Server, Lock, LockOpen, Edit, Power, FolderOpen, FileText, Archive
 } from 'lucide-react'
 import { CpanelDashboard } from './CpanelDashboard'
 import {
@@ -19,7 +19,7 @@ import {
   EmailForwardingSection, CatchAllEmailSection, PatternForwardingSection,
   PlusAddressingSection, EmailChangePasswordSection, DKIMManagerSection,
   WPRestoreBackupSection, WPRemoteBackupSection, ListSubdomainsSection,
-  PackagesSection, DNSZoneEditorSection, FileManagerSection
+  PackagesSection, DNSZoneEditorSection, FileManagerSection, BackupManagerSection
 } from './CyberPanelSections'
 import { cyberPanelAPI } from '@/lib/cyberpanel-api'
 import type { CyberPanelWebsite, CyberPanelUser, CyberPanelPackage } from '@/lib/cyberpanel-api'
@@ -71,13 +71,16 @@ function CreateWebsiteSection({ packages, onRefresh }: { packages: CyberPanelPac
   )
 }
 
-function ListWebsitesSection({ sites, onRefresh, packages, setActiveSection, setFileManagerDomain, setSelectedDNSDomain }: {
+function ListWebsitesSection({ sites, onRefresh, packages, setActiveSection, setFileManagerDomain, setSelectedDNSDomain, loadCyberPanelData, syncing, handleSync }: {
   sites: CyberPanelWebsite[], 
   onRefresh: () => void, 
   packages: CyberPanelPackage[],
   setActiveSection: (section: string) => void,
   setFileManagerDomain: (domain: string) => void,
-  setSelectedDNSDomain: (domain: string) => void
+  setSelectedDNSDomain: (domain: string) => void,
+  loadCyberPanelData: () => void,
+  syncing: boolean,
+  handleSync: () => void
 }) {
   const parseState = (state: any) => {
     if (state === 1 || state === '1' || state === 'Active') return 'Active'
@@ -91,32 +94,11 @@ function ListWebsitesSection({ sites, onRefresh, packages, setActiveSection, set
   const [loading, setLoading] = useState<string | null>(null)
   const [msg, setMsg] = useState('')
   const [currentPage, setCurrentPage] = useState(1)
-  const itemsPerPage = 8
+  const itemsPerPage = 4
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [createForm, setCreateForm] = useState({ domain: '', email: '', username: 'admin', packageName: 'Default', php: 'PHP 8.2' })
   const [creating, setCreating] = useState(false)
   const [createMsg, setCreateMsg] = useState('')
-  const [sslStatus, setSSLStatus] = useState<Record<string, boolean>>({})
-
-  // Verificar SSL real de cada site (testa se HTTPS funciona)
-  useEffect(() => {
-    const checkAllSSL = async () => {
-      const results: Record<string, boolean> = {}
-      for (const site of sites) {
-        const res = await fetch('/api/server-exec', {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            action: 'execCommand',
-            params: { command: `timeout 10 openssl s_client -connect ${site.domain}:443 -servername ${site.domain} 2>/dev/null | grep -q "Verification: OK" && echo "SSL_VALID" || echo "SSL_INVALID"` }
-          })
-        })
-        const data = await res.json()
-        results[site.domain] = (data.data?.output || '').includes('SSL_VALID')
-      }
-      setSSLStatus(results)
-    }
-    if (sites.length > 0) checkAllSSL()
-  }, [sites])
 
   const filtered = sites.filter(s =>
     s.domain.toLowerCase().includes(search.toLowerCase()) &&
@@ -126,6 +108,13 @@ function ListWebsitesSection({ sites, onRefresh, packages, setActiveSection, set
   const totalPages = Math.ceil(filtered.length / itemsPerPage)
   const startIndex = (currentPage - 1) * itemsPerPage
   const paginatedSites = filtered.slice(startIndex, startIndex + itemsPerPage)
+
+  // Expandir automaticamente o primeiro site ao carregar
+  useEffect(() => {
+    if (paginatedSites.length > 0 && !expandedSite) {
+      setExpandedSite(paginatedSites[0].domain)
+    }
+  }, [paginatedSites, expandedSite])
 
   const handleDelete = async (domain: string) => {
     if (!confirm(`⚠️ Apagar "${domain}"?\n\nEsta acção é IRREVERSÍVEL — o site e todos os seus ficheiros serão eliminados do servidor!`)) return
@@ -239,9 +228,10 @@ function ListWebsitesSection({ sites, onRefresh, packages, setActiveSection, set
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           <span className="text-base font-bold text-gray-900">Websites ({filtered.length})</span>
-          <button onClick={onRefresh}
-            className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-colors">
-            <RefreshCw className="w-3 h-3" /> Sincronizar
+          <button onClick={handleSync} disabled={syncing}
+            className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-colors disabled:opacity-50">
+            <RefreshCw className={`w-3 h-3 ${syncing ? 'animate-spin' : ''}`} />
+            {syncing ? 'A sincronizar...' : 'Sincronizar'}
           </button>
           <button onClick={() => setShowCreateModal(true)}
             className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-colors">
@@ -291,13 +281,13 @@ function ListWebsitesSection({ sites, onRefresh, packages, setActiveSection, set
                 <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${parseState(s.state) === 'Active' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
                   {parseState(s.state) || 'Active'}
                 </span>
-                {sslStatus[s.domain] ? (
+                {s.ssl ? (
                   <span className="flex items-center gap-1 text-green-600 text-xs font-bold">
                     <Lock className="w-3.5 h-3.5" /> SSL Activo
                   </span>
                 ) : (
-                  <span className="flex items-center gap-1 text-gray-400 text-xs">
-                    <LockOpen className="w-3.5 h-3.5" /> No SSL
+                  <span className="flex items-center gap-1 text-red-500 text-xs font-bold">
+                    <LockOpen className="w-3.5 h-3.5" /> Sem SSL
                   </span>
                 )}
               </div>
@@ -574,11 +564,26 @@ export default function AdminPage() {
   const [cyberPanelUsers, setCyberPanelUsers] = useState<CyberPanelUser[]>([])
   const [cyberPanelPackages, setCyberPanelPackages] = useState<CyberPanelPackage[]>([])
   const [isFetchingCyberPanel, setIsFetchingCyberPanel] = useState(false)
+  const [syncing, setSyncing] = useState(false)
   const [selectedDNSDomain, setSelectedDNSDomain] = useState<string>('')
 
   useEffect(() => {
     loadCyberPanelData()
   }, [])
+
+  const handleSync = async () => {
+    setSyncing(true)
+    try {
+      const res = await fetch('/api/server-exec', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'listWebsites', params: {} })
+      })
+      const data = await res.json()
+      if (data.success) setCyberPanelSites(data.data || [])
+    } catch (e) { console.error(e) }
+    setSyncing(false)
+  }
 
   const loadCyberPanelData = async () => {
     setIsFetchingCyberPanel(true)
@@ -602,7 +607,7 @@ export default function AdminPage() {
     { id: 'dashboard', label: 'Dashboard', icon: Home },
     { id: 'domains', label: 'Websites', icon: Globe },
     { id: 'cp-users', label: 'Contas', icon: Users },
-    { id: 'packages-list', label: 'Pacotes', icon: Package },
+    { id: 'backup-manager', label: 'Backups', icon: Archive },
     { id: 'cp-databases', label: 'Databases', icon: Database },
     { id: 'emails-new', label: 'Email', icon: Mail },
     { id: 'cp-ssl', label: 'SSL', icon: Lock },
@@ -626,7 +631,11 @@ export default function AdminPage() {
         packages={cyberPanelPackages}
         setActiveSection={setActiveSection}
         setFileManagerDomain={setFileManagerDomain}
-        setSelectedDNSDomain={setSelectedDNSDomain} />
+        setSelectedDNSDomain={setSelectedDNSDomain}
+        loadCyberPanelData={loadCyberPanelData}
+        syncing={syncing}
+        handleSync={handleSync}
+      />
       case 'file-manager':
         return <FileManagerSection domain={fileManagerDomain} sites={cyberPanelSites} />
       case 'domains-new':
@@ -703,6 +712,9 @@ export default function AdminPage() {
         return <DNSZoneEditorSection sites={cyberPanelSites} />
       case 'git-deploy':
         return <GitDeploySection />
+      case 'backup-manager':
+      case 'cp-backup':
+        return <BackupManagerSection sites={cyberPanelSites} />
       case 'packages-list':
         return <PackagesSection packages={cyberPanelPackages} onRefresh={loadCyberPanelData} />
       default:
@@ -806,10 +818,10 @@ export default function AdminPage() {
               </p>
             </div>
             <div className="flex items-center gap-2">
-              <button onClick={loadCyberPanelData} disabled={isFetchingCyberPanel}
-                className="bg-orange-500 hover:bg-orange-600 text-white text-xs font-bold px-4 py-2 rounded-lg flex items-center gap-1.5 transition-colors" title="Actualizar dados">
-                <RefreshCw size={13} className={isFetchingCyberPanel ? 'animate-spin' : ''} />
-                Actualizar
+              <button onClick={handleSync} disabled={syncing}
+                className="bg-orange-500 hover:bg-orange-600 text-white text-xs font-bold px-4 py-2 rounded-lg flex items-center gap-1.5 transition-colors disabled:opacity-50" title="Actualizar dados">
+                <RefreshCw size={13} className={syncing ? 'animate-spin' : ''} />
+                {syncing ? 'A sincronizar...' : 'Actualizar'}
               </button>
               <a href="https://109.199.104.22:8090" target="_blank" rel="noopener noreferrer"
                 className="bg-red-600 hover:bg-red-700 text-white text-xs font-bold px-4 py-2 rounded-lg flex items-center gap-1.5 transition-colors">
