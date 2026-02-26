@@ -56,7 +56,7 @@ for domain in $(mysql cyberpanel -se "SELECT domain FROM websiteFunctions_websit
   
   # Next.js — ficheiros chave
   next_config=$([ -f /home/$domain/public_html/next.config.js ] || [ -f /home/$domain/public_html/next.config.ts ] && echo "1" || echo "0")
-  next_folder=$([ -d /home/$domain/public_html/.next ] && echo "1" || echo "0")
+  next_folder=$([ -d /home/$domain/public_html/.next ] || [ -d /home/$domain/public_html/src ] && echo "1" || echo "0")
   package_json=$([ -f /home/$domain/public_html/package.json ] && echo "1" || echo "0")
   
   # HTML/PHP simples — ficheiros chave
