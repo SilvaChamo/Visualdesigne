@@ -35,27 +35,63 @@ export async function POST(req: NextRequest) {
     switch (action) {
 
       case 'listWebsites': {
-        const raw = await execSSH(
-          `/usr/local/CyberPanel/bin/python /usr/local/CyberCP/manage.py shell -c "
-import json
+        // Listar todos os sites do CyberPanel
+        const sitesRaw = await execSSH(`cyberpanel listWebsitesJson 2>&1 || python3 -c "
+import django, os, json
+os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'baseTemplate.settings')
+django.setup()
 from websiteFunctions.models import Websites
-sites = Websites.objects.all().values('id','domain','adminEmail','state','package','phpSelection','ssl')
-print(json.dumps(list(sites)))
-" 2>&1`
-        );
-        try { 
-          // Parse do JSON output
-          let parsedData = JSON.parse(raw.trim());
-          parsedData = parsedData.map((site: any) => ({
-            ...site,
-            state: site.state === 1 ? 'Active' : 'Suspended',
-            ssl: site.ssl === 1 || site.ssl === true  // Manter como booleano para consistência
-          }));
-          data = parsedData;
-        } catch { 
-          data = []; 
+sites = list(Websites.objects.values('domain','adminEmail','package','suspended'))
+print(json.dumps(sites))
+" 2>&1`)
+
+        // Para cada site verificar se tem conteúdo real em public_html
+        const checkScript = `
+for domain in $(mysql cyberpanel -se "SELECT domain FROM websiteFunctions_websites;"); do
+  size=$(du -s /home/$domain/public_html/ 2>/dev/null | cut -f1)
+  wpconfig=$([ -f /home/$domain/public_html/wp-config.php ] && echo "1" || echo "0")
+  indexphp=$([ -f /home/$domain/public_html/index.php ] && echo "1" || echo "0")
+  indexhtml=$([ -f /home/$domain/public_html/index.html ] && echo "1" || echo "0")
+  echo "$domain|$size|$wpconfig|$indexphp|$indexhtml"
+done
+`
+        const checkRaw = await execSSH(checkScript)
+        
+        const siteStatus: Record<string, any> = {}
+        checkRaw.split('\n').filter(Boolean).forEach(line => {
+          const [domain, size, wp, php, html] = line.split('|')
+          if (domain) {
+            siteStatus[domain] = {
+              size: parseInt(size) || 0,
+              hasWordPress: wp === '1',
+              hasIndexPhp: php === '1',
+              hasIndexHtml: html === '1',
+              // Site activo = tem wp-config OU index.php/html com tamanho > 8KB (mais que página padrão)
+              isActive: wp === '1' || ((php === '1' || html === '1') && parseInt(size) > 8)
+            }
+          }
+        })
+
+        // Retornar sites com campo isActive
+        // Parse sitesRaw e adicionar isActive a cada site
+        let sites = []
+        try {
+          sites = JSON.parse(sitesRaw)
+        } catch {
+          // fallback: parse manual
+          const domains = checkRaw.split('\n').filter(Boolean).map(line => line.split('|')[0])
+          sites = domains.map(d => ({ domain: d }))
         }
-        break;
+
+        data = {
+          sites: sites.map((s: any) => ({
+            ...s,
+            ...(siteStatus[s.domain] || {}),
+            isActive: siteStatus[s.domain]?.isActive ?? false
+          })),
+          success: true
+        }
+        break
       }
 
       case 'listPackages': {

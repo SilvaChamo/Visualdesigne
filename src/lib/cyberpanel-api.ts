@@ -22,6 +22,12 @@ export interface CyberPanelWebsite {
   diskUsage?: number;
   bandwidth?: number;
   ssl?: boolean;
+  // Propriedades para detecção de conteúdo real
+  isActive?: boolean;
+  hasWordPress?: boolean;
+  hasIndexPhp?: boolean;
+  hasIndexHtml?: boolean;
+  size?: number;
 }
 export interface CyberPanelPackage {
   id: string | number;
