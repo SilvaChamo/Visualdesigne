@@ -96,6 +96,27 @@ function ListWebsitesSection({ sites, onRefresh, packages, setActiveSection, set
   const [createForm, setCreateForm] = useState({ domain: '', email: '', username: 'admin', packageName: 'Default', php: 'PHP 8.2' })
   const [creating, setCreating] = useState(false)
   const [createMsg, setCreateMsg] = useState('')
+  const [sslStatus, setSSLStatus] = useState<Record<string, boolean>>({})
+
+  // Verificar SSL real de cada site (testa se HTTPS funciona)
+  useEffect(() => {
+    const checkAllSSL = async () => {
+      const results: Record<string, boolean> = {}
+      for (const site of sites) {
+        const res = await fetch('/api/server-exec', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'execCommand',
+            params: { command: `timeout 10 openssl s_client -connect ${site.domain}:443 -servername ${site.domain} 2>/dev/null | grep -q "Verification: OK" && echo "SSL_VALID" || echo "SSL_INVALID"` }
+          })
+        })
+        const data = await res.json()
+        results[site.domain] = (data.data?.output || '').includes('SSL_VALID')
+      }
+      setSSLStatus(results)
+    }
+    if (sites.length > 0) checkAllSSL()
+  }, [sites])
 
   const filtered = sites.filter(s =>
     s.domain.toLowerCase().includes(search.toLowerCase()) &&
@@ -270,13 +291,13 @@ function ListWebsitesSection({ sites, onRefresh, packages, setActiveSection, set
                 <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${parseState(s.state) === 'Active' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
                   {parseState(s.state) || 'Active'}
                 </span>
-                {(s as any).ssl === 'Enabled' || (s as any).ssl === true ? (
+                {sslStatus[s.domain] ? (
                   <span className="flex items-center gap-1 text-green-600 text-xs font-bold">
                     <Lock className="w-3.5 h-3.5" /> SSL Activo
                   </span>
                 ) : (
-                  <span className="flex items-center gap-1 text-red-500 text-xs font-bold">
-                    <LockOpen className="w-3.5 h-3.5" /> Sem SSL
+                  <span className="flex items-center gap-1 text-gray-400 text-xs">
+                    <LockOpen className="w-3.5 h-3.5" /> No SSL
                   </span>
                 )}
               </div>
@@ -359,28 +380,55 @@ function ListWebsitesSection({ sites, onRefresh, packages, setActiveSection, set
                     onClick={async () => {
                       setLoading(s.domain + '-ssl')
                       try {
-                        const res = await fetch('/api/server-exec', {
+                        // Primeiro verificar se o domínio resolve para o IP correcto
+                        const checkRes = await fetch('/api/server-exec', {
                           method: 'POST', headers: { 'Content-Type': 'application/json' },
-                          body: JSON.stringify({ 
-                            action: 'execCommand', 
-                            params: { command: `cyberpanel issueSSL --domainName ${s.domain} 2>&1` } 
+                          body: JSON.stringify({
+                            action: 'execCommand',
+                            params: { command: `dig +short ${s.domain} 2>&1` }
                           })
                         })
-                        const data = await res.json()
-                        const output = data.data?.output || ''
-                        if (output.toLowerCase().includes('success') || output.toLowerCase().includes('issued')) {
-                          alert('✅ SSL emitido com sucesso para ' + s.domain)
-                        } else {
-                          alert('⚠️ Resultado SSL:\n\n' + output)
+                        const checkData = await checkRes.json()
+                        const resolvedIP = (checkData.data?.output || '').trim()
+                        const serverIP = '109.199.104.22'
+
+                        if (!resolvedIP) {
+                          alert(`⚠️ DNS não propagou ainda!\n\nO domínio "${s.domain}" não está a resolver para nenhum IP.\n\nAguarda a propagação DNS (pode demorar até 24h) e tenta novamente.`)
+                          setLoading(null)
+                          return
                         }
-                        onRefresh()
+
+                        if (!resolvedIP.includes(serverIP)) {
+                          alert(`⚠️ DNS ainda não propagou!\n\nO domínio "${s.domain}" está a resolver para:\n${resolvedIP}\n\nMas devia resolver para:\n${serverIP}\n\nAguarda a propagação DNS e tenta novamente.`)
+                          setLoading(null)
+                          return
+                        }
+
+                        // DNS está correcto — emitir SSL
+                        const sslRes = await fetch('/api/server-exec', {
+                          method: 'POST', headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({
+                            action: 'execCommand',
+                            params: { command: `cyberpanel issueSSL --domainName ${s.domain} 2>&1` }
+                          })
+                        })
+                        const sslData = await sslRes.json()
+                        const output = sslData.data?.output || ''
+
+                        if (output.toLowerCase().includes('success') || output.toLowerCase().includes('issued')) {
+                          alert(`✅ SSL emitido com sucesso para ${s.domain}!`)
+                          onRefresh()
+                        } else {
+                          alert(`⚠️ Erro ao emitir SSL:\n\n${output}`)
+                        }
+
                       } catch (e: any) {
                         alert('Erro: ' + e.message)
                       }
                       setLoading(null)
                     }} disabled={loading === s.domain + '-ssl'}
                     className="flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg text-xs font-bold transition-colors disabled:opacity-50">
-                    <Lock className="w-3.5 h-3.5" /> {loading === s.domain + '-ssl' ? 'Processando...' : 'Issue SSL'}
+                    <Lock className="w-3.5 h-3.5" /> {loading === s.domain + '-ssl' ? 'A verificar...' : 'Issue SSL'}
                   </button>
                   <button
                     onClick={() => {
