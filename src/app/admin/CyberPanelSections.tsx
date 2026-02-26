@@ -138,7 +138,7 @@ type DNSFormState = {
   priority?: string
 }
 
-export function DNSZoneEditorSection({ sites, selectedDomain: selectedDomainProp }: { sites: CyberPanelWebsite[]; selectedDomain?: string }) {
+export function DNSZoneEditorSection({ sites, initialDomain }: { sites: CyberPanelWebsite[]; initialDomain?: string }) {
   const [selectedDomain, setSelectedDomain] = useState('')
   const [records, setRecords] = useState<DNSRecordRow[]>([])
   const [loading, setLoading] = useState(false)
@@ -200,16 +200,17 @@ export function DNSZoneEditorSection({ sites, selectedDomain: selectedDomainProp
   }
 
   useEffect(() => {
-    if (sites.length > 0 && !selectedDomain && !selectedDomainProp) {
+    if (sites.length > 0 && !selectedDomain && !initialDomain) {
       setSelectedDomain(sites[0].domain)
     }
-  }, [sites, selectedDomain, selectedDomainProp])
+  }, [sites, selectedDomain, initialDomain])
 
   useEffect(() => {
-    if (selectedDomainProp && selectedDomainProp !== selectedDomain) {
-      setSelectedDomain(selectedDomainProp)
+    if (initialDomain && !selectedDomain) {
+      setSelectedDomain(initialDomain)
+      fetchRecords(initialDomain)
     }
-  }, [selectedDomainProp, selectedDomain])
+  }, [initialDomain, selectedDomain])
 
   useEffect(() => {
     if (selectedDomain) {

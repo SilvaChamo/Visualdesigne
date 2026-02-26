@@ -111,18 +111,24 @@ export async function POST(request: Request) {
     const cleanName = name.replace(/[^a-zA-Z0-9_.*@-]/g, '');
     const cleanType = type.replace(/[^A-Z]/g, '');
     const cleanValue = type === 'MX' ? `${priority || 10} ${value}` : value;
+    const cleanTtl = parseInt(String(ttl)) || 14400;
     
-    const raw = await execSSH(
-      `cyberpanel createDnsRecord ` +
-      `--domainName ${cleanDomain} ` +
-      `--name "${cleanName}" ` +
-      `--recordType ${cleanType} ` +
-      `--value "${cleanValue}" ` +
-      `--ttl ${ttl} 2>&1`
-    );
+    // INSERT MySQL directo na tabela records do PowerDNS
+    const insertQuery = `
+      INSERT INTO records (domain_id, name, type, content, ttl, prio)
+      SELECT id, '${cleanName}.${cleanDomain}', '${cleanType}', '${cleanValue}', ${cleanTtl}, 0
+      FROM domains WHERE name='${cleanDomain}'
+    `;
     
-    const success = !raw.toLowerCase().includes('error') && !raw.toLowerCase().includes('traceback');
-    return NextResponse.json({ success, message: success ? 'Registo criado!' : 'Erro ao criar registo', details: raw });
+    const raw = await execSSH(`mysql cyberpanel -e "${insertQuery}" 2>&1`);
+    
+    const success = !raw.toLowerCase().includes('error') && !raw.toLowerCase().includes('duplicate');
+    return NextResponse.json({ 
+      success, 
+      message: success ? 'Registo criado!' : 'Erro ao criar registo', 
+      details: raw,
+      query: insertQuery
+    });
     
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });
@@ -168,12 +174,20 @@ export async function DELETE(request: Request) {
     }
     
     const cleanDomain = domainName.replace(/[^a-zA-Z0-9_.-]/g, '');
-    const raw = await execSSH(
-      `cyberpanel deleteDnsRecord --domainName ${cleanDomain} --recordID ${id} 2>&1`
-    );
+    const cleanId = String(id).replace(/[^0-9]/g, '');
+    
+    // DELETE MySQL directo da tabela records do PowerDNS
+    const deleteQuery = `DELETE FROM records WHERE id=${cleanId}`;
+    
+    const raw = await execSSH(`mysql cyberpanel -e "${deleteQuery}" 2>&1`);
     
     const success = !raw.toLowerCase().includes('error');
-    return NextResponse.json({ success, message: success ? 'Registo removido!' : 'Erro ao remover', details: raw });
+    return NextResponse.json({ 
+      success, 
+      message: success ? 'Registo removido!' : 'Erro ao remover', 
+      details: raw,
+      query: deleteQuery
+    });
     
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });
