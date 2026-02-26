@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { 
   Home, Globe, Users, Mail, Shield, Database, Settings, 
   ChevronLeft, ChevronRight, Plus, Search, Download, ExternalLink,
-  Edit2, Pause, Play, Trash2, RefreshCw, LogOut, Package, Server, Lock
+  Edit2, Pause, Play, Trash2, RefreshCw, LogOut, Package, Server, Lock, LockOpen, Edit, Power, FolderOpen, FileText
 } from 'lucide-react'
 import { CpanelDashboard } from './CpanelDashboard'
 import {
@@ -19,7 +19,7 @@ import {
   EmailForwardingSection, CatchAllEmailSection, PatternForwardingSection,
   PlusAddressingSection, EmailChangePasswordSection, DKIMManagerSection,
   WPRestoreBackupSection, WPRemoteBackupSection, ListSubdomainsSection,
-  PackagesSection, DNSZoneEditorSection
+  PackagesSection, DNSZoneEditorSection, FileManagerSection
 } from './CyberPanelSections'
 import { cyberPanelAPI } from '@/lib/cyberpanel-api'
 import type { CyberPanelWebsite, CyberPanelUser, CyberPanelPackage } from '@/lib/cyberpanel-api'
@@ -71,279 +71,449 @@ function CreateWebsiteSection({ packages, onRefresh }: { packages: CyberPanelPac
   )
 }
 
-function ListWebsitesSection({ sites, onRefresh, setActiveSection, setSelectedDNSDomain }: { 
+function ListWebsitesSection({ sites, onRefresh, packages, setActiveSection, setFileManagerDomain, setSelectedDNSDomain }: {
   sites: CyberPanelWebsite[], 
   onRefresh: () => void, 
+  packages: CyberPanelPackage[],
   setActiveSection: (section: string) => void,
-  setSelectedDNSDomain: (domain: string) => void 
+  setFileManagerDomain: (domain: string) => void,
+  setSelectedDNSDomain: (domain: string) => void
 }) {
-  const [searchTerm, setSearchTerm] = useState('')
-  const [selectedSites, setSelectedSites] = useState<string[]>([])
-  const [editingSite, setEditingSite] = useState<string | null>(null)
-  const [editForm, setEditForm] = useState({ packageName: '', php: '' })
+  const parseState = (state: any) => {
+    if (state === 1 || state === '1' || state === 'Active') return 'Active'
+    if (state === 0 || state === '0' || state === 'Suspended') return 'Suspended'
+    return state || 'Active'
+  }
+  const [expandedSite, setExpandedSite] = useState<string | null>(null)
+  const [editingField, setEditingField] = useState<{domain: string, field: string} | null>(null)
+  const [editValue, setEditValue] = useState('')
+  const [search, setSearch] = useState('')
+  const [loading, setLoading] = useState<string | null>(null)
+  const [msg, setMsg] = useState('')
+  const [currentPage, setCurrentPage] = useState(1)
+  const itemsPerPage = 8
+  const [showCreateModal, setShowCreateModal] = useState(false)
+  const [createForm, setCreateForm] = useState({ domain: '', email: '', username: 'admin', packageName: 'Default', php: 'PHP 8.2' })
+  const [creating, setCreating] = useState(false)
+  const [createMsg, setCreateMsg] = useState('')
 
-  const filteredSites = sites.filter(site => 
-    site.domain.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    site.adminEmail?.toLowerCase().includes(searchTerm.toLowerCase())
+  const filtered = sites.filter(s =>
+    s.domain.toLowerCase().includes(search.toLowerCase()) &&
+    !s.domain.includes('contaboserver.net')
   )
 
-  const handleEdit = (site: CyberPanelWebsite) => {
-    if (editingSite === site.domain) {
-      // Save edit
-      setEditingSite(null)
-    } else {
-      setEditingSite(site.domain)
-      setEditForm({
-        packageName: (site as any).package || 'Default',
-        php: (site as any).phpSelection || 'PHP 8.2'
-      })
-    }
-  }
-
-  const handleSuspend = async (domain: string) => {
-    try {
-      const res = await fetch('/api/server-exec', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          action: (sites.find(s => s.domain === domain)?.state === 'Suspended') ? 'unsuspendWebsite' : 'suspendWebsite',
-          params: { domain }
-        })
-      })
-      if (res.ok) {
-        onRefresh()
-      }
-    } catch (e) {
-      console.error('Error suspending site:', e)
-    }
-  }
+  const totalPages = Math.ceil(filtered.length / itemsPerPage)
+  const startIndex = (currentPage - 1) * itemsPerPage
+  const paginatedSites = filtered.slice(startIndex, startIndex + itemsPerPage)
 
   const handleDelete = async (domain: string) => {
-    if (!confirm(`Tem certeza que deseja apagar o website "${domain}"? Esta ação é irreversível!`)) return
+    if (!confirm(`⚠️ Apagar "${domain}"?\n\nEsta acção é IRREVERSÍVEL — o site e todos os seus ficheiros serão eliminados do servidor!`)) return
+    setLoading(domain)
     try {
       const res = await fetch('/api/server-exec', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          action: 'deleteWebsite',
-          params: { domain }
-        })
+        body: JSON.stringify({ action: 'deleteWebsite', params: { domain } })
       })
-      if (res.ok) {
-        onRefresh()
+      const data = await res.json()
+      if (data.success) {
+        await onRefresh()
+      } else {
+        alert('Erro ao apagar:\n\n' + (data.data?.output || data.error || 'Erro desconhecido'))
       }
-    } catch (e) {
-      console.error('Error deleting site:', e)
+    } catch (e: any) {
+      alert('Erro de ligação: ' + e.message)
     }
+    setLoading(null)
   }
 
-  const exportCSV = () => {
-    const csv = [
-      ['Domínio', 'IP', 'Utilizador', 'Email', 'Pacote', 'Estado', 'SSL'],
-      ...filteredSites.map(site => [
-        site.domain,
-        '109.199.104.22',
-        'admin',
-        site.adminEmail || '',
-        (site as any).package || 'Default',
-        site.state || 'Active',
-        (site as any).ssl || 'Disabled'
-      ])
-    ].map(row => row.join(',')).join('\n')
+  const handleSuspend = async (domain: string, state: string) => {
+  setLoading(domain)
+  const action = state === 'Active' ? 'suspendWebsite' : 'unsuspendWebsite'
+  await fetch('/api/server-exec', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action, params: { domain } })
+  })
+  await onRefresh()
+  setLoading(null)
+}
 
-    const blob = new Blob([csv], { type: 'text/csv' })
-    const url = window.URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = 'websites.csv'
-    a.click()
+  const handleSaveField = async (domain: string, field: string, value: string) => {
+  setLoading(domain)
+  let command = ''
+  
+  if (field === 'php') {
+    command = `cyberpanel changePHP --domainName ${domain} --phpVersion "${value}" 2>&1`
+  } else if (field === 'package') {
+    command = `cyberpanel changePackage --domainName ${domain} --packageName "${value}" 2>&1`
+  } else {
+    // Para outros campos, usa modifyWebsite
+    await fetch('/api/server-exec', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'modifyWebsite', params: { domain, [field]: value } })
+    })
+    setEditingField(null)
+    await onRefresh()
+    setLoading(null)
+    return
+  }
+  
+  const res = await fetch('/api/server-exec', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action: 'execCommand', params: { command } })
+  })
+  const data = await res.json()
+  if (!data.success) {
+    alert('Erro: ' + (data.data?.output || data.error || 'desconhecido'))
+  }
+  setEditingField(null)
+  await onRefresh()
+  setLoading(null)
+}
+
+  const EditableField = ({ domain, field, value, label }: { domain: string, field: string, value: string, label: string }) => {
+    const isEditing = editingField?.domain === domain && editingField?.field === field
+    return (
+      <div className="bg-gray-50 rounded-lg p-3 border border-gray-200">
+        <p className="text-xs font-bold text-gray-400 uppercase mb-1">{label}</p>
+        {isEditing ? (
+          <div className="flex items-center gap-2">
+            {field === 'php' ? (
+              <select value={editValue} onChange={e => setEditValue(e.target.value)}
+                className="text-sm border border-gray-300 rounded px-2 py-1 bg-white flex-1">
+                <option>PHP 7.4</option><option>PHP 8.0</option>
+                <option>PHP 8.1</option><option>PHP 8.2</option><option>PHP 8.3</option>
+              </select>
+            ) : field === 'package' ? (
+              <select value={editValue} onChange={e => setEditValue(e.target.value)}
+                className="text-sm border border-gray-300 rounded px-2 py-1 bg-white flex-1">
+                <option>Default</option>
+                {packages.map(p => <option key={p.packageName}>{p.packageName}</option>)}
+              </select>
+            ) : (
+              <input value={editValue} onChange={e => setEditValue(e.target.value)}
+                className="text-sm border border-gray-300 rounded px-2 py-1 flex-1" />
+            )}
+            <button onClick={() => handleSaveField(domain, field, editValue)}
+              className="text-xs bg-black text-white px-2 py-1 rounded font-bold">✓</button>
+            <button onClick={() => setEditingField(null)}
+              className="text-xs bg-gray-200 px-2 py-1 rounded">✕</button>
+          </div>
+        ) : (
+          <div className="flex items-center justify-between">
+            <p className="text-sm font-bold text-gray-900">{value || '-'}</p>
+            <button onClick={() => { setEditingField({ domain, field }); setEditValue(value) }}
+              className="text-gray-400 hover:text-blue-500 ml-2">
+              <Edit className="w-3 h-3" />
+            </button>
+          </div>
+        )}
+      </div>
+    )
   }
 
   return (
-    <div className="space-y-6 w-full">
-      <div className="flex justify-between items-center">
-        <div><h1 className="text-3xl font-bold text-gray-900">Websites</h1><p className="text-gray-500 mt-1">Todos os websites no servidor.</p></div>
-        <div className="flex items-center gap-2">
-          <button onClick={onRefresh} className="bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2">
-            <RefreshCw className="w-4 h-4" /> Sincronizar
+    <div className="w-full space-y-4">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <span className="text-base font-bold text-gray-900">Websites ({filtered.length})</span>
+          <button onClick={onRefresh}
+            className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-colors">
+            <RefreshCw className="w-3 h-3" /> Sincronizar
           </button>
-          <button onClick={exportCSV} className="bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2">
-            <Download className="w-4 h-4" /> Exportar CSV
+          <button onClick={() => setShowCreateModal(true)}
+            className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-colors">
+            <Plus className="w-3 h-3" /> Criar Website
           </button>
-          <a href="https://109.199.104.22:8090" target="_blank" rel="noopener noreferrer" className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2">
-            <ExternalLink className="w-4 h-4" /> Ver no CyberPanel
-          </a>
+          <button onClick={() => {
+            const rows = [['Domínio','IP','Estado','Pacote']]
+            sites.forEach(s => rows.push([s.domain, '109.199.104.22', s.state || 'Active', (s as any).package || 'Default']))
+            const blob = new Blob([rows.map(r => r.join(',')).join('\n')], { type: 'text/csv' })
+            const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'websites.csv'; a.click()
+          }} className="bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-2 rounded-lg text-xs font-bold">
+            ↓ Exportar CSV
+          </button>
+        </div>
+        <div className="relative">
+          <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
+          <input value={search} onChange={e => setSearch(e.target.value)}
+            placeholder="Pesquisar websites..."
+            className="pl-8 pr-3 py-1.5 border border-gray-300 rounded-lg text-sm w-52" />
         </div>
       </div>
 
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
-        <div className="flex items-center gap-4 mb-4">
-          <div className="flex-1 relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-            <input
-              type="text"
-              placeholder="Pesquisar websites..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-500 focus:border-transparent"
-            />
-          </div>
-          <div className="flex items-center gap-2">
-            <input
-              type="checkbox"
-              id="selectAll"
-              checked={selectedSites.length === filteredSites.length && filteredSites.length > 0}
-              onChange={(e) => {
-                if (e.target.checked) {
-                  setSelectedSites(filteredSites.map(s => s.domain))
-                } else {
-                  setSelectedSites([])
-                }
-              }}
-              className="rounded border-gray-300 text-red-600 focus:ring-red-500"
-            />
-            <label htmlFor="selectAll" className="text-sm text-gray-600">Selecionar todos</label>
-          </div>
-        </div>
+      {msg && <div className="px-4 py-2.5 rounded-lg text-sm bg-green-50 text-green-700 border border-green-200">{msg}</div>}
 
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="text-left text-xs font-bold text-gray-500 uppercase border-b bg-gray-50">
-                <th className="px-4 py-3 w-12"></th>
-                <th className="px-4 py-3">Domínio</th>
-                <th className="px-4 py-3">IP</th>
-                <th className="px-4 py-3">Utilizador</th>
-                <th className="px-4 py-3">Email</th>
-                <th className="px-4 py-3">Quota</th>
-                <th className="px-4 py-3">Disco Usado</th>
-                <th className="px-4 py-3">Estado</th>
-                <th className="px-4 py-3">Acções</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredSites.length === 0 ? (
-                <tr>
-                  <td colSpan={9} className="px-4 py-8 text-center text-gray-400">
-                    {searchTerm ? 'Nenhum website encontrado para esta pesquisa.' : 'Nenhum website encontrado.'}
-                  </td>
-                </tr>
-              ) : filteredSites.map((site, i) => (
-                <tr key={i} className="border-b border-gray-50 hover:bg-gray-50">
-                  <td className="px-4 py-3">
-                    <input
-                      type="checkbox"
-                      checked={selectedSites.includes(site.domain)}
-                      onChange={(e) => {
-                        if (e.target.checked) {
-                          setSelectedSites([...selectedSites, site.domain])
-                        } else {
-                          setSelectedSites(selectedSites.filter(d => d !== site.domain))
-                        }
-                      }}
-                      className="rounded border-gray-300 text-red-600 focus:ring-red-500"
+      {/* Lista de sites como cards expansíveis */}
+      <div className="space-y-2">
+        {paginatedSites.map((s, i) => (
+          <div key={i} className={`bg-white rounded-xl border ${expandedSite === s.domain ? 'border-blue-200 shadow-md' : 'border-gray-200 shadow-sm'} overflow-hidden transition-all`}>
+            
+            {/* Linha do site com botões explícitos */}
+            <div className="flex items-center justify-between px-4 py-4">
+              
+              {/* Info do site */}
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={() => setExpandedSite(expandedSite === s.domain ? null : s.domain)}
+                  className="p-1 rounded hover:bg-gray-100 transition-colors"
+                  title="Expandir/Colapsar"
+                >
+                  <ChevronRight className={`w-4 h-4 text-gray-400 transition-transform ${expandedSite === s.domain ? 'rotate-90' : ''}`} />
+                </button>
+                <Globe className="w-4 h-4 text-blue-500" />
+                <a href={`https://${s.domain}`} target="_blank"
+                  className="text-blue-600 hover:underline font-bold text-sm">
+                  {s.domain}
+                </a>
+                <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${parseState(s.state) === 'Active' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                  {parseState(s.state) || 'Active'}
+                </span>
+                {(s as any).ssl === 'Enabled' || (s as any).ssl === true ? (
+                  <span className="flex items-center gap-1 text-green-600 text-xs font-bold">
+                    <Lock className="w-3.5 h-3.5" /> SSL Activo
+                  </span>
+                ) : (
+                  <span className="flex items-center gap-1 text-red-500 text-xs font-bold">
+                    <LockOpen className="w-3.5 h-3.5" /> Sem SSL
+                  </span>
+                )}
+              </div>
+
+              {/* Botões */}
+              <div className="flex items-center gap-3">
+                {/* Botão Gerir — abre cards de gestão */}
+                <button
+                  onClick={() => setExpandedSite(expandedSite === s.domain ? null : s.domain)}
+                  className="bg-black hover:bg-red-600 text-white px-4 py-1.5 rounded-lg text-xs font-bold transition-colors">
+                  Gerir
+                </button>
+                
+                {/* Botão Explorar Directório — sem fundo, texto link */}
+                <button
+                  onClick={() => {
+                    setFileManagerDomain(s.domain)
+                    setActiveSection('file-manager')
+                  }}
+                  className="text-gray-600 hover:text-red-600 text-xs font-medium transition-colors underline-offset-2 hover:underline">
+                  Explorar directório
+                </button>
+              </div>
+            </div>
+
+            {/* Conteúdo expandido */}
+            {expandedSite === s.domain && (
+              <div className="border-t border-gray-100 p-4 space-y-4">
+                
+                {/* Grid de cards de detalhes editáveis */}
+                <div className="grid grid-cols-4 gap-3">
+
+                  {/* COLUNA 1 — Screenshot */}
+                  <div className="bg-gray-100 rounded-lg overflow-hidden border border-gray-200 h-36 relative">
+                    <iframe
+                      src={`https://${s.domain}`}
+                      className="absolute top-0 left-0"
+                      style={{ width: '400%', height: '400%', transform: 'scale(0.25)', transformOrigin: 'top left', pointerEvents: 'none' }}
+                      scrolling="no"
+                      sandbox="allow-same-origin"
                     />
-                  </td>
-                  <td className="px-4 py-3 font-bold">
-                    <a href={`http://${site.domain}`} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:text-blue-800 flex items-center gap-1">
-                      <Globe className="w-3 h-3" />
-                      {site.domain}
-                    </a>
-                  </td>
-                  <td className="px-4 py-3 text-gray-600">109.199.104.22</td>
-                  <td className="px-4 py-3 text-gray-600">admin</td>
-                  <td className="px-4 py-3 text-gray-600">{site.adminEmail || '-'}</td>
-                  <td className="px-4 py-3 text-gray-600">Ilimitado</td>
-                  <td className="px-4 py-3 text-gray-600">-</td>
-                  <td className="px-4 py-3">
-                    <span className={`px-2 py-0.5 rounded text-xs font-bold ${
-                      site.state === 'Active' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
-                    }`}>
-                      {site.state || 'Active'}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3">
-                    <div className="flex items-center gap-1">
-                      {editingSite === site.domain ? (
-                        <>
-                          <input
-                            type="text"
-                            value={editForm.packageName}
-                            onChange={(e) => setEditForm({...editForm, packageName: e.target.value})}
-                            className="w-20 px-2 py-1 border border-gray-300 rounded text-xs mr-1"
-                            placeholder="Pacote"
-                          />
-                          <input
-                            type="text"
-                            value={editForm.php}
-                            onChange={(e) => setEditForm({...editForm, php: e.target.value})}
-                            className="w-20 px-2 py-1 border border-gray-300 rounded text-xs mr-1"
-                            placeholder="PHP"
-                          />
-                          <button
-                            onClick={() => handleEdit(site)}
-                            className="text-green-600 hover:text-green-800 text-xs font-bold"
-                          >
-                            Salvar
-                          </button>
-                          <button
-                            onClick={() => setEditingSite(null)}
-                            className="text-gray-600 hover:text-gray-800 text-xs font-bold"
-                          >
-                            Cancelar
-                          </button>
-                        </>
-                      ) : (
-                        <>
-                          <button
-                            onClick={() => handleEdit(site)}
-                            className="text-blue-600 hover:text-blue-800 text-xs font-bold"
-                            title="Editar"
-                          >
-                            <Edit2 className="w-3 h-3" />
-                          </button>
-                          <button
-                            onClick={() => handleSuspend(site.domain)}
-                            className={`text-${site.state === 'Suspended' ? 'green' : 'orange'}-600 hover:text-${site.state === 'Suspended' ? 'green' : 'orange'}-800 text-xs font-bold`}
-                            title={site.state === 'Suspended' ? 'Ativar' : 'Suspender'}
-                          >
-                            {site.state === 'Suspended' ? <Play className="w-3 h-3" /> : <Pause className="w-3 h-3" />}
-                          </button>
-                          <button
-                            onClick={() => handleDelete(site.domain)}
-                            className="text-red-600 hover:text-red-800 text-xs font-bold"
-                            title="Apagar"
-                          >
-                            <Trash2 className="w-3 h-3" />
-                          </button>
-                          <a
-                            href={`http://${site.domain}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-gray-600 hover:text-gray-800 text-xs font-bold"
-                            title="Abrir site"
-                          >
-                            <ExternalLink className="w-3 h-3" />
-                          </a>
-                          <button 
-                            onClick={() => {
-                              setActiveSection('domains-dns')
-                              setSelectedDNSDomain(site.domain)
-                            }}
-                            className="p-1.5 rounded bg-purple-50 hover:bg-purple-100 text-purple-600" 
-                            title="Editar DNS">
-                            <Server className="w-3.5 h-3.5" />
-                          </button>
-                        </>
-                      )}
+                  </div>
+
+                  {/* COLUNA 2 — State + Disk Usage */}
+                  <div className="flex flex-col gap-3">
+                    <EditableField domain={s.domain} field="state" value={parseState(s.state) || 'Active'} label="State" />
+                    <div className="bg-gray-50 rounded-lg p-3 border border-gray-200">
+                      <p className="text-xs font-bold text-gray-400 uppercase mb-1">Disk Usage</p>
+                      <p className="text-sm font-bold text-gray-900">{(s as any).diskUsed ? `${(s as any).diskUsed}MB` : '0MB'}</p>
                     </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+                  </div>
+
+                  {/* COLUNA 3 — IP + Package */}
+                  <div className="flex flex-col gap-3">
+                    <div className="bg-gray-50 rounded-lg p-3 border border-gray-200">
+                      <p className="text-xs font-bold text-gray-400 uppercase mb-1">IP Address</p>
+                      <p className="text-sm font-bold text-gray-900">{(s as any).ip || '109.199.104.22'}</p>
+                    </div>
+                    <EditableField domain={s.domain} field="package" value={(s as any).package || 'Default'} label="Package" />
+                  </div>
+
+                  {/* COLUNA 4 — PHP + Owner */}
+                  <div className="flex flex-col gap-3">
+                    <EditableField domain={s.domain} field="php" value={(s as any).phpVersion || 'PHP 8.2'} label="PHP Version" />
+                    <div className="bg-gray-50 rounded-lg p-3 border border-gray-200">
+                      <p className="text-xs font-bold text-gray-400 uppercase mb-1">Owner</p>
+                      <p className="text-sm font-bold text-gray-900">{(s as any).owner || 'admin'}</p>
+                    </div>
+                  </div>
+
+                </div>
+
+                {/* Botões de acção numa linha */}
+                <div className="flex items-center gap-2 pt-2 border-t border-gray-100">
+                  <a href={`https://${s.domain}`} target="_blank" rel="noopener noreferrer"
+                    className="flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-xs font-bold transition-colors">
+                    <ExternalLink className="w-3.5 h-3.5" /> Visitar Site
+                  </a>
+                  <button
+                    onClick={async () => {
+                      setLoading(s.domain + '-ssl')
+                      try {
+                        const res = await fetch('/api/server-exec', {
+                          method: 'POST', headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ 
+                            action: 'execCommand', 
+                            params: { command: `cyberpanel issueSSL --domainName ${s.domain} 2>&1` } 
+                          })
+                        })
+                        const data = await res.json()
+                        const output = data.data?.output || ''
+                        if (output.toLowerCase().includes('success') || output.toLowerCase().includes('issued')) {
+                          alert('✅ SSL emitido com sucesso para ' + s.domain)
+                        } else {
+                          alert('⚠️ Resultado SSL:\n\n' + output)
+                        }
+                        onRefresh()
+                      } catch (e: any) {
+                        alert('Erro: ' + e.message)
+                      }
+                      setLoading(null)
+                    }} disabled={loading === s.domain + '-ssl'}
+                    className="flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg text-xs font-bold transition-colors disabled:opacity-50">
+                    <Lock className="w-3.5 h-3.5" /> {loading === s.domain + '-ssl' ? 'Processando...' : 'Issue SSL'}
+                  </button>
+                  <button
+                    onClick={() => {
+                      setSelectedDNSDomain(s.domain)
+                      setActiveSection('domains-dns')
+                    }}
+                    className="flex items-center gap-1.5 bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg text-xs font-bold transition-colors">
+                    <Server className="w-3.5 h-3.5" /> Editar DNS
+                  </button>
+                  <button onClick={() => handleSuspend(s.domain, parseState(s.state) || 'Active')}
+                    className="flex items-center gap-1.5 bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 rounded-lg text-xs font-bold transition-colors">
+                    <Power className="w-3.5 h-3.5" /> {parseState(s.state) === 'Active' ? 'Suspender' : 'Activar'}
+                  </button>
+                  <button onClick={() => handleDelete(s.domain)} disabled={loading === s.domain}
+                    className="flex items-center gap-1.5 bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg text-xs font-bold transition-colors disabled:opacity-50">
+                    <Trash2 className="w-3.5 h-3.5" /> {loading === s.domain ? 'A apagar...' : 'Apagar'}
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        ))}
       </div>
+
+      {/* Paginação */}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-center gap-2 pt-4">
+          <button
+            onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+            disabled={currentPage === 1}
+            className="px-4 py-2 rounded-lg text-xs font-bold bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            Anterior
+          </button>
+          
+          <div className="flex items-center gap-1">
+            {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => (
+              <button
+                key={page}
+                onClick={() => setCurrentPage(page)}
+                className={`w-8 h-8 rounded-lg text-xs font-bold transition-colors ${
+                  currentPage === page
+                    ? 'bg-red-600 text-white'
+                    : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-50'
+                }`}
+              >
+                {page}
+              </button>
+            ))}
+          </div>
+          
+          <button
+            onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+            disabled={currentPage === totalPages}
+            className="px-4 py-2 rounded-lg text-xs font-bold bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            Próximo
+          </button>
+        </div>
+      )}
+
+      {/* Modal de criação de website */}
+      {showCreateModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl shadow-2xl p-6 w-full max-w-md mx-4">
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-lg font-bold text-gray-900">Criar Novo Website</h2>
+              <button onClick={() => { setShowCreateModal(false); setCreateMsg('') }}
+                className="text-gray-400 hover:text-gray-600 text-xl">✕</button>
+            </div>
+            <div className="space-y-4">
+              <div>
+                <label className="text-xs font-bold text-gray-600 uppercase block mb-1.5">Domínio</label>
+                <input value={createForm.domain} onChange={e => setCreateForm({...createForm, domain: e.target.value})}
+                  placeholder="exemplo.com"
+                  className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm" />
+              </div>
+              <div>
+                <label className="text-xs font-bold text-gray-600 uppercase block mb-1.5">Email Admin</label>
+                <input value={createForm.email} onChange={e => setCreateForm({...createForm, email: e.target.value})}
+                  placeholder="admin@exemplo.com"
+                  className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm" />
+              </div>
+              <div>
+                <label className="text-xs font-bold text-gray-600 uppercase block mb-1.5">Pacote</label>
+                <select value={createForm.packageName} onChange={e => setCreateForm({...createForm, packageName: e.target.value})}
+                  className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm">
+                  <option>Default</option>
+                  {packages.map(p => <option key={p.packageName} value={p.packageName}>{p.packageName}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="text-xs font-bold text-gray-600 uppercase block mb-1.5">Versão PHP</label>
+                <select value={createForm.php} onChange={e => setCreateForm({...createForm, php: e.target.value})}
+                  className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm">
+                  <option>PHP 7.4</option><option>PHP 8.0</option>
+                  <option>PHP 8.1</option><option>PHP 8.2</option><option>PHP 8.3</option>
+                </select>
+              </div>
+            </div>
+            {createMsg && (
+              <div className={`mt-4 px-4 py-2.5 rounded-lg text-sm font-medium ${createMsg.includes('sucesso') ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-700 border border-red-200'}`}>
+                {createMsg}
+              </div>
+            )}
+            <div className="flex gap-3 mt-6">
+              <button onClick={async () => {
+                if (!createForm.domain || !createForm.email) return
+                setCreating(true); setCreateMsg('')
+                const res = await fetch('/api/server-exec', {
+                  method: 'POST', headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ action: 'createWebsite', params: createForm })
+                })
+                const data = await res.json()
+                if (data.success) {
+                  setCreateMsg('Website criado com sucesso!')
+                  setTimeout(() => { setShowCreateModal(false); setCreateMsg(''); onRefresh() }, 1500)
+                } else {
+                  setCreateMsg('Erro: ' + (data.data?.output || data.error || 'desconhecido'))
+                }
+                setCreating(false)
+              }} disabled={creating || !createForm.domain || !createForm.email}
+                className="flex-1 bg-black hover:bg-red-600 text-white py-2.5 rounded-lg text-sm font-bold transition-colors disabled:opacity-50 flex items-center justify-center gap-2">
+                {creating ? <><RefreshCw className="w-4 h-4 animate-spin" /> A criar...</> : '+ Criar Website'}
+              </button>
+              <button onClick={() => { setShowCreateModal(false); setCreateMsg('') }}
+                className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 py-2.5 rounded-lg text-sm font-bold">
+                Cancelar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -351,6 +521,7 @@ function ListWebsitesSection({ sites, onRefresh, setActiveSection, setSelectedDN
 export default function AdminPage() {
   const [activeSection, setActiveSection] = useState('dashboard')
   const [isCollapsed, setIsCollapsed] = useState(false)
+  const [fileManagerDomain, setFileManagerDomain] = useState('')
   const [cyberPanelSites, setCyberPanelSites] = useState<CyberPanelWebsite[]>([])
   const [cyberPanelUsers, setCyberPanelUsers] = useState<CyberPanelUser[]>([])
   const [cyberPanelPackages, setCyberPanelPackages] = useState<CyberPanelPackage[]>([])
@@ -404,9 +575,12 @@ export default function AdminPage() {
         return <ListWebsitesSection 
         sites={cyberPanelSites} 
         onRefresh={loadCyberPanelData} 
+        packages={cyberPanelPackages}
         setActiveSection={setActiveSection}
-        setSelectedDNSDomain={setSelectedDNSDomain}
-      />
+        setFileManagerDomain={setFileManagerDomain}
+        setSelectedDNSDomain={setSelectedDNSDomain} />
+      case 'file-manager':
+        return <FileManagerSection domain={fileManagerDomain} sites={cyberPanelSites} />
       case 'domains-new':
         return <CreateWebsiteSection packages={cyberPanelPackages} onRefresh={loadCyberPanelData} />
       case 'cp-subdomains':
@@ -508,15 +682,13 @@ export default function AdminPage() {
               </button>
             </div>
           ) : (
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <img src="/assets/simbolo.png" alt="Logo" className="w-14 h-14 object-contain cursor-pointer" onClick={() => window.location.href = '/'} />
-                <div>
-                  <p className="font-bold text-base text-gray-900 font-bold">Painel Admin</p>
-                  <p className="text-[10px] text-gray-400">Painel Completo</p>
-                </div>
+            <div className="flex items-center gap-3">
+              <img src="/assets/simbolo.png" alt="Logo" className="w-14 h-14 object-contain cursor-pointer" onClick={() => window.location.href = '/'} />
+              <div className="flex-1">
+                <h1 className="text-xl font-bold text-gray-900">Painel Admin</h1>
+                <p className="text-xs text-gray-500">VisualDesign</p>
               </div>
-              <button onClick={() => setIsCollapsed(!isCollapsed)} className="p-1.5 rounded-lg hover:bg-gray-100 transition-colors">
+              <button onClick={() => setIsCollapsed(!isCollapsed)} className="rounded-lg hover:bg-gray-100 transition-colors">
                 <LogOut size={20} className="text-gray-500 rotate-180" />
               </button>
             </div>
@@ -586,18 +758,19 @@ export default function AdminPage() {
               </p>
             </div>
             <div className="flex items-center gap-2">
+              <button onClick={loadCyberPanelData} disabled={isFetchingCyberPanel}
+                className="bg-orange-500 hover:bg-orange-600 text-white text-xs font-bold px-4 py-2 rounded-lg flex items-center gap-1.5 transition-colors" title="Actualizar dados">
+                <RefreshCw size={13} className={isFetchingCyberPanel ? 'animate-spin' : ''} />
+                Actualizar
+              </button>
               <a href="https://109.199.104.22:8090" target="_blank" rel="noopener noreferrer"
-                className="bg-red-600 hover:bg-red-700 text-white text-xs font-bold px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-colors">
+                className="bg-red-600 hover:bg-red-700 text-white text-xs font-bold px-4 py-2 rounded-lg flex items-center gap-1.5 transition-colors">
                 <Globe size={13} /> Painel CyberPanel
               </a>
               <button onClick={() => window.location.href = '/'}
-                className="flex items-center gap-2 px-3 py-1.5 rounded-lg hover:bg-gray-100 transition-colors text-gray-500" title="Sair">
-                <span className="text-sm">Sair</span>
-                <LogOut size={15} />
-              </button>
-              <button onClick={loadCyberPanelData} disabled={isFetchingCyberPanel}
-                className="p-1.5 rounded-lg hover:bg-gray-100 transition-colors text-gray-500" title="Actualizar dados">
-                <RefreshCw size={15} className={isFetchingCyberPanel ? 'animate-spin' : ''} />
+                className="bg-gray-700 hover:bg-red-600 text-white text-xs font-bold px-4 py-2 rounded-lg flex items-center gap-1.5 transition-colors" title="Sair">
+                <LogOut size={13} />
+                Sair
               </button>
             </div>
           </div>

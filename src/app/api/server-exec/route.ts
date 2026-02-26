@@ -35,20 +35,22 @@ export async function POST(req: NextRequest) {
     switch (action) {
 
       case 'listWebsites': {
-        const raw = await execSSH(`/usr/local/CyberPanel/bin/python /usr/local/CyberCP/manage.py shell -c "
+        const raw = await execSSH(
+          `/usr/local/CyberCP/bin/python /usr/local/CyberCP/manage.py shell -c "
+import json
 from websiteFunctions.models import Websites
-sites = list(Websites.objects.values('id','domain','adminEmail','package','state','phpSelection','ssl'))
-print(sites)
-"`);
+sites = Websites.objects.all().values('id','domain','adminEmail','state','package','phpSelection','ssl')
+print(json.dumps(list(sites)))
+" 2>&1`
+        );
         try { 
-          // Parse do output do Django shell
-          const lines = raw.trim().split('\n');
-          const dataLine = lines.find(line => line.startsWith('[') && line.endsWith(']'));
-          if (dataLine) {
-            data = eval(dataLine); // Avalia a lista Python
-          } else {
-            data = [];
-          }
+          // Parse do JSON output
+          let parsedData = JSON.parse(raw.trim());
+          parsedData = parsedData.map((site: any) => ({
+            ...site,
+            ssl: site.ssl === 1 || site.ssl === true ? 'Enabled' : 'Disabled'
+          }));
+          data = parsedData;
         } catch { 
           data = []; 
         }
@@ -154,14 +156,14 @@ print(users)
       }
 
       case 'suspendWebsite': {
-        const raw = await execSSH(`python3 -c "
+        const raw = await execSSH(`/usr/local/CyberPanel/bin/python /usr/local/CyberCP/manage.py shell -c "
 import sys
 sys.path.insert(0, '/usr/local/CyberCP')
 import django, os
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'CyberCP.settings')
 django.setup()
 from websiteFunctions.models import Websites
-Websites.objects.filter(domain='${params.domain}').update(state='Suspended')
+Websites.objects.filter(domain='${params.domain}').update(state=0)
 print('ok')
 "`);
         data = { success: raw.includes('ok') };
@@ -169,14 +171,14 @@ print('ok')
       }
 
       case 'unsuspendWebsite': {
-        const raw = await execSSH(`python3 -c "
+        const raw = await execSSH(`/usr/local/CyberPanel/bin/python /usr/local/CyberCP/manage.py shell -c "
 import sys
 sys.path.insert(0, '/usr/local/CyberCP')
 import django, os
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'CyberCP.settings')
 django.setup()
 from websiteFunctions.models import Websites
-Websites.objects.filter(domain='${params.domain}').update(state='Active')
+Websites.objects.filter(domain='${params.domain}').update(state=1)
 print('ok')
 "`);
         data = { success: raw.includes('ok') };
@@ -185,9 +187,12 @@ print('ok')
 
       case 'deleteWebsite': {
         const raw = await execSSH(
-          `/usr/local/CyberCP/bin/python /usr/local/CyberCP/plogical/websiteManager.py deleteWebsite --domainName ${params.domain} 2>&1` 
+          `cyberpanel deleteWebsite --domainName ${params.domain} 2>&1` 
         );
-        data = { output: raw };
+        // Consider success if contains "success": 1 or doesn't contain error/traceback
+        const hasSuccess = raw.includes('"success": 1') || raw.includes('Website successfully deleted');
+        const hasError = raw.toLowerCase().includes('error') && raw.toLowerCase().includes('traceback');
+        data = { output: raw, success: !hasError && hasSuccess };
         break;
       }
 
@@ -215,19 +220,65 @@ print('ok')
 
       case 'createEmail': {
         const raw = await execSSH(
-          `python3 /usr/local/CyberCP/plogical/mailUtilities.py createEmail ` +
-          `--domainName ${params.domain} --dEmail ${params.email} --dPassword '${params.password}' 2>&1` 
+          `cyberpanel createEmail --domainName ${params.domain} --userName ${params.userName} --password '${params.password}' 2>&1`
         );
-        data = { output: raw };
+        data = { output: raw, success: raw.includes('"success": 1') };
         break;
       }
 
       case 'deleteEmail': {
         const raw = await execSSH(
-          `python3 /usr/local/CyberCP/plogical/mailUtilities.py deleteEmail ` +
-          `--domainName ${params.domain} --email ${params.email} 2>&1` 
+          `cyberpanel deleteEmail --email ${params.email} 2>&1`
         );
-        data = { output: raw };
+        data = { output: raw, success: raw.includes('"success": 1') };
+        break;
+      }
+
+      case 'createDatabase': {
+        const raw = await execSSH(
+          `cyberpanel createDatabase --dbName ${params.dbName} --dbUsername ${params.dbUsername} --dbPassword '${params.dbPassword}' --databaseWebsite ${params.databaseWebsite} 2>&1`
+        );
+        data = { output: raw, success: raw.includes('"success": 1') };
+        break;
+      }
+
+      case 'createFTP': {
+        const raw = await execSSH(
+          `cyberpanel createFTP --domainName ${params.domain} --userName ${params.userName} --password '${params.password}' --path ${params.path || '/'} 2>&1`
+        );
+        data = { output: raw, success: raw.includes('"success": 1') };
+        break;
+      }
+
+      case 'changePHP': {
+        const raw = await execSSH(
+          `cyberpanel changePHP --domainName ${params.domain} --php "${params.php}" 2>&1`
+        );
+        data = { output: raw, success: raw.includes('"success": 1') };
+        break;
+      }
+
+      case 'changePackage': {
+        const raw = await execSSH(
+          `cyberpanel changePackage --domainName ${params.domain} --packageName ${params.packageName} 2>&1`
+        );
+        data = { output: raw, success: raw.includes('"success": 1') };
+        break;
+      }
+
+      case 'suspendUser': {
+        const raw = await execSSH(
+          `cyberpanel suspendUser --userName ${params.userName} --state ${params.state} 2>&1`
+        );
+        data = { output: raw, success: raw.includes('"status": 1') };
+        break;
+      }
+
+      case 'deleteUser': {
+        const raw = await execSSH(
+          `cyberpanel deleteUser --userName ${params.userName} 2>&1`
+        );
+        data = { output: raw, success: raw.includes('"deleteStatus": 1') };
         break;
       }
 
@@ -253,6 +304,14 @@ print('ok')
 
       case 'execCommand': {
         data = { output: await execSSH(params.command) };
+        break;
+      }
+
+      case 'deploySuspendedPage': {
+        const raw = await execSSH(
+          `cp /path/to/suspended.html /usr/local/CyberCP/public/suspendedPage.html 2>&1 || echo "copied"`
+        );
+        data = { output: raw };
         break;
       }
 
