@@ -73,6 +73,7 @@ export function CpanelDashboard({ onNavigate, onSetDNSDomain, sites, users, isFe
       color: 'text-blue-700', bgColor: 'bg-blue-50',
       tools: [
         { id: 'domains-new', name: 'Criar Website', icon: <PlusCircle className="w-9 h-9 text-blue-500" /> },
+        { id: 'domain-manager', name: 'Domínios', icon: <Globe size={18} /> },
         { id: 'domains', name: 'Listar Websites', icon: <Globe className="w-9 h-9 text-blue-500" /> },
         { id: 'cp-subdomains', name: 'Criar Subdomínio', icon: <Layers className="w-9 h-9 text-blue-500" /> },
         { id: 'cp-list-subdomains', name: 'Listar Sub/Addon', icon: <List className="w-9 h-9 text-blue-500" /> },

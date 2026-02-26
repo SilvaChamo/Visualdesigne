@@ -20,7 +20,7 @@ import {
   PlusAddressingSection, EmailChangePasswordSection, DKIMManagerSection,
   WPRestoreBackupSection, WPRemoteBackupSection, ListSubdomainsSection,
   PackagesSection, DNSZoneEditorSection, FileManagerSection, BackupManagerSection,
-  WordPressInstallSection, WPBackupSection
+  WordPressInstallSection, WPBackupSection, DomainManagerSection
 } from './CyberPanelSections'
 import { cyberPanelAPI } from '@/lib/cyberpanel-api'
 import type { CyberPanelWebsite, CyberPanelUser, CyberPanelPackage } from '@/lib/cyberpanel-api'
@@ -103,7 +103,8 @@ function ListWebsitesSection({ sites, onRefresh, packages, setActiveSection, set
 
   const filtered = sites.filter(s =>
     s.domain.toLowerCase().includes(search.toLowerCase()) &&
-    !s.domain.includes('contaboserver.net')
+    !s.domain.includes('contaboserver') &&
+    !s.domain.includes('localhost')
   )
 
   const totalPages = Math.ceil(filtered.length / itemsPerPage)
@@ -759,6 +760,8 @@ export default function AdminPage() {
         return <WordPressInstallSection sites={cyberPanelSites} />
       case 'cp-wp-backup':
         return <WPBackupSection sites={cyberPanelSites} />
+      case 'domain-manager':
+        return <DomainManagerSection sites={cyberPanelSites} />
       case 'packages-list':
         return <PackagesSection packages={cyberPanelPackages} onRefresh={loadCyberPanelData} />
       default:

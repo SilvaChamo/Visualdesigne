@@ -4729,3 +4729,383 @@ export function WPBackupSection({ sites }: { sites: CyberPanelWebsite[] }) {
     </div>
   )
 }
+
+// Domain Manager Section
+export function DomainManagerSection({ sites }: { sites: CyberPanelWebsite[] }) {
+  const [view, setView] = useState<'list' | 'create' | 'manage'>('list')
+  const [domains, setDomains] = useState<any[]>([])
+  const [selectedDomain, setSelectedDomain] = useState<any>(null)
+  const [loading, setLoading] = useState(false)
+  const [msg, setMsg] = useState('')
+  const [msgType, setMsgType] = useState<'success'|'error'>('success')
+
+  // Formulário criar domínio
+  const [newDomain, setNewDomain] = useState('')
+  const [docRoot, setDocRoot] = useState('')
+  const [shareRoot, setShareRoot] = useState(false)
+
+  const showMsg = (text: string, type: 'success'|'error' = 'success') => {
+    setMsg(text); setMsgType(type)
+    setTimeout(() => setMsg(''), 4000)
+  }
+
+  const loadDomains = async () => {
+    setLoading(true)
+    const res = await fetch('/api/server-exec', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'execCommand',
+        params: { command: `mysql cyberpanel -e "SELECT d.name, w.adminEmail, w.package FROM websiteFunctions_websites w RIGHT JOIN domains d ON d.name = w.domain WHERE d.type='NATIVE' ORDER BY d.name;" 2>&1` }
+      })
+    })
+    const data = await res.json()
+    const lines = (data.data?.output || '').split('\n').filter((l: string) => 
+      l.trim() && !l.startsWith('name') && !l.includes('NULL')
+    )
+    setDomains(lines.map((line: string) => {
+      const parts = line.split('\t')
+      return {
+        name: parts[0] || '',
+        email: parts[1] || '—',
+        package: parts[2] || '—',
+        isWebsite: !!parts[1]
+      }
+    }).filter((d: any) => d.name))
+    setLoading(false)
+  }
+
+  useEffect(() => { loadDomains() }, [])
+
+  useEffect(() => {
+    if (newDomain) setDocRoot(newDomain)
+  }, [newDomain])
+
+  const handleCreate = async () => {
+    if (!newDomain) return
+    setLoading(true)
+    const res = await fetch('/api/server-exec', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'execCommand',
+        params: { command: `cyberpanel createWebsite --domainName ${newDomain} --adminEmail admin@visualdesigne.com --phpVersion PHP74 --package Default 2>&1` }
+      })
+    })
+    const data = await res.json()
+    const output = data.data?.output || ''
+    if (output.includes('success') || output.includes('created')) {
+      showMsg(`Domínio "${newDomain}" criado com sucesso!`)
+      setNewDomain(''); setDocRoot(''); setShareRoot(false)
+      setView('list')
+      await loadDomains()
+    } else {
+      showMsg('Erro: ' + output, 'error')
+    }
+    setLoading(false)
+  }
+
+  const handleRemove = async (domain: string) => {
+    if (!confirm(`Eliminar "${domain}"? Esta acção é irreversível!`)) return
+    setLoading(true)
+    await fetch('/api/server-exec', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'execCommand',
+        params: { command: `cyberpanel deleteWebsite --domainName ${domain} 2>&1` }
+      })
+    })
+    showMsg(`Domínio "${domain}" eliminado!`)
+    await loadDomains()
+    setView('list')
+    setLoading(false)
+  }
+
+  // VISTA: LISTA DE DOMÍNIOS
+  if (view === 'list') return (
+    <div className="w-full space-y-4">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-xl font-bold text-gray-900">Domínios</h1>
+          <p className="text-xs text-gray-400 mt-0.5">Lista de domínios registados no servidor</p>
+        </div>
+        <button onClick={() => setView('create')}
+          className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 transition-colors">
+          <Plus className="w-4 h-4" /> Adicionar Domínio
+        </button>
+      </div>
+
+      {msg && (
+        <div className={`px-4 py-2.5 rounded-lg text-sm font-medium border ${
+          msgType === 'success' ? 'bg-green-50 text-green-700 border-green-200' : 'bg-red-50 text-red-700 border-red-200'
+        }`}>{msg}</div>
+      )}
+
+      <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="text-left text-xs font-bold text-gray-500 uppercase border-b bg-gray-50">
+              <th className="px-4 py-3">Domínio</th>
+              <th className="px-4 py-3">Document Root</th>
+              <th className="px-4 py-3">Redirect</th>
+              <th className="px-4 py-3">Estado</th>
+              <th className="px-4 py-3">Acções</th>
+            </tr>
+          </thead>
+          <tbody>
+            {loading ? (
+              <tr><td colSpan={5} className="px-4 py-10 text-center">
+                <RefreshCw className="w-5 h-5 animate-spin mx-auto text-gray-400" />
+              </td></tr>
+            ) : domains.length === 0 ? (
+              <tr><td colSpan={5} className="px-4 py-10 text-center text-gray-400">
+                Nenhum domínio encontrado
+              </td></tr>
+            ) : domains.map((d, i) => (
+              <tr key={i} className="border-b border-gray-50 hover:bg-gray-50">
+                <td className="px-4 py-3 font-medium text-blue-600">{d.name}</td>
+                <td className="px-4 py-3 text-gray-500 text-xs">/public_html/{d.name}</td>
+                <td className="px-4 py-3 text-gray-400 text-xs">Not Redirected</td>
+                <td className="px-4 py-3">
+                  <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${
+                    d.isWebsite ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'
+                  }`}>
+                    {d.isWebsite ? 'Website' : 'Domínio'}
+                  </span>
+                </td>
+                <td className="px-4 py-3">
+                  <div className="flex items-center gap-2">
+                    <button onClick={() => { setSelectedDomain(d); setView('manage') }}
+                      className="bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors">
+                      Gerenciar
+                    </button>
+                    <button onClick={() => {
+                      // Navegar para criar email com domínio pré-seleccionado
+                    }}
+                      className="bg-blue-50 hover:bg-blue-100 text-blue-700 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors">
+                      Criar Email
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  )
+
+  // VISTA: CRIAR DOMÍNIO
+  if (view === 'create') return (
+    <div className="w-full space-y-4">
+      <div className="flex items-center gap-3">
+        <button onClick={() => setView('list')}
+          className="text-blue-600 hover:underline text-sm font-medium">
+          ← List Domains
+        </button>
+        <span className="text-gray-400">/</span>
+        <span className="text-sm text-gray-600">Criar um Novo Domínio</span>
+      </div>
+
+      <h1 className="text-xl font-bold text-gray-900">Domínios</h1>
+      <p className="text-sm text-gray-500">Use this interface to manage your domains.</p>
+
+      {msg && (
+        <div className={`px-4 py-2.5 rounded-lg text-sm font-medium border ${
+          msgType === 'success' ? 'bg-green-50 text-green-700 border-green-200' : 'bg-red-50 text-red-700 border-red-200'
+        }`}>{msg}</div>
+      )}
+
+      <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+        <div className="px-6 py-4 border-b border-gray-100">
+          <h2 className="font-bold text-gray-800">Criar um Novo Domínio</h2>
+        </div>
+        <div className="px-6 py-6 space-y-6">
+
+          {/* Domain */}
+          <div>
+            <label className="block font-bold text-gray-800 mb-1">
+              Domain <span className="text-blue-500 cursor-help">?</span>
+            </label>
+            <p className="text-sm text-gray-500 mb-2">Enter the domain that you would like to create:</p>
+            <input value={newDomain} onChange={e => setNewDomain(e.target.value)}
+              placeholder="exemplo.com"
+              className="w-full px-3 py-2.5 border border-blue-300 rounded-lg text-sm bg-blue-50 focus:outline-none focus:ring-2 focus:ring-blue-300" />
+          </div>
+
+          {/* Share document root */}
+          <div className="flex items-start gap-3">
+            <input type="checkbox" checked={shareRoot} onChange={e => setShareRoot(e.target.checked)}
+              className="mt-1 w-4 h-4 border-2 border-gray-400 rounded" />
+            <div>
+              <p className="font-bold text-gray-800 text-sm">
+                Share document root (/home/visualdesign/public_html) with "visualdesigne.com".
+                <span className="text-blue-500 cursor-help ml-1">?</span>
+              </p>
+              <p className="text-sm text-gray-500">
+                If the document root is shared then the created domain will serve the same content as "visualdesigne.com".{' '}
+                <strong>This setting is permanent.</strong>
+              </p>
+            </div>
+          </div>
+
+          {/* Document Root */}
+          <div>
+            <label className="block font-bold text-gray-800 mb-1">
+              Document Root (File System Location) <span className="text-blue-500 cursor-help">?</span>
+            </label>
+            <p className="text-sm text-gray-500 mb-2">Specify the directory where you want the files for this domain to exist.</p>
+            <div className="flex items-center border border-gray-300 rounded-lg overflow-hidden">
+              <span className="bg-gray-100 px-3 py-2.5 text-sm text-gray-600 border-r border-gray-300">🏠 /public_html/</span>
+              <input value={docRoot} onChange={e => setDocRoot(e.target.value)}
+                className="flex-1 px-3 py-2.5 text-sm focus:outline-none" />
+            </div>
+          </div>
+
+          {/* Subdomain */}
+          <div>
+            <label className="block font-bold text-gray-800 mb-1">
+              Subdomain <span className="text-blue-500 cursor-help">?</span>
+            </label>
+            <p className="text-sm text-gray-500 mb-2">An addon domain requires a subdomain in order to use a separate document root.</p>
+            <div className="flex items-center border border-gray-300 rounded-lg overflow-hidden">
+              <input value={newDomain}
+                className="flex-1 px-3 py-2.5 text-sm focus:outline-none bg-gray-50" readOnly />
+              <span className="bg-gray-100 px-3 py-2.5 text-sm text-gray-600 border-l border-gray-300">.visualdesigne.com</span>
+            </div>
+          </div>
+
+          {/* Botões */}
+          <div className="flex items-center justify-between pt-2">
+            <div className="flex gap-3">
+              <button onClick={handleCreate} disabled={!newDomain || loading}
+                className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2.5 rounded-lg text-sm font-bold flex items-center gap-2 disabled:opacity-50 transition-colors">
+                {loading ? <RefreshCw className="w-4 h-4 animate-spin" /> : null}
+                Submitar
+              </button>
+              <button onClick={() => { setNewDomain(''); setDocRoot(''); setShareRoot(false) }}
+                className="bg-gray-100 hover:bg-gray-200 text-gray-700 px-6 py-2.5 rounded-lg text-sm font-bold transition-colors">
+                Submit And Create Another
+              </button>
+            </div>
+            <button onClick={() => setView('list')}
+              className="text-blue-600 hover:underline text-sm">
+              ← Return To Domains
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+
+  // VISTA: GERIR DOMÍNIO
+  if (view === 'manage' && selectedDomain) return (
+    <div className="w-full space-y-4">
+      <div className="flex items-center gap-3">
+        <button onClick={() => setView('list')}
+          className="text-blue-600 hover:underline text-sm font-medium">
+          ← List Domains
+        </button>
+        <span className="text-gray-400">/</span>
+        <span className="text-sm text-gray-600">Manage the Domain</span>
+      </div>
+
+      <h1 className="text-xl font-bold text-gray-900">
+        Manage the "{selectedDomain.name}" Domain
+      </h1>
+
+      {msg && (
+        <div className={`px-4 py-2.5 rounded-lg text-sm font-medium border ${
+          msgType === 'success' ? 'bg-green-50 text-green-700 border-green-200' : 'bg-red-50 text-red-700 border-red-200'
+        }`}>{msg}</div>
+      )}
+
+      <div className="grid grid-cols-3 gap-4">
+        {/* Update Domain */}
+        <div className="col-span-2 space-y-4">
+          <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+            <div className="px-6 py-3 border-b border-gray-100 bg-gray-50">
+              <h2 className="font-bold text-gray-700 uppercase text-xs tracking-wide">Update The Domain</h2>
+            </div>
+            <div className="px-6 py-4 space-y-4">
+              <div>
+                <label className="block font-bold text-gray-800 mb-1 text-sm">
+                  New Document Root <span className="text-blue-500">?</span>
+                </label>
+                <p className="text-xs text-gray-500 mb-2">Update the directory where you want the files for this domain to exist.</p>
+                <div className="flex items-center border border-gray-300 rounded-lg overflow-hidden">
+                  <span className="bg-gray-100 px-3 py-2.5 text-sm text-gray-600 border-r border-gray-300">🏠 /public_html/</span>
+                  <input defaultValue={selectedDomain.name}
+                    className="flex-1 px-3 py-2.5 text-sm focus:outline-none" />
+                </div>
+              </div>
+              <div className="flex items-center justify-between">
+                <button className="bg-blue-100 hover:bg-blue-200 text-blue-700 px-4 py-2 rounded-lg text-sm font-bold transition-colors">
+                  Update
+                </button>
+                <button onClick={() => setView('list')}
+                  className="text-blue-600 hover:underline text-sm">
+                  ← Return To Domains
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Remove Domain */}
+          <div className="bg-white rounded-xl border border-red-200 shadow-sm overflow-hidden">
+            <div className="px-6 py-3 border-b border-red-100 bg-red-50">
+              <h2 className="font-bold text-red-700 uppercase text-xs tracking-wide">Remove The Domain</h2>
+            </div>
+            <div className="px-6 py-4">
+              <p className="text-sm text-gray-700 mb-4">
+                <strong>Warning:</strong> If you remove the <strong>"{selectedDomain.name}"</strong> domain, it will permanently delete the domain from your account. You cannot undo this action.
+              </p>
+              <button onClick={() => handleRemove(selectedDomain.name)}
+                className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 transition-colors">
+                <Trash2 className="w-4 h-4" /> Remove Domain
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Domain Information */}
+        <div className="space-y-4">
+          <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+            <div className="px-4 py-3 border-b border-gray-100 bg-gray-50">
+              <h2 className="font-bold text-gray-700 uppercase text-xs tracking-wide">Domain Information</h2>
+            </div>
+            <div className="px-4 py-4 space-y-3 text-sm">
+              <div className="flex justify-between">
+                <span className="text-gray-500">Domain:</span>
+                <span className="font-medium text-gray-800">{selectedDomain.name}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-500">Redirects To:</span>
+                <span className="text-gray-600">Not Redirected</span>
+              </div>
+              <div>
+                <span className="text-gray-500">Document Root:</span>
+                <p className="text-blue-600 text-xs mt-1">🏠 /public_html/{selectedDomain.name}</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Additional Resources */}
+          <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+            <div className="px-4 py-3 border-b border-gray-100">
+              <h2 className="font-medium text-gray-700 text-sm">Additional Resources</h2>
+            </div>
+            <div className="divide-y divide-gray-50">
+              <button className="w-full text-left px-4 py-3 text-blue-600 hover:bg-gray-50 text-sm transition-colors">
+                Create An Email Address ↗
+              </button>
+              <button className="w-full text-left px-4 py-3 text-blue-600 hover:bg-gray-50 text-sm transition-colors">
+                Modify The Redirects ↗
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+
+  return null
+}
