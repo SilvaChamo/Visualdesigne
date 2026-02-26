@@ -36,7 +36,7 @@ export async function POST(req: NextRequest) {
 
       case 'listWebsites': {
         const raw = await execSSH(
-          `/usr/local/CyberCP/bin/python /usr/local/CyberCP/manage.py shell -c "
+          `/usr/local/CyberPanel/bin/python /usr/local/CyberCP/manage.py shell -c "
 import json
 from websiteFunctions.models import Websites
 sites = Websites.objects.all().values('id','domain','adminEmail','state','package','phpSelection','ssl')
@@ -48,7 +48,8 @@ print(json.dumps(list(sites)))
           let parsedData = JSON.parse(raw.trim());
           parsedData = parsedData.map((site: any) => ({
             ...site,
-            ssl: site.ssl === 1 || site.ssl === true ? 'Enabled' : 'Disabled'
+            state: site.state === 1 ? 'Active' : 'Suspended',
+            ssl: site.ssl === 1 || site.ssl === true  // Manter como booleano para consistência
           }));
           data = parsedData;
         } catch { 

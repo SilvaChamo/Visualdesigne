@@ -1913,13 +1913,89 @@ export function SSLSection({ sites }: { sites: CyberPanelWebsite[] }) {
   const [selectedDomain, setSelectedDomain] = useState('')
   const [issuing, setIssuing] = useState(false)
   const [msg, setMsg] = useState('')
+  const [sslStatus, setSSLStatus] = useState<Record<string, boolean>>({})
+  const [checkingSSL, setCheckingSSL] = useState(true)
+
+  // Verificar SSL real via SSH (testa se HTTPS funciona)
+  const checkSSLReal = async (domain: string): Promise<boolean> => {
+    const res = await fetch('/api/server-exec', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'execCommand',
+        params: { command: `timeout 10 openssl s_client -connect ${domain}:443 -servername ${domain} 2>/dev/null | grep -q "Verification: OK" && echo "SSL_VALID" || echo "SSL_INVALID"` }
+      })
+    })
+    const data = await res.json()
+    return (data.data?.output || '').includes('SSL_VALID')
+  }
+
+  // Carregar estado SSL real de todos os sites
+  useEffect(() => {
+    const checkAll = async () => {
+      setCheckingSSL(true)
+      const results: Record<string, boolean> = {}
+      for (const site of sites) {
+        results[site.domain] = await checkSSLReal(site.domain)
+      }
+      setSSLStatus(results)
+      setCheckingSSL(false)
+    }
+    if (sites.length > 0) checkAll()
+  }, [sites])
 
   const handleIssueSSL = async () => {
     if (!selectedDomain) return
     setIssuing(true); setMsg('')
-    const ok = await cyberPanelAPI.issueSSL(selectedDomain)
-    if (ok) setMsg(`Certificado SSL emitido para ${selectedDomain}!`)
-    else setMsg('Erro ao emitir certificado SSL. Verifique se o domínio aponta para o servidor.')
+    
+    try {
+      // Primeiro verificar se o domínio resolve para o IP correcto
+      const checkRes = await fetch('/api/server-exec', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'execCommand',
+          params: { command: `dig +short ${selectedDomain} 2>&1` }
+        })
+      })
+      const checkData = await checkRes.json()
+      const resolvedIP = (checkData.data?.output || '').trim()
+      const serverIP = '109.199.104.22'
+
+      if (!resolvedIP) {
+        setMsg(`⚠️ DNS não propagou ainda!\n\nO domínio "${selectedDomain}" não está a resolver para nenhum IP.\n\nAguarda a propagação DNS (pode demorar até 24h) e tenta novamente.`)
+        setIssuing(false)
+        return
+      }
+
+      if (!resolvedIP.includes(serverIP)) {
+        setMsg(`⚠️ DNS ainda não propagou!\n\nO domínio "${selectedDomain}" está a resolver para:\n${resolvedIP}\n\nMas devia resolver para:\n${serverIP}\n\nAguarda a propagação DNS e tenta novamente.`)
+        setIssuing(false)
+        return
+      }
+
+      // DNS está correcto — emitir SSL
+      const sslRes = await fetch('/api/server-exec', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'execCommand',
+          params: { command: `cyberpanel issueSSL --domainName ${selectedDomain} 2>&1` }
+        })
+      })
+      const sslData = await sslRes.json()
+      const output = sslData.data?.output || ''
+
+      if (output.toLowerCase().includes('success') || output.toLowerCase().includes('issued')) {
+        setMsg(`✅ SSL emitido com sucesso para ${selectedDomain}!`)
+        // Recarregar estados SSL
+        const newSSLStatus = { ...sslStatus }
+        newSSLStatus[selectedDomain] = true
+        setSSLStatus(newSSLStatus)
+      } else {
+        setMsg(`⚠️ Erro ao emitir SSL:\n\n${output}`)
+      }
+
+    } catch (e: any) {
+      setMsg('Erro: ' + e.message)
+    }
     setIssuing(false)
   }
 
@@ -1943,17 +2019,29 @@ export function SSLSection({ sites }: { sites: CyberPanelWebsite[] }) {
           </button>
         </div>
 
-        {msg && <div className={`px-4 py-2.5 rounded-lg text-sm font-medium ${msg.includes('!') && !msg.includes('Erro') ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-700 border border-red-200'}`}>{msg}</div>}
+        {msg && <div className={`px-4 py-2.5 rounded-lg text-sm font-medium ${msg.includes('sucesso') ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-700 border border-red-200'}`}>{msg}</div>}
 
         <div className="mt-6">
-          <h3 className="font-bold text-gray-900 mb-3">Websites com SSL</h3>
+          <h3 className="font-bold text-gray-900 mb-3">Estado SSL dos Websites</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-            {sites.map((s, i) => (
-              <div key={i} className="border border-gray-200 rounded-lg p-4 flex items-center gap-3 hover:bg-gray-50">
-                <div className="w-10 h-10 bg-green-50 rounded-full flex items-center justify-center"><Lock className="w-5 h-5 text-green-600" /></div>
+            {sites.map(s => (
+              <div key={s.domain} className="flex items-center gap-3 p-4 border border-gray-200 rounded-lg hover:bg-gray-50">
+                {checkingSSL ? (
+                  <RefreshCw className="w-5 h-5 text-gray-400 animate-spin" />
+                ) : sslStatus[s.domain] ? (
+                  <Lock className="w-5 h-5 text-green-500" />
+                ) : (
+                  <LockOpen className="w-5 h-5 text-red-400" />
+                )}
                 <div>
-                  <p className="font-bold text-sm text-gray-900">{s.domain}</p>
-                  <p className="text-xs text-green-600">SSL Ativo</p>
+                  <p className="text-sm font-bold text-gray-900">{s.domain}</p>
+                  {checkingSSL ? (
+                    <p className="text-xs text-gray-400">A verificar...</p>
+                  ) : sslStatus[s.domain] ? (
+                    <p className="text-xs text-green-600 font-medium">SSL Activo</p>
+                  ) : (
+                    <p className="text-xs text-red-500 font-medium">Sem SSL</p>
+                  )}
                 </div>
               </div>
             ))}
