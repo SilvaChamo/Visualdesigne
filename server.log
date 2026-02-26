@@ -794,3 +794,10 @@ Auth state changed: INITIAL_SESSION undefined
 ✓ Compiled in 534ms
 ⚠ You are using an experimental edge runtime, the API might change.
 ✓ Compiled in 97ms
+ POST /api/server-exec 200 in 8.7s (compile: 11ms, render: 8.7s)
+ POST /api/server-exec 200 in 8.7s (compile: 22ms, render: 8.7s)
+ POST /api/server-exec 200 in 8.4s (compile: 3ms, render: 8.4s)
+ POST /api/server-exec 200 in 6.3s (compile: 4ms, render: 6.3s)
+ POST /api/server-exec 200 in 9.1s (compile: 1610µs, render: 9.1s)
+ POST /api/server-exec 200 in 5.5s (compile: 1801µs, render: 5.5s)
+⚠ You are using an experimental edge runtime, the API might change.
