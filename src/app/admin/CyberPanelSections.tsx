@@ -4757,13 +4757,13 @@ export function DomainManagerSection({ sites }: { sites: CyberPanelWebsite[] }) 
     })
     const data = await res.json()
     const allSites = data.data?.sites || []
+    const sitesArray = Array.isArray(allSites) ? allSites : []
     
     // Mostrar apenas domínios não activos e sem hostname do servidor
-    setDomains(allSites.filter((s: any) => 
+    setDomains(sitesArray.filter((s: any) => 
       !s.domain.includes('contaboserver') &&
       !s.domain.includes('localhost') &&
-      s.isActive !== true &&
-      !s.hasWordPress
+      s.isActive !== true
     ))
     setLoading(false)
   }

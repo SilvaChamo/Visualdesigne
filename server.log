@@ -772,3 +772,25 @@ MozServer Proxy Request: GET /health
 ✓ Compiled in 251ms
 ⚠ You are using an experimental edge runtime, the API might change.
 ✓ Compiled in 226ms
+[server-exec] Timed out while waiting for handshake
+ POST /api/server-exec 500 in 20.2s (compile: 199ms, render: 20.0s)
+[server-exec] Timed out while waiting for handshake
+ POST /api/server-exec 500 in 20.2s (compile: 220ms, render: 20.0s)
+ POST /api/server-exec 200 in 12.7s (compile: 4ms, render: 12.7s)
+⚠ You are using an experimental edge runtime, the API might change.
+⚠ You are using an experimental edge runtime, the API might change.
+✓ Compiled in 114ms
+⚠ Fast Refresh had to perform a full reload due to a runtime error.
+Auth state changed: INITIAL_SESSION undefined
+[server-exec] Unexpected end of JSON input
+[server-exec] Unexpected end of JSON input
+ GET /admin 200 in 1214ms (compile: 206ms, render: 1008ms)
+ POST /api/server-exec 200 in 5.1s (compile: 21ms, render: 5.1s)
+ POST /api/server-exec 200 in 5.1s (compile: 16ms, render: 5.1s)
+ POST /api/server-exec 200 in 9.2s (compile: 3ms, render: 9.2s)
+⚠ You are using an experimental edge runtime, the API might change.
+✓ Compiled in 459ms
+⚠ You are using an experimental edge runtime, the API might change.
+✓ Compiled in 534ms
+⚠ You are using an experimental edge runtime, the API might change.
+✓ Compiled in 97ms

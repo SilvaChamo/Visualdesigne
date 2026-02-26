@@ -47,27 +47,52 @@ print(json.dumps(sites))
 
         // Para cada site verificar se tem conteúdo real em public_html
         const checkScript = `
-for domain in $(mysql cyberpanel -se "SELECT domain FROM websiteFunctions_websites;"); do
-  size=$(du -s /home/$domain/public_html/ 2>/dev/null | cut -f1)
-  wpconfig=$([ -f /home/$domain/public_html/wp-config.php ] && echo "1" || echo "0")
-  indexphp=$([ -f /home/$domain/public_html/index.php ] && echo "1" || echo "0")
-  indexhtml=$([ -f /home/$domain/public_html/index.html ] && echo "1" || echo "0")
-  echo "$domain|$size|$wpconfig|$indexphp|$indexhtml"
+for domain in $(mysql cyberpanel -se "SELECT domain FROM websiteFunctions_websites;" 2>/dev/null); do
+  # WordPress — ficheiros chave
+  wp_config=$([ -f /home/$domain/public_html/wp-config.php ] && echo "1" || echo "0")
+  wp_content=$([ -d /home/$domain/public_html/wp-content ] && echo "1" || echo "0")
+  wp_includes=$([ -d /home/$domain/public_html/wp-includes ] && echo "1" || echo "0")
+  wp_admin=$([ -d /home/$domain/public_html/wp-admin ] && echo "1" || echo "0")
+  
+  # Next.js — ficheiros chave
+  next_config=$([ -f /home/$domain/public_html/next.config.js ] || [ -f /home/$domain/public_html/next.config.ts ] && echo "1" || echo "0")
+  next_folder=$([ -d /home/$domain/public_html/.next ] && echo "1" || echo "0")
+  package_json=$([ -f /home/$domain/public_html/package.json ] && echo "1" || echo "0")
+  
+  # HTML/PHP simples — ficheiros chave
+  index_php=$([ -f /home/$domain/public_html/index.php ] && echo "1" || echo "0")
+  index_html=$([ -f /home/$domain/public_html/index.html ] && echo "1" || echo "0")
+  htaccess=$([ -f /home/$domain/public_html/.htaccess ] && echo "1" || echo "0")
+  
+  # Calcular score — precisa de pelo menos 3 ficheiros/pastas chave
+  wp_score=$((wp_config + wp_content + wp_includes + wp_admin))
+  next_score=$((next_config + next_folder + package_json))
+  basic_score=$((index_php + index_html + htaccess))
+  
+  # isActive = WordPress com 3+ ficheiros OU Next.js com 2+ OU básico com 2+
+  if [ $wp_score -ge 3 ] || [ $next_score -ge 2 ] || [ $basic_score -ge 2 ]; then
+    is_active="1"
+  else
+    is_active="0"
+  fi
+  
+  echo "$domain|$is_active|$wp_score|$next_score|$basic_score"
 done
 `
         const checkRaw = await execSSH(checkScript)
         
         const siteStatus: Record<string, any> = {}
         checkRaw.split('\n').filter(Boolean).forEach(line => {
-          const [domain, size, wp, php, html] = line.split('|')
+          const [domain, isActive, wpScore, nextScore, basicScore] = line.split('|')
           if (domain) {
             siteStatus[domain] = {
-              size: parseInt(size) || 0,
-              hasWordPress: wp === '1',
-              hasIndexPhp: php === '1',
-              hasIndexHtml: html === '1',
-              // Site activo = tem wp-config OU index.php/html com tamanho > 8KB (mais que página padrão)
-              isActive: wp === '1' || ((php === '1' || html === '1') && parseInt(size) > 8)
+              isActive: isActive === '1',
+              hasWordPress: parseInt(wpScore) >= 3,
+              hasNextJs: parseInt(nextScore) >= 2,
+              hasBasicSite: parseInt(basicScore) >= 2,
+              siteType: parseInt(wpScore) >= 3 ? 'wordpress' : 
+                        parseInt(nextScore) >= 2 ? 'nextjs' : 
+                        parseInt(basicScore) >= 2 ? 'html' : 'empty'
             }
           }
         })
