@@ -71,11 +71,16 @@ function CreateWebsiteSection({ packages, onRefresh }: { packages: CyberPanelPac
   )
 }
 
-function ListWebsitesSection({ sites, onRefresh, onOpenDNS }: { sites: CyberPanelWebsite[], onRefresh: () => void, onOpenDNS?: (domain: string) => void }) {
+function ListWebsitesSection({ sites, onRefresh, setActiveSection, setSelectedDNSDomain }: { 
+  sites: CyberPanelWebsite[], 
+  onRefresh: () => void, 
+  setActiveSection: (section: string) => void,
+  setSelectedDNSDomain: (domain: string) => void 
+}) {
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedSites, setSelectedSites] = useState<string[]>([])
   const [editingSite, setEditingSite] = useState<string | null>(null)
-  const [editForm, setEditForm] = useState({ packageName: '', php: '', email: '' })
+  const [editForm, setEditForm] = useState({ packageName: '', php: '' })
 
   const filteredSites = sites.filter(site => 
     site.domain.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -83,22 +88,15 @@ function ListWebsitesSection({ sites, onRefresh, onOpenDNS }: { sites: CyberPane
   )
 
   const handleEdit = (site: CyberPanelWebsite) => {
-    setEditingSite(site.domain)
-    setEditForm({
-      packageName: (site as any).package || 'Default',
-      php: (site as any).phpSelection || 'PHP 8.2',
-      email: site.adminEmail || ''
-    })
-  }
-
-  const handleSaveEdit = async (domain: string) => {
-    try {
-      // TODO: Call API to update website
-      console.log('Saving website:', domain, editForm)
+    if (editingSite === site.domain) {
+      // Save edit
       setEditingSite(null)
-      onRefresh()
-    } catch (e) {
-      console.error('Error saving website:', e)
+    } else {
+      setEditingSite(site.domain)
+      setEditForm({
+        packageName: (site as any).package || 'Default',
+        php: (site as any).phpSelection || 'PHP 8.2'
+      })
     }
   }
 
@@ -266,43 +264,78 @@ function ListWebsitesSection({ sites, onRefresh, onOpenDNS }: { sites: CyberPane
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-1">
-                      <button
-                        onClick={() => handleEdit(site)}
-                        className="text-blue-600 hover:text-blue-800 text-xs font-bold"
-                        title="Editar"
-                      >
-                        <Edit2 className="w-3 h-3" />
-                      </button>
-                      <button
-                        onClick={() => handleSuspend(site.domain)}
-                        className={`text-${site.state === 'Suspended' ? 'green' : 'orange'}-600 hover:text-${site.state === 'Suspended' ? 'green' : 'orange'}-800 text-xs font-bold`}
-                        title={site.state === 'Suspended' ? 'Ativar' : 'Suspender'}
-                      >
-                        {site.state === 'Suspended' ? <Play className="w-3 h-3" /> : <Pause className="w-3 h-3" />}
-                      </button>
-                      <button
-                        onClick={() => handleDelete(site.domain)}
-                        className="text-red-600 hover:text-red-800 text-xs font-bold"
-                        title="Apagar"
-                      >
-                        <Trash2 className="w-3 h-3" />
-                      </button>
-                      <a
-                        href={`http://${site.domain}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-gray-600 hover:text-gray-800 text-xs font-bold"
-                        title="Abrir site"
-                      >
-                        <ExternalLink className="w-3 h-3" />
-                      </a>
-                      <button
-                        onClick={() => onOpenDNS && onOpenDNS(site.domain)}
-                        className="p-1.5 rounded bg-purple-50 hover:bg-purple-100 text-purple-600"
-                        title="Editar DNS"
-                      >
-                        <Server className="w-3.5 h-3.5" />
-                      </button>
+                      {editingSite === site.domain ? (
+                        <>
+                          <input
+                            type="text"
+                            value={editForm.packageName}
+                            onChange={(e) => setEditForm({...editForm, packageName: e.target.value})}
+                            className="w-20 px-2 py-1 border border-gray-300 rounded text-xs mr-1"
+                            placeholder="Pacote"
+                          />
+                          <input
+                            type="text"
+                            value={editForm.php}
+                            onChange={(e) => setEditForm({...editForm, php: e.target.value})}
+                            className="w-20 px-2 py-1 border border-gray-300 rounded text-xs mr-1"
+                            placeholder="PHP"
+                          />
+                          <button
+                            onClick={() => handleEdit(site)}
+                            className="text-green-600 hover:text-green-800 text-xs font-bold"
+                          >
+                            Salvar
+                          </button>
+                          <button
+                            onClick={() => setEditingSite(null)}
+                            className="text-gray-600 hover:text-gray-800 text-xs font-bold"
+                          >
+                            Cancelar
+                          </button>
+                        </>
+                      ) : (
+                        <>
+                          <button
+                            onClick={() => handleEdit(site)}
+                            className="text-blue-600 hover:text-blue-800 text-xs font-bold"
+                            title="Editar"
+                          >
+                            <Edit2 className="w-3 h-3" />
+                          </button>
+                          <button
+                            onClick={() => handleSuspend(site.domain)}
+                            className={`text-${site.state === 'Suspended' ? 'green' : 'orange'}-600 hover:text-${site.state === 'Suspended' ? 'green' : 'orange'}-800 text-xs font-bold`}
+                            title={site.state === 'Suspended' ? 'Ativar' : 'Suspender'}
+                          >
+                            {site.state === 'Suspended' ? <Play className="w-3 h-3" /> : <Pause className="w-3 h-3" />}
+                          </button>
+                          <button
+                            onClick={() => handleDelete(site.domain)}
+                            className="text-red-600 hover:text-red-800 text-xs font-bold"
+                            title="Apagar"
+                          >
+                            <Trash2 className="w-3 h-3" />
+                          </button>
+                          <a
+                            href={`http://${site.domain}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-gray-600 hover:text-gray-800 text-xs font-bold"
+                            title="Abrir site"
+                          >
+                            <ExternalLink className="w-3 h-3" />
+                          </a>
+                          <button 
+                            onClick={() => {
+                              setActiveSection('domains-dns')
+                              setSelectedDNSDomain(site.domain)
+                            }}
+                            className="p-1.5 rounded bg-purple-50 hover:bg-purple-100 text-purple-600" 
+                            title="Editar DNS">
+                            <Server className="w-3.5 h-3.5" />
+                          </button>
+                        </>
+                      )}
                     </div>
                   </td>
                 </tr>
@@ -311,75 +344,18 @@ function ListWebsitesSection({ sites, onRefresh, onOpenDNS }: { sites: CyberPane
           </table>
         </div>
       </div>
-
-      {/* Modal de edição */}
-      {editingSite && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-xl shadow-2xl p-6 w-full max-w-md mx-4">
-            <div className="flex justify-between items-center mb-6">
-              <h2 className="text-lg font-bold text-gray-900">Editar Website</h2>
-              <button onClick={() => setEditingSite(null)} className="text-gray-400 hover:text-gray-600">✕</button>
-            </div>
-            
-            <div className="space-y-4">
-              <div>
-                <label className="text-xs font-bold text-gray-600 uppercase block mb-1.5">Domínio</label>
-                <input value={editingSite} disabled className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm bg-gray-50 text-gray-500" />
-              </div>
-              <div>
-                <label className="text-xs font-bold text-gray-600 uppercase block mb-1.5">Pacote</label>
-                <select value={editForm.packageName} onChange={e => setEditForm({...editForm, packageName: e.target.value})}
-                  className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm">
-                  <option value="Default">Default</option>
-                  {/* TODO: Add packages from props */}
-                </select>
-              </div>
-              <div>
-                <label className="text-xs font-bold text-gray-600 uppercase block mb-1.5">Versão PHP</label>
-                <select value={editForm.php} onChange={e => setEditForm({...editForm, php: e.target.value})}
-                  className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm">
-                  <option>7.4</option><option>8.0</option><option>8.1</option><option>8.2</option><option>8.3</option>
-                </select>
-              </div>
-              <div>
-                <label className="text-xs font-bold text-gray-600 uppercase block mb-1.5">Email Admin</label>
-                <input value={editForm.email || ''} onChange={e => setEditForm({...editForm, email: e.target.value})}
-                  className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm" />
-              </div>
-            </div>
-
-            <div className="flex gap-3 mt-6">
-              <button onClick={() => handleSaveEdit(editingSite)}
-                className="flex-1 bg-black hover:bg-red-600 text-white py-2.5 rounded-lg text-sm font-bold transition-colors">
-                Guardar Alterações
-              </button>
-              <button onClick={() => setEditingSite(null)}
-                className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 py-2.5 rounded-lg text-sm font-bold">
-                Cancelar
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   )
 }
 
 export default function AdminPage() {
   const [activeSection, setActiveSection] = useState('dashboard')
-  const [sidebarWidth, setSidebarWidth] = useState(220)
   const [isCollapsed, setIsCollapsed] = useState(false)
-  const [isResizing, setIsResizing] = useState(false)
   const [cyberPanelSites, setCyberPanelSites] = useState<CyberPanelWebsite[]>([])
   const [cyberPanelUsers, setCyberPanelUsers] = useState<CyberPanelUser[]>([])
   const [cyberPanelPackages, setCyberPanelPackages] = useState<CyberPanelPackage[]>([])
   const [isFetchingCyberPanel, setIsFetchingCyberPanel] = useState(false)
   const [selectedDNSDomain, setSelectedDNSDomain] = useState<string>('')
-  const sidebarRef = useRef<HTMLDivElement>(null)
-
-  const minSidebarWidth = 180
-  const maxSidebarWidth = 400
-  const collapsedWidth = 64
 
   useEffect(() => {
     loadCyberPanelData()
@@ -403,25 +379,6 @@ export default function AdminPage() {
     }
   }
 
-  useEffect(() => {
-    const handleMouseMove = (e: MouseEvent) => {
-      if (!isResizing) return
-      const newWidth = e.clientX
-      if (newWidth >= minSidebarWidth && newWidth <= maxSidebarWidth) {
-        setSidebarWidth(newWidth)
-      }
-    }
-    const handleMouseUp = () => setIsResizing(false)
-    if (isResizing) {
-      document.addEventListener('mousemove', handleMouseMove)
-      document.addEventListener('mouseup', handleMouseUp)
-    }
-    return () => {
-      document.removeEventListener('mousemove', handleMouseMove)
-      document.removeEventListener('mouseup', handleMouseUp)
-    }
-  }, [isResizing])
-
   const menuItems = [
     { id: 'dashboard', label: 'Dashboard', icon: Home },
     { id: 'domains', label: 'Websites', icon: Globe },
@@ -436,7 +393,7 @@ export default function AdminPage() {
     { id: 'cp-api', label: 'Configurações', icon: Settings },
   ]
 
-  const currentSidebarWidth = isCollapsed ? collapsedWidth : sidebarWidth
+  const currentSidebarWidth = isCollapsed ? 80 : 250
 
   const renderSection = () => {
     switch (activeSection) {
@@ -444,7 +401,12 @@ export default function AdminPage() {
         return <CpanelDashboard sites={cyberPanelSites} users={cyberPanelUsers} isFetching={isFetchingCyberPanel} onNavigate={setActiveSection} onRefresh={loadCyberPanelData} />
       case 'domains':
       case 'domains-list':
-        return <ListWebsitesSection sites={cyberPanelSites} onRefresh={loadCyberPanelData} onOpenDNS={(domain) => { setSelectedDNSDomain(domain); setActiveSection('domains-dns') }} />
+        return <ListWebsitesSection 
+        sites={cyberPanelSites} 
+        onRefresh={loadCyberPanelData} 
+        setActiveSection={setActiveSection}
+        setSelectedDNSDomain={setSelectedDNSDomain}
+      />
       case 'domains-new':
         return <CreateWebsiteSection packages={cyberPanelPackages} onRefresh={loadCyberPanelData} />
       case 'cp-subdomains':
@@ -517,8 +479,6 @@ export default function AdminPage() {
         return <DNSResetSection sites={cyberPanelSites} />
       case 'cp-dns-zone-editor':
         return <DNSZoneEditorSection sites={cyberPanelSites} />
-      case 'cp-dns-zone-editor':
-        return <DNSZoneEditorSection sites={cyberPanelSites} />
       case 'git-deploy':
         return <GitDeploySection />
       case 'packages-list':
@@ -532,7 +492,6 @@ export default function AdminPage() {
     <div className="flex h-screen bg-gray-50 overflow-hidden">
       {/* Sidebar */}
       <motion.div
-        ref={sidebarRef}
         className="relative bg-white border-r border-gray-200 text-gray-800 flex flex-col shadow-sm"
         style={{ width: `${currentSidebarWidth}px` }}
         animate={{ width: currentSidebarWidth }}
@@ -540,25 +499,32 @@ export default function AdminPage() {
         initial={{ width: 250 }}
       >
         {/* Sidebar Header */}
-        <div className="p-4 border-b border-gray-100">
-          <div className="flex items-center justify-between">
-            {!isCollapsed && (
+        <div className="px-2 pb-4 border-b border-gray-100 pt-4">
+          {isCollapsed ? (
+            <div className="flex flex-col items-center gap-3">
+              <img src="/assets/simbolo.png" alt="Logo" className="w-20 h-20 object-contain cursor-pointer" onClick={() => window.location.href = '/'} />
+              <button onClick={() => setIsCollapsed(!isCollapsed)} className="rounded-lg hover:bg-gray-100 transition-colors">
+                <LogOut size={20} className="text-gray-500" />
+              </button>
+            </div>
+          ) : (
+            <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <img src="/assets/simbolo.png" alt="Logo" className="w-8 h-8 object-contain" />
+                <img src="/assets/simbolo.png" alt="Logo" className="w-14 h-14 object-contain cursor-pointer" onClick={() => window.location.href = '/'} />
                 <div>
-                  <p className="font-bold text-sm text-gray-900 font-bold">Painel Admin</p>
+                  <p className="font-bold text-base text-gray-900 font-bold">Painel Admin</p>
                   <p className="text-[10px] text-gray-400">Painel Completo</p>
                 </div>
               </div>
-            )}
-            <button onClick={() => setIsCollapsed(!isCollapsed)} className="p-1.5 rounded-lg hover:bg-gray-100 transition-colors ml-auto">
-              {isCollapsed ? <ChevronRight size={16} className="text-gray-500" /> : <ChevronLeft size={16} className="text-gray-500" />}
-            </button>
-          </div>
+              <button onClick={() => setIsCollapsed(!isCollapsed)} className="p-1.5 rounded-lg hover:bg-gray-100 transition-colors">
+                <LogOut size={20} className="text-gray-500 rotate-180" />
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Menu Items */}
-        <nav className="flex-1 overflow-y-auto p-3">
+        <nav className="flex-1 overflow-y-auto px-2 py-2.5">
           <div className="space-y-0.5">
             {menuItems.map((item) => {
               const Icon = item.icon
@@ -570,14 +536,14 @@ export default function AdminPage() {
                 <button
                   key={item.id}
                   onClick={() => setActiveSection(item.id)}
-                  className={`w-full flex items-center p-3 rounded-lg transition-colors ${
+                  className={`w-full flex items-center ${isCollapsed ? 'justify-center' : ''} ${isCollapsed ? 'px-2 py-2' : 'p-2.5'} rounded-lg transition-colors ${
                     isActive
                       ? 'bg-red-50 text-red-600 font-bold'
                       : 'hover:bg-gray-100 text-gray-600'
                   }`}
                   title={isCollapsed ? item.label : ''}
                 >
-                  <Icon size={18} className={isActive ? 'text-red-600' : 'text-gray-500'} />
+                  <Icon size={22} className={isActive ? 'text-red-600' : 'text-gray-500'} />
                   {!isCollapsed && (
                     <span className="ml-3 text-[15px]">{item.label}</span>
                   )}
@@ -604,14 +570,6 @@ export default function AdminPage() {
             )}
           </div>
         </div>
-
-        {/* Resize Handle */}
-        {!isCollapsed && (
-          <div
-            className="absolute right-0 top-0 h-full w-1 cursor-col-resize hover:bg-red-400 transition-colors opacity-0 hover:opacity-100"
-            onMouseDown={(e) => { e.preventDefault(); setIsResizing(true) }}
-          />
-        )}
       </motion.div>
 
       {/* Main Content */}
@@ -620,21 +578,11 @@ export default function AdminPage() {
         <header className="bg-white border-b border-gray-200 px-6 py-3">
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-lg font-bold text-gray-900">
-                {activeSection === 'dashboard' ? 'Dashboard' :
-                 menuItems.find(m => m.id === activeSection)?.label || activeSection}
+              <h1 className="text-2xl font-bold text-gray-900 ml-6">
+                Dashboard
               </h1>
-              <p className="text-xs text-gray-400 mt-0.5">
-                {activeSection === 'dashboard' ? 'Visão geral do servidor' :
-                 activeSection === 'domains' ? 'Gerir todos os websites do servidor' :
-                 activeSection === 'packages-list' ? 'Gerir pacotes de alojamento' :
-                 activeSection === 'cp-users' ? 'Gerir contas de utilizadores' :
-                 activeSection === 'emails-new' ? 'Gerir contas de email' :
-                 activeSection === 'cp-ssl' ? 'Gerir certificados SSL' :
-                 activeSection === 'cp-security' ? 'Configurações de segurança' :
-                 activeSection === 'cp-databases' ? 'Gerir bases de dados' :
-                 activeSection === 'git-deploy' ? 'Deploy via GitHub' :
-                 activeSection === 'cp-api' ? 'Configurações do servidor' : ''}
+              <p className="text-xs text-gray-400 mt-0.5 ml-6">
+                Visão geral do servidor
               </p>
             </div>
             <div className="flex items-center gap-2">
@@ -643,7 +591,8 @@ export default function AdminPage() {
                 <Globe size={13} /> Painel CyberPanel
               </a>
               <button onClick={() => window.location.href = '/'}
-                className="p-1.5 rounded-lg hover:bg-gray-100 transition-colors text-gray-500" title="Sair">
+                className="flex items-center gap-2 px-3 py-1.5 rounded-lg hover:bg-gray-100 transition-colors text-gray-500" title="Sair">
+                <span className="text-sm">Sair</span>
                 <LogOut size={15} />
               </button>
               <button onClick={loadCyberPanelData} disabled={isFetchingCyberPanel}
