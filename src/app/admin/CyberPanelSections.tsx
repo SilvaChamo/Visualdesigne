@@ -13,7 +13,7 @@ import {
   RefreshCw, Globe, PlusCircle, Plus, Package, Trash2, Database, Users, Mail, Lock, Shield,
   Server, HardDrive, Key, Settings, Code, AlertCircle, CheckCircle, Eye, EyeOff,
   ExternalLink, Copy, FolderOpen, Layers, Play, Pause, Edit, Edit2, Cloud, RotateCcw,
-  Upload, Download, Power, Plug, FileText, ArrowRight
+  Upload, Download, Power, Plug, FileText, ArrowRight, Rocket
 } from 'lucide-react'
 
 // ============================================================
@@ -1308,7 +1308,7 @@ export function CPUsersSection() {
             firstName: u.first_name || '',
             lastName: u.last_name || '',
             email: u.email || '', 
-            acl: u.acl || 'user', 
+            acl: (u as any).acl || 'user', 
             websitesLimit: u.websites_limit || 0, 
             status: u.status || 'Active'
           })))
@@ -1357,19 +1357,18 @@ export function CPUsersSection() {
       setMsg('Utilizador atualizado com sucesso!')
     } else {
       setEditingUser(user.userName)
-      const u = user as any
       setEditForm({
-        firstName: u.firstName || '',
-        lastName: u.lastName || '',
-        email: u.email || '',
-        acl: u.acl || 'user'
+        firstName: (user as any).firstName || '',
+        lastName: (user as any).lastName || '',
+        email: user.email || '',
+        acl: (user as any).acl || 'user'
       })
     }
   }
 
   const handleSuspend = async (userName: string) => {
-    const user = users.find(u => u.userName === userName) as any
-    const isSuspended = user?.state === 'Suspended'
+    const user = users.find(u => u.userName === userName)
+    const isSuspended = (user as any).state === 'Suspended'
     
     try {
       // TODO: Call suspend/unsuspend API
@@ -3135,6 +3134,26 @@ export function GitDeploySection() {
     setDeploying(false)
   }
 
+  const handleDeployAll = async () => {
+    const isLocal = data?.isLocal
+    if (isLocal && !commitMsg.trim()) return
+    setDeploying(true); setResult(null)
+    try {
+      const res = await fetch('/api/git-deploy', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'deploy-all',
+          message: isLocal ? commitMsg.trim() : 'Deploy simultâneo admin + site'
+        })
+      })
+      const r = await res.json()
+      setResult(r)
+      if (r.success) { setCommitMsg(''); loadStatus() }
+    } catch (e: any) { setResult({ success: false, error: e.message }) }
+    setDeploying(false)
+  }
+
   const isLocal: boolean = data?.isLocal ?? false
   const localGit = data?.localGit
   const repo = data?.repo
@@ -3207,16 +3226,34 @@ export function GitDeploySection() {
                 className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500/20 focus:border-green-500"
               />
             </div>
-            <button onClick={handleDeploy} disabled={deploying || !commitMsg.trim()}
-              className="bg-black hover:bg-green-700 text-white py-2.5 px-6 rounded-lg text-sm font-bold transition-all disabled:opacity-50 flex items-center gap-2">
-              {deploying ? <><RefreshCw className="w-4 h-4 animate-spin" /> A fazer commit e push...</> : <><Upload className="w-4 h-4" /> Commit + Push → Deploy Vercel</>}
-            </button>
+            <div className="grid grid-cols-2 gap-3">
+              <button onClick={handleDeploy} disabled={deploying || !commitMsg.trim()}
+                className="bg-black hover:bg-green-700 text-white py-2 px-3 rounded-lg text-sm font-bold transition-all disabled:opacity-50 flex items-center gap-2">
+                {deploying ? <><RefreshCw className="w-4 h-4 animate-spin" /> Git Push...</> : <><Upload className="w-4 h-4" /> Git Push</>}
+              </button>
+              <button onClick={handleDeployAll} disabled={deploying || !commitMsg.trim()}
+                className="bg-red-600 hover:bg-red-700 text-white py-2 px-3 rounded-lg text-sm font-bold transition-all disabled:opacity-50 flex items-center gap-2">
+                {deploying ? <><RefreshCw className="w-4 h-4 animate-spin" /> Deploy All...</> : <><Rocket className="w-4 h-4" /> Deploy Simultâneo</>}
+              </button>
+            </div>
+            <p className="text-xs text-gray-500 text-left">
+              <strong>Deploy Simultâneo:</strong> GitHub + Site Online ao mesmo tempo
+            </p>
           </div>
         ) : (
-          <button onClick={handleDeploy} disabled={deploying}
-            className="bg-black hover:bg-green-700 text-white py-2.5 px-6 rounded-lg text-sm font-bold transition-all disabled:opacity-50 flex items-center gap-2">
-            {deploying ? <><RefreshCw className="w-4 h-4 animate-spin" /> A iniciar deploy...</> : <><Upload className="w-4 h-4" /> Trigger Vercel Deploy</>}
-          </button>
+          <div className="space-y-3">
+            <button onClick={handleDeploy} disabled={deploying}
+              className="w-full bg-black hover:bg-green-700 text-white py-2 px-4 rounded-lg text-sm font-bold transition-all disabled:opacity-50 flex items-center gap-2">
+              {deploying ? <><RefreshCw className="w-4 h-4 animate-spin" /> A iniciar deploy...</> : <><Upload className="w-4 h-4" /> Trigger Vercel Deploy</>}
+            </button>
+            <button onClick={handleDeployAll} disabled={deploying}
+              className="w-full bg-red-600 hover:bg-red-700 text-white py-2 px-4 rounded-lg text-sm font-bold transition-all disabled:opacity-50 flex items-center gap-2">
+              {deploying ? <><RefreshCw className="w-4 h-4 animate-spin" /> Deploy All...</> : <><Rocket className="w-4 h-4" /> Deploy Simultâneo</>}
+            </button>
+            <p className="text-xs text-gray-500 text-left">
+              <strong>Deploy Simultâneo:</strong> Atualiza GitHub + Site Online
+            </p>
+          </div>
         )}
 
         {/* Result */}

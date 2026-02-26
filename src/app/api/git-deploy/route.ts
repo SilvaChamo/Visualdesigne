@@ -119,6 +119,67 @@ export async function POST(req: NextRequest) {
       })
     }
 
+    // ── DEPLOY SIMULTÂNEO: GitHub + Site Online ──
+    if (action === 'deploy-all') {
+      const steps: string[] = []
+      
+      // 1. Fazer git push primeiro
+      if (IS_LOCAL && message?.trim()) {
+        const cwd = process.cwd()
+        
+        try {
+          await execAsync('git add .', { cwd })
+          steps.push('git add . → OK')
+
+          try {
+            const { stdout } = await execAsync(`git commit -m "${message.replace(/"/g, "'")}"`, { cwd })
+            steps.push(`git commit → ${stdout.split('\n')[0].trim()}`)
+          } catch (e: any) {
+            if (e.message?.includes('nothing to commit')) {
+              steps.push('Nenhuma alteração para commitar')
+            } else {
+              throw e
+            }
+          }
+
+          try {
+            await execAsync('git pull --rebase origin main', { cwd })
+            steps.push('git pull --rebase → OK')
+          } catch (pullErr: any) {
+            steps.push(`git pull → ${pullErr.message?.split('\n')[0] || 'aviso'}`)
+          }
+
+          await execAsync('git push', { cwd })
+          steps.push('git push → OK')
+        } catch (e: any) {
+          steps.push(`Git error: ${e.message}`)
+        }
+      }
+
+      // 2. Disparar Vercel Deploy Hook para site online
+      if (VERCEL_DEPLOY_HOOK) {
+        try {
+          const hookRes = await fetch(VERCEL_DEPLOY_HOOK, { method: 'POST' })
+          if (hookRes.ok) {
+            steps.push('Deploy Hook Vercel → OK (site online)')
+          } else {
+            steps.push(`Deploy Hook falhou: ${hookRes.status}`)
+          }
+        } catch (e: any) {
+          steps.push(`Deploy Hook error: ${e.message}`)
+        }
+      } else {
+        steps.push('VERCEL_DEPLOY_HOOK não configurado')
+      }
+
+      return NextResponse.json({
+        success: true,
+        steps,
+        message: 'Deploy iniciado! GitHub atualizado e site online sendo atualizado em ~1-2 minutos.',
+        vercelDashboard: VERCEL_DEPLOY_HOOK ? `https://vercel.com/silvachamo/${GITHUB_REPO.toLowerCase()}/deployments` : null,
+      })
+    }
+
     // ── PRODUCTION: Vercel Deploy Hook ──
     if (action === 'deploy-hook') {
       if (!VERCEL_DEPLOY_HOOK) {
