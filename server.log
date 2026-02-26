@@ -48,3 +48,8 @@ Auth state changed: INITIAL_SESSION undefined
  GET /api/cyberpanel-dns?domain=visualdesigne.com 200 in 4.3s (compile: 4ms, render: 4.3s)
  GET /api/cyberpanel-dns?domain=visualdesigne.com 200 in 3.5s (compile: 3ms, render: 3.5s)
  GET /api/cyberpanel-dns?domain=visualdesigne.com 200 in 3.7s (compile: 2ms, render: 3.7s)
+ GET /api/cyberpanel-dns?domain=visualdesigne.com 200 in 4.1s (compile: 6ms, render: 4.1s)
+ GET /api/cyberpanel-dns?domain=visualdesigne.com 200 in 4.3s (compile: 3ms, render: 4.3s)
+ GET /api/cyberpanel-dns?domain=visualdesigne.com 200 in 3.5s (compile: 2ms, render: 3.5s)
+⚠ You are using an experimental edge runtime, the API might change.
+✓ Compiled in 181ms
