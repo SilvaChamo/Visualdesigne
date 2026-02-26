@@ -1,0 +1,7 @@
+User-agent: *
+Disallow: /2026adminv01
+Disallow: /admin
+Disallow: /api/
+Disallow: /auth/
+
+Allow: /
