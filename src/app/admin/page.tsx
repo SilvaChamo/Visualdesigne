@@ -428,6 +428,30 @@ function ListWebsitesSection({ sites, onRefresh, packages, setActiveSection, set
                     className="flex items-center gap-1.5 bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg text-xs font-bold transition-colors">
                     <Server className="w-3.5 h-3.5" /> Editar DNS
                   </button>
+                  <button onClick={async () => {
+                    setLoading(s.domain + '-backup')
+                    try {
+                      await fetch('/api/server-exec', {
+                        method: 'POST', headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                          action: 'execCommand',
+                          params: { command: `mkdir -p /home/backup/full && cyberpanel createBackup --domainName ${s.domain} --backupPath /home/backup/full 2>&1` }
+                        })
+                      })
+                      alert(`✅ Backup de "${s.domain}" criado com sucesso!\n\nPode ver na página Backups.`)
+                    } catch (e: any) {
+                      alert('Erro ao criar backup: ' + e.message)
+                    }
+                    setLoading(null)
+                  }}
+                  disabled={loading === s.domain + '-backup'}
+                  className="flex items-center gap-1.5 bg-gray-700 hover:bg-gray-800 text-white px-4 py-2 rounded-lg text-xs font-bold transition-colors disabled:opacity-50">
+                    {loading === s.domain + '-backup' 
+                      ? <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                      : <Archive className="w-3.5 h-3.5" />
+                    }
+                    {loading === s.domain + '-backup' ? 'A criar...' : 'Backup'}
+                  </button>
                   <button onClick={() => handleSuspend(s.domain, parseState(s.state) || 'Active')}
                     className="flex items-center gap-1.5 bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 rounded-lg text-xs font-bold transition-colors">
                     <Power className="w-3.5 h-3.5" /> {parseState(s.state) === 'Active' ? 'Suspender' : 'Activar'}
