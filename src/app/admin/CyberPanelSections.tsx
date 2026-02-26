@@ -10,7 +10,7 @@ import { syncUserToSupabase, removeUserFromSupabase, syncWebsiteToSupabase, remo
 import { supabase } from '@/lib/supabase'
 import { cpGetUsers, cpSaveUser, cpRemoveUser, cpSaveSubdomain, cpRemoveSubdomain, cpGetSubdomains, cpSaveDatabase, cpRemoveDatabase, cpGetDatabases, cpSaveFTP, cpRemoveFTP, cpGetFTP, cpSaveEmail, cpRemoveEmail, cpGetEmails } from '@/lib/cp-local-store'
 import {
-  RefreshCw, Globe, PlusCircle, Plus, Package, Trash2, Database, Users, Mail, Lock, Shield,
+  RefreshCw, Globe, PlusCircle, Plus, Package, Trash2, Database, Users, Mail, Lock, LockOpen, Shield,
   Server, HardDrive, Key, Settings, Code, AlertCircle, CheckCircle, Eye, EyeOff,
   ExternalLink, Copy, FolderOpen, Layers, Play, Pause, Edit, Edit2, Cloud, RotateCcw,
   Upload, Download, Power, Plug, FileText, ArrowRight, Rocket
@@ -86,7 +86,7 @@ export function SubdomainsSection({ sites }: { sites: CyberPanelWebsite[] }) {
               <input value={newSub} onChange={(e) => setNewSub(e.target.value)} placeholder="blog"
                 className="flex-1 px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-500/20 focus:border-red-500" />
               <button onClick={handleCreate} disabled={creating || !selectedDomain || !newSub.trim()}
-                className="bg-black hover:bg-red-600 text-white px-4 py-2.5 rounded-lg text-sm font-bold transition-all disabled:opacity-50 flex items-center gap-2">
+                className="bg-green-600 hover:bg-green-700 text-white px-4 py-2.5 rounded-lg text-sm font-bold transition-all disabled:opacity-50 flex items-center gap-2">
                 {creating ? <RefreshCw className="w-4 h-4 animate-spin" /> : <PlusCircle className="w-4 h-4" />}
                 Criar
               </button>
@@ -506,7 +506,7 @@ export function DNSZoneEditorSection({ sites, selectedDomain: selectedDomainProp
               key={f}
               type="button"
               onClick={() => handleFilterChange(f)}
-              className={`px-3 py-1.5 rounded-full text-xs font-semibold border ${
+              className={`px-4 py-2 rounded-lg text-xs font-semibold border ${
                 filter === f ? 'bg-red-600 text-white border-red-600' : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50'
               }`}
             >
@@ -977,7 +977,7 @@ export function DatabasesSection({ sites }: { sites: CyberPanelWebsite[] }) {
           </div>
         </div>
         <button onClick={handleCreate} disabled={creating || !selectedDomain || !dbName || !dbUser || !dbPass}
-          className="bg-black hover:bg-red-600 text-white px-5 py-2.5 rounded-lg text-sm font-bold transition-all disabled:opacity-50 flex items-center gap-2">
+          className="bg-green-600 hover:bg-green-700 text-white px-5 py-2.5 rounded-lg text-sm font-bold transition-all disabled:opacity-50 flex items-center gap-2">
           {creating ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Database className="w-4 h-4" />} Criar Base de Dados
         </button>
 
@@ -1095,7 +1095,7 @@ export function FTPSection({ sites }: { sites: CyberPanelWebsite[] }) {
           </div>
         </div>
         <button onClick={handleCreate} disabled={creating || !selectedDomain || !ftpUser || !ftpPass}
-          className="bg-black hover:bg-red-600 text-white px-5 py-2.5 rounded-lg text-sm font-bold transition-all disabled:opacity-50 flex items-center gap-2">
+          className="bg-green-600 hover:bg-green-700 text-white px-5 py-2.5 rounded-lg text-sm font-bold transition-all disabled:opacity-50 flex items-center gap-2">
           {creating ? <RefreshCw className="w-4 h-4 animate-spin" /> : <HardDrive className="w-4 h-4" />} Criar Conta FTP
         </button>
 
@@ -1223,7 +1223,7 @@ export function EmailManagementSection({ sites }: { sites: CyberPanelWebsite[] }
           </div>
         </div>
         <button onClick={handleCreate} disabled={creating || !selectedDomain || !emailUser || !emailPass}
-          className="bg-black hover:bg-red-600 text-white px-5 py-2.5 rounded-lg text-sm font-bold transition-all disabled:opacity-50 flex items-center gap-2">
+          className="bg-green-600 hover:bg-green-700 text-white px-5 py-2.5 rounded-lg text-sm font-bold transition-all disabled:opacity-50 flex items-center gap-2">
           {creating ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Mail className="w-4 h-4" />} Criar Conta de E-mail
         </button>
 
@@ -1242,23 +1242,23 @@ export function EmailManagementSection({ sites }: { sites: CyberPanelWebsite[] }
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
-                    <a href={`https://webmail.${selectedDomain}`} target="_blank" rel="noopener noreferrer" className="text-xs bg-blue-100 hover:bg-blue-200 text-blue-700 px-3 py-1.5 rounded-md font-bold transition-colors">Webmail</a>
-                    <button onClick={() => setChangingPass(changingPass === em.email ? null : em.email)} className="text-xs bg-gray-100 hover:bg-gray-200 px-3 py-1.5 rounded-md font-medium transition-colors">Alterar Senha</button>
-                    <button onClick={() => loadForwards(em.email)} className="text-xs bg-gray-100 hover:bg-gray-200 px-3 py-1.5 rounded-md font-medium transition-colors">Reencaminhar</button>
-                    <button onClick={() => handleDelete(em.email)} className="text-red-500 hover:text-red-700 p-1.5"><Trash2 className="w-4 h-4" /></button>
+                    <a href={`https://webmail.${selectedDomain}`} target="_blank" rel="noopener noreferrer" className="text-xs bg-blue-100 hover:bg-blue-200 text-blue-700 px-4 py-2 rounded-lg font-bold transition-colors">Webmail</a>
+                    <button onClick={() => setChangingPass(changingPass === em.email ? null : em.email)} className="text-xs bg-gray-100 hover:bg-gray-200 px-4 py-2 rounded-md font-medium transition-colors">Alterar Senha</button>
+                    <button onClick={() => loadForwards(em.email)} className="text-xs bg-gray-100 hover:bg-gray-200 px-4 py-2 rounded-md font-medium transition-colors">Reencaminhar</button>
+                    <button onClick={() => handleDelete(em.email)} className="text-red-500 hover:text-red-700 p-2"><Trash2 className="w-4 h-4" /></button>
                   </div>
                 </div>
                 {changingPass === em.email && (
                   <div className="mt-3 pt-3 border-t flex gap-2">
                     <input type="password" value={newPass} onChange={(e) => setNewPass(e.target.value)} placeholder="Nova senha" className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm" />
-                    <button onClick={() => handleChangePass(em.email)} className="bg-black hover:bg-red-600 text-white px-4 py-2 rounded-lg text-sm font-bold transition-all">Guardar</button>
+                    <button onClick={() => handleChangePass(em.email)} className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg text-sm font-bold transition-all">Guardar</button>
                   </div>
                 )}
                 {forwardEmail === em.email && (
                   <div className="mt-3 pt-3 border-t">
                     <div className="flex gap-2 mb-2">
                       <input value={forwardTo} onChange={(e) => setForwardTo(e.target.value)} placeholder="destino@email.com" className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm" />
-                      <button onClick={handleAddForward} className="bg-black hover:bg-red-600 text-white px-4 py-2 rounded-lg text-sm font-bold transition-all">Adicionar</button>
+                      <button onClick={handleAddForward} className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg text-sm font-bold transition-all">Adicionar</button>
                     </div>
                     {forwards.length > 0 && <div className="text-xs text-gray-500">{forwards.map((f, fi) => <span key={fi} className="inline-block bg-gray-100 px-2 py-1 rounded mr-1 mb-1">{f}</span>)}</div>}
                   </div>
@@ -1398,7 +1398,7 @@ export function CPUsersSection() {
         <div><h1 className="text-3xl font-bold text-gray-900">Utilizadores CyberPanel</h1><p className="text-gray-500 mt-1">Gira utilizadores e permissões do servidor.</p></div>
         <div className="flex gap-2">
           <button onClick={loadUsers} className="bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-2 rounded-lg text-sm font-bold transition-all flex items-center gap-2"><RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} /> Atualizar</button>
-          <button onClick={() => setShowForm(!showForm)} className="bg-black hover:bg-red-600 text-white px-4 py-2 rounded-lg text-sm font-bold transition-all flex items-center gap-2"><PlusCircle className="w-4 h-4" /> Novo Utilizador</button>
+          <button onClick={() => setShowForm(!showForm)} className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg text-sm font-bold transition-all flex items-center gap-2"><PlusCircle className="w-4 h-4" /> Novo Utilizador</button>
         </div>
       </div>
 
@@ -1420,7 +1420,7 @@ export function CPUsersSection() {
               </select>
             </div>
           </div>
-          <button onClick={handleCreate} disabled={creating} className="bg-black hover:bg-red-600 text-white px-5 py-2.5 rounded-lg text-sm font-bold transition-all disabled:opacity-50 flex items-center gap-2">
+          <button onClick={handleCreate} disabled={creating} className="bg-green-600 hover:bg-green-700 text-white px-5 py-2.5 rounded-lg text-sm font-bold transition-all disabled:opacity-50 flex items-center gap-2">
             {creating ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Users className="w-4 h-4" />} Criar Utilizador
           </button>
         </div>
@@ -1573,7 +1573,7 @@ export function ResellerSection() {
     <div className="space-y-6 max-w-5xl">
       <div className="flex justify-between items-center">
         <div><h1 className="text-3xl font-bold text-gray-900">Centro de Revenda</h1><p className="text-gray-500 mt-1">Gira ACLs (Access Control Lists) e permissões de revendedores.</p></div>
-        <button onClick={() => setShowForm(!showForm)} className="bg-black hover:bg-red-600 text-white px-4 py-2 rounded-lg text-sm font-bold transition-all flex items-center gap-2"><PlusCircle className="w-4 h-4" /> Nova ACL</button>
+        <button onClick={() => setShowForm(!showForm)} className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg text-sm font-bold transition-all flex items-center gap-2"><PlusCircle className="w-4 h-4" /> Nova ACL</button>
       </div>
 
       {msg && <div className={`px-4 py-2.5 rounded-lg text-sm font-medium ${msg.includes('criada') ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-700 border border-red-200'}`}>{msg}</div>}
@@ -1599,7 +1599,7 @@ export function ResellerSection() {
               </label>
             ))}
           </div>
-          <button onClick={handleCreate} disabled={creating || !form.name} className="bg-black hover:bg-red-600 text-white px-5 py-2.5 rounded-lg text-sm font-bold transition-all disabled:opacity-50">
+          <button onClick={handleCreate} disabled={creating || !form.name} className="bg-green-600 hover:bg-green-700 text-white px-5 py-2.5 rounded-lg text-sm font-bold transition-all disabled:opacity-50">
             {creating ? 'Criando...' : 'Criar ACL'}
           </button>
         </div>
@@ -1687,7 +1687,7 @@ export function PHPConfigSection({ sites }: { sites: CyberPanelWebsite[] }) {
                 className="flex-1 px-3 py-2.5 border border-gray-300 rounded-lg text-sm">
                 <option>PHP 7.4</option><option>PHP 8.0</option><option>PHP 8.1</option><option>PHP 8.2</option><option>PHP 8.3</option>
               </select>
-              <button onClick={handleChangePHP} disabled={saving || !selectedDomain} className="bg-black hover:bg-red-600 text-white px-4 py-2.5 rounded-lg text-sm font-bold transition-all disabled:opacity-50">Alterar</button>
+              <button onClick={handleChangePHP} disabled={saving || !selectedDomain} className="bg-green-600 hover:bg-green-700 text-white px-4 py-2.5 rounded-lg text-sm font-bold transition-all disabled:opacity-50">Alterar</button>
             </div>
           </div>
         </div>
@@ -1712,7 +1712,7 @@ export function PHPConfigSection({ sites }: { sites: CyberPanelWebsite[] }) {
                 </div>
               ))}
             </div>
-            <button onClick={handleSave} disabled={saving} className="bg-black hover:bg-red-600 text-white px-5 py-2.5 rounded-lg text-sm font-bold transition-all disabled:opacity-50 flex items-center gap-2">
+            <button onClick={handleSave} disabled={saving} className="bg-green-600 hover:bg-green-700 text-white px-5 py-2.5 rounded-lg text-sm font-bold transition-all disabled:opacity-50 flex items-center gap-2">
               {saving ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Settings className="w-4 h-4" />} Guardar Configurações PHP
             </button>
           </>
@@ -1727,7 +1727,7 @@ export function PHPConfigSection({ sites }: { sites: CyberPanelWebsite[] }) {
             <p className="text-xs text-gray-500 mt-0.5">Extensões recomendadas para WordPress e aplicações web</p>
           </div>
           <a href="https://109.199.104.22:8090/php/phpExtensions" target="_blank" rel="noopener noreferrer"
-            className="bg-black hover:bg-red-600 text-white text-xs font-bold px-4 py-2 rounded-lg transition-all flex items-center gap-2">
+            className="bg-green-600 hover:bg-green-700 text-white text-xs font-bold px-4 py-2 rounded-lg transition-all flex items-center gap-2">
             <ExternalLink className="w-3.5 h-3.5" /> Gerir no CyberPanel
           </a>
         </div>
@@ -1785,7 +1785,12 @@ export function SecuritySection({ sites }: { sites: CyberPanelWebsite[] }) {
     (async () => {
       setLoading(true)
       const [fw, ips] = await Promise.all([cyberPanelAPI.getFirewallStatus(), cyberPanelAPI.getBlockedIPs()])
-      setFirewallOn(fw); setBlockedIPs(ips)
+      setFirewallOn(fw)
+      // Garantir que blockedIPs é sempre um array
+      const result = ips || []
+      const blockedArray = Array.isArray(result) ? result : 
+        typeof result === 'string' ? result.split('\n').filter((ip: string) => ip.trim()) : []
+      setBlockedIPs(blockedArray)
       setLoading(false)
     })()
   }, [])
@@ -1882,7 +1887,7 @@ export function SecuritySection({ sites }: { sites: CyberPanelWebsite[] }) {
             <h3 className="font-bold text-gray-900 mb-4">IPs Bloqueados</h3>
             <div className="flex gap-2 mb-4">
               <input value={newIP} onChange={(e) => setNewIP(e.target.value)} placeholder="192.168.1.100" className="flex-1 max-w-sm px-3 py-2.5 border border-gray-300 rounded-lg text-sm font-mono" />
-              <button onClick={handleBlockIP} className="bg-black hover:bg-red-600 text-white px-4 py-2.5 rounded-lg text-sm font-bold transition-all flex items-center gap-2"><Lock className="w-4 h-4" /> Bloquear</button>
+              <button onClick={handleBlockIP} className="bg-green-600 hover:bg-green-700 text-white px-4 py-2.5 rounded-lg text-sm font-bold transition-all flex items-center gap-2"><Lock className="w-4 h-4" /> Bloquear</button>
             </div>
             {blockedIPs.length === 0 ? <p className="text-sm text-gray-400">Nenhum IP bloqueado.</p> : (
               <div className="flex flex-wrap gap-2">
@@ -1933,7 +1938,7 @@ export function SSLSection({ sites }: { sites: CyberPanelWebsite[] }) {
             </select>
           </div>
           <button onClick={handleIssueSSL} disabled={issuing || !selectedDomain}
-            className="bg-black hover:bg-red-600 text-white px-5 py-2.5 rounded-lg text-sm font-bold transition-all disabled:opacity-50 flex items-center gap-2">
+            className="bg-green-600 hover:bg-green-700 text-white px-5 py-2.5 rounded-lg text-sm font-bold transition-all disabled:opacity-50 flex items-center gap-2">
             {issuing ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Lock className="w-4 h-4" />} Emitir SSL
           </button>
         </div>
@@ -2002,7 +2007,7 @@ export function APIConfigSection() {
           </div>
           <p className="text-sm text-gray-500 mb-4">Gere um token para aceder à API do CyberPanel externamente.</p>
           <button onClick={handleGenerate} disabled={generating}
-            className="bg-black hover:bg-red-600 text-white px-5 py-2.5 rounded-lg text-sm font-bold transition-all disabled:opacity-50 flex items-center gap-2 mb-4">
+            className="bg-green-600 hover:bg-green-700 text-white px-5 py-2.5 rounded-lg text-sm font-bold transition-all disabled:opacity-50 flex items-center gap-2 mb-4">
             {generating ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Key className="w-4 h-4" />} Gerar Token
           </button>
           {token && (
@@ -2138,7 +2143,7 @@ export function ModifyWebsiteSection({ sites, packages }: { sites: CyberPanelWeb
           </div>
         </div>
         {msg && <div className={`mb-4 px-4 py-2.5 rounded-lg text-sm font-medium ${msg.includes('success') ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-700 border border-red-200'}`}>{msg}</div>}
-        <button onClick={handleModify} disabled={saving || !selectedDomain} className="bg-black hover:bg-red-600 text-white px-5 py-2.5 rounded-lg text-sm font-bold transition-all disabled:opacity-50 flex items-center gap-2">
+        <button onClick={handleModify} disabled={saving || !selectedDomain} className="bg-green-600 hover:bg-green-700 text-white px-5 py-2.5 rounded-lg text-sm font-bold transition-all disabled:opacity-50 flex items-center gap-2">
           {saving ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Edit className="w-4 h-4" />} Modify Website
         </button>
       </div>
@@ -2153,39 +2158,63 @@ export function SuspendWebsiteSection({ sites, onRefresh }: { sites: CyberPanelW
   const [loading, setLoading] = useState('')
   const [msg, setMsg] = useState('')
 
-  const handleAction = async (domain: string, action: 'suspend' | 'unsuspend') => {
+  const parseState = (state: any) => {
+    if (state === 1 || state === '1' || state === 'Active') return 'Active'
+    if (state === 0 || state === '0' || state === 'Suspended') return 'Suspended'
+    return state || 'Active'
+  }
+
+  const handleToggle = async (domain: string, currentState: string) => {
     setLoading(domain); setMsg('')
+    const action = currentState === 'Active' ? 'suspend' : 'unsuspend'
     const ok = action === 'suspend' ? await cyberPanelAPI.suspendWebsite(domain) : await cyberPanelAPI.unsuspendWebsite(domain)
     if (ok) {
       await syncWebsiteToSupabase({ domain, status: action === 'suspend' ? 'Suspended' : 'Active' })
       onRefresh()
     }
-    setMsg(ok ? `${domain} ${action === 'suspend' ? 'suspended' : 'unsuspended'} successfully!` : `Error: could not ${action} ${domain}.`)
+    setMsg(ok ? `${domain} ${action === 'suspend' ? 'suspenso' : 'activado'} com sucesso!` : `Erro: não foi possível ${action} ${domain}.`)
     setLoading('')
   }
 
   return (
     <div className="space-y-6 max-w-5xl">
-      <div><h1 className="text-3xl font-bold text-gray-900">Suspend / Unsuspend</h1><p className="text-gray-500 mt-1">Suspend or reactivate websites.</p></div>
-      {msg && <div className={`px-4 py-2.5 rounded-lg text-sm font-medium ${msg.includes('success') ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-700 border border-red-200'}`}>{msg}</div>}
+      <div><h1 className="text-3xl font-bold text-gray-900">Suspender / Activar Websites</h1><p className="text-gray-500 mt-1">Suspende ou reactiva websites.</p></div>
+      {msg && <div className={`px-4 py-2.5 rounded-lg text-sm font-medium ${msg.includes('sucesso') ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-700 border border-red-200'}`}>{msg}</div>}
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
         <table className="w-full text-sm">
-          <thead><tr className="text-left text-xs font-bold text-gray-500 uppercase border-b bg-gray-50"><th className="px-4 py-3">Domain</th><th className="px-4 py-3">Status</th><th className="px-4 py-3">Owner</th><th className="px-4 py-3 w-40">Action</th></tr></thead>
+          <thead><tr className="text-left text-xs font-bold text-gray-500 uppercase border-b bg-gray-50"><th className="px-4 py-3">Domínio</th><th className="px-4 py-3">Estado</th><th className="px-4 py-3">Owner</th><th className="px-4 py-3">SSL</th><th className="px-4 py-3 w-40">Acções</th></tr></thead>
           <tbody>{sites.map((s, i) => (
             <tr key={i} className="border-b border-gray-50 hover:bg-gray-50">
               <td className="px-4 py-3 font-bold">{s.domain}</td>
-              <td className="px-4 py-3"><span className={`px-2 py-0.5 rounded text-xs font-bold ${s.status === 'Active' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>{s.status}</span></td>
+              <td className="px-4 py-3">
+                <span className={`px-2 py-0.5 rounded-full text-xs font-bold
+                  ${parseState(s.state) === 'Active' 
+                    ? 'bg-green-100 text-green-700' 
+                    : 'bg-red-100 text-red-700'}`}>
+                  {parseState(s.state) === 'Active' ? '● Activo' : '● Suspenso'}
+                </span>
+              </td>
               <td className="px-4 py-3 text-gray-600">{s.owner}</td>
               <td className="px-4 py-3">
-                {s.status === 'Active' ? (
-                  <button onClick={() => handleAction(s.domain, 'suspend')} disabled={loading === s.domain} className="bg-red-100 text-red-700 hover:bg-red-200 px-3 py-1.5 rounded-lg text-xs font-bold transition-all disabled:opacity-50 flex items-center gap-1">
-                    {loading === s.domain ? <RefreshCw className="w-3 h-3 animate-spin" /> : <Pause className="w-3 h-3" />} Suspend
-                  </button>
+                {(s as any).ssl === 'Enabled' || (s as any).ssl === true ? (
+                  <span className="flex items-center gap-1 text-green-600 text-xs font-bold">
+                    <Lock className="w-3 h-3" /> SSL
+                  </span>
                 ) : (
-                  <button onClick={() => handleAction(s.domain, 'unsuspend')} disabled={loading === s.domain} className="bg-green-100 text-green-700 hover:bg-green-200 px-3 py-1.5 rounded-lg text-xs font-bold transition-all disabled:opacity-50 flex items-center gap-1">
-                    {loading === s.domain ? <RefreshCw className="w-3 h-3 animate-spin" /> : <Play className="w-3 h-3" />} Unsuspend
-                  </button>
+                  <span className="flex items-center gap-1 text-gray-400 text-xs">
+                    <LockOpen className="w-3 h-3" /> No SSL
+                  </span>
                 )}
+              </td>
+              <td className="px-4 py-3">
+                <button onClick={() => handleToggle(s.domain, parseState(s.state))}
+                  disabled={loading === s.domain}
+                  className={`px-4 py-2 rounded-lg text-xs font-bold text-white transition-colors disabled:opacity-50
+                    ${parseState(s.state) === 'Active'
+                      ? 'bg-orange-500 hover:bg-orange-600'
+                      : 'bg-green-600 hover:bg-green-700'}`}>
+                  {parseState(s.state) === 'Active' ? '⏸ Suspender' : '▶ Activar'}
+                </button>
               </td>
             </tr>
           ))}</tbody>
@@ -2424,7 +2453,7 @@ export function WPRestoreBackupSection({ sites }: { sites: CyberPanelWebsite[] }
           <div className="space-y-2">{backups.map((b, i) => (
             <div key={i} className="flex items-center justify-between p-3 border border-gray-200 rounded-lg hover:bg-gray-50">
               <div className="flex items-center gap-3"><Download className="w-5 h-5 text-gray-400" /><span className="font-mono text-sm">{b}</span></div>
-              <button onClick={() => handleRestore(b)} disabled={restoring === b} className="bg-black hover:bg-red-600 text-white px-3 py-1.5 rounded-lg text-xs font-bold transition-all disabled:opacity-50 flex items-center gap-1">
+              <button onClick={() => handleRestore(b)} disabled={restoring === b} className="bg-green-600 hover:bg-green-700 text-white px-3 py-1.5 rounded-lg text-xs font-bold transition-all disabled:opacity-50 flex items-center gap-1">
                 {restoring === b ? <RefreshCw className="w-3 h-3 animate-spin" /> : <RotateCcw className="w-3 h-3" />} Restore
               </button>
             </div>
@@ -2470,7 +2499,7 @@ export function WPRemoteBackupSection({ sites }: { sites: CyberPanelWebsite[] })
           </div>
         </div>
         {msg && <div className={`mb-4 px-4 py-2.5 rounded-lg text-sm font-medium ${msg.includes('initiated') ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-700 border border-red-200'}`}>{msg}</div>}
-        <button onClick={handleCreate} disabled={creating || !selectedDomain} className="bg-black hover:bg-red-600 text-white px-5 py-2.5 rounded-lg text-sm font-bold transition-all disabled:opacity-50 flex items-center gap-2">
+        <button onClick={handleCreate} disabled={creating || !selectedDomain} className="bg-green-600 hover:bg-green-700 text-white px-5 py-2.5 rounded-lg text-sm font-bold transition-all disabled:opacity-50 flex items-center gap-2">
           {creating ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />} Create Remote Backup
         </button>
       </div>
@@ -2517,7 +2546,7 @@ export function DNSNameserverSection({ sites }: { sites: CyberPanelWebsite[] }) 
           <div><label className="text-xs font-bold text-gray-600 uppercase block mb-1.5">NS2 IP</label><input value={ns2IP} onChange={(e) => setNs2IP(e.target.value)} placeholder="109.199.104.22" className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm font-mono" /></div>
         </div>
         {msg && <div className={`mb-4 px-4 py-2.5 rounded-lg text-sm font-medium ${msg.includes('created') ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-700 border border-red-200'}`}>{msg}</div>}
-        <button onClick={handleCreate} disabled={saving || !selectedDomain} className="bg-black hover:bg-red-600 text-white px-5 py-2.5 rounded-lg text-sm font-bold transition-all disabled:opacity-50 flex items-center gap-2">
+        <button onClick={handleCreate} disabled={saving || !selectedDomain} className="bg-green-600 hover:bg-green-700 text-white px-5 py-2.5 rounded-lg text-sm font-bold transition-all disabled:opacity-50 flex items-center gap-2">
           {saving ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Server className="w-4 h-4" />} Create Nameservers
         </button>
       </div>
@@ -2551,7 +2580,7 @@ export function DNSDefaultNSSection() {
           <div><label className="text-xs font-bold text-gray-600 uppercase block mb-1.5">Nameserver 2</label><input value={ns2} onChange={(e) => setNs2(e.target.value)} placeholder="ns2.yourdomain.com" className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm font-mono" /></div>
         </div>
         {msg && <div className={`mb-4 px-4 py-2.5 rounded-lg text-sm font-medium ${msg.includes('configured') ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-700 border border-red-200'}`}>{msg}</div>}
-        <button onClick={handleSave} disabled={saving || !ns1 || !ns2} className="bg-black hover:bg-red-600 text-white px-5 py-2.5 rounded-lg text-sm font-bold transition-all disabled:opacity-50 flex items-center gap-2">
+        <button onClick={handleSave} disabled={saving || !ns1 || !ns2} className="bg-green-600 hover:bg-green-700 text-white px-5 py-2.5 rounded-lg text-sm font-bold transition-all disabled:opacity-50 flex items-center gap-2">
           {saving ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Settings className="w-4 h-4" />} Save Configuration
         </button>
       </div>
@@ -2586,7 +2615,7 @@ export function DNSCreateZoneSection({ sites }: { sites: CyberPanelWebsite[] }) 
               <option value="">Select...</option>{sites.map(s => <option key={s.domain} value={s.domain}>{s.domain}</option>)}
             </select>
           </div>
-          <button onClick={handleCreate} disabled={saving || !domain} className="bg-black hover:bg-red-600 text-white px-5 py-2.5 rounded-lg text-sm font-bold transition-all disabled:opacity-50 flex items-center gap-2">
+          <button onClick={handleCreate} disabled={saving || !domain} className="bg-green-600 hover:bg-green-700 text-white px-5 py-2.5 rounded-lg text-sm font-bold transition-all disabled:opacity-50 flex items-center gap-2">
             {saving ? <RefreshCw className="w-4 h-4 animate-spin" /> : <PlusCircle className="w-4 h-4" />} Create Zone
           </button>
         </div>
@@ -2662,7 +2691,7 @@ export function CloudFlareSection({ sites }: { sites: CyberPanelWebsite[] }) {
           <div><label className="text-xs font-bold text-gray-600 uppercase block mb-1.5">API Key</label><input type="password" value={apiKey} onChange={(e) => setApiKey(e.target.value)} placeholder="••••••" className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm" /></div>
         </div>
         {msg && <div className={`mb-4 px-4 py-2.5 rounded-lg text-sm font-medium ${msg.includes('configured') ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-700 border border-red-200'}`}>{msg}</div>}
-        <button onClick={handleSave} disabled={saving || !selectedDomain || !email || !apiKey} className="bg-black hover:bg-red-600 text-white px-5 py-2.5 rounded-lg text-sm font-bold transition-all disabled:opacity-50 flex items-center gap-2">
+        <button onClick={handleSave} disabled={saving || !selectedDomain || !email || !apiKey} className="bg-green-600 hover:bg-green-700 text-white px-5 py-2.5 rounded-lg text-sm font-bold transition-all disabled:opacity-50 flex items-center gap-2">
           {saving ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Cloud className="w-4 h-4" />} Configure CloudFlare
         </button>
       </div>
@@ -2791,7 +2820,7 @@ export function EmailLimitsSection({ sites }: { sites: CyberPanelWebsite[] }) {
               {editingEmail === em.email ? (
                 <div className="flex items-center gap-2">
                   <input value={limit} onChange={(e) => setLimit(e.target.value)} className="w-24 px-2 py-1 border border-gray-300 rounded text-sm" placeholder="500" />
-                  <button onClick={() => handleSave(em.email)} disabled={saving} className="bg-black hover:bg-red-600 text-white px-3 py-1 rounded text-xs font-bold">Save</button>
+                  <button onClick={() => handleSave(em.email)} disabled={saving} className="bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded text-xs font-bold">Save</button>
                 </div>
               ) : (
                 <button onClick={() => { setEditingEmail(em.email); setLimit('500') }} className="text-xs bg-gray-100 hover:bg-gray-200 px-3 py-1.5 rounded-md font-medium">Set Limit</button>
@@ -2852,7 +2881,7 @@ export function EmailForwardingSection({ sites }: { sites: CyberPanelWebsite[] }
                 <div className="mt-3 pt-3 border-t">
                   <div className="flex gap-2 mb-2">
                     <input value={forwardTo} onChange={(e) => setForwardTo(e.target.value)} placeholder="forward@email.com" className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm" />
-                    <button onClick={handleAdd} className="bg-black hover:bg-red-600 text-white px-4 py-2 rounded-lg text-sm font-bold">Add</button>
+                    <button onClick={handleAdd} className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg text-sm font-bold">Add</button>
                   </div>
                   {forwards.length > 0 && <div className="flex flex-wrap gap-1">{forwards.map((f, fi) => <span key={fi} className="bg-gray-100 px-2 py-1 rounded text-xs">{f}</span>)}</div>}
                 </div>
@@ -2901,7 +2930,7 @@ export function CatchAllEmailSection({ sites }: { sites: CyberPanelWebsite[] }) 
           </div>
         </div>
         {msg && <div className={`mb-4 px-4 py-2.5 rounded-lg text-sm font-medium ${msg.includes('configured') ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-700 border border-red-200'}`}>{msg}</div>}
-        <button onClick={handleSave} disabled={saving || !selectedDomain} className="bg-black hover:bg-red-600 text-white px-5 py-2.5 rounded-lg text-sm font-bold transition-all disabled:opacity-50">
+        <button onClick={handleSave} disabled={saving || !selectedDomain} className="bg-green-600 hover:bg-green-700 text-white px-5 py-2.5 rounded-lg text-sm font-bold transition-all disabled:opacity-50">
           {saving ? 'Saving...' : 'Save Catch-All'}
         </button>
       </div>
@@ -2943,7 +2972,7 @@ export function PatternForwardingSection({ sites }: { sites: CyberPanelWebsite[]
           <div><label className="text-xs font-bold text-gray-600 uppercase block mb-1.5">Destination</label><input value={destination} onChange={(e) => setDestination(e.target.value)} placeholder="team@email.com" className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm" /></div>
         </div>
         {msg && <div className="mb-4 px-4 py-2.5 rounded-lg text-sm font-medium bg-red-50 text-red-700 border border-red-200">{msg}</div>}
-        <button onClick={handleAdd} disabled={!selectedDomain || !pattern || !destination} className="bg-black hover:bg-red-600 text-white px-5 py-2.5 rounded-lg text-sm font-bold transition-all disabled:opacity-50 mb-4">Add Pattern</button>
+        <button onClick={handleAdd} disabled={!selectedDomain || !pattern || !destination} className="bg-green-600 hover:bg-green-700 text-white px-5 py-2.5 rounded-lg text-sm font-bold transition-all disabled:opacity-50 mb-4">Add Pattern</button>
         {loading ? <div className="py-4 text-center"><RefreshCw className="w-6 h-6 animate-spin text-gray-400 mx-auto" /></div> : patterns.length > 0 && (
           <div className="space-y-2">{patterns.map((p, i) => <div key={i} className="flex items-center gap-3 p-2 bg-gray-50 rounded text-sm"><span className="font-mono">{p.pattern || p.source}</span><ArrowRight className="w-4 h-4 text-gray-400" /><span>{p.destination || p.target}</span></div>)}</div>
         )}
@@ -3038,7 +3067,7 @@ export function EmailChangePasswordSection({ sites }: { sites: CyberPanelWebsite
           <div><label className="text-xs font-bold text-gray-600 uppercase block mb-1.5">New Password</label><input type="password" value={newPass} onChange={(e) => setNewPass(e.target.value)} placeholder="••••••" className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm" /></div>
         </div>
         {msg && <div className={`mb-4 px-4 py-2.5 rounded-lg text-sm font-medium ${msg.includes('changed') ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-700 border border-red-200'}`}>{msg}</div>}
-        <button onClick={handleChange} disabled={saving || !selectedEmail || !newPass} className="bg-black hover:bg-red-600 text-white px-5 py-2.5 rounded-lg text-sm font-bold transition-all disabled:opacity-50 flex items-center gap-2">
+        <button onClick={handleChange} disabled={saving || !selectedEmail || !newPass} className="bg-green-600 hover:bg-green-700 text-white px-5 py-2.5 rounded-lg text-sm font-bold transition-all disabled:opacity-50 flex items-center gap-2">
           {saving ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Key className="w-4 h-4" />} Change Password
         </button>
       </div>
@@ -3078,7 +3107,7 @@ export function DKIMManagerSection({ sites }: { sites: CyberPanelWebsite[] }) {
             </select>
           </div>
           {selectedDomain && !loading && (
-            <button onClick={handleEnable} disabled={enabling} className="bg-black hover:bg-red-600 text-white px-4 py-2.5 rounded-lg text-sm font-bold transition-all disabled:opacity-50 flex items-center gap-2">
+            <button onClick={handleEnable} disabled={enabling} className="bg-green-600 hover:bg-green-700 text-white px-4 py-2.5 rounded-lg text-sm font-bold transition-all disabled:opacity-50 flex items-center gap-2">
               {enabling ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Shield className="w-4 h-4" />} {dkim?.enabled ? 'Regenerate DKIM' : 'Enable DKIM'}
             </button>
           )}
@@ -3424,7 +3453,7 @@ export function PackagesSection({ packages, onRefresh }: { packages: any[], onRe
               <div><label className="text-xs font-bold text-gray-600 uppercase block mb-1.5">Contas de Email</label><input type="number" value={form.emailAccounts} onChange={e => setForm({...form, emailAccounts: e.target.value})} className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm" /></div>
               <div><label className="text-xs font-bold text-gray-600 uppercase block mb-1.5">Bases de Dados</label><input type="number" value={form.dataBases} onChange={e => setForm({...form, dataBases: e.target.value})} className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm" /></div>
             </div>
-            <button onClick={handleCreate} disabled={creating || !form.packageName.trim()} className="bg-black hover:bg-red-600 text-white py-2.5 px-6 rounded-lg text-sm font-bold transition-all disabled:opacity-50 flex items-center gap-2">
+            <button onClick={handleCreate} disabled={creating || !form.packageName.trim()} className="bg-green-600 hover:bg-green-700 text-white py-2.5 px-6 rounded-lg text-sm font-bold transition-all disabled:opacity-50 flex items-center gap-2">
               {creating ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Package className="w-4 h-4" />} Criar Pacote
             </button>
           </div>
@@ -3524,6 +3553,160 @@ export function PackagesSection({ packages, onRefresh }: { packages: any[], onRe
       </div>
 
       {msg && <div className={`p-4 rounded-lg border ${msg.includes('sucesso') ? 'bg-green-50 border-green-200 text-green-800' : 'bg-red-50 border-red-200 text-red-800'}`}>{msg}</div>}
+    </div>
+  )
+}
+
+export function FileManagerSection({ domain, sites }: { 
+  domain: string, 
+  sites: CyberPanelWebsite[] 
+}) {
+  const [path, setPath] = useState(`/home/${domain}/public_html`)
+  const [files, setFiles] = useState<any[]>([])
+  const [loading, setLoading] = useState(false)
+  const [msg, setMsg] = useState('')
+  const [selectedDomain, setSelectedDomain] = useState(domain || '')
+
+  // Carregar ficheiros ao montar e quando path muda
+  useEffect(() => {
+    if (selectedDomain) loadFiles()
+  }, [path, selectedDomain])
+
+  const loadFiles = async () => {
+    setLoading(true)
+    const res = await fetch('/api/server-exec', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'execCommand',
+        params: { command: `ls -la ${path} 2>&1` }
+      })
+    })
+    const data = await res.json()
+    // Parse do output ls -la
+    const lines = (data.data?.output || '').split('\n').filter((l: string) => 
+      l && !l.startsWith('total') && l.trim()
+    )
+    const parsed = lines.map((line: string) => {
+      const parts = line.trim().split(/\s+/)
+      return {
+        permissions: parts[0],
+        size: parts[4],
+        date: `${parts[5]} ${parts[6]} ${parts[7]}`,
+        name: parts[8],
+        isDir: parts[0]?.startsWith('d'),
+        isLink: parts[0]?.startsWith('l'),
+      }
+    }).filter((f: any) => f.name && f.name !== '.' && f.name !== '..')
+    setFiles(parsed)
+    setLoading(false)
+  }
+
+  const navigateTo = (folder: string) => {
+    if (folder === '..') {
+      const parts = path.split('/')
+      parts.pop()
+      setPath(parts.join('/') || '/')
+    } else {
+      setPath(`${path}/${folder}`)
+    }
+  }
+
+  // Breadcrumb do path
+  const pathParts = path.split('/').filter(Boolean)
+
+  return (
+    <div className="w-full space-y-4">
+      
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-xl font-bold text-gray-900">Gestor de Ficheiros</h1>
+          <p className="text-xs text-gray-400 mt-0.5">Explorar directório do site</p>
+        </div>
+        {/* Selector de domínio */}
+        <select value={selectedDomain} 
+          onChange={e => { setSelectedDomain(e.target.value); setPath(`/home/${e.target.value}/public_html`) }}
+          className="px-3 py-2 border border-gray-300 rounded-lg text-sm">
+          {sites.map(s => <option key={s.domain} value={s.domain}>{s.domain}</option>)}
+        </select>
+      </div>
+
+      {/* Breadcrumb */}
+      <div className="flex items-center gap-1 text-sm bg-white border border-gray-200 rounded-lg px-4 py-2">
+        <button onClick={() => setPath(`/home/${selectedDomain}/public_html`)}
+          className="text-blue-500 hover:text-blue-700 font-medium">home</button>
+        {pathParts.map((part, i) => (
+          <span key={i} className="flex items-center gap-1">
+            <span className="text-gray-400">/</span>
+            <button
+              onClick={() => setPath('/' + pathParts.slice(0, i + 1).join('/'))}
+              className="text-blue-500 hover:text-blue-700">
+              {part}
+            </button>
+          </span>
+        ))}
+        <button onClick={loadFiles} className="ml-auto text-gray-400 hover:text-gray-600">
+          <RefreshCw className="w-3.5 h-3.5" />
+        </button>
+      </div>
+
+      {/* Tabela de ficheiros */}
+      <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="text-left text-xs font-bold text-gray-500 uppercase border-b bg-gray-50">
+              <th className="px-4 py-3">Nome</th>
+              <th className="px-4 py-3">Permissões</th>
+              <th className="px-4 py-3">Tamanho</th>
+              <th className="px-4 py-3">Data</th>
+            </tr>
+          </thead>
+          <tbody>
+            {/* Botão voltar */}
+            <tr className="border-b border-gray-50 hover:bg-gray-50 cursor-pointer"
+              onClick={() => navigateTo('..')}>
+              <td className="px-4 py-2.5 flex items-center gap-2">
+                <FolderOpen className="w-4 h-4 text-yellow-500" />
+                <span className="text-blue-600 font-medium">..</span>
+              </td>
+              <td colSpan={3} className="px-4 py-2.5 text-gray-400 text-xs">Pasta anterior</td>
+            </tr>
+            
+            {loading ? (
+              <tr><td colSpan={4} className="px-4 py-8 text-center text-gray-400">
+                <RefreshCw className="w-4 h-4 animate-spin mx-auto" />
+              </td></tr>
+            ) : files.length === 0 ? (
+              <tr><td colSpan={4} className="px-4 py-8 text-center text-gray-400">
+                Pasta vazia
+              </td></tr>
+            ) : files.map((f, i) => (
+              <tr key={i} className="border-b border-gray-50 hover:bg-gray-50">
+                <td className="px-4 py-2.5">
+                  <div className="flex items-center gap-2">
+                    {f.isDir 
+                      ? <FolderOpen className="w-4 h-4 text-yellow-500 shrink-0" />
+                      : <FileText className="w-4 h-4 text-gray-400 shrink-0" />
+                    }
+                    {f.isDir ? (
+                      <button onClick={() => navigateTo(f.name)}
+                        className="text-blue-600 hover:underline font-medium">
+                        {f.name}
+                      </button>
+                    ) : (
+                      <span className="text-gray-700">{f.name}</span>
+                    )}
+                  </div>
+                </td>
+                <td className="px-4 py-2.5 text-gray-500 font-mono text-xs">{f.permissions}</td>
+                <td className="px-4 py-2.5 text-gray-500 text-xs">{f.size}</td>
+                <td className="px-4 py-2.5 text-gray-500 text-xs">{f.date}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   )
 }

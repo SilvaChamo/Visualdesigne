@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Conta Suspensa</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { 
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: #000000;
+      color: #ffffff;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+    }
+    .container {
+      text-align: center;
+      padding: 40px;
+      max-width: 600px;
+    }
+    .icon {
+      width: 80px;
+      height: 80px;
+      background: #1a1a1a;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 auto 24px;
+      border: 2px solid #333;
+    }
+    .icon svg {
+      width: 40px;
+      height: 40px;
+      color: #ef4444;
+    }
+    h1 {
+      font-size: 32px;
+      font-weight: 700;
+      margin-bottom: 12px;
+      color: #ffffff;
+    }
+    .subtitle {
+      font-size: 16px;
+      color: #888888;
+      margin-bottom: 32px;
+      line-height: 1.6;
+    }
+    .card {
+      background: #111111;
+      border: 1px solid #222222;
+      border-radius: 12px;
+      padding: 24px;
+      margin-bottom: 24px;
+      text-align: left;
+    }
+    .card p {
+      color: #666666;
+      font-size: 13px;
+      margin-bottom: 8px;
+    }
+    .card strong {
+      color: #ffffff;
+      font-size: 15px;
+    }
+    .contact {
+      font-size: 14px;
+      color: #555555;
+    }
+    .contact a {
+      color: #ef4444;
+      text-decoration: none;
+    }
+    .contact a:hover {
+      text-decoration: underline;
+    }
+    .logo {
+      margin-bottom: 32px;
+      font-size: 20px;
+      font-weight: 800;
+      color: #ef4444;
+      letter-spacing: -0.5px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="logo">VisualDesign</div>
+    <div class="icon">
+      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
+          d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+      </svg>
+    </div>
+    <h1>Conta Suspensa</h1>
+    <p class="subtitle">
+      Este website foi temporariamente suspenso.<br>
+      Por favor contacta o teu fornecedor de alojamento para mais informações.
+    </p>
+    <div class="card">
+      <p>Motivo da suspensão</p>
+      <strong>Conta suspensa pelo administrador</strong>
+    </div>
+    <p class="contact">
+      Para reactivar o teu website contacta-nos em 
+      <a href="mailto:admin@visualdesigne.com">admin@visualdesigne.com">admin@visualdesigne.com</a>
+    </p>
+  </div>
+</body>
+</html>
