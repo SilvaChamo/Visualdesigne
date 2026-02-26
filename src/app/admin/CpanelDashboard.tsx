@@ -86,6 +86,7 @@ export function CpanelDashboard({ onNavigate, onSetDNSDomain, sites, users, isFe
       headerIcon: <Server className="w-5 h-5" />,
       color: 'text-amber-800', bgColor: 'bg-yellow-50',
       tools: [
+        { id: 'domains-dns', name: 'Editar DNS', icon: <FileText className="w-9 h-9 text-amber-600" /> },
         { id: 'cp-dns-nameserver', name: 'Criar Nameserver', icon: <Server className="w-9 h-9 text-amber-600" /> },
         { id: 'cp-dns-default-ns', name: 'Nameservers Padrão', icon: <Settings className="w-9 h-9 text-amber-600" /> },
         { id: 'cp-dns-create-zone', name: 'Criar Zona DNS', icon: <PlusCircle className="w-9 h-9 text-amber-600" /> },
