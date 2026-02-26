@@ -102,11 +102,12 @@ function ListWebsitesSection({ sites, onRefresh, packages, setActiveSection, set
   const [createMsg, setCreateMsg] = useState('')
 
   // Filtrar sites activos — tem conteúdo real instalado
-  const filtered = sites.filter(s => 
+  const sitesArray = Array.isArray(sites) ? sites : []
+  const filtered = sitesArray.filter(s => 
     s.domain.toLowerCase().includes(search.toLowerCase()) &&
     !s.domain.includes('contaboserver') &&
     !s.domain.includes('localhost') &&
-    (s.isActive === true || s.hasWordPress === true || (s.size && s.size > 8))
+    s.isActive === true
   )
 
   const totalPages = Math.ceil(filtered.length / itemsPerPage)
@@ -285,6 +286,10 @@ function ListWebsitesSection({ sites, onRefresh, packages, setActiveSection, set
                 <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${parseState(s.state) === 'Active' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
                   {parseState(s.state) || 'Active'}
                 </span>
+                {/* Badge por tipo de site */}
+                {s.siteType === 'wordpress' && <span className="px-2 py-0.5 bg-blue-100 text-blue-700 rounded-full text-xs font-bold">WordPress</span>}
+                {s.siteType === 'nextjs' && <span className="px-2 py-0.5 bg-black text-white rounded-full text-xs font-bold">Next.js</span>}
+                {s.siteType === 'html' && <span className="px-2 py-0.5 bg-orange-100 text-orange-700 rounded-full text-xs font-bold">HTML/PHP</span>}
                 {s.ssl ? (
                   <span className="flex items-center gap-1 text-green-600 text-xs font-bold">
                     <Lock className="w-3.5 h-3.5" /> SSL Activo

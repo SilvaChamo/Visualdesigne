@@ -25,9 +25,9 @@ export interface CyberPanelWebsite {
   // Propriedades para detecção de conteúdo real
   isActive?: boolean;
   hasWordPress?: boolean;
-  hasIndexPhp?: boolean;
-  hasIndexHtml?: boolean;
-  size?: number;
+  hasNextJs?: boolean;
+  hasBasicSite?: boolean;
+  siteType?: 'wordpress' | 'nextjs' | 'html' | 'empty';
 }
 export interface CyberPanelPackage {
   id: string | number;
