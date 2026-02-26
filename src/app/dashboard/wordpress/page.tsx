@@ -54,7 +54,7 @@ export default function WordPressManagerPage() {
                     <p className="text-gray-500 mt-1">Manage all your WordPress installations from one place.</p>
                 </div>
                 <Link
-                    href="/dashboard/wordpress/install"
+                    href="/dashboard/wordpress/deploy"
                     className="inline-flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-2.5 rounded-lg transition-colors font-medium shadow-sm transition-transform hover:-translate-y-0.5"
                 >
                     <Plus className="w-5 h-5" />

@@ -119,10 +119,19 @@ export function CpanelDashboard({ onNavigate, onSetDNSDomain, sites, users, isFe
       headerIcon: <Globe2 className="w-5 h-5" />,
       color: 'text-indigo-700', bgColor: 'bg-indigo-50',
       tools: [
-        { id: 'wordpress-deploy', name: 'Instalar WordPress', icon: <Download className="w-9 h-9 text-indigo-500" /> },
+        { 
+          id: 'wordpress-install', 
+          name: 'Instalar WordPress', 
+          icon: <Globe className="w-9 h-9 text-blue-500" /> 
+        },
+        { 
+          id: 'cp-wp-backup', 
+          name: 'Fazer Backup WP', 
+          icon: <Archive className="w-9 h-9 text-indigo-500" /> 
+        },
+        { id: 'wordpress-deploy', name: 'Deploy WordPress', icon: <Download className="w-9 h-9 text-indigo-500" /> },
         { id: 'cp-wp-list', name: 'Painel WP Admin', icon: <Monitor className="w-9 h-9 text-indigo-500" /> },
         { id: 'cp-wp-plugins', name: 'Gerir Plugins', icon: <Plug className="w-9 h-9 text-indigo-500" /> },
-        { id: 'cp-wp-backup', name: 'Fazer Backup WP', icon: <Archive className="w-9 h-9 text-indigo-500" /> },
         { id: 'cp-wp-restore-backup', name: 'Restaurar Backup WP', icon: <RotateCcw className="w-9 h-9 text-indigo-500" /> },
         { id: 'cp-wp-remote-backup', name: 'Backup Remoto WP', icon: <Cloud className="w-9 h-9 text-indigo-500" /> },
       ]

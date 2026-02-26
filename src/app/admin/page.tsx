@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { 
   Home, Globe, Users, Mail, Shield, Database, Settings, 
   ChevronLeft, ChevronRight, Plus, Search, Download, ExternalLink,
-  Edit2, Pause, Play, Trash2, RefreshCw, LogOut, Package, Server, Lock, LockOpen, Edit, Power, FolderOpen, FileText, Archive
+  Edit2, Pause, Play, Trash2, RefreshCw, LogOut, Package, Server, Lock, LockOpen, Edit, Power, FolderOpen, FileText, Archive, Globe as GlobeIcon
 } from 'lucide-react'
 import { CpanelDashboard } from './CpanelDashboard'
 import {
@@ -19,8 +19,7 @@ import {
   EmailForwardingSection, CatchAllEmailSection, PatternForwardingSection,
   PlusAddressingSection, EmailChangePasswordSection, DKIMManagerSection,
   WPRestoreBackupSection, WPRemoteBackupSection, ListSubdomainsSection,
-  PackagesSection, DNSZoneEditorSection, FileManagerSection, BackupManagerSection,
-  WPBackupSection
+  PackagesSection, DNSZoneEditorSection, FileManagerSection, BackupManagerSection
 } from './CyberPanelSections'
 import { cyberPanelAPI } from '@/lib/cyberpanel-api'
 import type { CyberPanelWebsite, CyberPanelUser, CyberPanelPackage } from '@/lib/cyberpanel-api'
@@ -755,8 +754,6 @@ export default function AdminPage() {
       case 'backup-manager':
       case 'cp-backup':
         return <BackupManagerSection sites={cyberPanelSites} />
-      case 'cp-wp-backup':
-        return <WPBackupSection sites={cyberPanelSites} />
       case 'packages-list':
         return <PackagesSection packages={cyberPanelPackages} onRefresh={loadCyberPanelData} />
       default:
