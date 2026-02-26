@@ -4,102 +4,268 @@ import { executeCyberPanelCommand } from '@/lib/cyberpanel-exec';
 export async function POST(request: NextRequest) {
     try {
         const body = await request.json();
-        const { domainName, wpTitle, wpUser, wpPassword } = body;
+        const { action } = body;
 
-        if (!domainName || !wpTitle || !wpUser || !wpPassword) {
-            return NextResponse.json({ error: 'Faltam parâmetros obrigatórios' }, { status: 400 });
-        }
+        switch (action) {
+            case 'installWordPress': {
+                const { domain, directory, databaseName, databaseUser, databasePassword, adminUsername, adminPassword, adminEmail, siteName } = body;
+                
+                if (!domain || !siteName || !adminUsername || !adminPassword || !adminEmail) {
+                    return NextResponse.json({ error: 'Faltam parâmetros obrigatórios' }, { status: 400 });
+                }
 
-        // Try CyberPanel API proxy first (no SSH needed)
-        try {
-            const cpUrl = process.env.CYBERPANEL_URL || 'https://109.199.104.22:8090/api';
-            const https = require('https');
-            const agent = new https.Agent({ rejectUnauthorized: false });
-            const proxyBody = JSON.stringify({
-                adminUser: process.env.CYBERPANEL_USER || 'admin',
-                adminPass: process.env.CYBERPANEL_PASS || 'Vgz5Zat4uMyFt2tb',
-                domainName, wpTitle, wpUser, wpPassword
-            });
-            const proxyRes = await fetch(`${cpUrl.replace('/api', '')}/api/installWordPress`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: proxyBody,
-                // @ts-ignore
-                agent
-            }).catch(() => null);
-            if (proxyRes && proxyRes.ok) {
-                const proxyData = await proxyRes.json().catch(() => ({}));
-                if (proxyData.status === 1 || proxyData.success === true) {
-                    return NextResponse.json({ success: true, message: 'WordPress instalado via API CyberPanel' });
+                // Try CyberPanel API proxy first (no SSH needed)
+                try {
+                    const cpUrl = process.env.CYBERPANEL_URL || 'https://109.199.104.22:8090/api';
+                    const https = require('https');
+                    const agent = new https.Agent({ rejectUnauthorized: false });
+                    const proxyBody = JSON.stringify({
+                        adminUser: process.env.CYBERPANEL_USER || 'admin',
+                        adminPass: process.env.CYBERPANEL_PASS || 'Vgz5Zat4uMyFt2tb',
+                        domainName: domain,
+                        wpTitle: siteName,
+                        wpUser: adminUsername,
+                        wpPassword: adminPassword
+                    });
+                    const proxyRes = await fetch(`${cpUrl.replace('/api', '')}/api/installWordPress`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: proxyBody,
+                        // @ts-ignore
+                        agent
+                    }).catch(() => null);
+                    if (proxyRes && proxyRes.ok) {
+                        const proxyData = await proxyRes.json().catch(() => ({}));
+                        if (proxyData.status === 1 || proxyData.success === true) {
+                            return NextResponse.json({ success: true, message: 'WordPress instalado via API CyberPanel' });
+                        }
+                    }
+                } catch { /* fall through to SSH */ }
+
+                // SSH fallback
+                if (!process.env.CYBERPANEL_SSH_PASS && !process.env.CYBERPANEL_SSH_KEY && !process.env.CYBERPANEL_SSH_KEY_PATH && process.env.CYBERPANEL_USE_LOCAL_EXEC !== 'true') {
+                    return NextResponse.json({ success: true, message: 'WordPress marcado para instalação. Configure SSH ou instale manualmente via CyberPanel.', warning: true });
+                }
+
+                const installScript = `
+                DOCUMENT_ROOT="/home/${domain}${directory ? '/' + directory : ''}/public_html"
+                
+                if [ ! -d "$DOCUMENT_ROOT" ]; then
+                    echo "ERRO: O diretório do domínio não existe. Crie o website primeiro no CyberPanel."
+                    exit 1
+                fi
+                
+                cd "$DOCUMENT_ROOT"
+                
+                # Download WP-CLI if not present
+                if ! command -v wp &> /dev/null; then
+                    curl -O https://raw.githubusercontent.com/wp-cli/builds/gh-pages/phar/wp-cli.phar
+                    chmod +x wp-cli.phar
+                    mv wp-cli.phar /usr/local/bin/wp
+                fi
+                
+                # Download and configure WP
+                WP_CLI_ALLOW_ROOT=1 wp core download --allow-root --force
+                WP_CLI_ALLOW_ROOT=1 wp config create --dbname="${databaseName || domain + '_wp'}" --dbuser="${databaseUser || 'usr_' + domain}" --dbpass="${databasePassword || 'generated'}" --allow-root --force
+                
+                # Install WP
+                WP_CLI_ALLOW_ROOT=1 wp core install --url="https://${domain}${directory ? '/' + directory : ''}" --title="${siteName}" --admin_user="${adminUsername}" --admin_password="${adminPassword}" --admin_email="${adminEmail}" --allow-root
+                
+                # Fix permissions
+                chown -R $(id -un):$(id -gn) "$DOCUMENT_ROOT"
+                find "$DOCUMENT_ROOT" -type f -exec chmod 644 {} \\;
+                find "$DOCUMENT_ROOT" -type d -exec chmod 755 {} \\;
+                
+                echo "SUCESSO: WordPress instalado"
+                `;
+
+                const result = await executeCyberPanelCommand(installScript);
+
+                if (result.includes("ERRO:")) {
+                    return NextResponse.json({ error: 'Falha ao instalar o WordPress', details: result }, { status: 400 });
+                }
+
+                return NextResponse.json({ success: true, message: 'WordPress instalado com sucesso' });
+            }
+
+            case 'getWPInfo': {
+                const { domain } = body;
+                
+                if (!domain) {
+                    return NextResponse.json({ error: 'Domínio é obrigatório' }, { status: 400 });
+                }
+
+                const checkScript = `
+                if [ -f "/home/${domain}/public_html/wp-config.php" ]; then
+                    echo "WP_FOUND"
+                    # Extract version
+                    cd "/home/${domain}/public_html"
+                    if command -v wp &> /dev/null; then
+                        WP_VERSION=$(wp core version --allow-root 2>/dev/null || echo "Unknown")
+                        echo "VERSION:$WP_VERSION"
+                    fi
+                else
+                    echo "WP_NOT_FOUND"
+                fi
+                `;
+
+                const result = await executeCyberPanelCommand(checkScript);
+                const installed = result.includes('WP_FOUND');
+                const versionMatch = result.match(/VERSION:(.+)/);
+                const version = versionMatch ? versionMatch[1].trim() : 'Unknown';
+
+                return NextResponse.json({ 
+                    success: true, 
+                    installed,
+                    info: {
+                        software: 'WordPress',
+                        version,
+                        path: `/home/${domain}/public_html`,
+                        url: `https://${domain}`,
+                        databaseName: `${domain}_wp`,
+                        databaseUser: `usr_${domain}`
+                    }
+                });
+            }
+
+            case 'backupWordPress': {
+                const { domain, includeDirectory = true, includeDatabase = true } = body;
+                
+                if (!domain) {
+                    return NextResponse.json({ error: 'Domínio é obrigatório' }, { status: 400 });
+                }
+
+                const backupScript = `
+                BACKUP_DIR="/home/${domain}/backup/wordpress"
+                TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+                BACKUP_FILE="wp-backup-$TIMESTAMP.tar.gz"
+                
+                # Create backup directory
+                mkdir -p "$BACKUP_DIR"
+                
+                # Backup files
+                if [ "${includeDirectory}" = "true" ]; then
+                    tar -czf "$BACKUP_DIR/$BACKUP_FILE" -C "/home/${domain}" public_html 2>&1
+                fi
+                
+                # Backup database
+                if [ "${includeDatabase}" = "true" ]; then
+                    if [ -f "/home/${domain}/public_html/wp-config.php" ]; then
+                        DB_NAME=$(grep "DB_NAME" "/home/${domain}/public_html/wp-config.php" | cut -d "'" -f 4)
+                        DB_USER=$(grep "DB_USER" "/home/${domain}/public_html/wp-config.php" | cut -d "'" -f 4)
+                        DB_PASS=$(grep "DB_PASSWORD" "/home/${domain}/public_html/wp-config.php" | cut -d "'" -f 4)
+                        
+                        if [ ! -z "$DB_NAME" ] && [ ! -z "$DB_USER" ]; then
+                            mysqldump -u "$DB_USER" -p"$DB_PASS" "$DB_NAME" > "$BACKUP_DIR/db-backup-$TIMESTAMP.sql" 2>&1
+                            tar -czf "$BACKUP_DIR/wp-backup-$TIMESTAMP-full.tar.gz" -C "$BACKUP_DIR" "$BACKUP_FILE" "db-backup-$TIMESTAMP.sql" 2>/dev/null
+                            rm "$BACKUP_DIR/$BACKUP_FILE" "$BACKUP_DIR/db-backup-$TIMESTAMP.sql" 2>/dev/null
+                            BACKUP_FILE="wp-backup-$TIMESTAMP-full.tar.gz"
+                        fi
+                    fi
+                fi
+                
+                echo "SUCCESS:$BACKUP_FILE:$BACKUP_DIR"
+                `;
+
+                const result = await executeCyberPanelCommand(backupScript);
+                
+                if (result.includes('SUCCESS:')) {
+                    const parts = result.split('SUCCESS:')[1].trim().split(':');
+                    const filename = parts[0] || '';
+                    const path = parts[1] || '';
+                    
+                    return NextResponse.json({ 
+                        success: true, 
+                        message: 'Backup criado com sucesso',
+                        backup: {
+                            filename,
+                            path,
+                            date: new Date().toISOString(),
+                            size: 'Unknown'
+                        }
+                    });
+                } else {
+                    return NextResponse.json({ error: 'Falha ao criar backup', details: result }, { status: 400 });
                 }
             }
-        } catch { /* fall through to SSH */ }
 
-        // SSH fallback
-        if (!process.env.CYBERPANEL_SSH_PASS && !process.env.CYBERPANEL_SSH_KEY && !process.env.CYBERPANEL_SSH_KEY_PATH && process.env.CYBERPANEL_USE_LOCAL_EXEC !== 'true') {
-            return NextResponse.json({ success: true, message: 'WordPress marcado para instalação. Configure SSH ou instale manualmente via CyberPanel.', warning: true });
+            case 'getWPBackups': {
+                const { domain } = body;
+                
+                if (!domain) {
+                    return NextResponse.json({ error: 'Domínio é obrigatório' }, { status: 400 });
+                }
+
+                const listScript = `
+                BACKUP_DIR="/home/${domain}/backup/wordpress"
+                if [ -d "$BACKUP_DIR" ]; then
+                    ls -la "$BACKUP_DIR"/*.tar.gz 2>/dev/null | while read line; do
+                        filename=$(echo "$line" | awk '{print $9}')
+                        size=$(echo "$line" | awk '{print $5}')
+                        date=$(echo "$line" | awk '{print $6, $7, $8}')
+                        echo "FILE:$filename:$size:$date"
+                    done
+                else
+                    echo "NO_BACKUPS"
+                fi
+                `;
+
+                const result = await executeCyberPanelCommand(listScript);
+                
+                if (result.includes('NO_BACKUPS')) {
+                    return NextResponse.json({ success: true, backups: [] });
+                }
+                
+                const backups = result.split('\n')
+                    .filter(line => line.startsWith('FILE:'))
+                    .map(line => {
+                        const parts = line.split(':');
+                        return {
+                            id: parts[1] || '',
+                            filename: parts[1] ? parts[1].split('/').pop() : '',
+                            size: parts[2] || 'Unknown',
+                            date: parts[3] || 'Unknown'
+                        };
+                    });
+                
+                return NextResponse.json({ success: true, backups });
+            }
+
+            case 'deleteWPBackup': {
+                const { domain, backupId } = body;
+                
+                if (!domain || !backupId) {
+                    return NextResponse.json({ error: 'Domínio e ID do backup são obrigatórios' }, { status: 400 });
+                }
+
+                const deleteScript = `
+                BACKUP_FILE="${backupId}"
+                if [ -f "$BACKUP_FILE" ]; then
+                    rm "$BACKUP_FILE"
+                    echo "SUCCESS"
+                else
+                    echo "NOT_FOUND"
+                fi
+                `;
+
+                const result = await executeCyberPanelCommand(deleteScript);
+                
+                if (result.includes('SUCCESS')) {
+                    return NextResponse.json({ success: true, message: 'Backup eliminado com sucesso' });
+                } else {
+                    return NextResponse.json({ error: 'Backup não encontrado' }, { status: 404 });
+                }
+            }
+
+            default:
+                return NextResponse.json({ error: 'Action não suportado' }, { status: 400 });
         }
-
-        const installScript = `
-        DOCUMENT_ROOT="/home/${domainName}/public_html"
-        
-        if [ ! -d "$DOCUMENT_ROOT" ]; then
-            echo "ERRO: O diretório do domínio não existe. Crie o website primeiro no CyberPanel."
-            exit 1
-        fi
-        
-        cd "$DOCUMENT_ROOT"
-        
-        # Download WP-CLI if not present
-        if ! command -v wp &> /dev/null; then
-            curl -O https://raw.githubusercontent.com/wp-cli/builds/gh-pages/phar/wp-cli.phar
-            chmod +x wp-cli.phar
-            mv wp-cli.phar /usr/local/bin/wp
-        fi
-        
-        # Obter detalhes da base de dados baseando na configuração do CyberPanel (geralmente existe um wp-config ou criando um novo)
-        # Atenção: Criar BD não é feito automaticamente por este script bash. Vamos assumir que criaremos uma base de dados.
-        
-        DB_NAME=$(echo "${domainName}" | sed -e 's/\\.//g')
-        DB_USER=$(echo "usr_${domainName}" | sed -e 's/\\.//g' | cut -c 1-16)
-        DB_PASS=$(openssl rand -base64 12)
-        
-        echo "CREATE DATABASE IF NOT EXISTS \\\`$DB_NAME\\\`;" > /tmp/create_db.sql
-        echo "CREATE USER IF NOT EXISTS '$DB_USER'@'localhost' IDENTIFIED BY '$DB_PASS';" >> /tmp/create_db.sql
-        echo "GRANT ALL PRIVILEGES ON \\\`$DB_NAME\\\`.* TO '$DB_USER'@'localhost';" >> /tmp/create_db.sql
-        echo "FLUSH PRIVILEGES;" >> /tmp/create_db.sql
-        
-        mysql < /tmp/create_db.sql
-        rm /tmp/create_db.sql
-        
-        # Download and configure WP
-        WP_CLI_ALLOW_ROOT=1 wp core download --allow-root --force
-        WP_CLI_ALLOW_ROOT=1 wp config create --dbname=$DB_NAME --dbuser=$DB_USER --dbpass=$DB_PASS --allow-root --force
-        
-        # Install WP
-        WP_CLI_ALLOW_ROOT=1 wp core install --url="https://${domainName}" --title="${wpTitle}" --admin_user="${wpUser}" --admin_password="${wpPassword}" --admin_email="${wpUser}@${domainName}" --allow-root
-        
-        # Fix permissions
-        chown -R $(id -un):$(id -gn) "$DOCUMENT_ROOT"
-        find "$DOCUMENT_ROOT" -type f -exec chmod 644 {} \\;
-        find "$DOCUMENT_ROOT" -type d -exec chmod 755 {} \\;
-        
-        echo "SUCESSO: WordPress instalado"
-        `;
-
-        const result = await executeCyberPanelCommand(installScript);
-
-        if (result.includes("ERRO:")) {
-            return NextResponse.json({ error: 'Falha ao instalar o WordPress', details: result }, { status: 400 });
-        }
-
-        return NextResponse.json({ success: true, message: 'WordPress instalado com sucesso' });
 
     } catch (error: any) {
-        console.error('[WP SSH Install Exception]', error?.message || error);
+        console.error('[WP API Exception]', error?.message || error);
         return NextResponse.json(
             {
-                error: 'Erro no instalador WP',
+                error: 'Erro na API WordPress',
                 details: error instanceof Error ? error.message : 'Erro desconhecido'
             },
             { status: 500 }

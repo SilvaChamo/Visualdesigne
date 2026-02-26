@@ -696,3 +696,18 @@ Auth state changed: INITIAL_SESSION undefined
 ⚠ You are using an experimental edge runtime, the API might change.
 ✓ Compiled in 71ms
 ⚠ You are using an experimental edge runtime, the API might change.
+Auth state changed: INITIAL_SESSION undefined
+ GET /admin 200 in 479ms (compile: 96ms, render: 382ms)
+ POST /api/server-exec 200 in 11.5s (compile: 123ms, render: 11.4s)
+ POST /api/server-exec 200 in 11.5s (compile: 144ms, render: 11.4s)
+ POST /api/server-exec 200 in 11.5s (compile: 138ms, render: 11.4s)
+⚠ You are using an experimental edge runtime, the API might change.
+✓ Compiled in 1050ms
+⚠ You are using an experimental edge runtime, the API might change.
+✓ Compiled in 86ms
+⚠ You are using an experimental edge runtime, the API might change.
+✓ Compiled in 96ms
+⚠ You are using an experimental edge runtime, the API might change.
+⚠ You are using an experimental edge runtime, the API might change.
+⚠ You are using an experimental edge runtime, the API might change.
+✓ Compiled in 533ms
