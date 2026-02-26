@@ -13,7 +13,7 @@ import {
   RefreshCw, Globe, PlusCircle, Plus, Package, Trash2, Database, Users, Mail, Lock, LockOpen, Shield,
   Server, HardDrive, Key, Settings, Code, AlertCircle, CheckCircle, Eye, EyeOff,
   ExternalLink, Copy, FolderOpen, Layers, Play, Pause, Edit, Edit2, Cloud, RotateCcw,
-  Upload, Download, Power, Plug, FileText, ArrowRight, Rocket, Archive
+  Upload, Download, Power, Plug, FileText, ArrowRight, Rocket, Archive, Check, X
 } from 'lucide-react'
 
 // ============================================================
@@ -4026,6 +4026,705 @@ export function BackupManagerSection({ sites }: { sites: CyberPanelWebsite[] }) 
             ))}
           </tbody>
         </table>
+      </div>
+    </div>
+  )
+}
+
+// WordPress Install Section
+export function WordPressInstallSection({ sites }: { sites: CyberPanelWebsite[] }) {
+  const [loading, setLoading] = useState(false)
+  const [installing, setInstalling] = useState(false)
+  const [showPassword, setShowPassword] = useState(false)
+  const [showDBPassword, setShowDBPassword] = useState(false)
+  const [passwordStrength, setPasswordStrength] = useState<'weak' | 'medium' | 'strong'>('weak')
+  const [message, setMessage] = useState('')
+  const [success, setSuccess] = useState(false)
+
+  const [form, setForm] = useState({
+    protocol: 'https' as 'http' | 'https',
+    domain: '',
+    directory: '',
+    version: '6.7.1',
+    siteName: '',
+    siteDescription: '',
+    enableMultisite: false,
+    disableWPCron: false,
+    adminUsername: '',
+    adminPassword: '',
+    adminEmail: '',
+    databaseName: '',
+    databaseUser: '',
+    databasePassword: ''
+  })
+
+  const wordpressVersions = ['6.7.1', '6.6.2', '6.5.5', '6.4.3']
+
+  const getPasswordStrength = (password: string): 'weak' | 'medium' | 'strong' => {
+    if (!password) return 'weak'
+    
+    let strength = 0
+    if (password.length >= 8) strength++
+    if (password.length >= 12) strength++
+    if (/[a-z]/.test(password)) strength++
+    if (/[A-Z]/.test(password)) strength++
+    if (/[0-9]/.test(password)) strength++
+    if (/[^a-zA-Z0-9]/.test(password)) strength++
+
+    if (strength <= 2) return 'weak'
+    if (strength <= 4) return 'medium'
+    return 'strong'
+  }
+
+  const handlePasswordChange = (password: string) => {
+    setForm({ ...form, adminPassword: password })
+    setPasswordStrength(getPasswordStrength(password))
+  }
+
+  const generateDBCredentials = () => {
+    if (!form.domain) return
+    
+    const domainClean = form.domain.replace(/[^a-zA-Z0-9]/g, '').toLowerCase()
+    const dbName = `${domainClean}_wp`
+    const dbUser = `${domainClean}_wpuser`
+    const dbPassword = Math.random().toString(36).slice(-12)
+
+    setForm({
+      ...form,
+      databaseName: dbName,
+      databaseUser: dbUser,
+      databasePassword: dbPassword
+    })
+  }
+
+  useEffect(() => {
+    generateDBCredentials()
+  }, [form.domain])
+
+  const getFinalURL = () => {
+    const url = `${form.protocol}://${form.domain}`
+    return form.directory ? `${url}/${form.directory}` : url
+  }
+
+  const handleInstall = async () => {
+    setInstalling(true)
+    setMessage('')
+    
+    try {
+      const response = await fetch('/api/cyberpanel-wp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'installWordPress',
+          ...form
+        })
+      })
+
+      const data = await response.json()
+      
+      if (data.success) {
+        setSuccess(true)
+        setMessage('WordPress instalado com sucesso!')
+      } else {
+        setMessage(`Erro: ${data.error || 'Falha na instalação'}`)
+      }
+    } catch (error) {
+      setMessage('Erro de conexão com o servidor')
+    }
+    
+    setInstalling(false)
+  }
+
+  const getPasswordStrengthColor = () => {
+    switch (passwordStrength) {
+      case 'weak': return 'text-red-500'
+      case 'medium': return 'text-yellow-500'
+      case 'strong': return 'text-green-500'
+    }
+  }
+
+  const getPasswordStrengthText = () => {
+    switch (passwordStrength) {
+      case 'weak': return 'Fraca'
+      case 'medium': return 'Média'
+      case 'strong': return 'Forte'
+    }
+  }
+
+  return (
+    <div className="space-y-6 w-full">
+      <div>
+        <h1 className="text-3xl font-bold text-gray-900">Instalar WordPress</h1>
+        <p className="text-gray-500 mt-1">Instale o WordPress em qualquer domínio com configuração avançada</p>
+      </div>
+
+      {message && (
+        <div className={`p-4 rounded-lg ${success ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-700 border border-red-200'}`}>
+          <div className="flex items-center gap-2">
+            {success ? <Check className="w-5 h-5" /> : <X className="w-5 h-5" />}
+            <span>{message}</span>
+          </div>
+          {success && (
+            <div className="mt-3 flex gap-3">
+              <a href={`${getFinalURL()}/wp-admin`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors">
+                <ExternalLink className="w-4 h-4" />
+                WP Admin
+              </a>
+              <a href={getFinalURL()} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 bg-gray-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-gray-700 transition-colors">
+                <Globe className="w-4 h-4" />
+                Ver Site
+              </a>
+            </div>
+          )}
+        </div>
+      )}
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Configuração do Software */}
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200">
+          <div className="border-b border-blue-500 px-6 py-4">
+            <h2 className="text-lg font-semibold text-gray-900">Configuração do Software</h2>
+          </div>
+          <div className="p-6 space-y-4">
+            <div>
+              <label className="block text-xs font-bold text-gray-600 uppercase mb-1.5">Protocolo</label>
+              <select
+                value={form.protocol}
+                onChange={(e) => setForm({ ...form, protocol: e.target.value as 'http' | 'https' })}
+                className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm"
+              >
+                <option value="http">http://</option>
+                <option value="https">https://</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-gray-600 uppercase mb-1.5">Domínio</label>
+              <select
+                value={form.domain}
+                onChange={(e) => setForm({ ...form, domain: e.target.value })}
+                className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm"
+              >
+                <option value="">Selecione um domínio</option>
+                {sites.map((site) => (
+                  <option key={site.domain} value={site.domain}>
+                    {site.domain}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-gray-600 uppercase mb-1.5">Diretório</label>
+              <input
+                type="text"
+                value={form.directory}
+                onChange={(e) => setForm({ ...form, directory: e.target.value })}
+                placeholder="wp (vazio para raiz)"
+                className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-gray-600 uppercase mb-1.5">Versão WordPress</label>
+              <select
+                value={form.version}
+                onChange={(e) => setForm({ ...form, version: e.target.value })}
+                className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm"
+              >
+                {wordpressVersions.map((version) => (
+                  <option key={version} value={version}>
+                    WordPress {version}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="p-3 bg-gray-50 rounded-lg">
+              <div className="text-xs font-bold text-gray-600 uppercase mb-1">URL Final</div>
+              <div className="text-sm font-mono text-blue-600">{getFinalURL()}</div>
+            </div>
+          </div>
+        </div>
+
+        {/* Configurações do Site */}
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200">
+          <div className="border-b border-blue-500 px-6 py-4">
+            <h2 className="text-lg font-semibold text-gray-900">Configurações do Site</h2>
+          </div>
+          <div className="p-6 space-y-4">
+            <div>
+              <label className="block text-xs font-bold text-gray-600 uppercase mb-1.5">Nome do Site</label>
+              <input
+                type="text"
+                value={form.siteName}
+                onChange={(e) => setForm({ ...form, siteName: e.target.value })}
+                placeholder="Meu Site WordPress"
+                className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-gray-600 uppercase mb-1.5">Descrição do Site</label>
+              <textarea
+                value={form.siteDescription}
+                onChange={(e) => setForm({ ...form, siteDescription: e.target.value })}
+                placeholder="Um site WordPress incrível"
+                rows={3}
+                className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={form.enableMultisite}
+                  onChange={(e) => setForm({ ...form, enableMultisite: e.target.checked })}
+                  className="w-4 h-4 text-blue-600 border-gray-300 rounded"
+                />
+                <span className="text-sm text-gray-700">Ativar Multisite (WPMU)</span>
+              </label>
+
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={form.disableWPCron}
+                  onChange={(e) => setForm({ ...form, disableWPCron: e.target.checked })}
+                  className="w-4 h-4 text-blue-600 border-gray-300 rounded"
+                />
+                <span className="text-sm text-gray-700">Desativar WordPress Cron</span>
+              </label>
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-gray-600 uppercase mb-1.5">Nome de Utilizador</label>
+              <input
+                type="text"
+                value={form.adminUsername}
+                onChange={(e) => setForm({ ...form, adminUsername: e.target.value })}
+                placeholder="admin"
+                className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-gray-600 uppercase mb-1.5">Senha</label>
+              <div className="relative">
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  value={form.adminPassword}
+                  onChange={(e) => handlePasswordChange(e.target.value)}
+                  placeholder="Senha forte"
+                  className="w-full px-3 py-2.5 pr-10 border border-gray-300 rounded-lg text-sm"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                >
+                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
+              {form.adminPassword && (
+                <div className={`mt-1 text-xs ${getPasswordStrengthColor()}`}>
+                  Força da senha: {getPasswordStrengthText()}
+                </div>
+              )}
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-gray-600 uppercase mb-1.5">Email</label>
+              <input
+                type="email"
+                value={form.adminEmail}
+                onChange={(e) => setForm({ ...form, adminEmail: e.target.value })}
+                placeholder="admin@exemplo.com"
+                className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm"
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* Base de Dados */}
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200">
+          <div className="border-b border-blue-500 px-6 py-4">
+            <h2 className="text-lg font-semibold text-gray-900">Base de Dados</h2>
+          </div>
+          <div className="p-6 space-y-4">
+            <div>
+              <label className="block text-xs font-bold text-gray-600 uppercase mb-1.5">Nome da Base de Dados</label>
+              <input
+                type="text"
+                value={form.databaseName}
+                onChange={(e) => setForm({ ...form, databaseName: e.target.value })}
+                placeholder="visualdesign_wp"
+                className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-gray-600 uppercase mb-1.5">Utilizador BD</label>
+              <input
+                type="text"
+                value={form.databaseUser}
+                onChange={(e) => setForm({ ...form, databaseUser: e.target.value })}
+                placeholder="visualdesign_wpuser"
+                className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-gray-600 uppercase mb-1.5">Senha BD</label>
+              <div className="relative">
+                <input
+                  type={showDBPassword ? 'text' : 'password'}
+                  value={form.databasePassword}
+                  onChange={(e) => setForm({ ...form, databasePassword: e.target.value })}
+                  placeholder="Senha do banco de dados"
+                  className="w-full px-3 py-2.5 pr-10 border border-gray-300 rounded-lg text-sm"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowDBPassword(!showDBPassword)}
+                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                >
+                  {showDBPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
+            </div>
+
+            <div className="p-3 bg-blue-50 rounded-lg">
+              <p className="text-sm text-blue-700">
+                <strong>Nota:</strong> A base de dados e o utilizador serão criados automaticamente no servidor
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* Botão Instalar */}
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+          <button
+            onClick={handleInstall}
+            disabled={installing || !form.domain || !form.siteName || !form.adminUsername || !form.adminPassword || !form.adminEmail}
+            className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white px-6 py-3 rounded-lg font-medium transition-colors flex items-center justify-center gap-2"
+          >
+            {installing ? (
+              <>
+                <RefreshCw className="w-5 h-5 animate-spin" />
+                Instalando WordPress...
+              </>
+            ) : (
+              <>
+                <Database className="w-5 h-5" />
+                Instalar WordPress
+              </>
+            )}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// WordPress Backup Section
+export function WPBackupSection({ sites }: { sites: CyberPanelWebsite[] }) {
+  const [loading, setLoading] = useState(false)
+  const [backingUp, setBackingUp] = useState(false)
+  const [message, setMessage] = useState('')
+  const [selectedSite, setSelectedSite] = useState('')
+  const [includeDirectory, setIncludeDirectory] = useState(true)
+  const [includeDatabase, setIncludeDatabase] = useState(true)
+  const [backupNote, setBackupNote] = useState('')
+  const [backupLocation, setBackupLocation] = useState('Padrão')
+  const [wpInfo, setWpInfo] = useState<any>(null)
+  const [backups, setBackups] = useState<any[]>([])
+
+  const backupLocations = ['Padrão', 'Google Drive', 'Dropbox', 'FTP Remoto']
+
+  useEffect(() => {
+    if (selectedSite) {
+      loadWPInfo()
+      loadBackups()
+    }
+  }, [selectedSite])
+
+  const loadWPInfo = async () => {
+    setLoading(true)
+    try {
+      const response = await fetch('/api/cyberpanel-wp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'getWPInfo',
+          domain: selectedSite
+        })
+      })
+
+      const data = await response.json()
+      if (data.success) {
+        setWpInfo(data.info)
+      }
+    } catch (error) {
+      console.error('Erro ao carregar informações WordPress:', error)
+    }
+    setLoading(false)
+  }
+
+  const loadBackups = async () => {
+    try {
+      const response = await fetch('/api/cyberpanel-wp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'getWPBackups',
+          domain: selectedSite
+        })
+      })
+
+      const data = await response.json()
+      if (data.success) {
+        setBackups(data.backups || [])
+      }
+    } catch (error) {
+      console.error('Erro ao carregar backups:', error)
+    }
+  }
+
+  const handleBackup = async () => {
+    setBackingUp(true)
+    setMessage('')
+    
+    try {
+      const response = await fetch('/api/cyberpanel-wp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'backupWordPress',
+          domain: selectedSite,
+          includeDirectory,
+          includeDatabase,
+          backupNote,
+          backupLocation
+        })
+      })
+
+      const data = await response.json()
+      
+      if (data.success) {
+        setMessage('Backup criado com sucesso!')
+        loadBackups()
+      } else {
+        setMessage(`Erro: ${data.error || 'Falha no backup'}`)
+      }
+    } catch (error) {
+      setMessage('Erro de conexão com o servidor')
+    }
+    
+    setBackingUp(false)
+  }
+
+  const handleDeleteBackup = async (backupId: string) => {
+    try {
+      const response = await fetch('/api/cyberpanel-wp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'deleteWPBackup',
+          domain: selectedSite,
+          backupId
+        })
+      })
+
+      const data = await response.json()
+      if (data.success) {
+        loadBackups()
+      }
+    } catch (error) {
+      console.error('Erro ao eliminar backup:', error)
+    }
+  }
+
+  return (
+    <div className="space-y-6 w-full">
+      <div>
+        <h1 className="text-3xl font-bold text-gray-900">Backup WordPress</h1>
+        <p className="text-gray-500 mt-1">Crie e gerencie backups de instalações WordPress</p>
+      </div>
+
+      {message && (
+        <div className={`p-4 rounded-lg ${message.includes('sucesso') ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-700 border border-red-200'}`}>
+          <div className="flex items-center gap-2">
+            {message.includes('sucesso') ? <Check className="w-5 h-5" /> : <X className="w-5 h-5" />}
+            <span>{message}</span>
+          </div>
+        </div>
+      )}
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Configuração de Backup */}
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200">
+          <div className="border-b border-blue-500 px-6 py-4">
+            <h2 className="text-lg font-semibold text-gray-900">Configurar Backup</h2>
+          </div>
+          <div className="p-6 space-y-4">
+            <div>
+              <label className="block text-xs font-bold text-gray-600 uppercase mb-1.5">Selecionar Website</label>
+              <select
+                value={selectedSite}
+                onChange={(e) => setSelectedSite(e.target.value)}
+                className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm"
+              >
+                <option value="">Selecione um website</option>
+                {sites.map((site) => (
+                  <option key={site.domain} value={site.domain}>
+                    {site.domain}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="space-y-2">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={includeDirectory}
+                  onChange={(e) => setIncludeDirectory(e.target.checked)}
+                  className="w-4 h-4 text-blue-600 border-gray-300 rounded"
+                />
+                <div>
+                  <span className="text-sm text-gray-700">Diretório de backup</span>
+                  <p className="text-xs text-gray-500">Se marcar esta opção, toda a pasta será incluída no backup</p>
+                </div>
+              </label>
+
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={includeDatabase}
+                  onChange={(e) => setIncludeDatabase(e.target.checked)}
+                  className="w-4 h-4 text-blue-600 border-gray-300 rounded"
+                />
+                <div>
+                  <span className="text-sm text-gray-700">Backup do banco de dados</span>
+                  <p className="text-xs text-gray-500">Se marcado, o banco de dados também será incluído no backup</p>
+                </div>
+              </label>
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-gray-600 uppercase mb-1.5">Nota do backup</label>
+              <textarea
+                value={backupNote}
+                onChange={(e) => setBackupNote(e.target.value)}
+                placeholder="Descrição deste backup..."
+                rows={3}
+                className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-gray-600 uppercase mb-1.5">Local backup</label>
+              <select
+                value={backupLocation}
+                onChange={(e) => setBackupLocation(e.target.value)}
+                className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm"
+              >
+                {backupLocations.map((location) => (
+                  <option key={location} value={location}>
+                    {location}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <button
+              onClick={handleBackup}
+              disabled={backingUp || !selectedSite}
+              className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white px-6 py-3 rounded-lg font-medium transition-colors flex items-center justify-center gap-2"
+            >
+              {backingUp ? (
+                <>
+                  <RefreshCw className="w-5 h-5 animate-spin" />
+                  Fazendo Backup...
+                </>
+              ) : (
+                <>
+                  <Archive className="w-5 h-5" />
+                  Backup da Instalação
+                </>
+              )}
+            </button>
+          </div>
+        </div>
+
+        {/* Informações WordPress */}
+        {wpInfo && (
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200">
+            <div className="border-b border-blue-500 px-6 py-4">
+              <h2 className="text-lg font-semibold text-gray-900">Informações</h2>
+            </div>
+            <div className="p-6 space-y-3">
+              <div className="flex justify-between">
+                <span className="text-sm text-gray-600">Software:</span>
+                <span className="text-sm font-medium">{wpInfo.software}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-sm text-gray-600">Versão:</span>
+                <span className="text-sm font-medium">{wpInfo.version}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-sm text-gray-600">Caminho:</span>
+                <span className="text-sm font-medium">{wpInfo.path}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-sm text-gray-600">URL:</span>
+                <span className="text-sm font-medium">{wpInfo.url}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-sm text-gray-600">Nome BD:</span>
+                <span className="text-sm font-medium">{wpInfo.databaseName}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-sm text-gray-600">Utilizador BD:</span>
+                <span className="text-sm font-medium">{wpInfo.databaseUser}</span>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Lista de Backups */}
+        {backups.length > 0 && (
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 lg:col-span-2">
+            <div className="border-b border-blue-500 px-6 py-4">
+              <h2 className="text-lg font-semibold text-gray-900">Backups Disponíveis</h2>
+            </div>
+            <div className="p-6">
+              <div className="space-y-3">
+                {backups.map((backup) => (
+                  <div key={backup.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                    <div>
+                      <div className="font-medium text-sm">{backup.filename}</div>
+                      <div className="text-xs text-gray-500">{backup.date} - {backup.size}</div>
+                      {backup.note && <div className="text-xs text-gray-600 mt-1">{backup.note}</div>}
+                    </div>
+                    <div className="flex gap-2">
+                      <button className="text-blue-600 hover:text-blue-700 text-sm font-medium">
+                        Download
+                      </button>
+                      <button
+                        onClick={() => handleDeleteBackup(backup.id)}
+                        className="text-red-600 hover:text-red-700 text-sm font-medium"
+                      >
+                        Eliminar
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   )
