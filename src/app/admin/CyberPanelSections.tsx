@@ -13,7 +13,7 @@ import {
   RefreshCw, Globe, PlusCircle, Plus, Package, Trash2, Database, Users, Mail, Lock, LockOpen, Shield,
   Server, HardDrive, Key, Settings, Code, AlertCircle, CheckCircle, Eye, EyeOff,
   ExternalLink, Copy, FolderOpen, Layers, Play, Pause, Edit, Edit2, Cloud, RotateCcw,
-  Upload, Download, Power, Plug, FileText, ArrowRight, Rocket
+  Upload, Download, Power, Plug, FileText, ArrowRight, Rocket, Archive
 } from 'lucide-react'
 
 // ============================================================
@@ -1913,35 +1913,6 @@ export function SSLSection({ sites }: { sites: CyberPanelWebsite[] }) {
   const [selectedDomain, setSelectedDomain] = useState('')
   const [issuing, setIssuing] = useState(false)
   const [msg, setMsg] = useState('')
-  const [sslStatus, setSSLStatus] = useState<Record<string, boolean>>({})
-  const [checkingSSL, setCheckingSSL] = useState(true)
-
-  // Verificar SSL real via SSH (testa se HTTPS funciona)
-  const checkSSLReal = async (domain: string): Promise<boolean> => {
-    const res = await fetch('/api/server-exec', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        action: 'execCommand',
-        params: { command: `timeout 10 openssl s_client -connect ${domain}:443 -servername ${domain} 2>/dev/null | grep -q "Verification: OK" && echo "SSL_VALID" || echo "SSL_INVALID"` }
-      })
-    })
-    const data = await res.json()
-    return (data.data?.output || '').includes('SSL_VALID')
-  }
-
-  // Carregar estado SSL real de todos os sites
-  useEffect(() => {
-    const checkAll = async () => {
-      setCheckingSSL(true)
-      const results: Record<string, boolean> = {}
-      for (const site of sites) {
-        results[site.domain] = await checkSSLReal(site.domain)
-      }
-      setSSLStatus(results)
-      setCheckingSSL(false)
-    }
-    if (sites.length > 0) checkAll()
-  }, [sites])
 
   const handleIssueSSL = async () => {
     if (!selectedDomain) return
@@ -1985,10 +1956,6 @@ export function SSLSection({ sites }: { sites: CyberPanelWebsite[] }) {
 
       if (output.toLowerCase().includes('success') || output.toLowerCase().includes('issued')) {
         setMsg(`✅ SSL emitido com sucesso para ${selectedDomain}!`)
-        // Recarregar estados SSL
-        const newSSLStatus = { ...sslStatus }
-        newSSLStatus[selectedDomain] = true
-        setSSLStatus(newSSLStatus)
       } else {
         setMsg(`⚠️ Erro ao emitir SSL:\n\n${output}`)
       }
@@ -2025,23 +1992,17 @@ export function SSLSection({ sites }: { sites: CyberPanelWebsite[] }) {
           <h3 className="font-bold text-gray-900 mb-3">Estado SSL dos Websites</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
             {sites.map(s => (
-              <div key={s.domain} className="flex items-center gap-3 p-4 border border-gray-200 rounded-lg hover:bg-gray-50">
-                {checkingSSL ? (
-                  <RefreshCw className="w-5 h-5 text-gray-400 animate-spin" />
-                ) : sslStatus[s.domain] ? (
-                  <Lock className="w-5 h-5 text-green-500" />
-                ) : (
-                  <LockOpen className="w-5 h-5 text-red-400" />
-                )}
+              <div key={s.domain} className={`flex items-center gap-3 p-4 border rounded-lg
+                ${s.ssl ? 'border-green-200 bg-green-50' : 'border-red-200 bg-red-50'}`}>
+                {s.ssl 
+                  ? <Lock className="w-5 h-5 text-green-500" />
+                  : <LockOpen className="w-5 h-5 text-red-400" />
+                }
                 <div>
                   <p className="text-sm font-bold text-gray-900">{s.domain}</p>
-                  {checkingSSL ? (
-                    <p className="text-xs text-gray-400">A verificar...</p>
-                  ) : sslStatus[s.domain] ? (
-                    <p className="text-xs text-green-600 font-medium">SSL Activo</p>
-                  ) : (
-                    <p className="text-xs text-red-500 font-medium">Sem SSL</p>
-                  )}
+                  <p className={`text-xs font-medium ${s.ssl ? 'text-green-600' : 'text-red-500'}`}>
+                    {s.ssl ? 'SSL Activo' : 'Sem SSL'}
+                  </p>
                 </div>
               </div>
             ))}
@@ -3790,6 +3751,232 @@ export function FileManagerSection({ domain, sites }: {
                 <td className="px-4 py-2.5 text-gray-500 font-mono text-xs">{f.permissions}</td>
                 <td className="px-4 py-2.5 text-gray-500 text-xs">{f.size}</td>
                 <td className="px-4 py-2.5 text-gray-500 text-xs">{f.date}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  )
+}
+
+// ============================================================
+// BACKUP MANAGER SECTION
+// ============================================================
+export function BackupManagerSection({ sites }: { sites: CyberPanelWebsite[] }) {
+  const [activeTab, setActiveTab] = useState<'full' | 'files' | 'databases' | 'emails' | 'ftp'>('full')
+  const [selectedDomain, setSelectedDomain] = useState('')
+  const [backups, setBackups] = useState<any[]>([])
+  const [loading, setLoading] = useState(false)
+  const [creating, setCreating] = useState(false)
+  const [msg, setMsg] = useState('')
+  const [msgType, setMsgType] = useState<'success'|'error'>('success')
+
+  const tabs = [
+    { id: 'full', label: 'Conta Completa', icon: '🗂️' },
+    { id: 'files', label: 'Ficheiros', icon: '📁' },
+    { id: 'databases', label: 'Bases de Dados', icon: '🗄️' },
+    { id: 'emails', label: 'Email Accounts', icon: '✉️' },
+    { id: 'ftp', label: 'FTP Accounts', icon: '📡' },
+  ]
+
+  const showMsg = (text: string, type: 'success'|'error' = 'success') => {
+    setMsg(text); setMsgType(type)
+    setTimeout(() => setMsg(''), 4000)
+  }
+
+  const loadBackups = async (domain: string, tab: string) => {
+    if (!domain) return
+    setLoading(true)
+    const res = await fetch('/api/server-exec', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'execCommand',
+        params: { command: `ls -lht /home/backup/${tab}/ 2>/dev/null | grep ${domain} || echo "NO_BACKUPS"` }
+      })
+    })
+    const data = await res.json()
+    const lines = (data.data?.output || '').split('\n').filter((l: string) =>
+      l.trim() && !l.startsWith('total') && l.includes(domain)
+    )
+    setBackups(lines.map((line: string) => {
+      const parts = line.trim().split(/\s+/)
+      return {
+        size: parts[4] || 'N/A',
+        date: `${parts[5] || ''} ${parts[6] || ''} ${parts[7] || ''}`,
+        filename: parts[8] || '',
+        path: `/home/backup/${tab}/${parts[8] || ''}` 
+      }
+    }).filter((b: any) => b.filename))
+    setLoading(false)
+  }
+
+  useEffect(() => {
+    if (selectedDomain) loadBackups(selectedDomain, activeTab)
+  }, [selectedDomain, activeTab])
+
+  const handleCreate = async () => {
+    if (!selectedDomain) return
+    setCreating(true)
+    const commands: Record<string, string> = {
+      full: `mkdir -p /home/backup/full && cyberpanel createBackup --domainName ${selectedDomain} --backupPath /home/backup/full 2>&1`,
+      files: `mkdir -p /home/backup/files && tar -czf /home/backup/files/${selectedDomain}_files_$(date +%Y%m%d_%H%M%S).tar.gz /home/${selectedDomain}/public_html/ 2>&1 && echo "SUCCESS"`,
+      databases: `mkdir -p /home/backup/databases && mysqldump --all-databases 2>/dev/null | gzip > /home/backup/databases/${selectedDomain}_db_$(date +%Y%m%d_%H%M%S).sql.gz && echo "SUCCESS"`,
+      emails: `mkdir -p /home/backup/emails && tar -czf /home/backup/emails/${selectedDomain}_emails_$(date +%Y%m%d_%H%M%S).tar.gz /home/vmail/${selectedDomain}/ 2>&1 && echo "SUCCESS"`,
+      ftp: `mkdir -p /home/backup/ftp && tar -czf /home/backup/ftp/${selectedDomain}_ftp_$(date +%Y%m%d_%H%M%S).tar.gz /home/${selectedDomain}/ 2>&1 && echo "SUCCESS"`,
+    }
+    const res = await fetch('/api/server-exec', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'execCommand', params: { command: commands[activeTab] } })
+    })
+    const data = await res.json()
+    const output = data.data?.output || ''
+    if (output.includes('SUCCESS') || !output.toLowerCase().includes('error')) {
+      showMsg(`Backup criado com sucesso!`)
+      await loadBackups(selectedDomain, activeTab)
+    } else {
+      showMsg('Erro: ' + output, 'error')
+    }
+    setCreating(false)
+  }
+
+  const handleRestore = async (filename: string, path: string) => {
+    if (!confirm(`Restaurar "${filename}"?\n\nISTO VAI SUBSTITUIR OS DADOS ACTUAIS!`)) return
+    setLoading(true)
+    const res = await fetch('/api/server-exec', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'execCommand',
+        params: { command: `cyberpanel restoreBackup --domainName ${selectedDomain} --fileName ${filename} --backupPath /home/backup/${activeTab} 2>&1` }
+      })
+    })
+    const data = await res.json()
+    const output = data.data?.output || ''
+    if (!output.toLowerCase().includes('error')) showMsg('Restaurado com sucesso!')
+    else showMsg('Erro: ' + output, 'error')
+    setLoading(false)
+  }
+
+  const handleDownload = async (path: string, filename: string) => {
+    setLoading(true)
+    const res = await fetch('/api/server-exec', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'execCommand',
+        params: { command: `base64 ${path} 2>&1` }
+      })
+    })
+    const data = await res.json()
+    const content = data.data?.output || ''
+    if (content && !content.toLowerCase().includes('error')) {
+      try {
+        const blob = new Blob(
+          [Uint8Array.from(atob(content.trim()), c => c.charCodeAt(0))],
+          { type: 'application/gzip' }
+        )
+        const a = document.createElement('a')
+        a.href = URL.createObjectURL(blob)
+        a.download = filename; a.click()
+        showMsg('Download iniciado!')
+      } catch { showMsg('Erro no download', 'error') }
+    } else {
+      showMsg('Erro: ' + content, 'error')
+    }
+    setLoading(false)
+  }
+
+  return (
+    <div className="w-full space-y-4">
+
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-xl font-bold text-gray-900">Restore & Download</h1>
+          <p className="text-xs text-gray-400 mt-0.5">Gere backups de sites, ficheiros, bases de dados e emails</p>
+        </div>
+        <div className="flex items-center gap-3">
+          <select value={selectedDomain}
+            onChange={e => setSelectedDomain(e.target.value)}
+            className="px-3 py-2 border border-gray-300 rounded-lg text-sm w-52">
+            <option value="">Seleccionar domínio...</option>
+            {sites.map(s => <option key={s.domain} value={s.domain}>{s.domain}</option>)}
+          </select>
+          <button onClick={handleCreate} disabled={!selectedDomain || creating}
+            className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 disabled:opacity-50 transition-colors">
+            {creating ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
+            {creating ? 'A criar...' : 'Criar Backup'}
+          </button>
+        </div>
+      </div>
+
+      {/* Mensagem */}
+      {msg && (
+        <div className={`px-4 py-2.5 rounded-lg text-sm font-medium border ${
+          msgType === 'success'
+            ? 'bg-green-50 text-green-700 border-green-200'
+            : 'bg-red-50 text-red-700 border-red-200'
+        }`}>{msg}</div>
+      )}
+
+      {/* Tabs */}
+      <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+        <div className="flex border-b border-gray-200 bg-gray-50">
+          {tabs.map(tab => (
+            <button key={tab.id} onClick={() => setActiveTab(tab.id as any)}
+              className={`flex items-center gap-2 px-4 py-3 text-sm font-medium transition-colors border-b-2 ${
+                activeTab === tab.id
+                  ? 'border-red-600 text-red-600 bg-white'
+                  : 'border-transparent text-gray-500 hover:text-gray-700'
+              }`}>
+              <span>{tab.icon}</span>
+              {tab.label}
+            </button>
+          ))}
+        </div>
+
+        {/* Tabela de backups */}
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="text-left text-xs font-bold text-gray-500 uppercase border-b bg-gray-50">
+              <th className="px-4 py-3">Ficheiro</th>
+              <th className="px-4 py-3">Data</th>
+              <th className="px-4 py-3">Tamanho</th>
+              <th className="px-4 py-3">Notas</th>
+              <th className="px-4 py-3">Acções</th>
+            </tr>
+          </thead>
+          <tbody>
+            {!selectedDomain ? (
+              <tr><td colSpan={5} className="px-4 py-10 text-center text-gray-400">
+                Selecciona um domínio para ver os backups
+              </td></tr>
+            ) : loading ? (
+              <tr><td colSpan={5} className="px-4 py-10 text-center">
+                <RefreshCw className="w-5 h-5 animate-spin mx-auto text-gray-400" />
+              </td></tr>
+            ) : backups.length === 0 ? (
+              <tr><td colSpan={5} className="px-4 py-10 text-center text-gray-400">
+                Nenhum backup encontrado para {selectedDomain}.<br/>
+                <span className="text-xs">Clica em "Criar Backup" para criar o primeiro.</span>
+              </td></tr>
+            ) : backups.map((b, i) => (
+              <tr key={i} className="border-b border-gray-50 hover:bg-gray-50">
+                <td className="px-4 py-3 font-mono text-xs text-gray-700">{b.filename}</td>
+                <td className="px-4 py-3 text-gray-500 text-xs">{b.date}</td>
+                <td className="px-4 py-3 text-gray-500 text-xs">{b.size}</td>
+                <td className="px-4 py-3 text-gray-400 text-xs italic">—</td>
+                <td className="px-4 py-3">
+                  <div className="flex items-center gap-2">
+                    <button onClick={() => handleRestore(b.filename, b.path)}
+                      className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1 transition-colors">
+                      <RefreshCw className="w-3 h-3" /> Restaurar
+                    </button>
+                    <button onClick={() => handleDownload(b.path, b.filename)}
+                      className="bg-gray-700 hover:bg-gray-800 text-white px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1 transition-colors">
+                      ↓ Download
+                    </button>
+                  </div>
+                </td>
               </tr>
             ))}
           </tbody>
