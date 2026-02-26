@@ -613,7 +613,10 @@ export default function AdminPage() {
         body: JSON.stringify({ action: 'listWebsites', params: {} })
       })
       const data = await res.json()
-      if (data.success) setCyberPanelSites(data.data || [])
+      // CORRIGIR — garantir que usa data.data.sites e não data.data
+      const sites = Array.isArray(data.data?.sites) ? data.data.sites : 
+                    Array.isArray(data.data) ? data.data : []
+      if (data.success) setCyberPanelSites(sites)
     } catch (e) { console.error(e) }
     setSyncing(false)
   }

@@ -11,6 +11,20 @@ async function run(action: string, params: Record<string, any> = {}) {
   return j.data;
 }
 
+// Função específica para listWebsites que retorna sites
+async function runSites(action: string, params: Record<string, any> = {}) {
+  const res = await fetch(EXEC, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action, params }),
+  });
+  const j = await res.json();
+  if (!j.success) throw new Error(j.error);
+  // Para listWebsites, retornar sites array
+  return Array.isArray(j.data?.sites) ? j.data.sites : 
+         Array.isArray(j.data) ? j.data : [];
+}
+
 export interface CyberPanelWebsite {
   id: string | number;
   domain: string;
@@ -79,7 +93,7 @@ const cmd = (command: string) => run('execCommand', { command });
 
 export const cyberPanelAPI = {
   // Websites
-  listWebsites:            ()                    => run('listWebsites'),
+  listWebsites:            ()                    => runSites('listWebsites'),
   listPackages:            ()                    => run('listPackages'),
   listUsers:               ()                    => run('listUsers'),
   createWebsite:           (p: any)              => run('createWebsite', p),
