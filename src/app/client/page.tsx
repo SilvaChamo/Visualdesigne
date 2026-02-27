@@ -219,27 +219,27 @@ function EmailWebmailSection() {
       {/* TOOLBAR PRINCIPAL */}
       <div className="bg-gray-900 px-4 py-2 flex items-center gap-2 flex-wrap border-b border-gray-800">
         <button onClick={() => { setMostrarCompose(true); setEnviado(false) }}
-          className="bg-green-500 hover:bg-green-600 text-white px-5 py-2 rounded-lg text-sm font-bold flex items-center gap-2 shadow-lg">
-          ✏️ Escrever
-        </button>
-        <a href="https://109.199.104.22:8090/rainloop/" target="_blank"
-          className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-xs font-bold flex items-center gap-2">
-          🌐 Webmail
-        </a>
+  className="bg-red-600 hover:bg-red-700 text-white px-4 py-1.5 rounded-md text-sm font-bold flex items-center gap-2 transition-colors">
+  ✏️ Escrever
+</button>
+<a href="https://webmail.visualdesigne.com" target="_blank"
+  className="bg-gray-600 hover:bg-red-600 text-white px-4 py-1.5 rounded-md text-sm font-bold flex items-center gap-2 transition-colors">
+  🌐 Webmail
+</a>
         <div className="w-px h-5 bg-gray-700 mx-1" />
         {pastas.map(p => (
           <button key={p} onClick={() => setPastaActiva(p)}
-            className={`px-3 py-1.5 rounded text-xs font-medium transition-colors ${pastaActiva === p ? 'bg-gray-600 text-white' : 'text-gray-400 hover:text-white hover:bg-gray-700'}`}>
+            className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${pastaActiva === p ? 'bg-gray-600 text-white' : 'text-gray-400 hover:text-white hover:bg-gray-700'}`}>
             {p}
           </button>
         ))}
         <div className="ml-auto flex items-center gap-2">
           <button onClick={() => setMostrarConfigAssinatura(true)}
-            className="text-gray-400 hover:text-white text-xs px-3 py-1.5 rounded border border-gray-700 hover:border-gray-500 transition-colors">
+            className="text-gray-300 hover:text-white hover:bg-red-600 text-sm px-4 py-1.5 rounded-md border border-gray-600 hover:border-red-600 transition-colors flex items-center gap-2">
             ✍️ Assinatura
           </button>
           <button onClick={() => setMostrarConfigContactos(true)}
-            className="text-gray-400 hover:text-white text-xs px-3 py-1.5 rounded border border-gray-700 hover:border-gray-500 transition-colors">
+            className="text-gray-300 hover:text-white hover:bg-red-600 text-sm px-4 py-1.5 rounded-md border border-gray-600 hover:border-red-600 transition-colors flex items-center gap-2">
             👥 Contactos
           </button>
         </div>
@@ -644,36 +644,62 @@ function EmailWebmailSection() {
   </div>
 )}
 
-      {/* MODAL CONTACTOS */}
       {mostrarConfigContactos && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[60]">
-          <div className="bg-white rounded-xl shadow-2xl p-6 w-full max-w-lg">
-            <h2 className="text-lg font-bold text-gray-900 mb-4">👥 Contactos Guardados</h2>
-            <div className="space-y-2 mb-4 max-h-48 overflow-y-auto">
-              {contactos.map((c, i) => (
-                <div key={i} className="flex items-center justify-between bg-gray-50 rounded-lg px-3 py-2 border border-gray-200">
-                  <div>
-                    <p className="text-sm font-bold text-gray-800">{c.nome}</p>
-                    <p className="text-xs text-gray-500">{c.email}</p>
-                  </div>
-                  <button onClick={() => setContactos(contactos.filter((_, j) => j !== i))}
-                    className="text-red-400 hover:text-red-600 text-xs">✕</button>
-                </div>
-              ))}
+  <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[60]">
+    <div className="bg-white rounded-lg shadow-2xl p-5 w-full max-w-md mx-4">
+      <div className="flex items-center justify-between mb-4">
+        <h2 className="text-base font-bold text-gray-900">👥 Contactos Guardados</h2>
+        <button onClick={() => setMostrarConfigContactos(false)}
+          className="text-gray-400 hover:text-red-600 text-lg font-bold transition-colors">✕</button>
+      </div>
+
+      {/* Lista de contactos */}
+      <div className="space-y-2 mb-4 max-h-48 overflow-y-auto">
+        {contactos.map((c, i) => (
+          <div key={i} className="flex items-center justify-between bg-gray-50 rounded-md px-3 py-2 border border-gray-200">
+            <div>
+              <p className="text-sm font-bold text-gray-800">{c.nome}</p>
+              <p className="text-xs text-gray-500">{c.email}</p>
             </div>
-            <div className="flex gap-2 mb-4">
-              <input value={novoContacto.nome} onChange={e => setNovoContacto({...novoContacto, nome: e.target.value})}
-                placeholder="Nome" className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm" />
-              <input value={novoContacto.email} onChange={e => setNovoContacto({...novoContacto, email: e.target.value})}
-                placeholder="Email" className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm" />
-              <button onClick={() => { if (novoContacto.nome && novoContacto.email) { setContactos([...contactos, novoContacto]); setNovoContacto({ nome: '', email: '' }) }}}
-                className="bg-red-600 hover:bg-red-700 text-white px-3 py-2 rounded-lg text-sm font-bold">+</button>
-            </div>
-            <button onClick={() => setMostrarConfigContactos(false)}
-              className="w-full bg-gray-800 hover:bg-gray-900 text-white py-2.5 rounded-lg text-sm font-bold">Fechar</button>
+            <button onClick={() => setContactos(contactos.filter((_, j) => j !== i))}
+              className="text-red-400 hover:text-red-600 text-xs font-bold transition-colors">✕</button>
           </div>
+        ))}
+        {contactos.length === 0 && (
+          <p className="text-xs text-gray-400 text-center py-3">Nenhum contacto guardado.</p>
+        )}
+      </div>
+
+      {/* Formulário novo contacto */}
+      <div className="border-t border-gray-200 pt-4">
+        <p className="text-xs font-bold text-gray-500 uppercase mb-2">Adicionar Contacto</p>
+        <div className="space-y-2 mb-3">
+          <input value={novoContacto.nome} onChange={e => setNovoContacto({...novoContacto, nome: e.target.value})}
+            placeholder="Nome completo" className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm outline-none focus:border-red-400" />
+          <input value={novoContacto.email} onChange={e => setNovoContacto({...novoContacto, email: e.target.value})}
+            placeholder="Email" className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm outline-none focus:border-red-400" />
         </div>
-      )}
+        <div className="flex items-center gap-2">
+          <button onClick={() => setMostrarConfigContactos(false)}
+            className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 py-2 rounded-md text-sm font-bold transition-colors">
+            Fechar
+          </button>
+          <button
+            onClick={() => {
+              if (novoContacto.nome && novoContacto.email) {
+                setContactos([...contactos, { nome: novoContacto.nome, email: novoContacto.email }])
+                setNovoContacto({ nome: '', email: '' })
+              }
+            }}
+            disabled={!novoContacto.nome || !novoContacto.email}
+            className="flex-1 bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white py-2 rounded-md text-sm font-bold transition-colors">
+            + Adicionar
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+)}
     </div>
   )
 }
@@ -1947,10 +1973,10 @@ export default function AdminPage() {
       {/* Main Content */}
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* Top Header */}
-        <header className="bg-white border-b border-gray-200 px-6 py-3">
+        <header className="bg-white border-b border-gray-200 px-4 py-3">
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-2xl font-bold text-gray-900 ml-6">
+              <h1 className="text-2xl font-bold text-gray-900 ml-2">
                 Dashboard
               </h1>
               <p className="text-xs text-gray-400 mt-0.5 ml-6">
