@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { 
   Home, Globe, Users, Mail, Shield, Database, Settings, 
   ChevronLeft, ChevronRight, Plus, Search, Download, ExternalLink,
-  Edit2, Pause, Play, Trash2, RefreshCw, LogOut, Package, Server, Lock, LockOpen, Edit, Power, FolderOpen, FileText, Archive, Globe as GlobeIcon
+  Edit2, Pause, Play, Trash2, RefreshCw, LogOut, Package, Server, Lock, LockOpen, Edit, Power, FolderOpen, FileText, Archive, Globe as GlobeIcon, ChevronRight as ChevronRightIcon
 } from 'lucide-react'
 import { CpanelDashboard } from '../admin/CpanelDashboard'
 import {
@@ -25,6 +25,146 @@ import {
 } from '../admin/CyberPanelSections'
 import { cyberPanelAPI } from '@/lib/cyberpanel-api'
 import type { CyberPanelWebsite, CyberPanelUser, CyberPanelPackage } from '@/lib/cyberpanel-api'
+
+// Componente ClienteDashboardHome
+function ClienteDashboardHome() {
+  const cliente = {
+    nome: 'João Silva', email: 'joao@aamihe.com', telefone: '+258 84 123 4567',
+    empresa: 'Aamihe', morada: 'Av. Principal, 123', cidade: 'Maputo', pais: 'Moçambique',
+    dominio: 'aamihe.com', plano: 'Premium', dataRenovacao: '21/10/2026',
+    valorAnual: 1500, ssl: true, estado: 'active', creditoDisponivel: 1282
+  }
+
+  const hoje = new Date()
+  const renovacao = new Date('2026-10-21')
+  const diasRestantes = Math.ceil((renovacao.getTime() - hoje.getTime()) / (1000 * 60 * 60 * 24))
+
+  return (
+    <div className="flex gap-6">
+      {/* Conteúdo principal */}
+      <div className="flex-1 space-y-6">
+        
+        {/* Saudação */}
+        <div>
+          <p className="text-gray-500 text-sm">Bom dia, <strong className="text-gray-900">{cliente.nome}</strong> — aqui está o que está a acontecer hoje.</p>
+        </div>
+
+        {/* 4 Cards de resumo */}
+        <div className="grid grid-cols-2 gap-4">
+          <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5 flex items-start gap-4">
+            <div className="bg-blue-100 rounded-lg p-3"><Globe className="w-6 h-6 text-blue-600" /></div>
+            <div>
+              <p className="text-sm text-gray-500">Serviços Activos</p>
+              <p className="text-2xl font-bold text-gray-900">1</p>
+              <p className="text-xs text-gray-400 mt-0.5">{cliente.dominio}</p>
+              <button className="text-xs text-blue-600 hover:underline mt-1">Ver serviços</button>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5 flex items-start gap-4">
+            <div className="bg-green-100 rounded-lg p-3"><Globe className="w-6 h-6 text-green-600" /></div>
+            <div>
+              <p className="text-sm text-gray-500">Domínios Activos</p>
+              <p className="text-2xl font-bold text-gray-900">1</p>
+              <p className="text-xs text-gray-400 mt-0.5">Expira: {cliente.dataRenovacao}</p>
+              <button className="text-xs text-blue-600 hover:underline mt-1">Ver domínios</button>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5 flex items-start gap-4">
+            <div className={`rounded-lg p-3 ${diasRestantes < 30 ? 'bg-red-100' : 'bg-yellow-100'}`}>
+              <FileText className={`w-6 h-6 ${diasRestantes < 30 ? 'text-red-600' : 'text-yellow-600'}`} />
+            </div>
+            <div>
+              <p className="text-sm text-gray-500">Próxima Renovação</p>
+              <p className={`text-2xl font-bold ${diasRestantes < 30 ? 'text-red-600' : 'text-gray-900'}`}>{diasRestantes} dias</p>
+              <p className="text-xs text-gray-400 mt-0.5">{cliente.dataRenovacao} • {cliente.valorAnual.toLocaleString()} MZN</p>
+              <button className="text-xs text-blue-600 hover:underline mt-1">Ver faturas</button>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5 flex items-start gap-4">
+            <div className="bg-purple-100 rounded-lg p-3"><Mail className="w-6 h-6 text-purple-600" /></div>
+            <div>
+              <p className="text-sm text-gray-500">Faturas Não Pagas</p>
+              <p className="text-2xl font-bold text-gray-900">0</p>
+              <p className="text-xs text-gray-400 mt-0.5">Conta em dia ✓</p>
+              <button className="text-xs text-blue-600 hover:underline mt-1">Ver faturas</button>
+            </div>
+          </div>
+        </div>
+
+        {/* Serviços a renovar em breve */}
+        {diasRestantes < 60 && (
+          <div className="bg-yellow-50 rounded-xl border border-yellow-200 p-5">
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-sm font-bold text-yellow-800">⚠️ Serviços a renovar em breve</h2>
+              <button className="bg-yellow-500 hover:bg-yellow-600 text-white text-xs font-bold px-4 py-1.5 rounded-lg transition-colors">Renovar Agora</button>
+            </div>
+            <p className="text-xs text-yellow-700">O teu serviço <strong>{cliente.dominio}</strong> renova em <strong>{cliente.dataRenovacao}</strong> ({diasRestantes} dias). Renova agora para evitar interrupções.</p>
+          </div>
+        )}
+
+        {/* Tickets recentes */}
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+          <div className="flex items-center justify-between px-5 py-3 border-b border-gray-100 bg-gray-50">
+            <h2 className="text-sm font-bold text-gray-700">Tickets de Suporte</h2>
+            <button className="text-xs text-red-600 hover:underline font-bold">+ Abrir Ticket</button>
+          </div>
+          <div className="p-5 text-center text-gray-400 text-sm">0 tickets abertos</div>
+        </div>
+
+      </div>
+
+      {/* Barra lateral direita */}
+      <div className="w-64 shrink-0 space-y-4">
+
+        {/* Card do cliente */}
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
+          {/* Avatar */}
+          <div className="flex flex-col items-center mb-4">
+            <div className="w-16 h-16 bg-red-600 rounded-full flex items-center justify-center mb-2">
+              <span className="text-white text-xl font-bold">
+                {cliente.nome.split(' ').map(n => n[0]).join('').slice(0,2).toUpperCase()}
+              </span>
+            </div>
+            <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${cliente.estado === 'active' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+              {cliente.estado === 'active' ? 'Activo' : 'Suspenso'}
+            </span>
+          </div>
+          {/* Dados */}
+          <div className="space-y-1.5 text-sm border-t border-gray-100 pt-4">
+            <p className="font-bold text-gray-900 text-center">{cliente.empresa}</p>
+            <p className="text-gray-600 text-center text-xs">{cliente.nome}</p>
+            <p className="text-gray-500 text-xs text-center">{cliente.morada}</p>
+            <p className="text-gray-500 text-xs text-center">{cliente.cidade}</p>
+            <p className="text-gray-500 text-xs text-center">{cliente.pais}</p>
+          </div>
+        </div>
+
+        {/* Crédito disponível */}
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-xs font-bold text-gray-500 uppercase">Crédito Disponível</p>
+            <ChevronRight className="w-4 h-4 text-gray-400" />
+          </div>
+          <p className="text-sm text-gray-600">Tens um saldo de <strong className="text-gray-900">MT {cliente.creditoDisponivel.toLocaleString()}</strong> que será aplicado às próximas faturas.</p>
+          <button className="w-full mt-3 bg-red-600 hover:bg-red-700 text-white text-xs font-bold py-2 rounded-lg transition-colors">Adicionar Fundos</button>
+        </div>
+
+        {/* Contactos */}
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
+          <div className="flex items-center justify-between mb-3">
+            <p className="text-xs font-bold text-gray-500 uppercase">Contactos</p>
+          </div>
+          <p className="text-xs text-gray-400 mb-3">Nenhum contacto adicional.</p>
+          <button className="w-full bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-bold py-2 rounded-lg transition-colors">+ Novo Contacto</button>
+        </div>
+
+      </div>
+    </div>
+  )
+}
 
 // Componente SuporteSection
 function SuporteSection() {
@@ -1047,15 +1187,7 @@ export default function AdminPage() {
   const renderSection = () => {
     switch (activeSection) {
       case 'dashboard':
-        return <CpanelDashboard 
-          sites={cyberPanelSites} 
-          users={cyberPanelUsers} 
-          isFetching={isFetchingCyberPanel} 
-          onNavigate={setActiveSection} 
-          onRefresh={loadCyberPanelData}
-          onSetDNSDomain={setSelectedDNSDomain}
-          onSetFileManagerDomain={setFileManagerDomain}
-        />
+        return <ClienteDashboardHome />
       case 'domains':
       case 'domains-list':
         return <ListWebsitesSection 
@@ -1232,7 +1364,7 @@ export default function AdminPage() {
             <div className="flex items-center gap-3">
               <img src="/assets/simbolo.png" alt="Logo" className="w-14 h-14 object-contain cursor-pointer" onClick={() => window.location.href = '/'} />
               <div className="flex-1">
-                <h1 className="text-xl font-bold text-gray-900">Painel do Cliente</h1>
+                <h1 className="text-xl font-bold text-gray-900">{activeSection === 'dashboard' ? 'Bom dia, João Silva' : 'Painel do Cliente'}</h1>
                 <p className="text-xs text-gray-500">VisualDesign</p>
               </div>
               <button onClick={() => setIsCollapsed(!isCollapsed)} className="rounded-lg hover:bg-gray-100 transition-colors">
