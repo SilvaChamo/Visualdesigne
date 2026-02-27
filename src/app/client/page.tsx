@@ -1,435 +1,945 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { motion } from 'framer-motion'
-// import { useAuth } from '@/components/auth/AuthProvider'
-// import { supabase, type Cliente, type SiteCliente, type Pagamento, type Notificacao } from '@/lib/supabase-client'
-import { useI18n } from '@/lib/i18n'
+import { useState, useEffect, useRef } from 'react'
+import { motion, AnimatePresence } from 'framer-motion'
+import { 
+  Home, Globe, Users, Mail, Shield, Database, Settings, 
+  ChevronLeft, ChevronRight, Plus, Search, Download, ExternalLink,
+  Edit2, Pause, Play, Trash2, RefreshCw, LogOut, Package, Server, Lock, LockOpen, Edit, Power, FolderOpen, FileText, Archive, Globe as GlobeIcon
+} from 'lucide-react'
+import { CpanelDashboard } from '../admin/CpanelDashboard'
+import {
+  SubdomainsSection, DatabasesSection, FTPSection, EmailManagementSection,
+  CPUsersSection, SSLSection, SecuritySection, PHPConfigSection,
+  APIConfigSection, GitDeploySection, WPListSection, WPPluginsSection,
+  ResellerSection, ModifyWebsiteSection, SuspendWebsiteSection,
+  DeleteWebsiteSection, DNSNameserverSection, DNSDefaultNSSection,
+  DNSCreateZoneSection, DNSDeleteZoneSection, CloudFlareSection,
+  DNSResetSection, EmailDeleteSection, EmailLimitsSection,
+  EmailForwardingSection, CatchAllEmailSection, PatternForwardingSection,
+  PlusAddressingSection, EmailChangePasswordSection, DKIMManagerSection,
+  WPRestoreBackupSection, WPRemoteBackupSection, ListSubdomainsSection,
+  PackagesSection, DNSZoneEditorSection, FileManagerSection, BackupManagerSection,
+  WordPressInstallSection, WPBackupSection, DomainManagerSection, DeploySection
+  // ClientesSection // Removido - não usado no painel do cliente
+} from '../admin/CyberPanelSections'
+import { cyberPanelAPI } from '@/lib/cyberpanel-api'
+import type { CyberPanelWebsite, CyberPanelUser, CyberPanelPackage } from '@/lib/cyberpanel-api'
 
-export default function ClientDashboard() {
-  // const { user } = useAuth()
-  const { t } = useI18n()
-  const [loading, setLoading] = useState(true)
-  const [cliente, setCliente] = useState<any>(null)
-  const [sites, setSites] = useState<any[]>([])
-  const [pagamentos, setPagamentos] = useState<any[]>([])
-  const [notificacoes, setNotificacoes] = useState<any[]>([])
+// Secções que precisam de criar websites
+function CreateWebsiteSection({ packages, onRefresh }: { packages: CyberPanelPackage[], onRefresh: () => void }) {
+  const [form, setForm] = useState({ domain: '', email: '', username: 'admin', packageName: 'Default', php: '8.2' })
+  const [creating, setCreating] = useState(false)
+  const [msg, setMsg] = useState('')
 
-  useEffect(() => {
-    // Dados fictícios para teste sem autenticação
-    setCliente({
-      id: '1',
-      nome: 'João Silva',
-      email: 'joao@teste.com',
-      telefone: '+258 84 123 4567',
-      status: 'active',
-      created_at: new Date().toISOString()
-    } as any)
-    setSites([{
-      id: '1',
-      dominio: 'aamihe.com',
-      titulo_site: 'Aamihe',
-      plano: 'premium',
-      preco_mensal: 1500,
-      data_renovacao: '2026-10-21',
-      status: 'active',
-      ssl: true
-    } as any])
-    setPagamentos([{
-      id: '1',
-      descricao: 'Renovação anual - aamihe.com',
-      valor: 1500,
-      data_vencimento: '2026-10-21',
-      metodo_pagamento: 'mpesa',
-      status: 'paid'
-    } as any])
-    setNotificacoes([])
-    setLoading(false)
-  }, [])
-
-  // Código de autenticação real (comentado temporariamente)
-  /*
-  useEffect(() => {
-    if (user) {
-      loadClientData()
-    }
-  }, [user])
-
-  const loadClientData = async () => {
+  const handleCreate = async () => {
+    if (!form.domain || !form.email) return
+    setCreating(true); setMsg('')
     try {
-      setLoading(true)
-
-      // Buscar dados do cliente
-      const { data: clienteData } = await supabase
-        .from('clientes')
-        .select('*')
-        .eq('email', user?.email)
-        .single()
-
-      if (clienteData) {
-        setCliente(clienteData)
-
-        // Buscar sites do cliente
-        const { data: sitesData } = await supabase
-          .from('sites_cliente')
-          .select('*')
-          .eq('cliente_id', clienteData.id)
-
-        setSites(sitesData || [])
-
-        // Buscar pagamentos
-        const { data: pagamentosData } = await supabase
-          .from('pagamentos')
-          .select('*')
-          .eq('cliente_id', clienteData.id)
-          .order('data_vencimento', { ascending: true })
-
-        setPagamentos(pagamentosData || [])
-
-        // Buscar notificações não lidas
-        const { data: notificacoesData } = await supabase
-          .from('notificacoes')
-          .select('*')
-          .eq('cliente_id', clienteData.id)
-          .eq('status', 'pending')
-          .order('created_at', { ascending: false })
-          .limit(5)
-
-        setNotificacoes(notificacoesData || [])
-      }
-    } catch (error) {
-      console.error('Erro ao carregar dados:', error)
-    } finally {
-      setLoading(false)
+      const ok = await cyberPanelAPI.createWebsite(form)
+      setMsg('Website criado com sucesso!')
+      onRefresh()
+    } catch (e: any) {
+      setMsg('Erro: ' + e.message)
     }
-  }
-  */
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'active': return 'bg-green-100 text-green-800'
-      case 'suspended': return 'bg-red-100 text-red-800'
-      case 'pending': return 'bg-yellow-100 text-yellow-800'
-      case 'expired': return 'bg-gray-100 text-gray-800'
-      default: return 'bg-gray-100 text-gray-800'
-    }
+    setCreating(false)
   }
 
-  const getPaymentStatusColor = (status: string) => {
-    switch (status) {
-      case 'paid': return 'bg-green-100 text-green-800'
-      case 'pending': return 'bg-yellow-100 text-yellow-800'
-      case 'overdue': return 'bg-red-100 text-red-800'
-      case 'cancelled': return 'bg-gray-100 text-gray-800'
-      default: return 'bg-gray-100 text-gray-800'
-    }
-  }
-
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600">Carregando...</p>
+  return (
+    <div className="space-y-6 w-full">
+      <div><h1 className="text-3xl font-bold text-gray-900">Criar Website</h1><p className="text-gray-500 mt-1">Adicione um novo website ao servidor.</p></div>
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+          <div><label className="text-xs font-bold text-gray-600 uppercase block mb-1.5">Domínio</label><input value={form.domain} onChange={e => setForm({...form, domain: e.target.value})} placeholder="exemplo.com" className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm" /></div>
+          <div><label className="text-xs font-bold text-gray-600 uppercase block mb-1.5">Email Admin</label><input value={form.email} onChange={e => setForm({...form, email: e.target.value})} placeholder="admin@exemplo.com" className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm" /></div>
+          <div><label className="text-xs font-bold text-gray-600 uppercase block mb-1.5">Pacote</label>
+            <select value={form.packageName} onChange={e => setForm({...form, packageName: e.target.value})} className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm">
+              <option value="Default">Default</option>
+              {packages.map(p => <option key={p.packageName} value={p.packageName}>{p.packageName}</option>)}
+            </select>
+          </div>
+          <div><label className="text-xs font-bold text-gray-600 uppercase block mb-1.5">Versão PHP</label>
+            <select value={form.php} onChange={e => setForm({...form, php: e.target.value})} className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm">
+              <option>7.4</option><option>8.0</option><option>8.1</option><option>8.2</option><option>8.3</option>
+            </select>
+          </div>
         </div>
+        {msg && <div className={`mb-4 px-4 py-2.5 rounded-lg text-sm font-medium ${msg.includes('sucesso') ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-700 border border-red-200'}`}>{msg}</div>}
+        <button onClick={handleCreate} disabled={creating || !form.domain || !form.email} className="bg-black hover:bg-red-600 text-white px-5 py-2.5 rounded-lg text-sm font-bold transition-all disabled:opacity-50 flex items-center gap-2">
+          {creating ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Globe className="w-4 h-4" />} Criar Website
+        </button>
       </div>
-    )
+    </div>
+  )
+}
+
+function ListWebsitesSection({ sites, onRefresh, packages, setActiveSection, setFileManagerDomain, setSelectedDNSDomain, loadCyberPanelData, syncing, handleSync }: {
+  sites: CyberPanelWebsite[], 
+  onRefresh: () => void, 
+  packages: CyberPanelPackage[],
+  setActiveSection: (section: string) => void,
+  setFileManagerDomain: (domain: string) => void,
+  setSelectedDNSDomain: (domain: string) => void,
+  loadCyberPanelData: () => void,
+  syncing: boolean,
+  handleSync: () => void
+}) {
+  const parseState = (state: any) => {
+    if (state === 1 || state === '1' || state === 'Active') return 'Active'
+    if (state === 0 || state === '0' || state === 'Suspended') return 'Suspended'
+    return state || 'Active'
+  }
+  const [expandedSite, setExpandedSite] = useState<string | null>(null)
+  const [editingField, setEditingField] = useState<{domain: string, field: string} | null>(null)
+  const [editValue, setEditValue] = useState('')
+  const [search, setSearch] = useState('')
+  const [loading, setLoading] = useState<string | null>(null)
+  const [msg, setMsg] = useState('')
+  const [currentPage, setCurrentPage] = useState(1)
+  const itemsPerPage = 4
+  const [showCreateModal, setShowCreateModal] = useState(false)
+  const [createForm, setCreateForm] = useState({ domain: '', email: '', username: 'admin', packageName: 'Default', php: 'PHP 8.2' })
+  const [creating, setCreating] = useState(false)
+  const [createMsg, setCreateMsg] = useState('')
+
+  // Filtrar sites activos — tem conteúdo real instalado
+  const sitesArray = Array.isArray(sites) ? sites : []
+  const filtered = sitesArray.filter(s => 
+    s.domain.toLowerCase().includes(search.toLowerCase()) &&
+    !s.domain.includes('contaboserver') &&
+    !s.domain.includes('localhost') &&
+    s.isActive === true
+  )
+
+  const totalPages = Math.ceil(filtered.length / itemsPerPage)
+  const startIndex = (currentPage - 1) * itemsPerPage
+  const paginatedSites = filtered.slice(startIndex, startIndex + itemsPerPage)
+
+  // Expandir automaticamente o primeiro site ao carregar
+  useEffect(() => {
+    if (paginatedSites.length > 0 && !expandedSite) {
+      setExpandedSite(paginatedSites[0].domain)
+    }
+  }, [paginatedSites, expandedSite])
+
+  const handleDelete = async (domain: string) => {
+    if (!confirm(`⚠️ Apagar "${domain}"?\n\nEsta acção é IRREVERSÍVEL — o site e todos os seus ficheiros serão eliminados do servidor!`)) return
+    setLoading(domain)
+    try {
+      const res = await fetch('/api/server-exec', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'deleteWebsite', params: { domain } })
+      })
+      const data = await res.json()
+      if (data.success) {
+        await onRefresh()
+      } else {
+        alert('Erro ao apagar:\n\n' + (data.data?.output || data.error || 'Erro desconhecido'))
+      }
+    } catch (e: any) {
+      alert('Erro de ligação: ' + e.message)
+    }
+    setLoading(null)
   }
 
-  if (!cliente) {
+  const handleSuspend = async (domain: string, state: string) => {
+  setLoading(domain)
+  const action = state === 'Active' ? 'suspendWebsite' : 'unsuspendWebsite'
+  await fetch('/api/server-exec', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action, params: { domain } })
+  })
+  await onRefresh()
+  setLoading(null)
+}
+
+  const handleSaveField = async (domain: string, field: string, value: string) => {
+  setLoading(domain)
+  let command = ''
+  
+  if (field === 'php') {
+    command = `cyberpanel changePHP --domainName ${domain} --phpVersion "${value}" 2>&1`
+  } else if (field === 'package') {
+    command = `cyberpanel changePackage --domainName ${domain} --packageName "${value}" 2>&1`
+  } else {
+    // Para outros campos, usa modifyWebsite
+    await fetch('/api/server-exec', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'modifyWebsite', params: { domain, [field]: value } })
+    })
+    setEditingField(null)
+    await onRefresh()
+    setLoading(null)
+    return
+  }
+  
+  const res = await fetch('/api/server-exec', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action: 'execCommand', params: { command } })
+  })
+  const data = await res.json()
+  if (!data.success) {
+    alert('Erro: ' + (data.data?.output || data.error || 'desconhecido'))
+  }
+  setEditingField(null)
+  await onRefresh()
+  setLoading(null)
+}
+
+  const EditableField = ({ domain, field, value, label }: { domain: string, field: string, value: string, label: string }) => {
+    const isEditing = editingField?.domain === domain && editingField?.field === field
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <h1 className="text-2xl font-bold text-gray-900 mb-4">Cliente não encontrado</h1>
-          <p className="text-gray-600">Entre em contato com o suporte.</p>
-        </div>
+      <div className="bg-gray-50 rounded-lg p-3 border border-gray-200">
+        <p className="text-xs font-bold text-gray-400 uppercase mb-1">{label}</p>
+        {isEditing ? (
+          <div className="flex items-center gap-2">
+            {field === 'php' ? (
+              <select value={editValue} onChange={e => setEditValue(e.target.value)}
+                className="text-sm border border-gray-300 rounded px-2 py-1 bg-white flex-1">
+                <option>PHP 7.4</option><option>PHP 8.0</option>
+                <option>PHP 8.1</option><option>PHP 8.2</option><option>PHP 8.3</option>
+              </select>
+            ) : field === 'package' ? (
+              <select value={editValue} onChange={e => setEditValue(e.target.value)}
+                className="text-sm border border-gray-300 rounded px-2 py-1 bg-white flex-1">
+                <option>Default</option>
+                {packages.map(p => <option key={p.packageName}>{p.packageName}</option>)}
+              </select>
+            ) : (
+              <input value={editValue} onChange={e => setEditValue(e.target.value)}
+                className="text-sm border border-gray-300 rounded px-2 py-1 flex-1" />
+            )}
+            <button onClick={() => handleSaveField(domain, field, editValue)}
+              className="text-xs bg-black text-white px-2 py-1 rounded font-bold">✓</button>
+            <button onClick={() => setEditingField(null)}
+              className="text-xs bg-gray-200 px-2 py-1 rounded">✕</button>
+          </div>
+        ) : (
+          <div className="flex items-center justify-between">
+            <p className="text-sm font-bold text-gray-900">{value || '-'}</p>
+            <button onClick={() => { setEditingField({ domain, field }); setEditValue(value) }}
+              className="text-gray-400 hover:text-blue-500 ml-2">
+              <Edit className="w-3 h-3" />
+            </button>
+          </div>
+        )}
       </div>
     )
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="w-full space-y-4">
       {/* Header */}
-      <div className="bg-white shadow-sm border-b">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center py-6">
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900">Painel do Cliente</h1>
-              <p className="text-gray-600">Bem-vindo, {cliente.nome}</p>
-            </div>
-            <div className="flex items-center space-x-4">
-              <span className={`px-3 py-1 rounded-full text-sm font-medium ${getStatusColor(cliente.status)}`}>
-                {cliente.status === 'active' ? 'Ativo' : cliente.status === 'suspended' ? 'Suspenso' : 'Inativo'}
-              </span>
-            </div>
-          </div>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <span className="text-base font-bold text-gray-900">Websites ({filtered.length})</span>
+          <button onClick={handleSync} disabled={syncing}
+            className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-colors disabled:opacity-50">
+            <RefreshCw className={`w-3 h-3 ${syncing ? 'animate-spin' : ''}`} />
+            {syncing ? 'A sincronizar...' : 'Sincronizar'}
+          </button>
+          <button onClick={() => setShowCreateModal(true)}
+            className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-colors">
+            <Plus className="w-3 h-3" /> Criar Website
+          </button>
+          <button onClick={() => {
+            const rows = [['Domínio','IP','Estado','Pacote']]
+            sites.forEach(s => rows.push([s.domain, '109.199.104.22', s.state || 'Active', (s as any).package || 'Default']))
+            const blob = new Blob([rows.map(r => r.join(',')).join('\n')], { type: 'text/csv' })
+            const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'websites.csv'; a.click()
+          }} className="bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-2 rounded-lg text-xs font-bold">
+            ↓ Exportar CSV
+          </button>
+        </div>
+        <div className="relative">
+          <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
+          <input value={search} onChange={e => setSearch(e.target.value)}
+            placeholder="Pesquisar websites..."
+            className="pl-8 pr-3 py-1.5 border border-gray-300 rounded-lg text-sm w-52" />
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Notificações */}
-        {notificacoes.length > 0 && (
-          <div className="mb-8">
-            <h2 className="text-lg font-semibold text-gray-900 mb-4">Notificações</h2>
-            <div className="space-y-3">
-              {notificacoes.map((notificacao) => (
-                <motion.div
-                  key={notificacao.id}
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className="bg-yellow-50 border border-yellow-200 rounded-lg p-4"
+      {msg && <div className="px-4 py-2.5 rounded-lg text-sm bg-green-50 text-green-700 border border-green-200">{msg}</div>}
+
+      {/* Lista de sites como cards expansíveis */}
+      <div className="space-y-2">
+        {paginatedSites.map((s, i) => (
+          <div key={i} className={`bg-white rounded-xl border ${expandedSite === s.domain ? 'border-blue-200 shadow-md' : 'border-gray-200 shadow-sm'} overflow-hidden transition-all`}>
+            
+            {/* Linha do site com botões explícitos */}
+            <div className="flex items-center justify-between px-4 py-4">
+              
+              {/* Info do site */}
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={() => setExpandedSite(expandedSite === s.domain ? null : s.domain)}
+                  className="p-1 rounded hover:bg-gray-100 transition-colors"
+                  title="Expandir/Colapsar"
                 >
-                  <div className="flex items-start">
-                    <div className="flex-shrink-0">
-                      <svg className="h-5 w-5 text-yellow-400" viewBox="0 0 20 20" fill="currentColor">
-                        <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-                      </svg>
-                    </div>
-                    <div className="ml-3 flex-1">
-                      <h3 className="text-sm font-medium text-yellow-800">{notificacao.titulo}</h3>
-                      <p className="text-sm text-yellow-700 mt-1">{notificacao.mensagem}</p>
-                      <p className="text-xs text-yellow-600 mt-2">
-                        {new Date(notificacao.created_at).toLocaleDateString('pt-MZ')}
-                      </p>
+                  <ChevronRight className={`w-4 h-4 text-gray-400 transition-transform ${expandedSite === s.domain ? 'rotate-90' : ''}`} />
+                </button>
+                <Globe className="w-4 h-4 text-blue-500" />
+                <a href={`https://${s.domain}`} target="_blank"
+                  className="text-blue-600 hover:underline font-bold text-sm">
+                  {s.domain}
+                </a>
+                <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${parseState(s.state) === 'Active' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                  {parseState(s.state) || 'Active'}
+                </span>
+                {/* Badge por tipo de site */}
+                {s.siteType === 'wordpress' && <span className="px-2 py-0.5 bg-blue-100 text-blue-700 rounded-full text-xs font-bold">WordPress</span>}
+                {s.siteType === 'nextjs' && <span className="px-2 py-0.5 bg-black text-white rounded-full text-xs font-bold">Next.js</span>}
+                {s.siteType === 'html' && <span className="px-2 py-0.5 bg-orange-100 text-orange-700 rounded-full text-xs font-bold">HTML/PHP</span>}
+                {s.ssl ? (
+                  <span className="flex items-center gap-1 text-green-600 text-xs font-bold">
+                    <Lock className="w-3.5 h-3.5" /> SSL Activo
+                  </span>
+                ) : (
+                  <span className="flex items-center gap-1 text-red-500 text-xs font-bold">
+                    <LockOpen className="w-3.5 h-3.5" /> Sem SSL
+                  </span>
+                )}
+              </div>
+
+              {/* Botões */}
+              <div className="flex items-center gap-3">
+                {/* Botão Gerir — abre cards de gestão */}
+                <button
+                  onClick={() => setExpandedSite(expandedSite === s.domain ? null : s.domain)}
+                  className="bg-black hover:bg-red-600 text-white px-4 py-1.5 rounded-lg text-xs font-bold transition-colors">
+                  Gerir
+                </button>
+                
+                {/* Botão Explorar Directório — sem fundo, texto link */}
+                <button
+                  onClick={() => {
+                    setFileManagerDomain(s.domain)
+                    setTimeout(() => setActiveSection('file-manager'), 50)
+                  }}
+                  className="text-gray-600 hover:text-red-600 text-xs font-medium transition-colors underline-offset-2 hover:underline">
+                  Explorar directório
+                </button>
+              </div>
+            </div>
+
+            {/* Conteúdo expandido */}
+            {expandedSite === s.domain && (
+              <div className="border-t border-gray-100 p-4 space-y-4">
+                
+                {/* Grid de cards de detalhes editáveis */}
+                <div className="grid grid-cols-4 gap-3">
+
+                  {/* COLUNA 1 — Screenshot */}
+                  <div className="bg-gray-100 rounded-lg overflow-hidden border border-gray-200 h-36 relative">
+                    <iframe
+                      src={`https://${s.domain}`}
+                      className="absolute top-0 left-0"
+                      style={{ width: '400%', height: '400%', transform: 'scale(0.25)', transformOrigin: 'top left', pointerEvents: 'none' }}
+                      scrolling="no"
+                      sandbox="allow-same-origin"
+                    />
+                  </div>
+
+                  {/* COLUNA 2 — State + Disk Usage */}
+                  <div className="flex flex-col gap-3">
+                    <EditableField domain={s.domain} field="state" value={parseState(s.state) || 'Active'} label="State" />
+                    <div className="bg-gray-50 rounded-lg p-3 border border-gray-200">
+                      <p className="text-xs font-bold text-gray-400 uppercase mb-1">Disk Usage</p>
+                      <p className="text-sm font-bold text-gray-900">{(s as any).diskUsed ? `${(s as any).diskUsed}MB` : '0MB'}</p>
                     </div>
                   </div>
-                </motion.div>
-              ))}
+
+                  {/* COLUNA 3 — IP + Package */}
+                  <div className="flex flex-col gap-3">
+                    <div className="bg-gray-50 rounded-lg p-3 border border-gray-200">
+                      <p className="text-xs font-bold text-gray-400 uppercase mb-1">IP Address</p>
+                      <p className="text-sm font-bold text-gray-900">{(s as any).ip || '109.199.104.22'}</p>
+                    </div>
+                    <EditableField domain={s.domain} field="package" value={(s as any).package || 'Default'} label="Package" />
+                  </div>
+
+                  {/* COLUNA 4 — PHP + Owner */}
+                  <div className="flex flex-col gap-3">
+                    <EditableField domain={s.domain} field="php" value={(s as any).phpVersion || 'PHP 8.2'} label="PHP Version" />
+                    <div className="bg-gray-50 rounded-lg p-3 border border-gray-200">
+                      <p className="text-xs font-bold text-gray-400 uppercase mb-1">Owner</p>
+                      <p className="text-sm font-bold text-gray-900">{(s as any).owner || 'admin'}</p>
+                    </div>
+                  </div>
+
+                </div>
+
+                {/* Botões de acção numa linha */}
+                <div className="flex items-center gap-2 pt-2 border-t border-gray-100">
+                  <a href={`https://${s.domain}`} target="_blank" rel="noopener noreferrer"
+                    className="flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-xs font-bold transition-colors">
+                    <ExternalLink className="w-3.5 h-3.5" /> Visitar Site
+                  </a>
+                  <button
+                    onClick={async () => {
+                      setLoading(s.domain + '-ssl')
+                      try {
+                        // Primeiro verificar se o domínio resolve para o IP correcto
+                        const checkRes = await fetch('/api/server-exec', {
+                          method: 'POST', headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({
+                            action: 'execCommand',
+                            params: { command: `dig +short ${s.domain} 2>&1` }
+                          })
+                        })
+                        const checkData = await checkRes.json()
+                        const resolvedIP = (checkData.data?.output || '').trim()
+                        const serverIP = '109.199.104.22'
+
+                        if (!resolvedIP) {
+                          alert(`⚠️ DNS não propagou ainda!\n\nO domínio "${s.domain}" não está a resolver para nenhum IP.\n\nAguarda a propagação DNS (pode demorar até 24h) e tenta novamente.`)
+                          setLoading(null)
+                          return
+                        }
+
+                        if (!resolvedIP.includes(serverIP)) {
+                          alert(`⚠️ DNS ainda não propagou!\n\nO domínio "${s.domain}" está a resolver para:\n${resolvedIP}\n\nMas devia resolver para:\n${serverIP}\n\nAguarda a propagação DNS e tenta novamente.`)
+                          setLoading(null)
+                          return
+                        }
+
+                        // DNS está correcto — emitir SSL
+                        const sslRes = await fetch('/api/server-exec', {
+                          method: 'POST', headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({
+                            action: 'execCommand',
+                            params: { command: `cyberpanel issueSSL --domainName ${s.domain} 2>&1` }
+                          })
+                        })
+                        const sslData = await sslRes.json()
+                        const output = sslData.data?.output || ''
+
+                        if (output.toLowerCase().includes('success') || output.toLowerCase().includes('issued')) {
+                          alert(`✅ SSL emitido com sucesso para ${s.domain}!`)
+                          onRefresh()
+                        } else {
+                          alert(`⚠️ Erro ao emitir SSL:\n\n${output}`)
+                        }
+
+                      } catch (e: any) {
+                        alert('Erro: ' + e.message)
+                      }
+                      setLoading(null)
+                    }} disabled={loading === s.domain + '-ssl'}
+                    className="flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg text-xs font-bold transition-colors disabled:opacity-50">
+                    <Lock className="w-3.5 h-3.5" /> {loading === s.domain + '-ssl' ? 'A verificar...' : 'Issue SSL'}
+                  </button>
+                  <button
+                    onClick={() => {
+                      setSelectedDNSDomain(s.domain)
+                      setActiveSection('domains-dns')
+                    }}
+                    className="flex items-center gap-1.5 bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg text-xs font-bold transition-colors">
+                    <Server className="w-3.5 h-3.5" /> Editar DNS
+                  </button>
+                  <button onClick={async () => {
+                    setLoading(s.domain + '-backup')
+                    try {
+                      await fetch('/api/server-exec', {
+                        method: 'POST', headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                          action: 'execCommand',
+                          params: { command: `mkdir -p /home/backup/full && cyberpanel createBackup --domainName ${s.domain} --backupPath /home/backup/full 2>&1` }
+                        })
+                      })
+                      alert(`✅ Backup de "${s.domain}" criado com sucesso!\n\nPode ver na página Backups.`)
+                    } catch (e: any) {
+                      alert('Erro ao criar backup: ' + e.message)
+                    }
+                    setLoading(null)
+                  }}
+                  disabled={loading === s.domain + '-backup'}
+                  className="flex items-center gap-1.5 bg-gray-700 hover:bg-gray-800 text-white px-4 py-2 rounded-lg text-xs font-bold transition-colors disabled:opacity-50">
+                    {loading === s.domain + '-backup' 
+                      ? <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                      : <Archive className="w-3.5 h-3.5" />
+                    }
+                    {loading === s.domain + '-backup' ? 'A criar...' : 'Backup'}
+                  </button>
+                  <button onClick={() => handleSuspend(s.domain, parseState(s.state) || 'Active')}
+                    className="flex items-center gap-1.5 bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 rounded-lg text-xs font-bold transition-colors">
+                    <Power className="w-3.5 h-3.5" /> {parseState(s.state) === 'Active' ? 'Suspender' : 'Activar'}
+                  </button>
+                  <button onClick={() => handleDelete(s.domain)} disabled={loading === s.domain}
+                    className="flex items-center gap-1.5 bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg text-xs font-bold transition-colors disabled:opacity-50">
+                    <Trash2 className="w-3.5 h-3.5" /> {loading === s.domain ? 'A apagar...' : 'Apagar'}
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+
+      {/* Paginação */}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-center gap-2 pt-4">
+          <button
+            onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+            disabled={currentPage === 1}
+            className="px-4 py-2 rounded-lg text-xs font-bold bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            Anterior
+          </button>
+          
+          <div className="flex items-center gap-1">
+            {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => (
+              <button
+                key={page}
+                onClick={() => setCurrentPage(page)}
+                className={`w-8 h-8 rounded-lg text-xs font-bold transition-colors ${
+                  currentPage === page
+                    ? 'bg-red-600 text-white'
+                    : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-50'
+                }`}
+              >
+                {page}
+              </button>
+            ))}
+          </div>
+          
+          <button
+            onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+            disabled={currentPage === totalPages}
+            className="px-4 py-2 rounded-lg text-xs font-bold bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            Próximo
+          </button>
+        </div>
+      )}
+
+      {/* Modal de criação de website */}
+      {showCreateModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl shadow-2xl p-6 w-full max-w-md mx-4">
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-lg font-bold text-gray-900">Criar Novo Website</h2>
+              <button onClick={() => { setShowCreateModal(false); setCreateMsg('') }}
+                className="text-gray-400 hover:text-gray-600 text-xl">✕</button>
+            </div>
+            <div className="space-y-4">
+              <div>
+                <label className="text-xs font-bold text-gray-600 uppercase block mb-1.5">Domínio</label>
+                <input value={createForm.domain} onChange={e => setCreateForm({...createForm, domain: e.target.value})}
+                  placeholder="exemplo.com"
+                  className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm" />
+              </div>
+              <div>
+                <label className="text-xs font-bold text-gray-600 uppercase block mb-1.5">Email Admin</label>
+                <input value={createForm.email} onChange={e => setCreateForm({...createForm, email: e.target.value})}
+                  placeholder="admin@exemplo.com"
+                  className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm" />
+              </div>
+              <div>
+                <label className="text-xs font-bold text-gray-600 uppercase block mb-1.5">Pacote</label>
+                <select value={createForm.packageName} onChange={e => setCreateForm({...createForm, packageName: e.target.value})}
+                  className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm">
+                  <option>Default</option>
+                  {packages.map(p => <option key={p.packageName} value={p.packageName}>{p.packageName}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="text-xs font-bold text-gray-600 uppercase block mb-1.5">Versão PHP</label>
+                <select value={createForm.php} onChange={e => setCreateForm({...createForm, php: e.target.value})}
+                  className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm">
+                  <option>PHP 7.4</option><option>PHP 8.0</option>
+                  <option>PHP 8.1</option><option>PHP 8.2</option><option>PHP 8.3</option>
+                </select>
+              </div>
+            </div>
+            {createMsg && (
+              <div className={`mt-4 px-4 py-2.5 rounded-lg text-sm font-medium ${createMsg.includes('sucesso') ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-700 border border-red-200'}`}>
+                {createMsg}
+              </div>
+            )}
+            <div className="flex gap-3 mt-6">
+              <button onClick={async () => {
+                if (!createForm.domain || !createForm.email) return
+                setCreating(true); setCreateMsg('')
+                const res = await fetch('/api/server-exec', {
+                  method: 'POST', headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ action: 'createWebsite', params: createForm })
+                })
+                const data = await res.json()
+                if (data.success) {
+                  setCreateMsg('Website criado com sucesso!')
+                  setTimeout(() => { setShowCreateModal(false); setCreateMsg(''); onRefresh() }, 1500)
+                } else {
+                  setCreateMsg('Erro: ' + (data.data?.output || data.error || 'desconhecido'))
+                }
+                setCreating(false)
+              }} disabled={creating || !createForm.domain || !createForm.email}
+                className="flex-1 bg-black hover:bg-red-600 text-white py-2.5 rounded-lg text-sm font-bold transition-colors disabled:opacity-50 flex items-center justify-center gap-2">
+                {creating ? <><RefreshCw className="w-4 h-4 animate-spin" /> A criar...</> : '+ Criar Website'}
+              </button>
+              <button onClick={() => { setShowCreateModal(false); setCreateMsg('') }}
+                className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 py-2.5 rounded-lg text-sm font-bold">
+                Cancelar
+              </button>
             </div>
           </div>
-        )}
+        </div>
+      )}
+    </div>
+  )
+}
 
-        {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="bg-white rounded-lg shadow p-6"
-          >
-            <div className="flex items-center">
-              <div className="flex-shrink-0 bg-blue-100 rounded-lg p-3">
-                <svg className="h-6 w-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9" />
-                </svg>
-              </div>
-              <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600">Sites Ativos</p>
-                <p className="text-2xl font-bold text-gray-900">{sites.filter(s => s.status === 'active').length}</p>
-              </div>
+export default function AdminPage() {
+  const [activeSection, setActiveSection] = useState('dashboard')
+  const [isCollapsed, setIsCollapsed] = useState(false)
+  const [fileManagerDomain, setFileManagerDomain] = useState('')
+  const [cyberPanelSites, setCyberPanelSites] = useState<CyberPanelWebsite[]>([])
+  const [cyberPanelUsers, setCyberPanelUsers] = useState<CyberPanelUser[]>([])
+  const [cyberPanelPackages, setCyberPanelPackages] = useState<CyberPanelPackage[]>([])
+  const [isFetchingCyberPanel, setIsFetchingCyberPanel] = useState(false)
+  const [syncing, setSyncing] = useState(false)
+  const [selectedDNSDomain, setSelectedDNSDomain] = useState<string>('')
+
+  useEffect(() => {
+    loadCyberPanelData()
+  }, [])
+
+  const handleSync = async () => {
+    setSyncing(true)
+    try {
+      const res = await fetch('/api/server-exec', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'listWebsites', params: {} })
+      })
+      const data = await res.json()
+      // CORRIGIR — garantir que usa data.data.sites e não data.data
+      const sites = Array.isArray(data.data?.sites) ? data.data.sites : 
+                    Array.isArray(data.data) ? data.data : []
+      if (data.success) setCyberPanelSites(sites)
+    } catch (e) { console.error(e) }
+    setSyncing(false)
+  }
+
+  const loadCyberPanelData = async () => {
+    setIsFetchingCyberPanel(true)
+    try {
+      const [sites, users, packages] = await Promise.all([
+        cyberPanelAPI.listWebsites().catch(() => []),
+        cyberPanelAPI.listUsers().catch(() => []),
+        cyberPanelAPI.listPackages().catch(() => []),
+      ])
+      setCyberPanelSites(Array.isArray(sites) ? sites : [])
+      setCyberPanelUsers(Array.isArray(users) ? users : [])
+      setCyberPanelPackages(Array.isArray(packages) ? packages : [])
+    } catch (error) {
+      console.error('Erro ao carregar dados CyberPanel:', error)
+    } finally {
+      setIsFetchingCyberPanel(false)
+    }
+  }
+
+  // Definir domínio principal
+  const primaryDomain = cyberPanelSites.length > 0 
+    ? cyberPanelSites.find(s => !s.domain.includes('contaboserver'))?.domain || cyberPanelSites[0].domain
+    : 'visualdesigne.com'
+
+  const menuItems = [
+    { id: 'dashboard', label: 'Dashboard', icon: Home },
+    { id: 'domains', label: 'O Meu Site', icon: Globe },
+    { id: 'emails-new', label: 'Email', icon: Mail },
+    { id: 'tickets', label: 'Suporte', icon: Users },
+    { id: 'faturas', label: 'Faturas', icon: FileText },
+    { id: 'conta', label: 'Conta', icon: Settings },
+  ]
+
+  const currentSidebarWidth = isCollapsed ? 80 : 250
+
+  const renderSection = () => {
+    switch (activeSection) {
+      case 'dashboard':
+        return <CpanelDashboard 
+          sites={cyberPanelSites} 
+          users={cyberPanelUsers} 
+          isFetching={isFetchingCyberPanel} 
+          onNavigate={setActiveSection} 
+          onRefresh={loadCyberPanelData}
+          onSetDNSDomain={setSelectedDNSDomain}
+          onSetFileManagerDomain={setFileManagerDomain}
+        />
+      case 'domains':
+      case 'domains-list':
+        return <ListWebsitesSection 
+        sites={cyberPanelSites} 
+        onRefresh={loadCyberPanelData} 
+        packages={cyberPanelPackages}
+        setActiveSection={setActiveSection}
+        setFileManagerDomain={setFileManagerDomain}
+        setSelectedDNSDomain={setSelectedDNSDomain}
+        loadCyberPanelData={loadCyberPanelData}
+        syncing={syncing}
+        handleSync={handleSync}
+      />
+      case 'file-manager':
+      case 'cp-file-manager':
+        return <FileManagerSection domain={fileManagerDomain || 'visualdesigne.com'} sites={cyberPanelSites} />
+      case 'tickets':
+        return <div className="p-6"><h1 className="text-2xl font-bold">Suporte</h1><p className="text-gray-500 mt-1">Em breve</p></div>
+      case 'faturas':
+        return <div className="p-6"><h1 className="text-2xl font-bold">Faturas</h1><p className="text-gray-500 mt-1">Em breve</p></div>
+      case 'conta':
+        return <div className="p-6"><h1 className="text-2xl font-bold">A Minha Conta</h1><p className="text-gray-500 mt-1">Em breve</p></div>
+      case 'domains-new':
+        // return <CreateWebsiteSection packages={cyberPanelPackages} onRefresh={loadCyberPanelData} /> // Removido - não usado no painel do cliente
+        return <div className="p-6"><h1 className="text-2xl font-bold">Criar Website</h1><p className="text-gray-500 mt-1">Secção não disponível no painel do cliente</p></div>
+      case 'cp-subdomains':
+        // return <SubdomainsSection sites={cyberPanelSites} /> // Removido - não usado no painel do cliente
+        return <div className="p-6"><h1 className="text-2xl font-bold">Subdomínios</h1><p className="text-gray-500 mt-1">Secção não disponível no painel do cliente</p></div>
+      case 'cp-list-subdomains':
+        // return <ListSubdomainsSection sites={cyberPanelSites} /> // Removido - não usado no painel do cliente
+        return <div className="p-6"><h1 className="text-2xl font-bold">Listar Subdomínios</h1><p className="text-gray-500 mt-1">Secção não disponível no painel do cliente</p></div>
+      case 'cp-modify-website':
+        // return <ModifyWebsiteSection sites={cyberPanelSites} packages={cyberPanelPackages} /> // Removido - não usado no painel do cliente
+        return <div className="p-6"><h1 className="text-2xl font-bold">Modificar Website</h1><p className="text-gray-500 mt-1">Secção não disponível no painel do cliente</p></div>
+      case 'cp-suspend-website':
+        // return <SuspendWebsiteSection sites={cyberPanelSites} onRefresh={loadCyberPanelData} /> // Removido - não usado no painel do cliente
+        return <div className="p-6"><h1 className="text-2xl font-bold">Suspender Website</h1><p className="text-gray-500 mt-1">Secção não disponível no painel do cliente</p></div>
+      case 'cp-delete-website':
+        // return <DeleteWebsiteSection sites={cyberPanelSites} onRefresh={loadCyberPanelData} /> // Removido - não usado no painel do cliente
+        return <div className="p-6"><h1 className="text-2xl font-bold">Apagar Website</h1><p className="text-gray-500 mt-1">Secção não disponível no painel do cliente</p></div>
+      case 'cp-databases':
+        // return <DatabasesSection sites={cyberPanelSites} /> // Removido - não usado no painel do cliente
+        return <div className="p-6"><h1 className="text-2xl font-bold">Bases de Dados</h1><p className="text-gray-500 mt-1">Secção não disponível no painel do cliente</p></div>
+      case 'cp-ftp':
+        // return <FTPSection sites={cyberPanelSites} /> // Removido - não usado no painel do cliente
+        return <div className="p-6"><h1 className="text-2xl font-bold">FTP</h1><p className="text-gray-500 mt-1">Secção não disponível no painel do cliente</p></div>
+      case 'cp-email-delete':
+        // return <EmailDeleteSection sites={cyberPanelSites} /> // Removido - não usado no painel do cliente
+        return <div className="p-6"><h1 className="text-2xl font-bold">Apagar Email</h1><p className="text-gray-500 mt-1">Secção não disponível no painel do cliente</p></div>
+      case 'cp-email-limits':
+        // return <EmailLimitsSection sites={cyberPanelSites} /> // Removido - não usado no painel do cliente
+        return <div className="p-6"><h1 className="text-2xl font-bold">Limites de Email</h1><p className="text-gray-500 mt-1">Secção não disponível no painel do cliente</p></div>
+      case 'cp-email-forwarding':
+        // return <EmailForwardingSection sites={cyberPanelSites} /> // Removido - não usado no painel do cliente
+        return <div className="p-6"><h1 className="text-2xl font-bold">Encaminhamento de Email</h1><p className="text-gray-500 mt-1">Secção não disponível no painel do cliente</p></div>
+      case 'cp-email-catchall':
+        // return <CatchAllEmailSection sites={cyberPanelSites} /> // Removido - não usado no painel do cliente
+        return <div className="p-6"><h1 className="text-2xl font-bold">Catch All Email</h1><p className="text-gray-500 mt-1">Secção não disponível no painel do cliente</p></div>
+      case 'cp-email-pattern-fwd':
+        // return <PatternForwardingSection sites={cyberPanelSites} /> // Removido - não usado no painel do cliente
+        return <div className="p-6"><h1 className="text-2xl font-bold">Pattern Forwarding</h1><p className="text-gray-500 mt-1">Secção não disponível no painel do cliente</p></div>
+      case 'cp-email-plus-addr':
+        // return <PlusAddressingSection sites={cyberPanelSites} /> // Removido - não usado no painel do cliente
+        return <div className="p-6"><h1 className="text-2xl font-bold">Plus Addressing</h1><p className="text-gray-500 mt-1">Secção não disponível no painel do cliente</p></div>
+      case 'cp-email-change-pass':
+        // return <EmailChangePasswordSection sites={cyberPanelSites} /> // Removido - não usado no painel do cliente
+        return <div className="p-6"><h1 className="text-2xl font-bold">Alterar Senha Email</h1><p className="text-gray-500 mt-1">Secção não disponível no painel do cliente</p></div>
+      case 'cp-email-dkim':
+        // return <DKIMManagerSection sites={cyberPanelSites} /> // Removido - não usado no painel do cliente
+        return <div className="p-6"><h1 className="text-2xl font-bold">DKIM Manager</h1><p className="text-gray-500 mt-1">Secção não disponível no painel do cliente</p></div>
+      case 'cp-users':
+        // return <CPUsersSection /> // Removido - não usado no painel do cliente
+        return <div className="p-6"><h1 className="text-2xl font-bold">Utilizadores</h1><p className="text-gray-500 mt-1">Secção não disponível no painel do cliente</p></div>
+      case 'cp-reseller':
+        // return <ResellerSection /> // Removido - não usado no painel do cliente
+        return <div className="p-6"><h1 className="text-2xl font-bold">Revenda</h1><p className="text-gray-500 mt-1">Secção não disponível no painel do cliente</p></div>
+      case 'cp-ssl':
+        // return <SSLSection sites={cyberPanelSites} /> // Removido - não usado no painel do cliente
+        return <div className="p-6"><h1 className="text-2xl font-bold">SSL</h1><p className="text-gray-500 mt-1">Secção não disponível no painel do cliente</p></div>
+      case 'cp-security':
+        // return <SecuritySection sites={cyberPanelSites} /> // Removido - não usado no painel do cliente
+        return <div className="p-6"><h1 className="text-2xl font-bold">Segurança</h1><p className="text-gray-500 mt-1">Secção não disponível no painel do cliente</p></div>
+      case 'cp-php':
+        // return <PHPConfigSection sites={cyberPanelSites} /> // Removido - não usado no painel do cliente
+        return <div className="p-6"><h1 className="text-2xl font-bold">Configuração PHP</h1><p className="text-gray-500 mt-1">Secção não disponível no painel do cliente</p></div>
+      case 'cp-api':
+      case 'infrastructure':
+        // return <APIConfigSection /> // Removido - não usado no painel do cliente
+        return <div className="p-6"><h1 className="text-2xl font-bold">Configurações</h1><p className="text-gray-500 mt-1">Secção não disponível no painel do cliente</p></div>
+      case 'cp-wp-list':
+        // return <WPListSection sites={cyberPanelSites} setFileManagerDomain={setFileManagerDomain} setActiveSection={setActiveSection} /> // Removido - não usado no painel do cliente
+        return <div className="p-6"><h1 className="text-2xl font-bold">WordPress</h1><p className="text-gray-500 mt-1">Secção não disponível no painel do cliente</p></div>
+      case 'cp-wp-plugins':
+        // return <WPPluginsSection sites={cyberPanelSites} /> // Removido - não usado no painel do cliente
+        return <div className="p-6"><h1 className="text-2xl font-bold">Plugins WordPress</h1><p className="text-gray-500 mt-1">Secção não disponível no painel do cliente</p></div>
+      case 'cp-wp-restore-backup':
+        // return <WPRestoreBackupSection sites={cyberPanelSites} /> // Removido - não usado no painel do cliente
+        return <div className="p-6"><h1 className="text-2xl font-bold">Restaurar Backup WordPress</h1><p className="text-gray-500 mt-1">Secção não disponível no painel do cliente</p></div>
+      case 'cp-wp-remote-backup':
+        // return <WPRemoteBackupSection sites={cyberPanelSites} /> // Removido - não usado no painel do cliente
+        return <div className="p-6"><h1 className="text-2xl font-bold">Backup Remoto WordPress</h1><p className="text-gray-500 mt-1">Secção não disponível no painel do cliente</p></div>
+      case 'cp-dns-nameserver':
+        // return <DNSNameserverSection sites={cyberPanelSites} /> // Removido - não usado no painel do cliente
+        return <div className="p-6"><h1 className="text-2xl font-bold">Nameservers DNS</h1><p className="text-gray-500 mt-1">Secção não disponível no painel do cliente</p></div>
+      case 'cp-dns-default-ns':
+        // return <DNSDefaultNSSection /> // Removido - não usado no painel do cliente
+        return <div className="p-6"><h1 className="text-2xl font-bold">Default Nameservers</h1><p className="text-gray-500 mt-1">Secção não disponível no painel do cliente</p></div>
+      case 'cp-dns-create-zone':
+        // return <DNSCreateZoneSection sites={cyberPanelSites} /> // Removido - não usado no painel do cliente
+        return <div className="p-6"><h1 className="text-2xl font-bold">Criar Zona DNS</h1><p className="text-gray-500 mt-1">Secção não disponível no painel do cliente</p></div>
+      case 'domains-dns':
+        return <DNSZoneEditorSection 
+          sites={cyberPanelSites} 
+          initialDomain={selectedDNSDomain || primaryDomain} 
+        />
+      case 'cp-dns-delete-zone':
+        // return <DNSDeleteZoneSection sites={cyberPanelSites} /> // Removido - não usado no painel do cliente
+        return <div className="p-6"><h1 className="text-2xl font-bold">Apagar Zona DNS</h1><p className="text-gray-500 mt-1">Secção não disponível no painel do cliente</p></div>
+      case 'cp-dns-cloudflare':
+        // return <CloudFlareSection sites={cyberPanelSites} /> // Removido - não usado no painel do cliente
+        return <div className="p-6"><h1 className="text-2xl font-bold">Cloudflare</h1><p className="text-gray-500 mt-1">Secção não disponível no painel do cliente</p></div>
+      case 'cp-dns-reset':
+        // return <DNSResetSection sites={cyberPanelSites} /> // Removido - não usado no painel do cliente
+        return <div className="p-6"><h1 className="text-2xl font-bold">Reset DNS</h1><p className="text-gray-500 mt-1">Secção não disponível no painel do cliente</p></div>
+      case 'cp-dns-zone-editor':
+        return <DNSZoneEditorSection sites={cyberPanelSites} />
+      case 'git-deploy':
+        // return <GitDeploySection /> // Removido - não usado no painel do cliente
+        return <div className="p-6"><h1 className="text-2xl font-bold">Deploy GitHub</h1><p className="text-gray-500 mt-1">Secção não disponível no painel do cliente</p></div>
+      case 'backup-manager':
+      case 'cp-backup':
+        // return <BackupManagerSection sites={cyberPanelSites} /> // Removido - não usado no painel do cliente
+        return <div className="p-6"><h1 className="text-2xl font-bold">Backups</h1><p className="text-gray-500 mt-1">Secção não disponível no painel do cliente</p></div>
+      case 'wordpress-install':
+        // return <WordPressInstallSection sites={cyberPanelSites} /> // Removido - não usado no painel do cliente
+        return <div className="p-6"><h1 className="text-2xl font-bold">Instalar WordPress</h1><p className="text-gray-500 mt-1">Secção não disponível no painel do cliente</p></div>
+      case 'cp-wp-backup':
+        // return <WPBackupSection sites={cyberPanelSites} /> // Removido - não usado no painel do cliente
+        return <div className="p-6"><h1 className="text-2xl font-bold">Backup WordPress</h1><p className="text-gray-500 mt-1">Secção não disponível no painel do cliente</p></div>
+      case 'domain-manager':
+        // return <DomainManagerSection sites={cyberPanelSites} /> // Removido - não usado no painel do cliente
+        return <div className="p-6"><h1 className="text-2xl font-bold">Gestor de Domínios</h1><p className="text-gray-500 mt-1">Secção não disponível no painel do cliente</p></div>
+      case 'deploy':
+        // return <DeploySection sites={cyberPanelSites} /> // Removido - não usado no painel do cliente
+        return <div className="p-6"><h1 className="text-2xl font-bold">Deploy</h1><p className="text-gray-500 mt-1">Secção não disponível no painel do cliente</p></div>
+      case 'packages-list':
+        // return <PackagesSection packages={cyberPanelPackages} onRefresh={loadCyberPanelData} /> // Removido - não usado no painel do cliente
+        return <div className="p-6"><h1 className="text-2xl font-bold">Pacotes</h1><p className="text-gray-500 mt-1">Secção não disponível no painel do cliente</p></div>
+      default:
+        return <CpanelDashboard sites={cyberPanelSites} users={cyberPanelUsers} isFetching={isFetchingCyberPanel} onNavigate={setActiveSection} onRefresh={loadCyberPanelData} onSetFileManagerDomain={setFileManagerDomain} />
+    }
+  }
+
+  return (
+    <div className="flex h-screen bg-gray-50 overflow-hidden">
+      {/* Sidebar */}
+      <motion.div
+        className="relative bg-white border-r border-gray-200 text-gray-800 flex flex-col shadow-sm"
+        style={{ width: `${currentSidebarWidth}px` }}
+        animate={{ width: currentSidebarWidth }}
+        transition={{ duration: 0.2, ease: 'easeInOut' }}
+        initial={{ width: 250 }}
+      >
+        {/* Sidebar Header */}
+        <div className="px-2 pb-4 border-b border-gray-100 pt-4">
+          {isCollapsed ? (
+            <div className="flex flex-col items-center gap-3">
+              <img src="/assets/simbolo.png" alt="Logo" className="w-20 h-20 object-contain cursor-pointer" onClick={() => window.location.href = '/'} />
+              <button onClick={() => setIsCollapsed(!isCollapsed)} className="rounded-lg hover:bg-gray-100 transition-colors">
+                <LogOut size={20} className="text-gray-500" />
+              </button>
             </div>
-          </motion.div>
-
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.1 }}
-            className="bg-white rounded-lg shadow p-6"
-          >
-            <div className="flex items-center">
-              <div className="flex-shrink-0 bg-green-100 rounded-lg p-3">
-                <svg className="h-6 w-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1" />
-                </svg>
+          ) : (
+            <div className="flex items-center gap-3">
+              <img src="/assets/simbolo.png" alt="Logo" className="w-14 h-14 object-contain cursor-pointer" onClick={() => window.location.href = '/'} />
+              <div className="flex-1">
+                <h1 className="text-xl font-bold text-gray-900">Painel do Cliente</h1>
+                <p className="text-xs text-gray-500">VisualDesign</p>
               </div>
-              <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600">Mensalidade</p>
-                <p className="text-2xl font-bold text-gray-900">
-                  {new Intl.NumberFormat('pt-MZ', { style: 'currency', currency: 'MZN' }).format(
-                    sites.reduce((total, site) => total + site.preco_mensal, 0)
+              <button onClick={() => setIsCollapsed(!isCollapsed)} className="rounded-lg hover:bg-gray-100 transition-colors">
+                <LogOut size={20} className="text-gray-500 rotate-180" />
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* Menu Items */}
+        <nav className="flex-1 overflow-y-auto px-2 py-2.5">
+          <div className="space-y-0.5">
+            {menuItems.map((item) => {
+              const Icon = item.icon
+              const isActive = activeSection === item.id ||
+                (item.id === 'domains' && ['domains', 'domains-new', 'domains-list'].includes(activeSection)) ||
+                (item.id === 'emails-new' && activeSection.startsWith('cp-email')) ||
+                (item.id === 'cp-security' && activeSection === 'cp-security')
+              return (
+                <button
+                  key={item.id}
+                  onClick={() => setActiveSection(item.id)}
+                  className={`w-full flex items-center ${isCollapsed ? 'justify-center' : ''} ${isCollapsed ? 'px-2 py-2' : 'p-2.5'} rounded-lg transition-colors ${
+                    isActive
+                      ? 'bg-red-50 text-red-600 font-bold'
+                      : 'hover:bg-gray-100 text-gray-600'
+                  }`}
+                  title={isCollapsed ? item.label : ''}
+                >
+                  <Icon size={22} className={isActive ? 'text-red-600' : 'text-gray-500'} />
+                  {!isCollapsed && (
+                    <span className="ml-3 text-[15px]">{item.label}</span>
                   )}
-                </p>
-              </div>
-            </div>
-          </motion.div>
+                  {!isCollapsed && isActive && (
+                    <ChevronRight size={14} className="ml-auto text-red-400" />
+                  )}
+                </button>
+              )
+            })}
+          </div>
+        </nav>
 
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.2 }}
-            className="bg-white rounded-lg shadow p-6"
-          >
-            <div className="flex items-center">
-              <div className="flex-shrink-0 bg-yellow-100 rounded-lg p-3">
-                <svg className="h-6 w-6 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-              </div>
-              <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600">Pagamentos Pendentes</p>
-                <p className="text-2xl font-bold text-gray-900">{pagamentos.filter(p => p.status === 'pending').length}</p>
-              </div>
+        {/* Sidebar Footer */}
+        <div className="p-3 border-t border-gray-100">
+          <div className={`flex items-center ${isCollapsed ? 'justify-center' : 'gap-3'}`}>
+            <div className="w-8 h-8 bg-red-600 rounded-full flex items-center justify-center shrink-0">
+              <span className="text-white text-xs font-bold">SC</span>
             </div>
-          </motion.div>
-
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.3 }}
-            className="bg-white rounded-lg shadow p-6"
-          >
-            <div className="flex items-center">
-              <div className="flex-shrink-0 bg-purple-100 rounded-lg p-3">
-                <svg className="h-6 w-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                </svg>
-              </div>
-              <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600">Contas de Email</p>
-                <p className="text-2xl font-bold text-gray-900">0</p>
-              </div>
-            </div>
-          </motion.div>
-        </div>
-
-        {/* Sites */}
-        <div className="mb-8">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">Meus Sites</h2>
-          <div className="bg-white shadow rounded-lg">
-            {sites.length === 0 ? (
-              <div className="p-6 text-center">
-                <p className="text-gray-500">Nenhum site encontrado</p>
-              </div>
-            ) : (
-              <div className="overflow-hidden">
-                <table className="min-w-full divide-y divide-gray-200">
-                  <thead className="bg-gray-50">
-                    <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Domínio</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Plano</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Preço</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Renovação</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">SSL</th>
-                    </tr>
-                  </thead>
-                  <tbody className="bg-white divide-y divide-gray-200">
-                    {sites.map((site) => (
-                      <motion.tr
-                        key={site.id}
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        className="hover:bg-gray-50"
-                      >
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="text-sm font-medium text-gray-900">{site.dominio}</div>
-                          <div className="text-sm text-gray-500">{site.titulo_site}</div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <span className="text-sm text-gray-900 capitalize">{site.plano}</span>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <span className="text-sm text-gray-900">
-                            {new Intl.NumberFormat('pt-MZ', { style: 'currency', currency: 'MZN' }).format(site.preco_mensal)}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <span className="text-sm text-gray-900">
-                            {site.data_renovacao ? new Date(site.data_renovacao).toLocaleDateString('pt-MZ') : 'N/A'}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusColor(site.status)}`}>
-                            {site.status === 'active' ? 'Ativo' : site.status === 'suspended' ? 'Suspenso' : site.status === 'expired' ? 'Expirado' : 'Pendente'}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${site.ssl ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}`}>
-                            {site.ssl ? 'Sim' : 'Não'}
-                          </span>
-                        </td>
-                      </motion.tr>
-                    ))}
-                  </tbody>
-                </table>
+            {!isCollapsed && (
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-bold text-gray-900 truncate">João Silva</p>
+                <p className="text-[10px] text-gray-400 truncate">joao@aamihe.com</p>
               </div>
             )}
           </div>
         </div>
+      </motion.div>
 
-        {/* Pagamentos */}
-        <div className="mb-8">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">Histórico de Pagamentos</h2>
-          <div className="bg-white shadow rounded-lg">
-            {pagamentos.length === 0 ? (
-              <div className="p-6 text-center">
-                <p className="text-gray-500">Nenhum pagamento encontrado</p>
-              </div>
-            ) : (
-              <div className="overflow-hidden">
-                <table className="min-w-full divide-y divide-gray-200">
-                  <thead className="bg-gray-50">
-                    <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Descrição</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Valor</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Vencimento</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Método</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                    </tr>
-                  </thead>
-                  <tbody className="bg-white divide-y divide-gray-200">
-                    {pagamentos.map((pagamento) => (
-                      <motion.tr
-                        key={pagamento.id}
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        className="hover:bg-gray-50"
-                      >
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="text-sm font-medium text-gray-900">{pagamento.descricao}</div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <span className="text-sm text-gray-900">
-                            {new Intl.NumberFormat('pt-MZ', { style: 'currency', currency: 'MZN' }).format(pagamento.valor)}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <span className="text-sm text-gray-900">
-                            {new Date(pagamento.data_vencimento).toLocaleDateString('pt-MZ')}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <span className="text-sm text-gray-900 capitalize">{pagamento.metodo_pagamento}</span>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getPaymentStatusColor(pagamento.status)}`}>
-                            {pagamento.status === 'paid' ? 'Pago' : pagamento.status === 'pending' ? 'Pendente' : pagamento.status === 'overdue' ? 'Atrasado' : 'Cancelado'}
-                          </span>
-                        </td>
-                      </motion.tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
+      {/* Main Content */}
+      <div className="flex-1 flex flex-col overflow-hidden">
+        {/* Top Header */}
+        <header className="bg-white border-b border-gray-200 px-6 py-3">
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-2xl font-bold text-gray-900 ml-6">
+                Dashboard
+              </h1>
+              <p className="text-xs text-gray-400 mt-0.5 ml-6">
+                Visão geral do servidor
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <button onClick={() => window.location.href = '/'}
+                className="bg-gray-700 hover:bg-red-600 text-white text-xs font-bold px-4 py-2 rounded-lg flex items-center gap-1.5 transition-colors" title="Sair">
+                <LogOut size={13} />
+                Sair
+              </button>
+            </div>
           </div>
-        </div>
+        </header>
 
-        {/* Ações Rápidas */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <motion.button
-            whileHover={{ scale: 1.02 }}
-            className="bg-blue-600 text-white rounded-lg p-6 text-left hover:bg-blue-700 transition-colors"
-          >
-            <h3 className="text-lg font-medium mb-2">Solicitar Suporte</h3>
-            <p className="text-blue-100">Abrir ticket de suporte técnico</p>
-          </motion.button>
-
-          <motion.button
-            whileHover={{ scale: 1.02 }}
-            className="bg-green-600 text-white rounded-lg p-6 text-left hover:bg-green-700 transition-colors"
-          >
-            <h3 className="text-lg font-medium mb-2">Ver Faturas</h3>
-            <p className="text-green-100">Baixar faturas e recibos</p>
-          </motion.button>
-
-          <motion.button
-            whileHover={{ scale: 1.02 }}
-            className="bg-purple-600 text-white rounded-lg p-6 text-left hover:bg-purple-700 transition-colors"
-          >
-            <h3 className="text-lg font-medium mb-2">Configurar Email</h3>
-            <p className="text-purple-100">Gerenciar contas de email</p>
-          </motion.button>
-        </div>
+        {/* Content Area */}
+        <main className="flex-1 overflow-y-auto p-6">
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={activeSection}
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              transition={{ duration: 0.15 }}
+            >
+              {renderSection()}
+            </motion.div>
+          </AnimatePresence>
+        </main>
       </div>
     </div>
   )
