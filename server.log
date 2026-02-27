@@ -889,3 +889,31 @@ Auth state changed: INITIAL_SESSION undefined
  GET /api/git-deploy 200 in 546ms (compile: 2ms, render: 544ms)
  GET /api/git-deploy 200 in 91ms (compile: 2ms, render: 89ms)
  POST /api/server-exec 200 in 8.3s (compile: 4ms, render: 8.3s)
+⚠ You are using an experimental edge runtime, the API might change.
+  Reload env: .env.local
+ GET /admin 200 in 230ms (compile: 152ms, render: 78ms)
+ GET /admin 200 in 224ms (compile: 199ms, render: 25ms)
+⚠ You are using an experimental edge runtime, the API might change.
+  Reload env: .env.local
+ GET /admin 200 in 131ms (compile: 85ms, render: 47ms)
+ GET /admin 200 in 25ms (compile: 5ms, render: 20ms)
+⚠ You are using an experimental edge runtime, the API might change.
+  Reload env: .env.local
+ GET /admin 200 in 161ms (compile: 60ms, render: 100ms)
+ GET /admin 200 in 59ms (compile: 5ms, render: 55ms)
+⚠ You are using an experimental edge runtime, the API might change.
+  Reload env: .env.local
+ GET /admin 200 in 132ms (compile: 67ms, render: 65ms)
+ GET /admin 200 in 132ms (compile: 104ms, render: 28ms)
+⚠ You are using an experimental edge runtime, the API might change.
+  Reload env: .env.local
+ GET /admin 200 in 128ms (compile: 59ms, render: 69ms)
+ GET /admin 200 in 32ms (compile: 4ms, render: 28ms)
+⚠ You are using an experimental edge runtime, the API might change.
+  Reload env: .env.local
+ GET /admin 200 in 139ms (compile: 76ms, render: 64ms)
+ GET /admin 200 in 140ms (compile: 114ms, render: 26ms)
+⚠ You are using an experimental edge runtime, the API might change.
+  Reload env: .env.local
+ GET /admin 200 in 135ms (compile: 54ms, render: 81ms)
+ GET /admin 200 in 162ms (compile: 90ms, render: 71ms)

@@ -3617,16 +3617,18 @@ export function FileManagerSection({ domain, sites }: {
   domain: string, 
   sites: CyberPanelWebsite[] 
 }) {
-  const [path, setPath] = useState(`/home/${domain}/public_html`)
+  const [selectedDomain, setSelectedDomain] = useState(domain || '')
+  const [path, setPath] = useState(domain ? `/home/${domain}/public_html` : '')
   const [files, setFiles] = useState<any[]>([])
   const [loading, setLoading] = useState(false)
   const [msg, setMsg] = useState('')
-  const [selectedDomain, setSelectedDomain] = useState(domain || '')
 
-  // Carregar ficheiros ao montar e quando path muda
   useEffect(() => {
-    if (selectedDomain) loadFiles()
-  }, [path, selectedDomain])
+    if (domain) {
+      setSelectedDomain(domain)
+      setPath(`/home/${domain}/public_html`)
+    }
+  }, [domain])
 
   const loadFiles = async () => {
     setLoading(true)
@@ -3635,28 +3637,25 @@ export function FileManagerSection({ domain, sites }: {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         action: 'execCommand',
-        params: { command: `ls -la ${path} 2>&1` }
+        params: { command: `ls -lah "${path}" 2>/dev/null` }
       })
     })
     const data = await res.json()
-    // Parse do output ls -la
     const lines = (data.data?.output || '').split('\n').filter((l: string) => 
-      l && !l.startsWith('total') && l.trim()
+      l.trim() && !l.startsWith('total')
     )
-    const parsed = lines.map((line: string) => {
+    setFiles(lines.map((line: string) => {
       const parts = line.trim().split(/\s+/)
-      return {
-        permissions: parts[0],
-        size: parts[4],
-        date: `${parts[5]} ${parts[6]} ${parts[7]}`,
-        name: parts[8],
-        isDir: parts[0]?.startsWith('d'),
-        isLink: parts[0]?.startsWith('l'),
-      }
-    }).filter((f: any) => f.name && f.name !== '.' && f.name !== '..')
-    setFiles(parsed)
+      const isDir = parts[0]?.startsWith('d')
+      const name = parts.slice(8).join(' ')
+      return { name, isDir, size: parts[4], date: `${parts[5]} ${parts[6]} ${parts[7]}`, permissions: parts[0] }
+    }).filter((f: any) => f.name && f.name !== '.' && f.name !== '..'))
     setLoading(false)
   }
+
+  useEffect(() => {
+    if (selectedDomain && path) loadFiles()
+  }, [path, selectedDomain])
 
   const navigateTo = (folder: string) => {
     if (folder === '..') {
