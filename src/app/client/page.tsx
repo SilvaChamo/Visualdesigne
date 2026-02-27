@@ -396,7 +396,7 @@ function EmailWebmailSection({
   {/* Coluna direita — Campos */}
   <div className="flex-1 flex flex-col">
     {/* Linha De + botão fechar */}
-    <div className="flex items-center border-b border-gray-700 px-3 py-1.5">
+    <div className="flex items-center border-b border-gray-700 px-3 py-1">
       <span className="text-gray-400 text-xs w-16 shrink-0">De:</span>
       <select value={emailOrigem} onChange={e => setEmailOrigem(e.target.value)}
         className="bg-transparent text-white text-sm outline-none flex-1">
@@ -453,13 +453,13 @@ function EmailWebmailSection({
 </div>
 
           {/* LINHA 2 — Formatação */}
-          <div className="bg-gray-800 px-4 py-2 flex items-center justify-between gap-1 flex-wrap border-b border-gray-700">
+          <div className="bg-gray-800 px-3 py-1 flex items-center justify-between gap-1 flex-wrap border-b border-gray-700">
             {/* Lado esquerdo — formatação */}
             <div className="flex items-center gap-1 flex-wrap">
-              <select className="bg-gray-700 border border-gray-600 text-white text-sm px-2 py-1.5 rounded">
+              <select className="bg-gray-700 border border-gray-600 text-white text-xs px-2 py-1 rounded">
                 <option>Calibri</option><option>Arial</option><option>Times New Roman</option>
               </select>
-              <select className="bg-gray-700 border border-gray-600 text-white text-sm px-2 py-1.5 rounded w-16">
+              <select className="bg-gray-700 border border-gray-600 text-white text-xs px-2 py-1 rounded w-14">
                 <option>11</option><option>12</option><option>14</option><option>16</option><option>18</option>
               </select>
               <div className="w-px h-5 bg-gray-600 mx-1" />
@@ -471,12 +471,30 @@ function EmailWebmailSection({
                 </button>
               ))}
               <div className="w-px h-5 bg-gray-600 mx-1" />
-              {[{ l: '≡', t: 'Lista' }, { l: '1.', t: 'Numerada' }, { l: '⬛', t: 'Esquerda' }, { l: '▪', t: 'Centro' }, { l: '⬜', t: 'Direita' }, { l: '▬', t: 'Justificar' }].map((b, i) => (
-                <button key={i} title={b.t} className="text-white text-sm px-2.5 py-1.5 rounded hover:bg-gray-600 border border-gray-600 relative group">
-                  {b.l}
-                  <span className="absolute top-8 left-1/2 -translate-x-1/2 bg-black text-white text-[10px] px-1.5 py-0.5 rounded opacity-0 group-hover:opacity-100 whitespace-nowrap z-20 pointer-events-none">{b.t}</span>
-                </button>
-              ))}
+              <button title="Alinhar à esquerda" className="w-7 h-7 flex items-center justify-center rounded hover:bg-gray-600 text-white transition-colors">
+  <svg viewBox="0 0 16 16" className="w-3.5 h-3.5" fill="currentColor"><rect x="1" y="2" width="14" height="1.5" rx="0.75"/><rect x="1" y="5.5" width="10" height="1.5" rx="0.75"/><rect x="1" y="9" width="14" height="1.5" rx="0.75"/><rect x="1" y="12.5" width="8" height="1.5" rx="0.75"/></svg>
+</button>
+<button title="Centrar" className="w-7 h-7 flex items-center justify-center rounded hover:bg-gray-600 text-white transition-colors">
+  <svg viewBox="0 0 16 16" className="w-3.5 h-3.5" fill="currentColor"><rect x="1" y="2" width="14" height="1.5" rx="0.75"/><rect x="3" y="5.5" width="10" height="1.5" rx="0.75"/><rect x="1" y="9" width="14" height="1.5" rx="0.75"/><rect x="4" y="12.5" width="8" height="1.5" rx="0.75"/></svg>
+</button>
+<button title="Alinhar à direita" className="w-7 h-7 flex items-center justify-center rounded hover:bg-gray-600 text-white transition-colors">
+  <svg viewBox="0 0 16 16" className="w-3.5 h-3.5" fill="currentColor"><rect x="1" y="2" width="14" height="1.5" rx="0.75"/><rect x="5" y="5.5" width="10" height="1.5" rx="0.75"/><rect x="1" y="9" width="14" height="1.5" rx="0.75"/><rect x="7" y="12.5" width="8" height="1.5" rx="0.75"/></svg>
+</button>
+<button title="Justificar" className="w-7 h-7 flex items-center justify-center rounded hover:bg-gray-600 text-white transition-colors">
+  <svg viewBox="0 0 16 16" className="w-3.5 h-3.5" fill="currentColor"><rect x="1" y="2" width="14" height="1.5" rx="0.75"/><rect x="1" y="5.5" width="14" height="1.5" rx="0.75"/><rect x="1" y="9" width="14" height="1.5" rx="0.75"/><rect x="1" y="12.5" width="14" height="1.5" rx="0.75"/></svg>
+</button>
+<button title="Lista de pontos" className="w-7 h-7 flex items-center justify-center rounded hover:bg-gray-600 text-white transition-colors">
+  <svg viewBox="0 0 16 16" className="w-3.5 h-3.5" fill="currentColor"><circle cx="2" cy="4" r="1.2"/><rect x="5" y="3.2" width="9" height="1.5" rx="0.75"/><circle cx="2" cy="8" r="1.2"/><rect x="5" y="7.2" width="9" height="1.5" rx="0.75"/><circle cx="2" cy="12" r="1.2"/><rect x="5" y="11.2" width="9" height="1.5" rx="0.75"/></svg>
+</button>
+<button title="Lista numerada" className="w-7 h-7 flex items-center justify-center rounded hover:bg-gray-600 text-white transition-colors">
+  <svg viewBox="0 0 16 16" className="w-3.5 h-3.5" fill="currentColor"><rect x="1" y="2" width="2" height="1.5" rx="0.5"/><rect x="5" y="2" width="9" height="1.5" rx="0.75"/><rect x="1" y="5.5" width="2" height="1.5" rx="0.5"/><rect x="5" y="5.5" width="9" height="1.5" rx="0.75"/><rect x="1" y="9" width="2" height="1.5" rx="0.5"/><rect x="5" y="9" width="9" height="1.5" rx="0.75"/></svg>
+</button>
+<button title="Diminuir indentação" className="w-7 h-7 flex items-center justify-center rounded hover:bg-gray-600 text-white transition-colors">
+  <svg viewBox="0 0 16 16" className="w-3.5 h-3.5" fill="currentColor"><rect x="1" y="2" width="14" height="1.5" rx="0.75"/><path d="M5 5.5L2 8l3 2.5V5.5z"/><rect x="6" y="7.2" width="9" height="1.5" rx="0.75"/><rect x="1" y="12.5" width="14" height="1.5" rx="0.75"/></svg>
+</button>
+<button title="Aumentar indentação" className="w-7 h-7 flex items-center justify-center rounded hover:bg-gray-600 text-white transition-colors">
+  <svg viewBox="0 0 16 16" className="w-3.5 h-3.5" fill="currentColor"><rect x="1" y="2" width="14" height="1.5" rx="0.75"/><path d="M2 5.5l3 2.5-3 2.5V5.5z"/><rect x="6" y="7.2" width="9" height="1.5" rx="0.75"/><rect x="1" y="12.5" width="14" height="1.5" rx="0.75"/></svg>
+</button>
             </div>
 
             {/* Lado direito — inserir e assinatura */}
@@ -2276,7 +2294,7 @@ export default function AdminPage() {
               {activeSection === 'emails-new' && (
                 <button
                   onClick={() => { setMostrarAdicionarConta(true); setModalAdicionarPasso('escolher') }}
-                  className="bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold px-4 py-2 rounded-lg flex items-center gap-1.5 transition-colors">
+                  className="ml-2 bg-red-600 hover:bg-gray-600 text-white text-xs rounded px-2 py-0.5 transition-colors font-bold">
                   + Adicionar Conta
                 </button>
               )}
