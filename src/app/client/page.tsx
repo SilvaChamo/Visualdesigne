@@ -26,6 +26,394 @@ import {
 import { cyberPanelAPI } from '@/lib/cyberpanel-api'
 import type { CyberPanelWebsite, CyberPanelUser, CyberPanelPackage } from '@/lib/cyberpanel-api'
 
+// Componente SuporteSection
+function SuporteSection() {
+  const [form, setForm] = useState({ assunto: '', categoria: 'Geral', descricao: '' })
+  const [enviado, setEnviado] = useState(false)
+  const [expanded, setExpanded] = useState<string | null>(null)
+
+  const tickets = [
+    { id: 'TK-001', assunto: 'Problema com email', categoria: 'Email', estado: 'Resolvido', data: '15/01/2026', resposta: 'O problema foi resolvido. O email está agora configurado correctamente.' },
+    { id: 'TK-002', assunto: 'Renovação do domínio', categoria: 'Facturação', estado: 'Aberto', data: '10/02/2026', resposta: '' },
+  ]
+
+  const estadoCor = (e: string) => e === 'Resolvido' ? 'bg-green-100 text-green-700' : e === 'Aberto' ? 'bg-blue-100 text-blue-700' : 'bg-yellow-100 text-yellow-700'
+
+  return (
+    <div className="space-y-6">
+      <div><h1 className="text-2xl font-bold text-gray-900">Suporte</h1><p className="text-gray-500 mt-1">Contacta-nos ou abre um ticket de suporte.</p></div>
+
+      {/* Contactos */}
+      <div className="grid grid-cols-2 gap-4">
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
+          <h2 className="text-sm font-bold text-gray-700 mb-3">Contacto Directo</h2>
+          <div className="space-y-2">
+            <a href="https://wa.me/258848066605" target="_blank"
+              className="flex items-center gap-3 bg-green-50 hover:bg-green-100 border border-green-200 text-green-700 px-4 py-3 rounded-lg text-sm font-bold transition-colors">
+              <span>📱</span> WhatsApp — +258 848 066 605
+            </a>
+            <a href="mailto:silva.chamo@gmail.com"
+              className="flex items-center gap-3 bg-gray-50 hover:bg-gray-100 border border-gray-200 text-gray-700 px-4 py-3 rounded-lg text-sm font-bold transition-colors">
+              <span>✉️</span> silva.chamo@gmail.com
+            </a>
+          </div>
+          <p className="text-xs text-gray-400 mt-3">Horário: Segunda a Sexta, 8h — 17h</p>
+        </div>
+
+        {/* Novo Ticket */}
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
+          <h2 className="text-sm font-bold text-gray-700 mb-3">Abrir Novo Ticket</h2>
+          {enviado ? (
+            <div className="bg-green-50 border border-green-200 rounded-lg p-4 text-center">
+              <p className="text-green-700 font-bold text-sm">✅ Ticket enviado com sucesso!</p>
+              <p className="text-green-600 text-xs mt-1">Responderemos em breve.</p>
+              <button onClick={() => { setEnviado(false); setForm({ assunto: '', categoria: 'Geral', descricao: '' }) }}
+                className="mt-3 text-xs text-green-700 underline">Abrir outro ticket</button>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <input value={form.assunto} onChange={e => setForm({...form, assunto: e.target.value})}
+                placeholder="Assunto" className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
+              <select value={form.categoria} onChange={e => setForm({...form, categoria: e.target.value})}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">
+                {['Geral','Técnico','Facturação','Domínio','Email','SSL','Backup'].map(c => <option key={c}>{c}</option>)}
+              </select>
+              <textarea value={form.descricao} onChange={e => setForm({...form, descricao: e.target.value})}
+                placeholder="Descreve o teu problema..." rows={3}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm resize-none" />
+              <button onClick={() => { if (form.assunto && form.descricao) setEnviado(true) }}
+                disabled={!form.assunto || !form.descricao}
+                className="w-full bg-red-600 hover:bg-red-700 text-white py-2 rounded-lg text-sm font-bold transition-colors disabled:opacity-50">
+                Enviar Ticket
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Histórico */}
+      <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+        <div className="px-5 py-3 border-b border-gray-100 bg-gray-50">
+          <h2 className="text-sm font-bold text-gray-700">Histórico de Tickets</h2>
+        </div>
+        <div className="divide-y divide-gray-100">
+          {tickets.map(t => (
+            <div key={t.id}>
+              <div className="flex items-center justify-between px-5 py-3 hover:bg-gray-50 cursor-pointer"
+                onClick={() => setExpanded(expanded === t.id ? null : t.id)}>
+                <div className="flex items-center gap-3">
+                  <span className="text-xs font-mono text-gray-400">{t.id}</span>
+                  <span className="text-sm font-medium text-gray-800">{t.assunto}</span>
+                  <span className="text-xs text-gray-400">{t.categoria}</span>
+                </div>
+                <div className="flex items-center gap-3">
+                  <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${estadoCor(t.estado)}`}>{t.estado}</span>
+                  <span className="text-xs text-gray-400">{t.data}</span>
+                </div>
+              </div>
+              {expanded === t.id && t.resposta && (
+                <div className="px-5 py-3 bg-green-50 border-t border-green-100">
+                  <p className="text-xs font-bold text-green-700 mb-1">Resposta da VisualDesign:</p>
+                  <p className="text-sm text-green-800">{t.resposta}</p>
+                </div>
+              )}
+              {expanded === t.id && !t.resposta && (
+                <div className="px-5 py-3 bg-yellow-50 border-t border-yellow-100">
+                  <p className="text-xs text-yellow-700">Aguardando resposta...</p>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// Componente FacturacaoSection
+function FacturacaoSection() {
+  const [expanded, setExpanded] = useState<string | null>(null)
+
+  const faturasPendentes = [
+    { id: 'FAT-2026-001', descricao: 'Renovação Anual — aamihe.com', valor: 1500, vencimento: '21/10/2026', estado: 'pendente' }
+  ]
+
+  const faturasHistorico = [
+    { id: 'FAT-2025-001', descricao: 'Renovação Anual — aamihe.com', valor: 1500, dataPagamento: '21/10/2025', metodo: 'M-Pesa', estado: 'pago' },
+    { id: 'FAT-2024-001', descricao: 'Registo de Domínio — aamihe.com', valor: 1200, dataPagamento: '21/10/2024', metodo: 'Transferência', estado: 'pago' },
+  ]
+
+  return (
+    <div className="space-y-6">
+      <div><h1 className="text-2xl font-bold text-gray-900">Facturação</h1><p className="text-gray-500 mt-1">Faturas, pagamentos e histórico financeiro.</p></div>
+
+      {/* Resumo */}
+      <div className="grid grid-cols-3 gap-4">
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
+          <p className="text-xs font-bold text-gray-400 uppercase mb-1">Total Pago Este Ano</p>
+          <p className="text-2xl font-bold text-green-600">1.500 MZN</p>
+        </div>
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
+          <p className="text-xs font-bold text-gray-400 uppercase mb-1">Próxima Fatura</p>
+          <p className="text-2xl font-bold text-gray-900">21/10/2026</p>
+          <p className="text-xs text-gray-500 mt-1">1.500 MZN</p>
+        </div>
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
+          <p className="text-xs font-bold text-gray-400 uppercase mb-1">Estado da Conta</p>
+          <p className="text-2xl font-bold text-green-600">Em dia ✓</p>
+        </div>
+      </div>
+
+      {/* Faturas Pendentes */}
+      {faturasPendentes.length > 0 && (
+        <div className="bg-yellow-50 rounded-xl border border-yellow-200 overflow-hidden">
+          <div className="px-5 py-3 border-b border-yellow-200">
+            <h2 className="text-sm font-bold text-yellow-800">⚠️ Faturas Pendentes</h2>
+          </div>
+          {faturasPendentes.map(f => (
+            <div key={f.id} className="p-5">
+              <div className="flex items-center justify-between mb-3">
+                <div>
+                  <p className="font-bold text-gray-900">{f.descricao}</p>
+                  <p className="text-xs text-gray-500 mt-0.5">Vencimento: {f.vencimento} • {f.id}</p>
+                </div>
+                <p className="text-2xl font-bold text-gray-900">{f.valor.toLocaleString()} MZN</p>
+              </div>
+              <button onClick={() => setExpanded(expanded === f.id ? null : f.id)}
+                className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg text-xs font-bold transition-colors">
+                Como Pagar
+              </button>
+              {expanded === f.id && (
+                <div className="mt-4 grid grid-cols-3 gap-3">
+                  <div className="bg-white rounded-lg border border-yellow-200 p-4">
+                    <p className="text-xs font-bold text-gray-700 mb-2">📱 M-Pesa</p>
+                    <p className="text-xs text-gray-600">Envie <strong>{f.valor} MZN</strong> para:</p>
+                    <p className="text-sm font-bold text-gray-900 mt-1">848 066 605</p>
+                    <p className="text-xs text-gray-500 mt-1">Referência: aamihe.com</p>
+                  </div>
+                  <div className="bg-white rounded-lg border border-yellow-200 p-4">
+                    <p className="text-xs font-bold text-gray-700 mb-2">📱 E-Mola</p>
+                    <p className="text-xs text-gray-600">Envie <strong>{f.valor} MZN</strong> para:</p>
+                    <p className="text-sm font-bold text-gray-900 mt-1">848 066 605</p>
+                    <p className="text-xs text-gray-500 mt-1">Referência: aamihe.com</p>
+                  </div>
+                  <div className="bg-white rounded-lg border border-yellow-200 p-4">
+                    <p className="text-xs font-bold text-gray-700 mb-2">🏦 Transferência</p>
+                    <p className="text-xs text-gray-600">Banco: <strong>BCI</strong></p>
+                    <p className="text-xs text-gray-600">NIB: <strong>a preencher</strong></p>
+                    <p className="text-xs text-gray-500 mt-1">Referência: aamihe.com</p>
+                  </div>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Histórico */}
+      <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+        <div className="px-5 py-3 border-b border-gray-100 bg-gray-50">
+          <h2 className="text-sm font-bold text-gray-700">Histórico de Pagamentos</h2>
+        </div>
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="text-xs font-bold text-gray-500 uppercase border-b bg-gray-50">
+              <th className="px-5 py-3 text-left">Descrição</th>
+              <th className="px-5 py-3 text-left">Valor</th>
+              <th className="px-5 py-3 text-left">Data</th>
+              <th className="px-5 py-3 text-left">Método</th>
+              <th className="px-5 py-3 text-left">Estado</th>
+              <th className="px-5 py-3 text-left">Recibo</th>
+            </tr>
+          </thead>
+          <tbody>
+            {faturasHistorico.map(f => (
+              <tr key={f.id} className="border-b border-gray-50 hover:bg-gray-50">
+                <td className="px-5 py-3">
+                  <p className="font-medium text-gray-800">{f.descricao}</p>
+                  <p className="text-xs text-gray-400">{f.id}</p>
+                </td>
+                <td className="px-5 py-3 font-bold text-gray-900">{f.valor.toLocaleString()} MZN</td>
+                <td className="px-5 py-3 text-gray-600">{f.dataPagamento}</td>
+                <td className="px-5 py-3 text-gray-600">{f.metodo}</td>
+                <td className="px-5 py-3"><span className="px-2 py-0.5 bg-green-100 text-green-700 rounded-full text-xs font-bold">Pago</span></td>
+                <td className="px-5 py-3">
+                  <button onClick={() => alert('Recibo disponível em breve!')}
+                    className="text-xs text-blue-600 hover:underline font-medium">↓ Recibo</button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  )
+}
+
+// Componente ContaSection
+function ContaSection() {
+  const [dados, setDados] = useState({ nome: 'João Silva', email: 'joao@aamihe.com', telefone: '+258 84 123 4567', empresa: 'Aamihe', morada: 'Av. Principal, 123', cidade: 'Maputo' })
+  const [pass, setPass] = useState({ actual: '', nova: '', confirmar: '' })
+  const [notif, setNotif] = useState({ dias30: true, dias15: true, dias7: true, pagamentos: true, suporte: false })
+  const [savedMsg, setSavedMsg] = useState('')
+  const [cancelModal, setCancelModal] = useState(false)
+  const [motivoCancelamento, setMotivoCancelamento] = useState('')
+
+  const forcaPassword = (p: string) => {
+    if (p.length === 0) return { texto: '', cor: '' }
+    if (p.length < 6) return { texto: 'Fraca', cor: 'text-red-500' }
+    if (p.length < 10) return { texto: 'Média', cor: 'text-yellow-500' }
+    return { texto: 'Forte', cor: 'text-green-500' }
+  }
+
+  const guardar = () => {
+    setSavedMsg('Dados guardados com sucesso!')
+    setTimeout(() => setSavedMsg(''), 3000)
+  }
+
+  return (
+    <div className="space-y-6">
+      <div><h1 className="text-2xl font-bold text-gray-900">A Minha Conta</h1><p className="text-gray-500 mt-1">Gere os teus dados pessoais e preferências.</p></div>
+
+      <div className="grid grid-cols-2 gap-6">
+        {/* Dados Pessoais */}
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
+          <h2 className="text-sm font-bold text-gray-700 mb-4">Dados Pessoais</h2>
+          <div className="space-y-3">
+            {[
+              { label: 'Nome Completo', field: 'nome' },
+              { label: 'Email', field: 'email' },
+              { label: 'Telefone', field: 'telefone' },
+              { label: 'Empresa', field: 'empresa' },
+              { label: 'Morada', field: 'morada' },
+              { label: 'Cidade', field: 'cidade' },
+            ].map(({ label, field }) => (
+              <div key={field}>
+                <label className="text-xs font-bold text-gray-500 uppercase block mb-1">{label}</label>
+                <input value={(dados as any)[field]} onChange={e => setDados({...dados, [field]: e.target.value})}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
+              </div>
+            ))}
+            {savedMsg && <p className="text-green-600 text-xs font-bold bg-green-50 border border-green-200 rounded px-3 py-2">{savedMsg}</p>}
+            <button onClick={guardar}
+              className="w-full bg-red-600 hover:bg-red-700 text-white py-2.5 rounded-lg text-sm font-bold transition-colors">
+              Guardar Alterações
+            </button>
+          </div>
+        </div>
+
+        <div className="space-y-5">
+          {/* Alterar Password */}
+          <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
+            <h2 className="text-sm font-bold text-gray-700 mb-4">Alterar Password</h2>
+            <div className="space-y-3">
+              <div>
+                <label className="text-xs font-bold text-gray-500 uppercase block mb-1">Password Actual</label>
+                <input type="password" value={pass.actual} onChange={e => setPass({...pass, actual: e.target.value})}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
+              </div>
+              <div>
+                <label className="text-xs font-bold text-gray-500 uppercase block mb-1">Nova Password</label>
+                <input type="password" value={pass.nova} onChange={e => setPass({...pass, nova: e.target.value})}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
+                {pass.nova && <p className={`text-xs font-bold mt-1 ${forcaPassword(pass.nova).cor}`}>Força: {forcaPassword(pass.nova).texto}</p>}
+              </div>
+              <div>
+                <label className="text-xs font-bold text-gray-500 uppercase block mb-1">Confirmar Nova Password</label>
+                <input type="password" value={pass.confirmar} onChange={e => setPass({...pass, confirmar: e.target.value})}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
+                {pass.confirmar && pass.nova !== pass.confirmar && <p className="text-xs text-red-500 font-bold mt-1">Passwords não coincidem</p>}
+              </div>
+              <button disabled={!pass.actual || !pass.nova || pass.nova !== pass.confirmar}
+                className="w-full bg-gray-800 hover:bg-gray-900 text-white py-2.5 rounded-lg text-sm font-bold transition-colors disabled:opacity-50">
+                Alterar Password
+              </button>
+            </div>
+          </div>
+
+          {/* Notificações */}
+          <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
+            <h2 className="text-sm font-bold text-gray-700 mb-4">Notificações por Email</h2>
+            <div className="space-y-3">
+              {[
+                { key: 'dias30', label: 'Aviso de renovação 30 dias antes' },
+                { key: 'dias15', label: 'Aviso de renovação 15 dias antes' },
+                { key: 'dias7', label: 'Aviso de renovação 7 dias antes' },
+                { key: 'pagamentos', label: 'Confirmação de pagamentos' },
+                { key: 'suporte', label: 'Respostas de suporte' },
+              ].map(({ key, label }) => (
+                <div key={key} className="flex items-center justify-between">
+                  <span className="text-sm text-gray-700">{label}</span>
+                  <button onClick={() => setNotif({...notif, [key]: !(notif as any)[key]})}
+                    className={`w-10 h-5 rounded-full transition-colors ${(notif as any)[key] ? 'bg-red-600' : 'bg-gray-300'} relative`}>
+                    <span className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-all ${(notif as any)[key] ? 'left-5' : 'left-0.5'}`}></span>
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Informações do Serviço */}
+      <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
+        <h2 className="text-sm font-bold text-gray-700 mb-4">Informações do Serviço</h2>
+        <div className="grid grid-cols-4 gap-4">
+          {[
+            { label: 'Domínio', value: 'aamihe.com' },
+            { label: 'Plano', value: 'Premium' },
+            { label: 'Data de Início', value: '21/10/2024' },
+            { label: 'Data de Renovação', value: '21/10/2026' },
+            { label: 'Valor Anual', value: '1.500 MZN' },
+            { label: 'SSL', value: '✅ Activo' },
+            { label: 'Estado', value: '🟢 Activo' },
+            { label: 'PHP', value: '8.2' },
+          ].map(({ label, value }) => (
+            <div key={label} className="bg-gray-50 rounded-lg p-3 border border-gray-200">
+              <p className="text-xs font-bold text-gray-400 uppercase mb-1">{label}</p>
+              <p className="text-sm font-bold text-gray-900">{value}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Zona de Perigo */}
+      <div className="bg-red-50 rounded-xl border border-red-200 p-5">
+        <h2 className="text-sm font-bold text-red-700 mb-2">⚠️ Zona de Perigo</h2>
+        <p className="text-xs text-red-600 mb-4">Acções irreversíveis. Procede com cautela.</p>
+        <button onClick={() => setCancelModal(true)}
+          className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg text-xs font-bold transition-colors">
+          Solicitar Cancelamento do Serviço
+        </button>
+      </div>
+
+      {/* Modal Cancelamento */}
+      {cancelModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl shadow-2xl p-6 w-full max-w-md mx-4">
+            <h2 className="text-lg font-bold text-gray-900 mb-2">Solicitar Cancelamento</h2>
+            <p className="text-sm text-gray-500 mb-4">Lamenta-mos que queiras cancelar. Indica o motivo para podermos melhorar.</p>
+            <textarea value={motivoCancelamento} onChange={e => setMotivoCancelamento(e.target.value)}
+              placeholder="Motivo do cancelamento..." rows={4}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm resize-none mb-4" />
+            <div className="flex gap-3">
+              <button onClick={() => { alert('Pedido de cancelamento enviado. Entraremos em contacto.'); setCancelModal(false) }}
+                disabled={!motivoCancelamento}
+                className="flex-1 bg-red-600 hover:bg-red-700 text-white py-2.5 rounded-lg text-sm font-bold disabled:opacity-50">
+                Confirmar Cancelamento
+              </button>
+              <button onClick={() => setCancelModal(false)}
+                className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 py-2.5 rounded-lg text-sm font-bold">
+                Cancelar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 // Secções que precisam de criar websites
 function CreateWebsiteSection({ packages, onRefresh }: { packages: CyberPanelPackage[], onRefresh: () => void }) {
   const [form, setForm] = useState({ domain: '', email: '', username: 'admin', packageName: 'Default', php: '8.2' })
@@ -685,11 +1073,11 @@ export default function AdminPage() {
       case 'cp-file-manager':
         return <FileManagerSection domain={fileManagerDomain || 'visualdesigne.com'} sites={cyberPanelSites} />
       case 'tickets':
-        return <div className="p-6"><h1 className="text-2xl font-bold">Suporte</h1><p className="text-gray-500 mt-1">Em breve</p></div>
+        return <SuporteSection />
       case 'faturas':
-        return <div className="p-6"><h1 className="text-2xl font-bold">Faturas</h1><p className="text-gray-500 mt-1">Em breve</p></div>
+        return <FacturacaoSection />
       case 'conta':
-        return <div className="p-6"><h1 className="text-2xl font-bold">A Minha Conta</h1><p className="text-gray-500 mt-1">Em breve</p></div>
+        return <ContaSection />
       case 'domains-new':
         // return <CreateWebsiteSection packages={cyberPanelPackages} onRefresh={loadCyberPanelData} /> // Removido - não usado no painel do cliente
         return <div className="p-6"><h1 className="text-2xl font-bold">Criar Website</h1><p className="text-gray-500 mt-1">Secção não disponível no painel do cliente</p></div>
