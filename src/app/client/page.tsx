@@ -500,6 +500,18 @@ const inserirTabela = () => {
       <button onClick={() => { setMostrarCompose(false); setCompose({ para: '', cc: '', bcc: '', assunto: '', corpo: '' }); setEnviado(false) }}
         className="ml-2 w-8 h-full min-h-[32px] flex items-center justify-center bg-red-600 hover:bg-red-700 text-white font-bold text-sm shrink-0 transition-colors -mr-0 self-stretch">✕</button>
     </div>
+    {emailOrigem && (
+      <div className="flex items-center border-b border-gray-700 px-3 py-1.5">
+        <span className="text-gray-400 text-xs w-16 shrink-0">Password:</span>
+        <input
+          type="password"
+          value={emailOrigemPassword}
+          onChange={e => setEmailOrigemPassword(e.target.value)}
+          placeholder="Password da conta de email"
+          className="flex-1 bg-transparent text-white text-sm outline-none"
+        />
+      </div>
+    )}
     {/* Linha Para */}
     <div className="flex items-center border-b border-gray-700 px-3 py-1.5">
       <span className="text-gray-400 text-xs w-16 shrink-0">Para:</span>
@@ -555,34 +567,42 @@ const inserirTabela = () => {
               <div className="w-px h-5 bg-gray-600 mx-1" />
               {botoesFormato.map((b, i) => (
                 <button key={i} title={b.t}
-                  className="text-white text-sm px-2.5 py-1.5 rounded hover:bg-gray-600 border border-gray-600 relative group font-bold">
+                  className="text-white text-sm px-2.5 py-1.5 rounded hover:bg-gray-600 border border-gray-600 relative group font-bold"
+                  onClick={() => {
+                    if (b.t === 'Negrito') execCmd('bold')
+                    else if (b.t === 'Itálico') execCmd('italic')
+                    else if (b.t === 'Sublinhado') execCmd('underline')
+                    else if (b.t === 'Riscado') execCmd('strikeThrough')
+                    else if (b.t === 'Subscrito') execCmd('subscript')
+                    else if (b.t === 'Superscrito') execCmd('superscript')
+                  }}>
                   {b.l}
                   <span className="absolute top-8 left-1/2 -translate-x-1/2 bg-black text-white text-[10px] px-1.5 py-0.5 rounded opacity-0 group-hover:opacity-100 whitespace-nowrap z-20 pointer-events-none">{b.t}</span>
                 </button>
               ))}
               <div className="w-px h-5 bg-gray-600 mx-1" />
-              <button title="Alinhar à esquerda" className="w-7 h-7 flex items-center justify-center rounded hover:bg-gray-600 text-white transition-colors">
+              <button title="Alinhar à esquerda" className="w-7 h-7 flex items-center justify-center rounded hover:bg-gray-600 text-white transition-colors" onClick={() => execCmd('justifyLeft')}>
   <svg viewBox="0 0 16 16" className="w-3.5 h-3.5" fill="currentColor"><rect x="1" y="2" width="14" height="1.5" rx="0.75"/><rect x="1" y="5.5" width="10" height="1.5" rx="0.75"/><rect x="1" y="9" width="14" height="1.5" rx="0.75"/><rect x="1" y="12.5" width="8" height="1.5" rx="0.75"/></svg>
 </button>
-<button title="Centrar" className="w-7 h-7 flex items-center justify-center rounded hover:bg-gray-600 text-white transition-colors">
+<button title="Centrar" className="w-7 h-7 flex items-center justify-center rounded hover:bg-gray-600 text-white transition-colors" onClick={() => execCmd('justifyCenter')}>
   <svg viewBox="0 0 16 16" className="w-3.5 h-3.5" fill="currentColor"><rect x="1" y="2" width="14" height="1.5" rx="0.75"/><rect x="3" y="5.5" width="10" height="1.5" rx="0.75"/><rect x="1" y="9" width="14" height="1.5" rx="0.75"/><rect x="4" y="12.5" width="8" height="1.5" rx="0.75"/></svg>
 </button>
-<button title="Alinhar à direita" className="w-7 h-7 flex items-center justify-center rounded hover:bg-gray-600 text-white transition-colors">
+<button title="Alinhar à direita" className="w-7 h-7 flex items-center justify-center rounded hover:bg-gray-600 text-white transition-colors" onClick={() => execCmd('justifyRight')}>
   <svg viewBox="0 0 16 16" className="w-3.5 h-3.5" fill="currentColor"><rect x="1" y="2" width="14" height="1.5" rx="0.75"/><rect x="5" y="5.5" width="10" height="1.5" rx="0.75"/><rect x="1" y="9" width="14" height="1.5" rx="0.75"/><rect x="7" y="12.5" width="8" height="1.5" rx="0.75"/></svg>
 </button>
-<button title="Justificar" className="w-7 h-7 flex items-center justify-center rounded hover:bg-gray-600 text-white transition-colors">
+<button title="Justificar" className="w-7 h-7 flex items-center justify-center rounded hover:bg-gray-600 text-white transition-colors" onClick={() => execCmd('justifyFull')}>
   <svg viewBox="0 0 16 16" className="w-3.5 h-3.5" fill="currentColor"><rect x="1" y="2" width="14" height="1.5" rx="0.75"/><rect x="1" y="5.5" width="14" height="1.5" rx="0.75"/><rect x="1" y="9" width="14" height="1.5" rx="0.75"/><rect x="1" y="12.5" width="14" height="1.5" rx="0.75"/></svg>
 </button>
-<button title="Lista de pontos" className="w-7 h-7 flex items-center justify-center rounded hover:bg-gray-600 text-white transition-colors">
+<button title="Lista de pontos" className="w-7 h-7 flex items-center justify-center rounded hover:bg-gray-600 text-white transition-colors" onClick={() => execCmd('insertUnorderedList')}>
   <svg viewBox="0 0 16 16" className="w-3.5 h-3.5" fill="currentColor"><circle cx="2" cy="4" r="1.2"/><rect x="5" y="3.2" width="9" height="1.5" rx="0.75"/><circle cx="2" cy="8" r="1.2"/><rect x="5" y="7.2" width="9" height="1.5" rx="0.75"/><circle cx="2" cy="12" r="1.2"/><rect x="5" y="11.2" width="9" height="1.5" rx="0.75"/></svg>
 </button>
-<button title="Lista numerada" className="w-7 h-7 flex items-center justify-center rounded hover:bg-gray-600 text-white transition-colors">
+<button title="Lista numerada" className="w-7 h-7 flex items-center justify-center rounded hover:bg-gray-600 text-white transition-colors" onClick={() => execCmd('insertOrderedList')}>
   <svg viewBox="0 0 16 16" className="w-3.5 h-3.5" fill="currentColor"><rect x="1" y="2" width="2" height="1.5" rx="0.5"/><rect x="5" y="2" width="9" height="1.5" rx="0.75"/><rect x="1" y="5.5" width="2" height="1.5" rx="0.5"/><rect x="5" y="5.5" width="9" height="1.5" rx="0.75"/><rect x="1" y="9" width="2" height="1.5" rx="0.5"/><rect x="5" y="9" width="9" height="1.5" rx="0.75"/></svg>
 </button>
-<button title="Diminuir indentação" className="w-7 h-7 flex items-center justify-center rounded hover:bg-gray-600 text-white transition-colors">
+<button title="Diminuir indentação" className="w-7 h-7 flex items-center justify-center rounded hover:bg-gray-600 text-white transition-colors" onClick={() => execCmd('outdent')}>
   <svg viewBox="0 0 16 16" className="w-3.5 h-3.5" fill="currentColor"><rect x="1" y="2" width="14" height="1.5" rx="0.75"/><path d="M5 5.5L2 8l3 2.5V5.5z"/><rect x="6" y="7.2" width="9" height="1.5" rx="0.75"/><rect x="1" y="12.5" width="14" height="1.5" rx="0.75"/></svg>
 </button>
-<button title="Aumentar indentação" className="w-7 h-7 flex items-center justify-center rounded hover:bg-gray-600 text-white transition-colors">
+<button title="Aumentar indentação" className="w-7 h-7 flex items-center justify-center rounded hover:bg-gray-600 text-white transition-colors" onClick={() => execCmd('indent')}>
   <svg viewBox="0 0 16 16" className="w-3.5 h-3.5" fill="currentColor"><rect x="1" y="2" width="14" height="1.5" rx="0.75"/><path d="M2 5.5l3 2.5-3 2.5V5.5z"/><rect x="6" y="7.2" width="9" height="1.5" rx="0.75"/><rect x="1" y="12.5" width="14" height="1.5" rx="0.75"/></svg>
 </button>
             </div>
@@ -590,7 +610,12 @@ const inserirTabela = () => {
             {/* Lado direito — inserir e assinatura */}
             <div className="flex items-center gap-1">
               {[{ l: '🔗', t: 'Ligação' }, { l: <ImageIcon className="w-3.5 h-3.5" />, t: 'Imagem' }, { l: '⊞', t: 'Tabela' }, { l: '📎', t: 'Anexo' }].map((b, i) => (
-                <button key={i} title={b.t} className="text-white text-sm px-2.5 py-1.5 rounded hover:bg-gray-600 border border-gray-600 flex items-center gap-1.5 relative group">
+                <button key={i} title={b.t} className="text-white text-sm px-2.5 py-1.5 rounded hover:bg-gray-600 border border-gray-600 flex items-center gap-1.5 relative group"
+                  onClick={() => {
+                    if (b.t === 'Ligação') inserirLink()
+                    else if (b.t === 'Imagem') inserirImagem()
+                    else if (b.t === 'Tabela') inserirTabela()
+                  }}>
                   {b.l} <span className="text-white text-xs">{b.t}</span>
                 </button>
               ))}
@@ -1059,26 +1084,35 @@ const inserirTabela = () => {
             <button onClick={async () => {
               if (novaContaForm.email) {
                 setCarregandoEmails(true)
-                // Tenta sincronizar com CyberPanel
                 try {
-                  const domain = novaContaForm.email.split('@')[1]
-                  const res = await fetch(`/api/cyberpanel-email?domain=${domain}`)
-                  const data = await res.json()
-                  if (data.success && data.emails) {
-                    const novas = data.emails.map((e: any) => ({ email: e.email, tipo: 'webmail' as const, nome: e.email.split('@')[0] }))
-                    setEmailsOrigem(prev => {
-                      const existentes = prev.map(e => e.email)
-                      return [...prev, ...novas.filter((n: any) => !existentes.includes(n.email))]
+                  const res = await fetch('/api/email-contas', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                      email: novaContaForm.email,
+                      password: novaContaForm.password,
+                      nome: novaContaForm.nome,
+                      tipo: 'webmail'
                     })
+                  })
+                  const data = await res.json()
+                  if (data.success) {
+                    // Mostra credenciais prontas
+                    setCredenciaisNovas(data.credenciais)
+                    setMostrarCredenciais(true)
+                    // Adiciona à lista de contas
+                    setEmailsOrigem(prev => [...prev, {
+                      email: data.credenciais.email,
+                      tipo: 'webmail',
+                      nome: novaContaForm.nome || novaContaForm.email.split('@')[0],
+                      password: novaContaForm.password
+                    }])
+                    setEmailOrigem(data.credenciais.email)
+                    setEmailOrigemPassword(novaContaForm.password)
                   }
-                } catch {}
-                setEmailsOrigem(prev => {
-                  if (!prev.find(e => e.email === novaContaForm.email)) {
-                    return [...prev, { email: novaContaForm.email, tipo: 'webmail', nome: novaContaForm.nome || novaContaForm.email.split('@')[0] }]
-                  }
-                  return prev
-                })
-                setEmailOrigem(novaContaForm.email)
+                } catch (error: any) {
+                  alert('Erro ao criar conta: ' + error.message)
+                }
                 setCarregandoEmails(false)
                 setMostrarAdicionarConta(false)
                 setNovaContaForm({ nome: '', email: '', password: '', servidor: '', porta: '993', smtp: '', smtpPorta: '465' })
@@ -2047,8 +2081,7 @@ function ListWebsitesSection({ sites, onRefresh, packages, setActiveSection, set
         </div>
       )}
     </div>
-  )
-}
+  )}
 
 export default function AdminPage() {
   const [activeSection, setActiveSection] = useState('dashboard')
