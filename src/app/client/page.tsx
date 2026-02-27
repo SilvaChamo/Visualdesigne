@@ -2,19 +2,53 @@
 
 import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
-import { useAuth } from '@/components/auth/AuthProvider'
-import { supabase, type Cliente, type SiteCliente, type Pagamento, type Notificacao } from '@/lib/supabase-client'
+// import { useAuth } from '@/components/auth/AuthProvider'
+// import { supabase, type Cliente, type SiteCliente, type Pagamento, type Notificacao } from '@/lib/supabase-client'
 import { useI18n } from '@/lib/i18n'
 
 export default function ClientDashboard() {
-  const { user } = useAuth()
+  // const { user } = useAuth()
   const { t } = useI18n()
   const [loading, setLoading] = useState(true)
-  const [cliente, setCliente] = useState<Cliente | null>(null)
-  const [sites, setSites] = useState<SiteCliente[]>([])
-  const [pagamentos, setPagamentos] = useState<Pagamento[]>([])
-  const [notificacoes, setNotificacoes] = useState<Notificacao[]>([])
+  const [cliente, setCliente] = useState<any>(null)
+  const [sites, setSites] = useState<any[]>([])
+  const [pagamentos, setPagamentos] = useState<any[]>([])
+  const [notificacoes, setNotificacoes] = useState<any[]>([])
 
+  useEffect(() => {
+    // Dados fictícios para teste sem autenticação
+    setCliente({
+      id: '1',
+      nome: 'João Silva',
+      email: 'joao@teste.com',
+      telefone: '+258 84 123 4567',
+      status: 'active',
+      created_at: new Date().toISOString()
+    } as any)
+    setSites([{
+      id: '1',
+      dominio: 'aamihe.com',
+      titulo_site: 'Aamihe',
+      plano: 'premium',
+      preco_mensal: 1500,
+      data_renovacao: '2026-10-21',
+      status: 'active',
+      ssl: true
+    } as any])
+    setPagamentos([{
+      id: '1',
+      descricao: 'Renovação anual - aamihe.com',
+      valor: 1500,
+      data_vencimento: '2026-10-21',
+      metodo_pagamento: 'mpesa',
+      status: 'paid'
+    } as any])
+    setNotificacoes([])
+    setLoading(false)
+  }, [])
+
+  // Código de autenticação real (comentado temporariamente)
+  /*
   useEffect(() => {
     if (user) {
       loadClientData()
@@ -69,6 +103,7 @@ export default function ClientDashboard() {
       setLoading(false)
     }
   }
+  */
 
   const getStatusColor = (status: string) => {
     switch (status) {
