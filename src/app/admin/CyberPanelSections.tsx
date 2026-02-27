@@ -5207,3 +5207,484 @@ export function DeploySection({ sites }: { sites: CyberPanelWebsite[] }) {
     </div>
   )
 }
+
+// ============================================================
+// CLIENTES SECTION
+// ============================================================
+export function ClientesSection() {
+  const [clientes, setClientes] = useState<any[]>([])
+  const [loading, setLoading] = useState(false)
+  const [showModal, setShowModal] = useState(false)
+  const [editingCliente, setEditingCliente] = useState<any>(null)
+  const [expandedCliente, setExpandedCliente] = useState<string | null>(null)
+  const [showPagamentoModal, setShowPagamentoModal] = useState(false)
+  const [selectedCliente, setSelectedCliente] = useState<any>(null)
+
+  useEffect(() => {
+    loadClientes()
+  }, [])
+
+  const loadClientes = async () => {
+    setLoading(true)
+    try {
+      // TODO: Implementar com a API real
+      // const data = await listarClientes()
+      // Dados de teste temporários
+      const data = [
+        {
+          id: '1',
+          nome: 'João Silva',
+          email: 'joao@teste.com',
+          telefone: '+258 84 806 605',
+          dominio: 'aamihe.com',
+          data_renovacao: '2026-10-21',
+          plano: 'premium',
+          valor_mensal: 1500,
+          status: 'active',
+          pagamento_pendente: false
+        },
+        {
+          id: '2',
+          nome: 'Ana Campos',
+          email: 'ana@ecamposmz.com',
+          telefone: '+258 84 806 606',
+          dominio: 'ecamposmz.com',
+          data_renovacao: '2026-06-26',
+          plano: 'basic',
+          valor_mensal: 1200,
+          status: 'active',
+          pagamento_pendente: true
+        },
+        {
+          id: '3',
+          nome: 'ANAP',
+          email: 'info@anap.co.mz',
+          telefone: '+258 84 806 607',
+          dominio: 'anap.co.mz',
+          data_renovacao: '2026-05-17',
+          plano: 'enterprise',
+          valor_mensal: 2000,
+          status: 'active',
+          pagamento_pendente: false
+        }
+      ]
+      setClientes(data)
+    } catch (error) {
+      console.error('Erro ao carregar clientes:', error)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const calcularDiasAteRenovacao = (dataRenovacao: string) => {
+    const hoje = new Date()
+    const renovacao = new Date(dataRenovacao)
+    const diff = renovacao.getTime() - hoje.getTime()
+    return Math.ceil(diff / (1000 * 60 * 60 * 24))
+  }
+
+  const getStatusCor = (dias: number) => {
+    if (dias <= 0) return 'text-red-600 bg-red-50'
+    if (dias <= 7) return 'text-orange-600 bg-orange-50'
+    if (dias <= 30) return 'text-yellow-600 bg-yellow-50'
+    return 'text-green-600 bg-green-50'
+  }
+
+  const getStatusTexto = (dias: number) => {
+    if (dias <= 0) return 'EXPIRADO'
+    if (dias <= 7) return 'EXPIRA EM BREVE'
+    if (dias <= 30) return 'ATENÇÃO'
+    return 'OK'
+  }
+
+  return (
+    <div className="w-full space-y-6">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-xl font-bold text-gray-900">Gestão de Clientes</h1>
+          <p className="text-xs text-gray-400 mt-0.5">Gerir clientes, pagamentos e suporte</p>
+        </div>
+        <button
+          onClick={() => setShowModal(true)}
+          className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2">
+          <Plus className="w-4 h-4" /> Novo Cliente
+        </button>
+      </div>
+
+      {/* Lista de Clientes */}
+      <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="text-left text-xs font-bold text-gray-500 uppercase border-b bg-gray-50">
+                <th className="px-4 py-3">Nome</th>
+                <th className="px-4 py-3">Email</th>
+                <th className="px-4 py-3">Telefone</th>
+                <th className="px-4 py-3">Domínio</th>
+                <th className="px-4 py-3">Renovação</th>
+                <th className="px-4 py-3">Estado</th>
+                <th className="px-4 py-3">Pagamento</th>
+                <th className="px-4 py-3">Ações</th>
+              </tr>
+            </thead>
+            <tbody>
+              {loading ? (
+                <tr>
+                  <td colSpan={8} className="px-4 py-8 text-center">
+                    <RefreshCw className="w-4 h-4 animate-spin mx-auto text-gray-400" />
+                  </td>
+                </tr>
+              ) : clientes.map((cliente) => {
+                const diasAteRenovacao = calcularDiasAteRenovacao(cliente.data_renovacao)
+                const statusCor = getStatusCor(diasAteRenovacao)
+                const statusTexto = getStatusTexto(diasAteRenovacao)
+
+                return (
+                  <tr key={cliente.id} className="border-b border-gray-50 hover:bg-gray-50">
+                    <td className="px-4 py-2.5">
+                      <div className="font-medium text-gray-900">{cliente.nome}</div>
+                    </td>
+                    <td className="px-4 py-2.5 text-gray-600">{cliente.email}</td>
+                    <td className="px-4 py-2.5 text-gray-600">{cliente.telefone}</td>
+                    <td className="px-4 py-2.5">
+                      <div className="font-medium text-blue-600">{cliente.dominio}</div>
+                    </td>
+                    <td className="px-4 py-2.5">
+                      <div className="text-sm">
+                        <div>{cliente.data_renovacao}</div>
+                        <div className={`text-xs font-medium px-2 py-1 rounded-full inline-block mt-1 ${statusCor}`}>
+                          {diasAteRenovacao} dias ({statusTexto})
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-4 py-2.5">
+                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${statusCor}`}>
+                        {statusTexto}
+                      </span>
+                    </td>
+                    <td className="px-4 py-2.5">
+                      {cliente.pagamento_pendente ? (
+                        <span className="px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-700">
+                          PENDENTE
+                        </span>
+                      ) : (
+                        <span className="px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-700">
+                          PAGO
+                        </span>
+                      )}
+                    </td>
+                    <td className="px-4 py-2.5">
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => setExpandedCliente(expandedCliente === cliente.id ? null : cliente.id)}
+                          className="text-blue-600 hover:text-blue-800 text-xs font-medium"
+                        >
+                          {expandedCliente === cliente.id ? 'Ocultar' : 'Ver detalhes'}
+                        </button>
+                        <button
+                          onClick={() => {
+                            setEditingCliente(cliente)
+                            setShowModal(true)
+                          }}
+                          className="text-gray-600 hover:text-gray-800 text-xs font-medium"
+                        >
+                          Editar
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* Card Expandido do Cliente */}
+      {expandedCliente && (
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
+          {(() => {
+            const cliente = clientes.find(c => c.id === expandedCliente)
+            if (!cliente) return null
+
+            return (
+              <div>
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-lg font-bold text-gray-900">{cliente.nome}</h3>
+                  <button
+                    onClick={() => setExpandedCliente(null)}
+                    className="text-gray-400 hover:text-gray-600"
+                  >
+                    ✕
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {/* Dados do Cliente */}
+                  <div>
+                    <h4 className="font-medium text-gray-900 mb-3">Dados do Cliente</h4>
+                    <div className="space-y-2 text-sm">
+                      <div><strong>Email:</strong> {cliente.email}</div>
+                      <div><strong>Telefone:</strong> {cliente.telefone}</div>
+                      <div><strong>Plano:</strong> {cliente.plano}</div>
+                      <div><strong>Valor:</strong> MZN {cliente.valor_mensal}/mês</div>
+                    </div>
+                  </div>
+
+                  {/* Estado do Site */}
+                  <div>
+                    <h4 className="font-medium text-gray-900 mb-3">Estado do Site</h4>
+                    <div className="space-y-2 text-sm">
+                      <div><strong>Domínio:</strong> 
+                        <a href={`https://${cliente.dominio}`} target="_blank" className="text-blue-600 hover:underline ml-2">
+                          {cliente.dominio}
+                        </a>
+                      </div>
+                      <div><strong>Status:</strong> 
+                        <span className={`ml-2 px-2 py-1 rounded-full text-xs font-medium ${getStatusCor(calcularDiasAteRenovacao(cliente.data_renovacao))}`}>
+                          {cliente.status === 'active' ? 'ACTIVO' : 'SUSPENSO'}
+                        </span>
+                      </div>
+                      <div><strong>Renovação:</strong> {cliente.data_renovacao}</div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Histórico de Pagamentos */}
+                <div className="mt-6">
+                  <h4 className="font-medium text-gray-900 mb-3">Histórico de Pagamentos</h4>
+                  <div className="bg-gray-50 rounded-lg p-4">
+                    <div className="text-sm text-gray-600">
+                      <div><strong>Último pagamento:</strong> MZN {cliente.valor_mensal} (Pago)</div>
+                      <div><strong>Método:</strong> M-Pesa</div>
+                      <div><strong>Data:</strong> {new Date().toLocaleDateString('pt-MZ')}</div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Botões de Ação */}
+                <div className="flex gap-3 mt-6">
+                  <button
+                    onClick={() => {
+                      setSelectedCliente(cliente)
+                      setShowPagamentoModal(true)
+                    }}
+                    className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg text-sm font-bold"
+                  >
+                    Registar Pagamento
+                  </button>
+                  <button
+                    onClick={() => {
+                      // TODO: Implementar envio de notificação
+                      alert('Funcionalidade de notificação por email em desenvolvimento')
+                    }}
+                    className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-bold"
+                  >
+                    Enviar Notificação
+                  </button>
+                </div>
+              </div>
+            )
+          })()}
+        </div>
+      )}
+
+      {/* Modal de Criar/Editar Cliente */}
+      {showModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl p-6 w-full max-w-md">
+            <h3 className="text-lg font-bold text-gray-900 mb-4">
+              {editingCliente ? 'Editar Cliente' : 'Novo Cliente'}
+            </h3>
+            
+            <form className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Nome completo</label>
+                <input
+                  type="text"
+                  defaultValue={editingCliente?.nome || ''}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500"
+                  placeholder="Nome completo do cliente"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                <input
+                  type="email"
+                  defaultValue={editingCliente?.email || ''}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500"
+                  placeholder="email@exemplo.com"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Telefone</label>
+                <input
+                  type="tel"
+                  defaultValue={editingCliente?.telefone || ''}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500"
+                  placeholder="+258 XX XXX XXX"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Domínio do site</label>
+                <select
+                  defaultValue={editingCliente?.dominio || ''}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500"
+                >
+                  <option value="">Seleccionar domínio...</option>
+                  <option value="aamihe.com">aamihe.com</option>
+                  <option value="ecamposmz.com">ecamposmz.com</option>
+                  <option value="anap.co.mz">anap.co.mz</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Plano</label>
+                <select
+                  defaultValue={editingCliente?.plano || 'basic'}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500"
+                >
+                  <option value="basic">Basic</option>
+                  <option value="premium">Premium</option>
+                  <option value="enterprise">Enterprise</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Valor anual (MZN)</label>
+                <input
+                  type="number"
+                  defaultValue={editingCliente?.valor_mensal * 12 || ''}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500"
+                  placeholder="15000"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Data de renovação</label>
+                <input
+                  type="date"
+                  defaultValue={editingCliente?.data_renovacao || ''}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Método de pagamento preferido</label>
+                <select
+                  defaultValue={editingCliente?.metodo_pagamento || 'mpesa'}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500"
+                >
+                  <option value="mpesa">M-Pesa</option>
+                  <option value="transferencia">Transferência</option>
+                  <option value="emola">E-Mola</option>
+                </select>
+              </div>
+            </form>
+
+            <div className="flex gap-3 mt-6">
+              <button
+                onClick={() => {
+                  setShowModal(false)
+                  setEditingCliente(null)
+                }}
+                className="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-800 px-4 py-2 rounded-lg text-sm font-bold"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={() => {
+                  // TODO: Implementar criação/edição
+                  alert('Funcionalidade de criação/edição em desenvolvimento')
+                  setShowModal(false)
+                  setEditingCliente(null)
+                }}
+                className="flex-1 bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg text-sm font-bold"
+              >
+                {editingCliente ? 'Actualizar' : 'Criar'} Cliente
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Registar Pagamento */}
+      {showPagamentoModal && selectedCliente && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl p-6 w-full max-w-md">
+            <h3 className="text-lg font-bold text-gray-900 mb-4">Registar Pagamento</h3>
+            
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Valor (MZN)</label>
+                <input
+                  type="number"
+                  defaultValue={selectedCliente.valor_mensal}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500"
+                  placeholder="1500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Método</label>
+                <select
+                  defaultValue="mpesa"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500"
+                >
+                  <option value="mpesa">M-Pesa</option>
+                  <option value="transferencia">Transferência</option>
+                  <option value="emola">E-Mola</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Referência</label>
+                <input
+                  type="text"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500"
+                  placeholder="Referência do pagamento"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Data</label>
+                <input
+                  type="date"
+                  defaultValue={new Date().toISOString().split('T')[0]}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500"
+                />
+              </div>
+            </div>
+
+            <div className="flex gap-3 mt-6">
+              <button
+                onClick={() => {
+                  setShowPagamentoModal(false)
+                  setSelectedCliente(null)
+                }}
+                className="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-800 px-4 py-2 rounded-lg text-sm font-bold"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={() => {
+                  // TODO: Implementar registo de pagamento
+                  alert('Funcionalidade de registo de pagamento em desenvolvimento')
+                  setShowPagamentoModal(false)
+                  setSelectedCliente(null)
+                }}
+                className="flex-1 bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg text-sm font-bold"
+              >
+                Registar Pagamento
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}

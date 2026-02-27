@@ -20,7 +20,7 @@ import {
   PlusAddressingSection, EmailChangePasswordSection, DKIMManagerSection,
   WPRestoreBackupSection, WPRemoteBackupSection, ListSubdomainsSection,
   PackagesSection, DNSZoneEditorSection, FileManagerSection, BackupManagerSection,
-  WordPressInstallSection, WPBackupSection, DomainManagerSection, DeploySection
+  WordPressInstallSection, WPBackupSection, DomainManagerSection, DeploySection, ClientesSection
 } from './CyberPanelSections'
 import { cyberPanelAPI } from '@/lib/cyberpanel-api'
 import type { CyberPanelWebsite, CyberPanelUser, CyberPanelPackage } from '@/lib/cyberpanel-api'
@@ -646,6 +646,7 @@ export default function AdminPage() {
 
   const menuItems = [
     { id: 'dashboard', label: 'Dashboard', icon: Home },
+    { id: 'clientes', label: 'Clientes', icon: Users },
     { id: 'domains', label: 'Websites', icon: Globe },
     { id: 'cp-users', label: 'Contas', icon: Users },
     { id: 'backup-manager', label: 'Backups', icon: Archive },
@@ -688,6 +689,8 @@ export default function AdminPage() {
       case 'file-manager':
       case 'cp-file-manager':
         return <FileManagerSection domain={fileManagerDomain || 'visualdesigne.com'} sites={cyberPanelSites} />
+      case 'clientes':
+        return <ClientesSection />
       case 'domains-new':
         return <CreateWebsiteSection packages={cyberPanelPackages} onRefresh={loadCyberPanelData} />
       case 'cp-subdomains':
