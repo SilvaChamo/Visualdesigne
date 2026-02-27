@@ -30,13 +30,14 @@ interface Section {
 interface Props {
   onNavigate: (section: string) => void
   onSetDNSDomain?: (domain: string) => void
+  onSetFileManagerDomain?: (domain: string) => void
   sites: CyberPanelWebsite[]
   users: CyberPanelUser[]
   isFetching: boolean
   onRefresh: () => void
 }
 
-export function CpanelDashboard({ onNavigate, onSetDNSDomain, sites, users, isFetching, onRefresh }: Props) {
+export function CpanelDashboard({ onNavigate, onSetDNSDomain, onSetFileManagerDomain, sites, users, isFetching, onRefresh }: Props) {
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({})
   const [search, setSearch] = useState('')
 
@@ -336,13 +337,15 @@ export function CpanelDashboard({ onNavigate, onSetDNSDomain, sites, users, isFe
                     <span className="text-gray-700 truncate font-medium flex-1">{s.domain}</span>
                   </div>
                   <div className="flex gap-1.5 pl-3.5">
-                    <a
-                      href={`https://109.199.104.22:8090/filemanager/?path=/home/${s.owner || 'admin'}/public_html`}
-                      target="_blank" rel="noopener noreferrer"
+                    <button
+                      onClick={() => {
+                        if (onSetFileManagerDomain) onSetFileManagerDomain(s.domain)
+                        onNavigate('file-manager')
+                      }}
                       title="Abrir ficheiros do site"
                       className="text-[10px] text-amber-600 hover:text-amber-800 bg-amber-50 hover:bg-amber-100 px-1.5 py-0.5 rounded font-bold flex items-center gap-0.5 transition-colors">
                       <FolderOpen className="w-2.5 h-2.5" /> Ficheiros
-                    </a>
+                    </button>
                     <a
                       href={`https://${s.domain}/wp-admin`}
                       target="_blank" rel="noopener noreferrer"
