@@ -20,7 +20,7 @@ import {
   PlusAddressingSection, EmailChangePasswordSection, DKIMManagerSection,
   WPRestoreBackupSection, WPRemoteBackupSection, ListSubdomainsSection,
   PackagesSection, DNSZoneEditorSection, FileManagerSection, BackupManagerSection,
-  WordPressInstallSection, WPBackupSection, DomainManagerSection
+  WordPressInstallSection, WPBackupSection, DomainManagerSection, DeploySection
 } from './CyberPanelSections'
 import { cyberPanelAPI } from '@/lib/cyberpanel-api'
 import type { CyberPanelWebsite, CyberPanelUser, CyberPanelPackage } from '@/lib/cyberpanel-api'
@@ -772,6 +772,9 @@ export default function AdminPage() {
         return <WPBackupSection sites={cyberPanelSites} />
       case 'domain-manager':
         return <DomainManagerSection sites={cyberPanelSites} />
+      case 'git-deploy':
+      case 'deploy':
+        return <DeploySection sites={cyberPanelSites} />
       case 'packages-list':
         return <PackagesSection packages={cyberPanelPackages} onRefresh={loadCyberPanelData} />
       default:
