@@ -168,7 +168,17 @@ function ClienteDashboardHome() {
 
 
 // Componente EmailWebmailSection
-function EmailWebmailSection() {
+function EmailWebmailSection({ 
+  mostrarAdicionarConta: propMostrarAdicionarConta,
+  setMostrarAdicionarConta: propSetMostrarAdicionarConta,
+  modalAdicionarPasso: propModalAdicionarPasso,
+  setModalAdicionarPasso: propSetModalAdicionarPasso
+}: {
+  mostrarAdicionarConta?: boolean
+  setMostrarAdicionarConta?: (value: boolean) => void
+  modalAdicionarPasso?: 'escolher'|'webmail'|'google'|'hotmail'
+  setModalAdicionarPasso?: (value: 'escolher'|'webmail'|'google'|'hotmail') => void
+}) {
   const [pastaActiva, setPastaActiva] = useState('Caixa de Entrada')
   const [emails] = useState<any[]>([])
   const [modalEmail, setModalEmail] = useState<any>(null)
@@ -187,10 +197,14 @@ function EmailWebmailSection() {
   const [novoContacto, setNovoContacto] = useState({ nome: '', email: '' })
   const [emailsOrigem, setEmailsOrigem] = useState<{email: string, tipo: 'webmail'|'google'|'hotmail', nome: string}[]>([])
   const [emailOrigem, setEmailOrigem] = useState('')
-  const [mostrarAdicionarConta, setMostrarAdicionarConta] = useState(false)
-  const [modalAdicionarPasso, setModalAdicionarPasso] = useState<'escolher'|'webmail'|'google'|'hotmail'>('escolher')
   const [novaContaForm, setNovaContaForm] = useState({ nome: '', email: '', password: '', servidor: '', porta: '993', smtp: '', smtpPorta: '465' })
   const [carregandoEmails, setCarregandoEmails] = useState(false)
+
+  // Usar props ou valores locais
+  const mostrarAdicionarConta = propMostrarAdicionarConta || false
+  const setMostrarAdicionarConta = propSetMostrarAdicionarConta || (() => {})
+  const modalAdicionarPasso = propModalAdicionarPasso || 'escolher'
+  const setModalAdicionarPasso = propSetModalAdicionarPasso || (() => {})
 
   // Carregar emails reais do CyberPanel ao montar
   useEffect(() => {
@@ -393,10 +407,6 @@ function EmailWebmailSection() {
           </option>
         ))}
       </select>
-      <button onClick={() => { setMostrarAdicionarConta(true); setModalAdicionarPasso('escolher') }}
-        className="ml-2 text-gray-400 hover:text-white text-xs border border-gray-600 hover:border-red-500 rounded px-2 py-0.5 transition-colors">
-        + Conta
-      </button>
       <button onClick={() => { setMostrarCompose(false); setCompose({ para: '', cc: '', bcc: '', assunto: '', corpo: '' }); setEnviado(false) }}
         className="ml-2 w-8 h-8 flex items-center justify-center bg-red-600 hover:bg-red-700 text-white font-bold text-sm shrink-0 transition-colors">✕</button>
     </div>
@@ -443,38 +453,44 @@ function EmailWebmailSection() {
 </div>
 
           {/* LINHA 2 — Formatação */}
-          <div className="bg-gray-800 px-4 py-1.5 flex items-center gap-1 flex-wrap border-b border-gray-700">
-            <select className="bg-gray-700 border border-gray-600 text-white text-xs px-2 py-1 rounded">
-              <option>Calibri</option><option>Arial</option><option>Times New Roman</option>
-            </select>
-            <select className="bg-gray-700 border border-gray-600 text-white text-xs px-2 py-1 rounded w-14">
-              <option>11</option><option>12</option><option>14</option><option>16</option><option>18</option>
-            </select>
-            <div className="w-px h-4 bg-gray-600 mx-1" />
-            {botoesFormato.map((b, i) => (
-              <button key={i} title={b.t}
-                className="text-white text-xs px-2 py-1 rounded hover:bg-gray-600 border border-gray-600 relative group">
-                {b.l}
-                <span className="absolute top-7 left-1/2 -translate-x-1/2 bg-black text-white text-[10px] px-1.5 py-0.5 rounded opacity-0 group-hover:opacity-100 whitespace-nowrap z-20 pointer-events-none">{b.t}</span>
+          <div className="bg-gray-800 px-4 py-2 flex items-center justify-between gap-1 flex-wrap border-b border-gray-700">
+            {/* Lado esquerdo — formatação */}
+            <div className="flex items-center gap-1 flex-wrap">
+              <select className="bg-gray-700 border border-gray-600 text-white text-sm px-2 py-1.5 rounded">
+                <option>Calibri</option><option>Arial</option><option>Times New Roman</option>
+              </select>
+              <select className="bg-gray-700 border border-gray-600 text-white text-sm px-2 py-1.5 rounded w-16">
+                <option>11</option><option>12</option><option>14</option><option>16</option><option>18</option>
+              </select>
+              <div className="w-px h-5 bg-gray-600 mx-1" />
+              {botoesFormato.map((b, i) => (
+                <button key={i} title={b.t}
+                  className="text-white text-sm px-2.5 py-1.5 rounded hover:bg-gray-600 border border-gray-600 relative group font-bold">
+                  {b.l}
+                  <span className="absolute top-8 left-1/2 -translate-x-1/2 bg-black text-white text-[10px] px-1.5 py-0.5 rounded opacity-0 group-hover:opacity-100 whitespace-nowrap z-20 pointer-events-none">{b.t}</span>
+                </button>
+              ))}
+              <div className="w-px h-5 bg-gray-600 mx-1" />
+              {[{ l: '≡', t: 'Lista' }, { l: '1.', t: 'Numerada' }, { l: '⬛', t: 'Esquerda' }, { l: '▪', t: 'Centro' }, { l: '⬜', t: 'Direita' }, { l: '▬', t: 'Justificar' }].map((b, i) => (
+                <button key={i} title={b.t} className="text-white text-sm px-2.5 py-1.5 rounded hover:bg-gray-600 border border-gray-600 relative group">
+                  {b.l}
+                  <span className="absolute top-8 left-1/2 -translate-x-1/2 bg-black text-white text-[10px] px-1.5 py-0.5 rounded opacity-0 group-hover:opacity-100 whitespace-nowrap z-20 pointer-events-none">{b.t}</span>
+                </button>
+              ))}
+            </div>
+
+            {/* Lado direito — inserir e assinatura */}
+            <div className="flex items-center gap-1">
+              {[{ l: '🔗', t: 'Ligação' }, { l: '🖼', t: 'Imagem' }, { l: '⊞', t: 'Tabela' }, { l: '📎', t: 'Anexo' }].map((b, i) => (
+                <button key={i} title={b.t} className="text-white text-sm px-2.5 py-1.5 rounded hover:bg-gray-600 border border-gray-600 flex items-center gap-1.5 relative group">
+                  {b.l} <span className="text-white text-xs">{b.t}</span>
+                </button>
+              ))}
+              <button onClick={() => setMostrarConfigAssinatura(true)}
+                className="text-white text-sm px-2.5 py-1.5 rounded hover:bg-gray-600 border border-gray-600 flex items-center gap-1.5">
+                ✍️ <span className="text-white text-xs">Assinatura</span>
               </button>
-            ))}
-            <div className="w-px h-4 bg-gray-600 mx-1" />
-            {[{ l: '≡', t: 'Lista' }, { l: '1.', t: 'Numerada' }, { l: '⬛', t: 'Esquerda' }, { l: '▪', t: 'Centro' }, { l: '⬜', t: 'Direita' }, { l: '▬', t: 'Justificar' }].map((b, i) => (
-              <button key={i} title={b.t} className="text-white text-xs px-2 py-1 rounded hover:bg-gray-600 border border-gray-600 relative group">
-                {b.l}
-                <span className="absolute top-7 left-1/2 -translate-x-1/2 bg-black text-white text-[10px] px-1.5 py-0.5 rounded opacity-0 group-hover:opacity-100 whitespace-nowrap z-20 pointer-events-none">{b.t}</span>
-              </button>
-            ))}
-            <div className="w-px h-4 bg-gray-600 mx-1" />
-            {[{ l: '🔗', t: 'Ligação' }, { l: '🖼', t: 'Imagem' }, { l: '⊞', t: 'Tabela' }, { l: '📎', t: 'Anexo' }].map((b, i) => (
-              <button key={i} title={b.t} className="text-white text-xs px-2 py-1 rounded hover:bg-gray-600 border border-gray-600 flex items-center gap-1 relative group">
-                {b.l} <span className="text-gray-300 text-[10px]">{b.t}</span>
-              </button>
-            ))}
-            <button onClick={() => setMostrarConfigAssinatura(true)}
-              className="text-white text-xs px-2 py-1 rounded hover:bg-gray-600 border border-gray-600 flex items-center gap-1">
-              ✍️ <span className="text-gray-300 text-[10px]">Assinatura</span>
-            </button>
+            </div>
           </div>
 
           {/* ÁREA DE ESCRITA */}
@@ -1930,6 +1946,10 @@ export default function AdminPage() {
   const [isFetchingCyberPanel, setIsFetchingCyberPanel] = useState(false)
   const [syncing, setSyncing] = useState(false)
   const [selectedDNSDomain, setSelectedDNSDomain] = useState<string>('')
+  
+  // Estados para gestão de contas de email
+  const [mostrarAdicionarConta, setMostrarAdicionarConta] = useState(false)
+  const [modalAdicionarPasso, setModalAdicionarPasso] = useState<'escolher'|'webmail'|'google'|'hotmail'>('escolher')
 
   useEffect(() => {
     loadCyberPanelData()
@@ -1991,7 +2011,12 @@ export default function AdminPage() {
       case 'dashboard':
         return <ClienteDashboardHome />
       case 'emails-new':
-        return <EmailWebmailSection />
+        return <EmailWebmailSection 
+          mostrarAdicionarConta={mostrarAdicionarConta}
+          setMostrarAdicionarConta={setMostrarAdicionarConta}
+          modalAdicionarPasso={modalAdicionarPasso}
+          setModalAdicionarPasso={setModalAdicionarPasso}
+        />
       case 'domains':
   return <ListWebsitesSection
     sites={cyberPanelSites.filter(s => s.domain === 'visualdesigne.com')}
@@ -2248,6 +2273,13 @@ export default function AdminPage() {
               </p>
             </div>
             <div className="flex items-center gap-2">
+              {activeSection === 'emails-new' && (
+                <button
+                  onClick={() => { setMostrarAdicionarConta(true); setModalAdicionarPasso('escolher') }}
+                  className="bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold px-4 py-2 rounded-lg flex items-center gap-1.5 transition-colors">
+                  + Adicionar Conta
+                </button>
+              )}
               <button onClick={() => window.location.href = '/'}
                 className="bg-gray-700 hover:bg-red-600 text-white text-xs font-bold px-4 py-2 rounded-lg flex items-center gap-1.5 transition-colors" title="Sair">
                 <LogOut size={13} />

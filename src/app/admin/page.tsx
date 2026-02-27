@@ -690,7 +690,6 @@ export default function AdminPage() {
       case 'cp-file-manager':
         return <FileManagerSection domain={fileManagerDomain || 'visualdesigne.com'} sites={cyberPanelSites} />
       case 'clientes':
-        // return <ClientesSection /> // Removido - componente movido para CyberPanelSections
         return <div className="p-6"><h1 className="text-2xl font-bold">Clientes</h1><p className="text-gray-500 mt-1">Secção em desenvolvimento</p></div>
       case 'domains-new':
         return <CreateWebsiteSection packages={cyberPanelPackages} onRefresh={loadCyberPanelData} />
