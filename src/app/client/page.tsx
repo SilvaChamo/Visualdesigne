@@ -78,7 +78,7 @@ function ClienteDashboardHome() {
             <div>
               <p className="text-sm text-gray-500">Próxima Renovação</p>
               <p className={`text-2xl font-bold ${diasRestantes < 30 ? 'text-red-600' : 'text-gray-900'}`}>{diasRestantes} dias</p>
-              <p className="text-xs text-gray-400 mt-0.5">{cliente.dataRenovacao} • {cliente.valorAnual.toLocaleString()} MZN</p>
+              <p className="text-xs text-gray-400 mt-0.5">{cliente.dataRenovacao} • {new Intl.NumberFormat('pt-MZ').format(cliente.valorAnual)} MZN</p>
               <button className="text-xs text-blue-600 hover:underline mt-1">Ver faturas</button>
             </div>
           </div>
@@ -148,7 +148,7 @@ function ClienteDashboardHome() {
             <p className="text-xs font-bold text-gray-500 uppercase">Crédito Disponível</p>
             <ChevronRight className="w-4 h-4 text-gray-400" />
           </div>
-          <p className="text-sm text-gray-600">Tens um saldo de <strong className="text-gray-900">MT {cliente.creditoDisponivel.toLocaleString()}</strong> que será aplicado às próximas faturas.</p>
+          <p className="text-sm text-gray-600">Tens um saldo de <strong className="text-gray-900">MT {new Intl.NumberFormat('pt-MZ').format(cliente.creditoDisponivel)}</strong> que será aplicado às próximas faturas.</p>
           <button className="w-full mt-3 bg-red-600 hover:bg-red-700 text-white text-xs font-bold py-2 rounded-lg transition-colors">Adicionar Fundos</button>
         </div>
 
@@ -753,7 +753,7 @@ function FacturacaoSection() {
                   <p className="font-bold text-gray-900">{f.descricao}</p>
                   <p className="text-xs text-gray-500 mt-0.5">Vencimento: {f.vencimento} • {f.id}</p>
                 </div>
-                <p className="text-2xl font-bold text-gray-900">{f.valor.toLocaleString()} MZN</p>
+                <p className="text-2xl font-bold text-gray-900">{new Intl.NumberFormat('pt-MZ').format(f.valor)} MZN</p>
               </div>
               <button onClick={() => setExpanded(expanded === f.id ? null : f.id)}
                 className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg text-xs font-bold transition-colors">
@@ -809,7 +809,7 @@ function FacturacaoSection() {
                   <p className="font-medium text-gray-800">{f.descricao}</p>
                   <p className="text-xs text-gray-400">{f.id}</p>
                 </td>
-                <td className="px-5 py-3 font-bold text-gray-900">{f.valor.toLocaleString()} MZN</td>
+                <td className="px-5 py-3 font-bold text-gray-900">{new Intl.NumberFormat('pt-MZ').format(f.valor)} MZN</td>
                 <td className="px-5 py-3 text-gray-600">{f.dataPagamento}</td>
                 <td className="px-5 py-3 text-gray-600">{f.metodo}</td>
                 <td className="px-5 py-3"><span className="px-2 py-0.5 bg-green-100 text-green-700 rounded-full text-xs font-bold">Pago</span></td>
