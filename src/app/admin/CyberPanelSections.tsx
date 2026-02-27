@@ -3631,6 +3631,7 @@ export function FileManagerSection({ domain, sites }: {
   }, [domain])
 
   const loadFiles = async () => {
+    console.log('loadFiles chamado — path:', path, 'domain:', selectedDomain)
     setLoading(true)
     const res = await fetch('/api/server-exec', {
       method: 'POST',
