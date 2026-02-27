@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { 
   Home, Globe, Users, Mail, Shield, Database, Settings, 
   ChevronLeft, ChevronRight, Plus, Search, Download, ExternalLink,
-  Edit2, Pause, Play, Trash2, RefreshCw, LogOut, Package, Server, Lock, LockOpen, Edit, Power, FolderOpen, FileText, Archive, Globe as GlobeIcon, ChevronRight as ChevronRightIcon
+  Edit2, Pause, Play, Trash2, RefreshCw, LogOut, Package, Server, Lock, LockOpen, Edit, Power, FolderOpen, FileText, Archive, Globe as GlobeIcon, ChevronRight as ChevronRightIcon, Image as ImageIcon
 } from 'lucide-react'
 import { CpanelDashboard } from '../admin/CpanelDashboard'
 import {
@@ -270,19 +270,19 @@ function EmailWebmailSection({
         <div className="w-px h-5 bg-gray-700 mx-1" />
         {pastas.map(p => (
           <button key={p} onClick={() => setPastaActiva(p)}
-            className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${pastaActiva === p ? 'bg-gray-600 text-white' : 'text-gray-400 hover:text-white hover:bg-gray-700'}`}>
+            className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${pastaActiva === p ? 'text-red-500 bg-transparent' : 'text-gray-400 hover:text-red-500 bg-transparent'}`}>
             {p}
           </button>
         ))}
         <div className="ml-auto flex items-center gap-2">
           <button onClick={() => setMostrarConfigAssinatura(true)}
-            className="text-gray-300 hover:text-white hover:bg-red-600 text-sm px-4 py-1.5 rounded-md border border-gray-600 hover:border-red-600 transition-colors flex items-center gap-2">
-            ✍️ Assinatura
-          </button>
-          <button onClick={() => setMostrarConfigContactos(true)}
-            className="text-gray-300 hover:text-white hover:bg-red-600 text-sm px-4 py-1.5 rounded-md border border-gray-600 hover:border-red-600 transition-colors flex items-center gap-2">
-            👥 Contactos
-          </button>
+  className="text-gray-300 hover:text-red-500 text-sm px-4 py-1.5 rounded-md border border-gray-600 hover:border-red-500 transition-colors flex items-center gap-2">
+  ✍️ Assinatura
+</button>
+<button onClick={() => setMostrarConfigContactos(true)}
+  className="text-gray-300 hover:text-red-500 text-sm px-4 py-1.5 rounded-md border border-gray-600 hover:border-red-500 transition-colors flex items-center gap-2">
+  👥 Contactos
+</button>
         </div>
       </div>
 
@@ -408,7 +408,7 @@ function EmailWebmailSection({
         ))}
       </select>
       <button onClick={() => { setMostrarCompose(false); setCompose({ para: '', cc: '', bcc: '', assunto: '', corpo: '' }); setEnviado(false) }}
-        className="ml-2 w-8 h-8 flex items-center justify-center bg-red-600 hover:bg-red-700 text-white font-bold text-sm shrink-0 transition-colors">✕</button>
+        className="ml-2 w-8 h-full min-h-[32px] flex items-center justify-center bg-red-600 hover:bg-red-700 text-white font-bold text-sm shrink-0 transition-colors -mr-0 self-stretch">✕</button>
     </div>
     {/* Linha Para */}
     <div className="flex items-center border-b border-gray-700 px-3 py-1.5">
@@ -456,10 +456,10 @@ function EmailWebmailSection({
           <div className="bg-gray-800 px-3 py-1 flex items-center justify-between gap-1 flex-wrap border-b border-gray-700">
             {/* Lado esquerdo — formatação */}
             <div className="flex items-center gap-1 flex-wrap">
-              <select className="bg-gray-700 border border-gray-600 text-white text-xs px-2 py-1 rounded">
+              <select className="bg-gray-700 border border-gray-600 text-white text-xs px-2 py-1.5 rounded">
                 <option>Calibri</option><option>Arial</option><option>Times New Roman</option>
               </select>
-              <select className="bg-gray-700 border border-gray-600 text-white text-xs px-2 py-1 rounded w-14">
+              <select className="bg-gray-700 border border-gray-600 text-white text-xs px-2 py-1.5 rounded w-14">
                 <option>11</option><option>12</option><option>14</option><option>16</option><option>18</option>
               </select>
               <div className="w-px h-5 bg-gray-600 mx-1" />
@@ -499,7 +499,7 @@ function EmailWebmailSection({
 
             {/* Lado direito — inserir e assinatura */}
             <div className="flex items-center gap-1">
-              {[{ l: '🔗', t: 'Ligação' }, { l: '🖼', t: 'Imagem' }, { l: '⊞', t: 'Tabela' }, { l: '📎', t: 'Anexo' }].map((b, i) => (
+              {[{ l: '🔗', t: 'Ligação' }, { l: <ImageIcon className="w-3.5 h-3.5" />, t: 'Imagem' }, { l: '⊞', t: 'Tabela' }, { l: '📎', t: 'Anexo' }].map((b, i) => (
                 <button key={i} title={b.t} className="text-white text-sm px-2.5 py-1.5 rounded hover:bg-gray-600 border border-gray-600 flex items-center gap-1.5 relative group">
                   {b.l} <span className="text-white text-xs">{b.t}</span>
                 </button>
@@ -647,7 +647,7 @@ function EmailWebmailSection({
             <button key={i} title={b.t} className="text-white text-xs px-2 py-1.5 rounded hover:bg-gray-600 border border-gray-600">{b.l}</button>
           ))}
           <div className="w-px h-5 bg-gray-600 mx-1" />
-          {[{ l: '🖼 Imagens', t: 'Imagens' }, { l: '🔗 Ligação', t: 'Ligação' }, { l: '⊞ Tabela', t: 'Tabela' }, { l: '🌙 Mudar Fundo', t: 'Mudar Fundo' }].map((b, i) => (
+          {[{ l: <><ImageIcon className="w-3.5 h-3.5" /> <span className="text-gray-300 text-[10px]">Imagens</span></>, t: 'Imagens' }, { l: '🔗 Ligação', t: 'Ligação' }, { l: '⊞ Tabela', t: 'Tabela' }, { l: '🌙 Mudar Fundo', t: 'Mudar Fundo' }].map((b, i) => (
             <button key={i} title={b.t} className="text-white text-xs px-2 py-1.5 rounded hover:bg-gray-600 border border-gray-600">{b.l}</button>
           ))}
         </div>
@@ -2294,7 +2294,7 @@ export default function AdminPage() {
               {activeSection === 'emails-new' && (
                 <button
                   onClick={() => { setMostrarAdicionarConta(true); setModalAdicionarPasso('escolher') }}
-                  className="ml-2 bg-red-600 hover:bg-gray-600 text-white text-xs rounded px-2 py-0.5 transition-colors font-bold">
+                  className="ml-2 text-gray-400 hover:text-white text-xs border border-gray-600 hover:border-red-500 rounded px-2 py-1.5 transition-colors">
                   + Adicionar Conta
                 </button>
               )}
