@@ -3613,50 +3613,57 @@ export function PackagesSection({ packages, onRefresh }: { packages: any[], onRe
   )
 }
 
-export function FileManagerSection({ domain, sites }: { 
-  domain: string, 
-  sites: CyberPanelWebsite[] 
+export function FileManagerSection({ domain, sites }: {
+  domain: string,
+  sites: CyberPanelWebsite[]
 }) {
-  const [selectedDomain, setSelectedDomain] = useState(domain || '')
-  const [path, setPath] = useState(domain ? `/home/${domain}/public_html` : '')
+  const [path, setPath] = useState('')
   const [files, setFiles] = useState<any[]>([])
   const [loading, setLoading] = useState(false)
-  const [msg, setMsg] = useState('')
+  const [selectedDomain, setSelectedDomain] = useState('')
 
+  // Sempre que o domain prop muda, actualiza domain e path
   useEffect(() => {
-    if (domain) {
-      setSelectedDomain(domain)
-      setPath(`/home/${domain}/public_html`)
+    const d = domain || (sites.find(s => !s.domain.includes('contaboserver'))?.domain) || ''
+    if (d) {
+      setSelectedDomain(d)
+      setPath(`/home/${d}/public_html`)
     }
   }, [domain])
 
-  const loadFiles = async () => {
-    console.log('loadFiles chamado — path:', path, 'domain:', selectedDomain)
+  // Carregar ficheiros sempre que path muda
+  useEffect(() => {
+    if (path) loadFiles(path)
+  }, [path])
+
+  const loadFiles = async (currentPath: string) => {
     setLoading(true)
     const res = await fetch('/api/server-exec', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         action: 'execCommand',
-        params: { command: `ls -lah "${path}" 2>/dev/null` }
+        params: { command: `ls -la "${currentPath}" 2>&1` }
       })
     })
     const data = await res.json()
-    const lines = (data.data?.output || '').split('\n').filter((l: string) => 
-      l.trim() && !l.startsWith('total')
+    const lines = (data.data?.output || '').split('\n').filter((l: string) =>
+      l && !l.startsWith('total') && l.trim()
     )
-    setFiles(lines.map((line: string) => {
+    const parsed = lines.map((line: string) => {
       const parts = line.trim().split(/\s+/)
-      const isDir = parts[0]?.startsWith('d')
-      const name = parts.slice(8).join(' ')
-      return { name, isDir, size: parts[4], date: `${parts[5]} ${parts[6]} ${parts[7]}`, permissions: parts[0] }
-    }).filter((f: any) => f.name && f.name !== '.' && f.name !== '..'))
+      return {
+        permissions: parts[0],
+        size: parts[4],
+        date: `${parts[5]} ${parts[6]} ${parts[7]}`,
+        name: parts.slice(8).join(' '),
+        isDir: parts[0]?.startsWith('d'),
+        isLink: parts[0]?.startsWith('l'),
+      }
+    }).filter((f: any) => f.name && f.name !== '.' && f.name !== '..')
+    setFiles(parsed)
     setLoading(false)
   }
-
-  useEffect(() => {
-    if (selectedDomain && path) loadFiles()
-  }, [path, selectedDomain])
 
   const navigateTo = (folder: string) => {
     if (folder === '..') {
@@ -3702,7 +3709,7 @@ export function FileManagerSection({ domain, sites }: {
             </button>
           </span>
         ))}
-        <button onClick={loadFiles} className="ml-auto text-gray-400 hover:text-gray-600">
+        <button onClick={() => loadFiles(path)} className="ml-auto text-gray-400 hover:text-gray-600">
           <RefreshCw className="w-3.5 h-3.5" />
         </button>
       </div>
