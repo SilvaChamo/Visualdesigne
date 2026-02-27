@@ -863,3 +863,5 @@ Auth state changed: INITIAL_SESSION undefined
 ✓ Compiled in 127ms
 ⚠ You are using an experimental edge runtime, the API might change.
 ✓ Compiled in 87ms
+⚠ You are using an experimental edge runtime, the API might change.
+✓ Compiled in 100ms

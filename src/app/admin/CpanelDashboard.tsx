@@ -60,7 +60,7 @@ export function CpanelDashboard({ onNavigate, onSetDNSDomain, sites, users, isFe
       headerIcon: <FolderOpen className="w-5 h-5" />,
       color: 'text-amber-700', bgColor: 'bg-amber-50',
       tools: [
-        { id: 'cp-filemanager', name: 'Gestor de Ficheiros', icon: <FolderOpen className="w-9 h-9 text-amber-500" />, external: 'https://109.199.104.22:8090/filemanager' },
+        { id: 'cp-filemanager', name: 'Gestor de Ficheiros', icon: <FolderOpen className="w-9 h-9 text-amber-500" /> },
         { id: 'cp-ftp', name: 'Contas FTP', icon: <Upload className="w-9 h-9 text-amber-500" /> },
         { id: 'cp-wp-restore-backup', name: 'Restaurar Backup', icon: <RotateCcw className="w-9 h-9 text-amber-500" /> },
         { id: 'cp-wp-remote-backup', name: 'Backup Remoto', icon: <Cloud className="w-9 h-9 text-amber-500" /> },
