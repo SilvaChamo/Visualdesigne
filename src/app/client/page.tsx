@@ -166,210 +166,455 @@ function ClienteDashboardHome() {
   )
 }
 
+// Componente MeuSiteSection
+function MeuSiteSection() {
+  const cliente = {
+    nome: 'Silva Chamo', email: 'silva.chamo@gmail.com', telefone: '+258 848 066 605',
+    dominio: 'visualdesigne.com', plano: 'Premium', dataInicio: '19/05/2025',
+    dataRenovacao: '17/05/2026', valorAnual: 1500, ssl: true, sslExpira: '17/05/2026',
+    estado: 'active', ip: '109.199.104.22', php: '8.2', disco: '500MB',
+    wordpress: true, wpVersion: '6.4'
+  }
+
+  const hoje = new Date()
+  const renovacao = new Date('2026-05-17')
+  const diasRestantes = Math.ceil((renovacao.getTime() - hoje.getTime()) / (1000 * 60 * 60 * 24))
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">O Meu Site</h1>
+          <p className="text-gray-500 mt-1">Informações e estado do teu site.</p>
+        </div>
+        <a href={`https://${cliente.dominio}`} target="_blank"
+          className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 transition-colors">
+          <ExternalLink className="w-4 h-4" /> Visitar Site
+        </a>
+      </div>
+
+      {/* Cards de estado */}
+      <div className="grid grid-cols-4 gap-4">
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
+          <p className="text-xs font-bold text-gray-400 uppercase mb-2">Estado do Site</p>
+          <div className="flex items-center gap-2">
+            <div className="w-2.5 h-2.5 rounded-full bg-green-500 animate-pulse"></div>
+            <p className="text-lg font-bold text-green-600">Online</p>
+          </div>
+          <p className="text-xs text-gray-400 mt-1">{cliente.dominio}</p>
+        </div>
+
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
+          <p className="text-xs font-bold text-gray-400 uppercase mb-2">SSL</p>
+          <div className="flex items-center gap-2">
+            <Lock className="w-4 h-4 text-green-600" />
+            <p className="text-lg font-bold text-green-600">Activo</p>
+          </div>
+          <p className="text-xs text-gray-400 mt-1">Expira: {cliente.sslExpira}</p>
+        </div>
+
+        <div className={`bg-white rounded-xl border shadow-sm p-5 ${diasRestantes < 30 ? 'border-red-200' : 'border-gray-200'}`}>
+          <p className="text-xs font-bold text-gray-400 uppercase mb-2">Renovação</p>
+          <p className={`text-lg font-bold ${diasRestantes < 30 ? 'text-red-600' : 'text-gray-900'}`}>{diasRestantes} dias</p>
+          <p className="text-xs text-gray-400 mt-1">{cliente.dataRenovacao}</p>
+        </div>
+
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
+          <p className="text-xs font-bold text-gray-400 uppercase mb-2">Disco Usado</p>
+          <p className="text-lg font-bold text-gray-900">{cliente.disco}</p>
+          <p className="text-xs text-gray-400 mt-1">de 5GB disponíveis</p>
+        </div>
+      </div>
+
+      {/* Detalhes técnicos */}
+      <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
+        <h2 className="text-sm font-bold text-gray-700 mb-4">Detalhes Técnicos</h2>
+        <div className="grid grid-cols-4 gap-4">
+          {[
+            { label: 'Domínio', value: cliente.dominio },
+            { label: 'Plano', value: cliente.plano },
+            { label: 'IP do Servidor', value: cliente.ip },
+            { label: 'Versão PHP', value: `PHP ${cliente.php}` },
+            { label: 'Data de Início', value: cliente.dataInicio },
+            { label: 'Data de Renovação', value: cliente.dataRenovacao },
+            { label: 'Valor Anual', value: `${cliente.valorAnual.toLocaleString()} MZN` },
+            { label: 'WordPress', value: cliente.wordpress ? `✅ v${cliente.wpVersion}` : '❌ Não instalado' },
+          ].map(({ label, value }) => (
+            <div key={label} className="bg-gray-50 rounded-lg p-3 border border-gray-200">
+              <p className="text-xs font-bold text-gray-400 uppercase mb-1">{label}</p>
+              <p className="text-sm font-bold text-gray-900">{value}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Acções rápidas */}
+      <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
+        <h2 className="text-sm font-bold text-gray-700 mb-4">Acções Rápidas</h2>
+        <div className="flex gap-3">
+          <a href={`https://${cliente.dominio}/wp-admin`} target="_blank"
+            className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg text-xs font-bold transition-colors flex items-center gap-2">
+            <Globe className="w-3.5 h-3.5" /> WP Admin
+          </a>
+          <a href={`https://mail.${cliente.dominio}`} target="_blank"
+            className="bg-cyan-600 hover:bg-cyan-700 text-white px-4 py-2 rounded-lg text-xs font-bold transition-colors flex items-center gap-2">
+            <Mail className="w-3.5 h-3.5" /> Webmail
+          </a>
+          <a href="https://wa.me/258848066605" target="_blank"
+            className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg text-xs font-bold transition-colors flex items-center gap-2">
+            📱 Suporte WhatsApp
+          </a>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // Componente EmailWebmailSection
 function EmailWebmailSection() {
-  const [pasta, setPasta] = useState('inbox')
-  const [emails, setEmails] = useState<any[]>([])
-  const [emailSelecionado, setEmailSelecionado] = useState<any>(null)
-  const [mostrarCompose, setMostrarCompose] = useState(false)
+  const [pastaActiva, setPastaActiva] = useState('inbox')
+  const [emails] = useState<any[]>([]) 
+  const [modalEmail, setModalEmail] = useState<any>(null)
+  const [modoResposta, setModoResposta] = useState<'none'|'reply'|'forward'>('none')
   const [compose, setCompose] = useState({ para: '', assunto: '', corpo: '' })
+  const [mostrarCompose, setMostrarCompose] = useState(false)
   const [enviando, setEnviando] = useState(false)
   const [enviado, setEnviado] = useState(false)
 
-  const pastas = [
-    { id: 'inbox', label: 'Caixa de Entrada', icone: '📥' },
-    { id: 'archive', label: 'Arquivo', icone: '🗂️' },
-    { id: 'deleted', label: 'Eliminados', icone: '🗑️' },
-    { id: 'drafts', label: 'Rascunhos', icone: '📝' },
-    { id: 'junk', label: 'Lixo', icone: '⚠️' },
-    { id: 'sent', label: 'Enviados', icone: '📤' },
-  ]
+  const pastas = ['Caixa de Entrada','Enviados','Rascunhos','Arquivo','Lixo','Spam']
 
-  const botoesToolbar = [
-    { icone: '🔄', label: 'Actualizar' },
-    { icone: '📁', label: 'Arquivar' },
-    { icone: '💾', label: 'Guardar' },
-    { icone: '⚠️', label: 'Spam' },
-    { icone: '🗑️', label: 'Eliminar' },
-    { icone: '☰', label: 'Mais' },
-    { icone: '📅', label: 'Agendar' },
-  ]
+  const handleReply = () => {
+    setModoResposta('reply')
+    setCompose({ para: modalEmail.de, assunto: 'Re: ' + modalEmail.assunto, corpo: '' })
+  }
+
+  const handleForward = () => {
+    setModoResposta('forward')  
+    setCompose({ para: '', assunto: 'Fwd: ' + modalEmail.assunto, corpo: modalEmail.corpo })
+  }
+
+  const handleCloseModal = () => {
+    setModalEmail(null)
+    setModoResposta('none')
+    setMostrarCompose(false)
+    setCompose({ para: '', assunto: '', corpo: '' })
+    setEnviado(false)
+  }
+
+  const handleSend = async () => {
+    setEnviando(true)
+    await new Promise(resolve => setTimeout(resolve, 1000))
+    setEnviando(false)
+    setEnviado(true)
+    setTimeout(() => {
+      handleCloseModal()
+    }, 2000)
+  }
 
   return (
-    <div className="flex h-[calc(100vh-140px)] bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-      
-      {/* Sidebar de pastas */}
-      <div className="w-48 bg-gray-800 flex flex-col shrink-0">
-        {/* Botão Escrever */}
-        <div className="p-3">
-          <button
-            onClick={() => { setMostrarCompose(true); setEnviado(false) }}
-            className="w-full bg-green-500 hover:bg-green-600 text-white text-xs font-bold py-2.5 px-3 rounded-lg transition-colors flex items-center gap-2">
-            ✏️ Escrever
+    <div className="flex flex-col h-[calc(100vh-120px)] -mx-6 -mt-6">
+      {/* Toolbar principal */}
+      <div className="bg-gray-900 text-white px-4 py-3 flex items-center gap-3 border-b border-gray-800">
+        <button
+          onClick={() => { setMostrarCompose(true); setModalEmail(null); setModoResposta('none'); setEnviado(false) }}
+          className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg text-xs font-bold transition-colors flex items-center gap-2">
+          ✏️ Escrever
+        </button>
+        
+        <div className="flex items-center gap-1 ml-auto">
+          <button className="p-2 hover:bg-gray-800 rounded transition-colors" title="Actualizar">
+            🔄
+          </button>
+          <button className="p-2 hover:bg-gray-800 rounded transition-colors" title="Arquivar">
+            📁
+          </button>
+          <button className="p-2 hover:bg-gray-800 rounded transition-colors" title="Spam">
+            ⚠️
+          </button>
+          <button className="p-2 hover:bg-gray-800 rounded transition-colors" title="Eliminar">
+            🗑️
           </button>
         </div>
 
-        {/* Pastas */}
-        <nav className="flex-1 px-2 space-y-0.5">
-          {pastas.map(p => (
-            <button key={p.id} onClick={() => { setPasta(p.id); setEmailSelecionado(null) }}
-              className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium transition-colors text-left ${pasta === p.id ? 'bg-gray-600 text-white' : 'text-gray-300 hover:bg-gray-700'}`}>
-              <span>{p.icone}</span> {p.label}
+        {/* Tabs de pastas */}
+        <div className="flex items-center gap-1 border-l border-gray-700 pl-3">
+          {pastas.map((pasta, index) => (
+            <button
+              key={pasta}
+              onClick={() => setPastaActiva(pasta.toLowerCase().replace(' ', ''))}
+              className={`px-3 py-1.5 text-xs font-medium transition-colors rounded ${
+                pastaActiva === pasta.toLowerCase().replace(' ', '') 
+                  ? 'bg-gray-800 text-white' 
+                  : 'text-gray-300 hover:bg-gray-800 hover:text-white'
+              }`}
+            >
+              {pasta}
             </button>
           ))}
-        </nav>
-
-        {/* Email do utilizador */}
-        <div className="p-3 border-t border-gray-700">
-          <p className="text-xs text-gray-400 truncate">suport@visualdesigne.com</p>
         </div>
       </div>
 
-      {/* Área principal */}
-      <div className="flex-1 flex flex-col overflow-hidden">
+      {/* Lista de emails */}
+      <div className="flex-1 bg-white overflow-hidden">
+        <div className="h-full overflow-y-auto">
+          {emails.length === 0 ? (
+            <div className="flex items-center justify-center h-full text-gray-400">
+              <div className="text-center">
+                <p className="text-6xl mb-4">📭</p>
+                <p className="text-lg font-medium">Caixa de correio vazia</p>
+                <p className="text-sm mt-1">Não há emails na {pastas.find(p => p.toLowerCase().replace(' ', '') === pastaActiva)?.toLowerCase() || 'caixa de entrada'}.</p>
+              </div>
+            </div>
+          ) : (
+            <div className="divide-y divide-gray-200">
+              {emails.map((email, index) => (
+                <div
+                  key={index}
+                  onClick={() => { setModalEmail(email); setModoResposta('none') }}
+                  className="px-4 py-3 hover:bg-gray-50 cursor-pointer transition-colors"
+                >
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="text-sm font-medium text-gray-900 truncate">{email.de}</span>
+                        <span className="text-xs text-gray-500">{email.data}</span>
+                      </div>
+                      <p className="text-sm font-medium text-gray-800 truncate">{email.assunto}</p>
+                      <p className="text-sm text-gray-600 truncate mt-1">{email.corpo?.substring(0, 100)}...</p>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
 
-        {mostrarCompose ? (
-          /* Janela de composição */
-          <div className="flex-1 flex flex-col">
-            {/* Toolbar compose */}
-            <div className="flex items-center gap-2 px-4 py-2 bg-gray-800 border-b border-gray-700">
-              <button onClick={async () => { setEnviando(true); await new Promise(r => setTimeout(r, 1000)); setEnviando(false); setEnviado(true) }}
-                disabled={enviando || !compose.para}
-                className="bg-green-500 hover:bg-green-600 disabled:opacity-50 text-white text-xs font-bold px-4 py-1.5 rounded flex items-center gap-1.5 transition-colors">
-                {enviando ? '⏳' : '✈️'} {enviando ? 'A enviar...' : 'Enviar'}
+      {/* Modal do email */}
+      {modalEmail && (
+        <div className="fixed inset-0 z-50 bg-white">
+          {/* Header do modal */}
+          <div className="bg-gray-900 text-white px-4 py-3 flex items-center justify-between border-b border-gray-800">
+            <div className="flex-1 min-w-0">
+              <h2 className="text-lg font-medium truncate">{modalEmail.assunto}</h2>
+              <p className="text-sm text-gray-300">De: {modalEmail.de}</p>
+            </div>
+            <div className="flex items-center gap-2 ml-4">
+              <button
+                onClick={handleReply}
+                className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded text-xs font-medium transition-colors"
+              >
+                Responder
               </button>
-              <button className="bg-gray-600 hover:bg-gray-500 text-white text-xs px-3 py-1.5 rounded flex items-center gap-1">
-                💾 Guardar
+              <button
+                onClick={handleForward}
+                className="bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1.5 rounded text-xs font-medium transition-colors"
+              >
+                Reencaminhar
               </button>
-              <div className="ml-auto flex items-center gap-2">
-                <button className="text-gray-300 hover:text-white text-xs px-2 py-1.5 rounded border border-gray-600 hover:border-gray-400">Bcc</button>
-                <button className="text-gray-300 hover:text-white text-xs px-2 py-1.5 rounded border border-gray-600 hover:border-gray-400">Cc</button>
-                <button onClick={() => setMostrarCompose(false)} className="text-gray-300 hover:text-red-400 ml-2">✕</button>
+              <button
+                className="bg-red-600 hover:bg-red-700 text-white px-3 py-1.5 rounded text-xs font-medium transition-colors"
+              >
+                Eliminar
+              </button>
+              <button
+                className="bg-gray-600 hover:bg-gray-700 text-white px-3 py-1.5 rounded text-xs font-medium transition-colors"
+              >
+                Arquivar
+              </button>
+              <button
+                onClick={handleCloseModal}
+                className="text-gray-300 hover:text-white px-3 py-1.5 rounded text-xs font-medium transition-colors"
+              >
+                ✕
+              </button>
+            </div>
+          </div>
+
+          {/* Conteúdo do modal */}
+          <div className="flex-1 overflow-y-auto" style={{ maxHeight: 'calc(100vh - 200px)' }}>
+            {/* Email original */}
+            <div className="p-6 border-b border-gray-200">
+              <div className="max-w-4xl mx-auto">
+                <div className="mb-4">
+                  <span className="text-sm text-gray-500">De:</span>
+                  <span className="text-sm text-gray-900 ml-2 font-medium">{modalEmail.de}</span>
+                </div>
+                <div className="mb-4">
+                  <span className="text-sm text-gray-500">Data:</span>
+                  <span className="text-sm text-gray-900 ml-2">{modalEmail.data}</span>
+                </div>
+                <div className="prose max-w-none">
+                  <p className="text-gray-800 whitespace-pre-wrap">{modalEmail.corpo}</p>
+                </div>
               </div>
             </div>
 
-            {enviado ? (
-              <div className="flex-1 flex items-center justify-center">
-                <div className="text-center">
-                  <p className="text-4xl mb-3">✅</p>
-                  <p className="text-lg font-bold text-gray-800">Email enviado com sucesso!</p>
-                  <button onClick={() => { setMostrarCompose(false); setCompose({ para: '', assunto: '', corpo: '' }); setEnviado(false) }}
-                    className="mt-4 bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg text-sm font-bold">
-                    Voltar
-                  </button>
+            {/* Área de resposta/reencaminhamento */}
+            {(modoResposta === 'reply' || modoResposta === 'forward') && (
+              <div className="p-6 bg-gray-50 border-t border-gray-200">
+                <div className="max-w-4xl mx-auto">
+                  <div className="mb-4">
+                    <span className="text-sm font-medium text-gray-700">
+                      {modoResposta === 'reply' ? 'Responder para:' : 'Reencaminhar para:'}
+                    </span>
+                  </div>
+                  
+                  <div className="space-y-3 mb-4">
+                    <div>
+                      <input
+                        type="text"
+                        value={compose.para}
+                        onChange={(e) => setCompose({...compose, para: e.target.value})}
+                        placeholder="Email do destinatário"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      />
+                    </div>
+                    <div>
+                      <input
+                        type="text"
+                        value={compose.assunto}
+                        onChange={(e) => setCompose({...compose, assunto: e.target.value})}
+                        placeholder="Assunto"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="mb-4">
+                    <textarea
+                      value={compose.corpo}
+                      onChange={(e) => setCompose({...compose, corpo: e.target.value})}
+                      placeholder="Escreve a tua mensagem..."
+                      rows={6}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+                    />
+                  </div>
+
+                  {enviado ? (
+                    <div className="text-center py-4">
+                      <p className="text-2xl mb-2">✅</p>
+                      <p className="text-green-600 font-medium">Email enviado com sucesso!</p>
+                    </div>
+                  ) : (
+                    <div className="flex gap-2">
+                      <button
+                        onClick={handleSend}
+                        disabled={enviando || !compose.para || !compose.assunto}
+                        className="bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2"
+                      >
+                        {enviando ? (
+                          <>
+                            <span className="animate-spin">⏳</span>
+                            A enviar...
+                          </>
+                        ) : (
+                          <>
+                            ✈️
+                            Enviar
+                          </>
+                        )}
+                      </button>
+                      <button
+                        onClick={() => setModoResposta('none')}
+                        className="bg-gray-500 hover:bg-gray-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+                      >
+                        Cancelar
+                      </button>
+                    </div>
+                  )}
                 </div>
-              </div>
-            ) : (
-              <div className="flex-1 flex flex-col p-4 space-y-3">
-                {/* De */}
-                <div className="flex items-center border-b border-gray-200 pb-2">
-                  <span className="text-xs font-bold text-gray-500 w-16">De</span>
-                  <span className="text-sm text-gray-700">suport@visualdesigne.com</span>
-                </div>
-                {/* Para */}
-                <div className="flex items-center border-b border-gray-200 pb-2">
-                  <span className="text-xs font-bold text-gray-500 w-16">Para</span>
-                  <input value={compose.para} onChange={e => setCompose({...compose, para: e.target.value})}
-                    className="flex-1 text-sm outline-none" placeholder="" />
-                </div>
-                {/* Assunto */}
-                <div className="flex items-center border-b border-gray-200 pb-2">
-                  <span className="text-xs font-bold text-gray-500 w-16">Assunto</span>
-                  <input value={compose.assunto} onChange={e => setCompose({...compose, assunto: e.target.value})}
-                    className="flex-1 text-sm outline-none" />
-                </div>
-                {/* Anexo */}
-                <div className="flex items-center border-b border-gray-200 pb-2">
-                  <span className="text-xs font-bold text-gray-500 w-16"></span>
-                  <button className="text-xs text-gray-400 hover:text-gray-600 flex items-center gap-1">📎 + Anexo</button>
-                </div>
-                {/* Tabs Texto/Anexos */}
-                <div className="flex border-b border-gray-200">
-                  <button className="px-4 py-2 text-xs font-bold text-gray-700 border-b-2 border-gray-800 flex items-center gap-1">📄 Texto</button>
-                  <button className="px-4 py-2 text-xs text-gray-400 flex items-center gap-1">📎 Anexos</button>
-                </div>
-                {/* Toolbar formatação */}
-                <div className="flex items-center gap-1 flex-wrap border-b border-gray-200 pb-2">
-                  {[
-                    { i: 'HTML', t: 'Modo HTML' }, { i: 'Arial', t: 'Tipo de letra' }, { i: 'pré', t: 'Tamanho' },
-                    { i: '¶', t: 'Parágrafo' }, { i: '≡', t: 'Alinhamento' }, { i: 'A', t: 'Cor do texto' },
-                    { i: '↺', t: 'Desfazer' }, { i: 'B', t: 'Negrito' }, { i: 'I', t: 'Itálico' },
-                    { i: 'U', t: 'Sublinhado' }, { i: 'S', t: 'Riscado' }, { i: 'x₂', t: 'Subscrito' },
-                    { i: 'x²', t: 'Superscrito' }, { i: '#', t: 'Lista numerada' }, { i: '•', t: 'Lista' },
-                    { i: '"', t: 'Citação' }, { i: '←', t: 'Diminuir recuo' }, { i: '→', t: 'Aumentar recuo' },
-                    { i: '🔗', t: 'Inserir link' }, { i: '🖼', t: 'Inserir imagem' }, { i: '👁', t: 'Pré-visualizar' },
-                  ].map((b, i) => (
-                    <button key={i} title={b.t}
-                      className="px-2 py-1 text-xs border border-gray-300 rounded hover:bg-gray-100 transition-colors relative group">
-                      {b.i}
-                      <span className="absolute -bottom-6 left-1/2 -translate-x-1/2 bg-gray-800 text-white text-[10px] px-1.5 py-0.5 rounded opacity-0 group-hover:opacity-100 whitespace-nowrap z-10 pointer-events-none">
-                        {b.t}
-                      </span>
-                    </button>
-                  ))}
-                </div>
-                {/* Corpo do email */}
-                <textarea value={compose.corpo} onChange={e => setCompose({...compose, corpo: e.target.value})}
-                  className="flex-1 text-sm outline-none resize-none p-2" placeholder="" />
               </div>
             )}
           </div>
-        ) : (
-          /* Vista de caixa de correio */
-          <div className="flex flex-1 overflow-hidden">
-            {/* Lista de emails */}
-            <div className="w-72 border-r border-gray-200 flex flex-col shrink-0">
-              {/* Toolbar lista */}
-              <div className="flex items-center gap-1 px-3 py-2 bg-gray-800 border-b border-gray-700">
-                {botoesToolbar.map((b, i) => (
-                  <button key={i} title={b.label}
-                    className="text-gray-300 hover:text-white p-1.5 rounded hover:bg-gray-700 transition-colors text-sm relative group">
-                    {b.icone}
-                    <span className="absolute top-8 left-1/2 -translate-x-1/2 bg-gray-900 text-white text-[10px] px-1.5 py-0.5 rounded opacity-0 group-hover:opacity-100 whitespace-nowrap z-10 pointer-events-none">
-                      {b.label}
-                    </span>
-                  </button>
-                ))}
-              </div>
-              {/* Search */}
-              <div className="p-2 border-b border-gray-200">
-                <div className="flex items-center gap-2">
-                  <input placeholder="Pesquisar" className="flex-1 px-2 py-1.5 border border-gray-300 rounded text-xs outline-none" />
-                  <button className="text-gray-400 hover:text-gray-600 text-xs px-1">▼</button>
-                </div>
-              </div>
-              {/* Lista */}
-              <div className="flex-1 overflow-y-auto">
-                {emails.length === 0 ? (
-                  <div className="flex items-center justify-center h-full text-gray-400 text-sm">Lista vazia.</div>
-                ) : (
-                  emails.map((e, i) => (
-                    <div key={i} onClick={() => setEmailSelecionado(e)}
-                      className={`px-3 py-3 border-b border-gray-100 cursor-pointer hover:bg-gray-50 ${emailSelecionado?.id === e.id ? 'bg-blue-50' : ''}`}>
-                      <p className="text-xs font-bold text-gray-800 truncate">{e.de}</p>
-                      <p className="text-xs text-gray-600 truncate">{e.assunto}</p>
-                      <p className="text-[10px] text-gray-400 mt-0.5">{e.data}</p>
-                    </div>
-                  ))
-                )}
-              </div>
-            </div>
+        </div>
+      )}
 
-            {/* Visualizador de email */}
-            <div className="flex-1 flex items-center justify-center text-gray-400 text-sm">
-              {emailSelecionado ? (
-                <div className="p-6 w-full">
-                  <h2 className="font-bold text-gray-800 text-lg mb-2">{emailSelecionado.assunto}</h2>
-                  <p className="text-xs text-gray-500 mb-4">De: {emailSelecionado.de}</p>
-                  <div className="text-sm text-gray-700">{emailSelecionado.corpo}</div>
+      {/* Modal de composição */}
+      {mostrarCompose && !modalEmail && (
+        <div className="fixed inset-0 z-50 bg-white">
+          <div className="bg-gray-900 text-white px-4 py-3 flex items-center justify-between border-b border-gray-800">
+            <h2 className="text-lg font-medium">Novo Email</h2>
+            <button
+              onClick={handleCloseModal}
+              className="text-gray-300 hover:text-white px-3 py-1.5 rounded text-xs font-medium transition-colors"
+            >
+              ✕
+            </button>
+          </div>
+
+          <div className="flex-1 p-6 overflow-y-auto" style={{ maxHeight: 'calc(100vh - 200px)' }}>
+            <div className="max-w-4xl mx-auto space-y-4">
+              <div>
+                <input
+                  type="text"
+                  value={compose.para}
+                  onChange={(e) => setCompose({...compose, para: e.target.value})}
+                  placeholder="Para"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              <div>
+                <input
+                  type="text"
+                  value={compose.assunto}
+                  onChange={(e) => setCompose({...compose, assunto: e.target.value})}
+                  placeholder="Assunto"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              <div>
+                <textarea
+                  value={compose.corpo}
+                  onChange={(e) => setCompose({...compose, corpo: e.target.value})}
+                  placeholder="Escreve a tua mensagem..."
+                  rows={12}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+                />
+              </div>
+
+              {enviado ? (
+                <div className="text-center py-8">
+                  <p className="text-4xl mb-3">✅</p>
+                  <p className="text-lg font-medium text-green-600">Email enviado com sucesso!</p>
+                  <button
+                    onClick={handleCloseModal}
+                    className="mt-4 bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg text-sm font-medium transition-colors"
+                  >
+                    Voltar
+                  </button>
                 </div>
               ) : (
-                <p>Escolha uma mensagem na lista para ver o conteúdo aqui.</p>
+                <div className="flex gap-2">
+                  <button
+                    onClick={handleSend}
+                    disabled={enviando || !compose.para || !compose.assunto}
+                    className="bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white px-6 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2"
+                  >
+                    {enviando ? (
+                      <>
+                        <span className="animate-spin">⏳</span>
+                        A enviar...
+                      </>
+                    ) : (
+                      <>
+                        ✈️
+                        Enviar
+                      </>
+                    )}
+                  </button>
+                  <button
+                    onClick={handleCloseModal}
+                    className="bg-gray-500 hover:bg-gray-600 text-white px-6 py-2 rounded-lg text-sm font-medium transition-colors"
+                  >
+                    Cancelar
+                  </button>
+                </div>
               )}
             </div>
           </div>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -1398,6 +1643,8 @@ export default function AdminPage() {
         return <ClienteDashboardHome />
       case 'emails-new':
         return <EmailWebmailSection />
+      case 'domains':
+        return <MeuSiteSection />
       case 'domains-list':
         return <ListWebsitesSection 
         sites={cyberPanelSites} 
