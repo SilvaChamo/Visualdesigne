@@ -314,7 +314,7 @@ function ListWebsitesSection({ sites, onRefresh, packages, setActiveSection, set
                 <button
                   onClick={() => {
                     setFileManagerDomain(s.domain)
-                    setActiveSection('file-manager')
+                    setTimeout(() => setActiveSection('file-manager'), 50)
                   }}
                   className="text-gray-600 hover:text-red-600 text-xs font-medium transition-colors underline-offset-2 hover:underline">
                   Explorar directório

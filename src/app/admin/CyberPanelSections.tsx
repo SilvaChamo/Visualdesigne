@@ -2377,7 +2377,7 @@ export function WPListSection({ sites, setFileManagerDomain, setActiveSection }:
                 <button
                   onClick={() => {
                     if (setFileManagerDomain) setFileManagerDomain(s.domain)
-                    if (setActiveSection) setActiveSection('file-manager')
+                    setTimeout(() => { if (setActiveSection) setActiveSection('file-manager') }, 50)
                   }}
                   className="w-full bg-amber-50 hover:bg-amber-100 text-amber-700 text-xs font-bold py-2 px-4 rounded-lg border border-amber-200 transition-all flex items-center justify-center gap-2">
                   <FolderOpen className="w-3.5 h-3.5" /> Ficheiros WordPress
