@@ -2322,7 +2322,11 @@ export function DeleteWebsiteSection({ sites, onRefresh }: { sites: CyberPanelWe
 // ============================================================
 // WORDPRESS LIST SECTION
 // ============================================================
-export function WPListSection({ sites }: { sites: CyberPanelWebsite[] }) {
+export function WPListSection({ sites, setFileManagerDomain, setActiveSection }: { 
+  sites: CyberPanelWebsite[], 
+  setFileManagerDomain?: (domain: string) => void,
+  setActiveSection?: (section: string) => void
+}) {
   const [wpSites, setWpSites] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [installingLS, setInstallingLS] = useState<string | null>(null)
@@ -2370,12 +2374,14 @@ export function WPListSection({ sites }: { sites: CyberPanelWebsite[] }) {
                   className="w-full bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold py-2.5 px-4 rounded-lg transition-all flex items-center justify-center gap-2">
                   <ExternalLink className="w-3.5 h-3.5" /> Abrir WP Admin
                 </a>
-                <a
-                  href={`https://109.199.104.22:8090/filemanager/?path=/home/${s.owner || 'admin'}/public_html`}
-                  target="_blank" rel="noopener noreferrer"
+                <button
+                  onClick={() => {
+                    if (setFileManagerDomain) setFileManagerDomain(s.domain)
+                    if (setActiveSection) setActiveSection('file-manager')
+                  }}
                   className="w-full bg-amber-50 hover:bg-amber-100 text-amber-700 text-xs font-bold py-2 px-4 rounded-lg border border-amber-200 transition-all flex items-center justify-center gap-2">
                   <FolderOpen className="w-3.5 h-3.5" /> Ficheiros WordPress
-                </a>
+                </button>
                 <button
                   onClick={() => handleInstallLiteSpeed(s.domain)}
                   disabled={installingLS === s.domain}
