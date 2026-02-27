@@ -187,6 +187,15 @@ function EmailWebmailSection() {
   const [novoContacto, setNovoContacto] = useState({ nome: '', email: '' })
   const [emailOrigem, setEmailOrigem] = useState('')
   const emailsOrigem = ['suport@visualdesigne.com', 'info@visualdesigne.com', 'silva.chamo@gmail.com']
+  const [mostrarCc, setMostrarCc] = useState(false)
+  const [mostrarBcc, setMostrarBcc] = useState(false)
+  const [mostrarEditarAssinatura, setMostrarEditarAssinatura] = useState(false)
+  const [assinaturas, setAssinaturas] = useState([
+    { nome: 'VisualDESIGN', activa: true, texto: '', imagemUrl: '' },
+    { nome: 'ProVisual Corporate', activa: false, texto: '', imagemUrl: '' },
+    { nome: 'Sem Título', activa: false, texto: '', imagemUrl: '' },
+  ])
+  const [assinaturaActiva, setAssinaturaActiva] = useState(0)
 
   const handleCloseModal = () => { setModalEmail(null); setModoResposta('none'); setCompose({ para: '', cc: '', bcc: '', assunto: '', corpo: '' }); setEnviado(false) }
 
@@ -334,22 +343,18 @@ function EmailWebmailSection() {
 
           {/* LINHA 1 — Layout 2 colunas */}
 <div className="bg-gray-900 border-b border-gray-700 flex">
-  
-  {/* Coluna esquerda — Enviar + Webmail empilhados */}
+
+  {/* Coluna esquerda — só botão Enviar */}
   <div className="flex flex-col border-r border-gray-700 shrink-0">
     <button onClick={handleSend} disabled={enviando || !compose.para || !emailOrigem}
-      className="flex-1 bg-green-500 hover:bg-green-600 disabled:opacity-50 text-white font-bold px-6 text-sm flex items-center justify-center gap-2 shadow-lg transition-colors border-b border-gray-700 min-w-[120px]">
+      className="flex-1 bg-green-500 hover:bg-green-600 disabled:opacity-50 text-white font-bold px-6 text-sm flex items-center justify-center gap-2 shadow-lg transition-colors min-w-[110px]">
       {enviando ? '⏳' : '✈️'} {enviando ? 'A enviar...' : 'Enviar'}
     </button>
-    <a href="https://109.199.104.22:8090/rainloop/" target="_blank"
-      className="flex-1 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold px-4 flex items-center justify-center gap-2 transition-colors">
-      🌐 Webmail
-    </a>
   </div>
 
-  {/* Coluna direita — Campos em linhas como Apple Mail */}
+  {/* Coluna direita — Campos */}
   <div className="flex-1 flex flex-col">
-    {/* Linha De */}
+    {/* Linha De + botão fechar */}
     <div className="flex items-center border-b border-gray-700 px-3 py-1.5">
       <span className="text-gray-400 text-xs w-16 shrink-0">De:</span>
       <select value={emailOrigem} onChange={e => setEmailOrigem(e.target.value)}
@@ -357,6 +362,9 @@ function EmailWebmailSection() {
         <option value="" className="bg-gray-900">Escolher email de origem...</option>
         {emailsOrigem.map(e => <option key={e} value={e} className="bg-gray-900">{e}</option>)}
       </select>
+      {/* Botão fechar — quadrado, na linha De */}
+      <button onClick={() => { setMostrarCompose(false); setCompose({ para: '', cc: '', bcc: '', assunto: '', corpo: '' }); setEnviado(false) }}
+        className="ml-2 w-8 h-8 flex items-center justify-center bg-red-600 hover:bg-red-700 text-white font-bold text-sm shrink-0 transition-colors">✕</button>
     </div>
     {/* Linha Para */}
     <div className="flex items-center border-b border-gray-700 px-3 py-1.5">
@@ -366,30 +374,36 @@ function EmailWebmailSection() {
       <datalist id="contactos-list">
         {contactos.map(c => <option key={c.email} value={c.email}>{c.nome}</option>)}
       </datalist>
-      <button className="text-gray-500 hover:text-gray-300 ml-2 text-xs border border-gray-600 rounded px-1.5 py-0.5">📖</button>
+      <button title="Seleccionar contacto" className="text-gray-500 hover:text-gray-300 ml-2 text-xs border border-gray-600 rounded px-1.5 py-0.5">📖</button>
+      {/* Botões para mostrar Cc e Bcc */}
+      <button onClick={() => setMostrarCc(!mostrarCc)}
+        className={`ml-1 text-xs px-2 py-0.5 rounded border transition-colors ${mostrarCc ? 'border-blue-500 text-blue-400' : 'border-gray-600 text-gray-500 hover:text-gray-300'}`}>Cc</button>
+      <button onClick={() => setMostrarBcc(!mostrarBcc)}
+        className={`ml-1 text-xs px-2 py-0.5 rounded border transition-colors ${mostrarBcc ? 'border-blue-500 text-blue-400' : 'border-gray-600 text-gray-500 hover:text-gray-300'}`}>Bcc</button>
     </div>
-    {/* Linha Cc */}
-    <div className="flex items-center border-b border-gray-700 px-3 py-1.5">
-      <span className="text-gray-400 text-xs w-16 shrink-0">Cc:</span>
-      <input value={compose.cc} onChange={e => setCompose({...compose, cc: e.target.value})}
-        className="flex-1 bg-transparent text-white text-sm outline-none" />
-      <button className="text-gray-500 hover:text-gray-300 ml-2 text-xs border border-gray-600 rounded px-1.5 py-0.5">📖</button>
-    </div>
-    {/* Linha Bcc */}
-    <div className="flex items-center border-b border-gray-700 px-3 py-1.5">
-      <span className="text-gray-400 text-xs w-16 shrink-0">Bcc:</span>
-      <input value={compose.bcc} onChange={e => setCompose({...compose, bcc: e.target.value})}
-        className="flex-1 bg-transparent text-white text-sm outline-none" />
-      <button className="text-gray-500 hover:text-gray-300 ml-2 text-xs border border-gray-600 rounded px-1.5 py-0.5">📖</button>
-    </div>
+    {/* Linha Cc — só aparece se activado */}
+    {mostrarCc && (
+      <div className="flex items-center border-b border-gray-700 px-3 py-1.5">
+        <span className="text-gray-400 text-xs w-16 shrink-0">Cc:</span>
+        <input value={compose.cc} onChange={e => setCompose({...compose, cc: e.target.value})}
+          className="flex-1 bg-transparent text-white text-sm outline-none" />
+        <button className="text-gray-500 hover:text-gray-300 ml-2 text-xs border border-gray-600 rounded px-1.5 py-0.5">📖</button>
+      </div>
+    )}
+    {/* Linha Bcc — só aparece se activado */}
+    {mostrarBcc && (
+      <div className="flex items-center border-b border-gray-700 px-3 py-1.5">
+        <span className="text-gray-400 text-xs w-16 shrink-0">Bcc:</span>
+        <input value={compose.bcc} onChange={e => setCompose({...compose, bcc: e.target.value})}
+          className="flex-1 bg-transparent text-white text-sm outline-none" />
+        <button className="text-gray-500 hover:text-gray-300 ml-2 text-xs border border-gray-600 rounded px-1.5 py-0.5">📖</button>
+      </div>
+    )}
     {/* Linha Assunto */}
     <div className="flex items-center px-3 py-1.5">
       <span className="text-gray-400 text-xs w-16 shrink-0">Assunto:</span>
       <input value={compose.assunto} onChange={e => setCompose({...compose, assunto: e.target.value})}
         className="flex-1 bg-transparent text-white text-sm outline-none" />
-      {/* Botão fechar no fim da última linha */}
-      <button onClick={() => { setMostrarCompose(false); setCompose({ para: '', cc: '', bcc: '', assunto: '', corpo: '' }); setEnviado(false) }}
-        className="ml-3 w-8 h-8 flex items-center justify-center rounded-full bg-red-600 hover:bg-red-700 text-white font-bold text-base shadow-lg shrink-0">✕</button>
     </div>
   </div>
 </div>
@@ -451,105 +465,66 @@ function EmailWebmailSection() {
         </div>
       )}
 
-      {/* MODAL ASSINATURA */}
-{mostrarConfigAssinatura && (
+      {mostrarConfigAssinatura && (
   <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-[60]">
-    <div className="bg-gray-900 rounded-xl shadow-2xl w-full max-w-3xl mx-4 overflow-hidden">
-      
-      {/* Header do modal */}
-      <div className="bg-gray-800 px-6 py-3 flex items-center justify-between border-b border-gray-700">
+    <div className="bg-gray-900 rounded-xl shadow-2xl w-full max-w-2xl mx-4 overflow-hidden">
+      {/* Header macOS style */}
+      <div className="bg-gray-800 px-5 py-3 flex items-center justify-between border-b border-gray-700">
         <div className="flex items-center gap-2">
           <div className="w-3 h-3 rounded-full bg-red-500 cursor-pointer" onClick={() => setMostrarConfigAssinatura(false)} />
           <div className="w-3 h-3 rounded-full bg-yellow-500" />
           <div className="w-3 h-3 rounded-full bg-gray-600" />
         </div>
         <h2 className="text-sm font-bold text-white">Assinaturas</h2>
-        <button className="text-gray-400 hover:text-white text-xs px-3 py-1 rounded border border-gray-600">Mostrar Tudo</button>
+        <button className="text-gray-400 hover:text-white text-xs px-3 py-1 rounded border border-gray-600 transition-colors">Mostrar Tudo</button>
       </div>
 
       <div className="p-6 space-y-5">
         {/* Editar assinatura */}
         <div>
           <h3 className="text-sm font-bold text-white mb-3">Editar assinatura:</h3>
-          <div className="bg-gray-800 rounded-lg border border-gray-600 flex overflow-hidden">
-            
-            {/* Lista de assinaturas */}
+          <div className="bg-gray-800 rounded-lg border border-gray-600 flex overflow-hidden" style={{minHeight: '200px'}}>
+            {/* Lista */}
             <div className="w-52 border-r border-gray-600 flex flex-col">
               <div className="px-3 py-2 bg-gray-700 border-b border-gray-600">
                 <p className="text-xs font-bold text-gray-300">Nome da assinatura</p>
               </div>
               <div className="flex-1">
-                {[
-                  { nome: 'VisualDESIGN', activa: true },
-                  { nome: 'ProVisual Corporate', activa: false },
-                  { nome: 'Sem Título', activa: false },
-                ].map((s, i) => (
-                  <div key={i} className={`px-3 py-2 cursor-pointer text-sm border-b border-gray-700 ${s.activa ? 'bg-gray-600 text-white' : 'text-gray-400 hover:bg-gray-700'}`}>
+                {assinaturas.map((s, i) => (
+                  <div key={i} onClick={() => setAssinaturaActiva(i)}
+                    className={`px-3 py-2 cursor-pointer text-sm border-b border-gray-700 transition-colors ${assinaturaActiva === i ? 'bg-gray-600 text-white' : 'text-gray-400 hover:bg-gray-700'}`}>
                     {s.nome}
                   </div>
                 ))}
               </div>
-              {/* Botões + - Editar */}
               <div className="flex items-center gap-1 p-2 border-t border-gray-600">
-                <button className="bg-gray-600 hover:bg-gray-500 text-white text-xs px-2 py-1 rounded font-bold">+</button>
-                <button className="bg-gray-600 hover:bg-gray-500 text-white text-xs px-2 py-1 rounded font-bold">−</button>
-                <button className="ml-auto bg-gray-600 hover:bg-gray-500 text-white text-xs px-3 py-1 rounded">Editar</button>
+                <button onClick={() => setAssinaturas([...assinaturas, { nome: 'Nova Assinatura', activa: false, texto: '', imagemUrl: '' }])}
+                  className="bg-gray-600 hover:bg-gray-500 text-white text-xs px-2 py-1 rounded font-bold transition-colors">+</button>
+                <button onClick={() => setAssinaturas(assinaturas.filter((_, i) => i !== assinaturaActiva))}
+                  className="bg-gray-600 hover:bg-gray-500 text-white text-xs px-2 py-1 rounded font-bold transition-colors">−</button>
+                <button onClick={() => { setMostrarConfigAssinatura(false); setMostrarEditarAssinatura(true) }}
+                  className="ml-auto bg-gray-600 hover:bg-gray-500 text-white text-xs px-3 py-1 rounded transition-colors">Editar</button>
               </div>
             </div>
-
-            {/* Pré-visualização */}
+            {/* Preview */}
             <div className="flex-1 flex flex-col">
               <div className="px-3 py-2 bg-gray-700 border-b border-gray-600 text-center">
                 <p className="text-xs font-bold text-gray-300">Pré-visualização da Assinatura</p>
               </div>
-              <div className="flex-1 bg-white p-4 min-h-32">
-                {assinatura ? (
-                  <div className="text-sm text-gray-700 whitespace-pre-wrap">{assinatura}</div>
+              <div className="flex-1 bg-white p-4">
+                {assinaturas[assinaturaActiva]?.imagemUrl ? (
+                  <img src={assinaturas[assinaturaActiva].imagemUrl} alt="Assinatura" className="max-w-full max-h-32 object-contain" />
+                ) : assinaturas[assinaturaActiva]?.texto ? (
+                  <div className="text-sm text-gray-700 whitespace-pre-wrap">{assinaturas[assinaturaActiva].texto}</div>
                 ) : (
-                  <div className="flex items-center justify-center h-full text-gray-400 text-xs">Sem assinatura definida</div>
+                  <div className="flex items-center justify-center h-full text-gray-400 text-xs">Sem conteúdo — clica em Editar</div>
                 )}
               </div>
             </div>
           </div>
         </div>
 
-        {/* Editor de assinatura */}
-        <div>
-          <div className="bg-gray-800 rounded-lg border border-gray-600 overflow-hidden">
-            {/* Toolbar formatação */}
-            <div className="bg-gray-700 px-3 py-2 border-b border-gray-600 flex items-center gap-2 flex-wrap">
-              {[{ l: 'N', t: 'Negrito' }, { l: 'I', t: 'Itálico' }, { l: 'S', t: 'Sublinhado' }, { l: 'ab', t: 'Riscado' }].map((b, i) => (
-                <button key={i} title={b.t} className="text-white text-xs px-2 py-1 rounded hover:bg-gray-600 border border-gray-600">{b.l}</button>
-              ))}
-              <div className="w-px h-4 bg-gray-600" />
-              {[{ l: '🖼', t: 'Imagens' }, { l: '🔗', t: 'Ligação' }, { l: '⊞', t: 'Tabela' }, { l: '🌙', t: 'Mudar Fundo' }].map((b, i) => (
-                <button key={i} title={b.t} className="text-white text-xs px-2 py-1 rounded hover:bg-gray-600 border border-gray-600 flex items-center gap-1">
-                  {b.l} <span className="text-gray-300 text-[10px]">{b.t}</span>
-                </button>
-              ))}
-            </div>
-            {/* Nome da assinatura */}
-            <div className="flex items-center border-b border-gray-600 px-3 py-2">
-              <span className="text-gray-400 text-xs w-36 shrink-0">Nome da Assinatura:</span>
-              <input defaultValue="VisualDESIGN" className="flex-1 bg-white text-gray-900 text-sm px-2 py-1 rounded outline-none" />
-            </div>
-            {/* Área de edição */}
-            <div className="bg-white p-4 min-h-32">
-              <textarea value={assinatura} onChange={e => setAssinatura(e.target.value)}
-                rows={5} placeholder="Escreve ou cola a tua assinatura aqui...&#10;&#10;Ex: Silva Chamo&#10;DR. GERAL — VisualDesign&#10;+258 82 52 88 318&#10;silva.chamo@visualdesigne.com"
-                className="w-full text-sm text-gray-800 outline-none resize-none" />
-            </div>
-            {/* Upload de imagem */}
-            <div className="border-t border-gray-200 px-4 py-3 bg-gray-50 flex items-center gap-3">
-              <span className="text-xs text-gray-500 font-medium">Imagem da assinatura:</span>
-              <input type="file" accept="image/*" className="text-xs text-gray-600 file:mr-2 file:py-1 file:px-3 file:rounded file:border-0 file:text-xs file:bg-gray-800 file:text-white hover:file:bg-gray-700" />
-              <span className="text-xs text-gray-400">ou cola URL:</span>
-              <input placeholder="https://..." className="flex-1 text-xs border border-gray-300 rounded px-2 py-1 outline-none" />
-            </div>
-          </div>
-        </div>
-
-        {/* Selecionar assinatura predefinida */}
+        {/* Assinatura predefinida */}
         <div>
           <h3 className="text-sm font-bold text-white mb-3">Selecionar assinatura predefinida:</h3>
           <div className="bg-gray-800 rounded-lg border border-gray-600 p-4 space-y-3">
@@ -559,24 +534,111 @@ function EmailWebmailSection() {
               { label: 'Respostas/reenc.:', valor: 'Nenhuma' },
             ].map(({ label, valor }) => (
               <div key={label} className="flex items-center gap-4">
-                <span className="text-gray-400 text-sm w-40 text-right shrink-0">{label}</span>
+                <span className="text-gray-400 text-sm w-44 text-right shrink-0">{label}</span>
                 <select className="flex-1 bg-gray-700 border border-gray-600 text-white text-sm px-3 py-2 rounded-lg outline-none">
                   <option>{valor}</option>
-                  <option>VisualDESIGN</option>
-                  <option>ProVisual Corporate</option>
+                  {assinaturas.map(s => <option key={s.nome}>{s.nome}</option>)}
                 </select>
               </div>
             ))}
           </div>
         </div>
 
-        {/* Botões */}
-        <div className="flex gap-3 justify-end">
+        <div className="flex justify-end gap-3">
+          <button onClick={() => { if (assinaturas[assinaturaActiva]) setAssinatura(assinaturas[assinaturaActiva].texto); setMostrarConfigAssinatura(false) }}
+            className="bg-red-600 hover:bg-red-700 text-white px-6 py-2.5 rounded-lg text-sm font-bold transition-colors">Guardar</button>
           <button onClick={() => setMostrarConfigAssinatura(false)}
-            className="bg-red-600 hover:bg-red-700 text-white px-6 py-2.5 rounded-lg text-sm font-bold">Guardar</button>
-          <button onClick={() => setMostrarConfigAssinatura(false)}
-            className="bg-gray-700 hover:bg-gray-600 text-white px-6 py-2.5 rounded-lg text-sm font-bold">Cancelar</button>
+            className="bg-gray-700 hover:bg-gray-600 text-white px-6 py-2.5 rounded-lg text-sm font-bold transition-colors">Cancelar</button>
         </div>
+      </div>
+    </div>
+  </div>
+)}
+{mostrarEditarAssinatura && (
+  <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-[60]">
+    <div className="bg-gray-900 rounded-xl shadow-2xl w-full max-w-4xl mx-4 h-[85vh] flex flex-col overflow-hidden">
+      {/* Header macOS style com título da assinatura */}
+      <div className="bg-gray-800 px-5 py-2 flex items-center gap-3 border-b border-gray-700">
+        <div className="flex items-center gap-2 shrink-0">
+          <div className="w-3 h-3 rounded-full bg-red-500 cursor-pointer" onClick={() => { setMostrarEditarAssinatura(false); setMostrarConfigAssinatura(true) }} />
+          <div className="w-3 h-3 rounded-full bg-yellow-500" />
+          <div className="w-3 h-3 rounded-full bg-green-500" />
+        </div>
+        {/* Toolbar */}
+        <div className="flex items-center gap-1 flex-wrap ml-2">
+          <button title="Colar" className="bg-gray-700 hover:bg-gray-600 text-white text-xs px-3 py-1.5 rounded border border-gray-600 flex items-center gap-1">📋 Colar</button>
+          <div className="w-px h-5 bg-gray-600 mx-1" />
+          <select className="bg-gray-700 border border-gray-600 text-white text-xs px-2 py-1.5 rounded">
+            <option>Calibri</option><option>Arial</option><option>Times New Roman</option>
+          </select>
+          <select className="bg-gray-700 border border-gray-600 text-white text-xs px-2 py-1.5 rounded w-14">
+            <option>11</option><option>12</option><option>14</option><option>16</option>
+          </select>
+          <div className="w-px h-5 bg-gray-600 mx-1" />
+          {[{ l: 'N', t: 'Negrito' }, { l: 'I', t: 'Itálico' }, { l: 'S', t: 'Sublinhado' }, { l: 'ab', t: 'Riscado' }].map((b, i) => (
+            <button key={i} title={b.t} className="text-white text-xs px-2 py-1.5 rounded hover:bg-gray-600 border border-gray-600">{b.l}</button>
+          ))}
+          <div className="w-px h-5 bg-gray-600 mx-1" />
+          {[{ l: '🖼 Imagens', t: 'Imagens' }, { l: '🔗 Ligação', t: 'Ligação' }, { l: '⊞ Tabela', t: 'Tabela' }, { l: '🌙 Mudar Fundo', t: 'Mudar Fundo' }].map((b, i) => (
+            <button key={i} title={b.t} className="text-white text-xs px-2 py-1.5 rounded hover:bg-gray-600 border border-gray-600">{b.l}</button>
+          ))}
+        </div>
+        <span className="ml-auto text-white text-sm font-bold">{assinaturas[assinaturaActiva]?.nome}</span>
+      </div>
+
+      {/* Nome da assinatura */}
+      <div className="bg-gray-800 flex items-center border-b border-gray-700 px-5 py-2">
+        <span className="text-gray-400 text-sm w-40 shrink-0">Nome da Assinatura:</span>
+        <input value={assinaturas[assinaturaActiva]?.nome || ''}
+          onChange={e => { const a = [...assinaturas]; a[assinaturaActiva].nome = e.target.value; setAssinaturas(a) }}
+          className="flex-1 bg-white text-gray-900 text-sm px-3 py-1.5 rounded outline-none" />
+      </div>
+
+      {/* Área de edição — fundo branco */}
+      <div className="flex-1 flex flex-col bg-white overflow-hidden">
+        <textarea
+          value={assinaturas[assinaturaActiva]?.texto || ''}
+          onChange={e => { const a = [...assinaturas]; a[assinaturaActiva].texto = e.target.value; setAssinaturas(a) }}
+          className="flex-1 p-6 text-sm text-gray-800 outline-none resize-none"
+          placeholder="Escreve aqui a tua assinatura...&#10;&#10;Ex:&#10;Silva Chamo&#10;DR. GERAL — VisualDesign&#10;+258 82 52 88 318&#10;silva.chamo@visualdesigne.com&#10;https://visualdesigne.com" />
+
+        {/* Imagem da assinatura */}
+        {assinaturas[assinaturaActiva]?.imagemUrl && (
+          <div className="px-6 py-3 border-t border-gray-200">
+            <img src={assinaturas[assinaturaActiva].imagemUrl} alt="Assinatura" className="max-h-32 object-contain" />
+          </div>
+        )}
+
+        {/* Upload / URL imagem */}
+        <div className="border-t border-gray-200 px-5 py-3 bg-gray-50 flex items-center gap-3 flex-wrap">
+          <span className="text-xs text-gray-600 font-medium">Imagem da assinatura:</span>
+          <input type="file" accept="image/*"
+            onChange={e => {
+              const file = e.target.files?.[0]
+              if (file) {
+                const reader = new FileReader()
+                reader.onload = ev => { const a = [...assinaturas]; a[assinaturaActiva].imagemUrl = ev.target?.result as string; setAssinaturas(a) }
+                reader.readAsDataURL(file)
+              }
+            }}
+            className="text-xs text-gray-600 file:mr-2 file:py-1.5 file:px-3 file:rounded file:border-0 file:text-xs file:bg-gray-800 file:text-white hover:file:bg-gray-700 cursor-pointer" />
+          <span className="text-xs text-gray-400">ou URL:</span>
+          <input placeholder="https://url-da-imagem.png"
+            onChange={e => { const a = [...assinaturas]; a[assinaturaActiva].imagemUrl = e.target.value; setAssinaturas(a) }}
+            className="flex-1 min-w-40 text-xs border border-gray-300 rounded px-2 py-1.5 outline-none" />
+          {assinaturas[assinaturaActiva]?.imagemUrl && (
+            <button onClick={() => { const a = [...assinaturas]; a[assinaturaActiva].imagemUrl = ''; setAssinaturas(a) }}
+              className="text-xs text-red-500 hover:text-red-700 font-bold">✕ Remover</button>
+          )}
+        </div>
+      </div>
+
+      {/* Footer */}
+      <div className="bg-gray-800 border-t border-gray-700 px-5 py-3 flex justify-end gap-3">
+        <button onClick={() => { setAssinatura(assinaturas[assinaturaActiva]?.texto || ''); setMostrarEditarAssinatura(false); setMostrarConfigAssinatura(true) }}
+          className="bg-red-600 hover:bg-red-700 text-white px-6 py-2 rounded-lg text-sm font-bold transition-colors">Guardar</button>
+        <button onClick={() => { setMostrarEditarAssinatura(false); setMostrarConfigAssinatura(true) }}
+          className="bg-gray-700 hover:bg-gray-600 text-white px-6 py-2 rounded-lg text-sm font-bold transition-colors">Cancelar</button>
       </div>
     </div>
   </div>
