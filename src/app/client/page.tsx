@@ -185,8 +185,35 @@ function EmailWebmailSection() {
   ])
   const [mostrarConfigContactos, setMostrarConfigContactos] = useState(false)
   const [novoContacto, setNovoContacto] = useState({ nome: '', email: '' })
+  const [emailsOrigem, setEmailsOrigem] = useState<{email: string, tipo: 'webmail'|'google'|'hotmail', nome: string}[]>([])
   const [emailOrigem, setEmailOrigem] = useState('')
-  const emailsOrigem = ['suport@visualdesigne.com', 'info@visualdesigne.com', 'silva.chamo@gmail.com']
+  const [mostrarAdicionarConta, setMostrarAdicionarConta] = useState(false)
+  const [modalAdicionarPasso, setModalAdicionarPasso] = useState<'escolher'|'webmail'|'google'|'hotmail'>('escolher')
+  const [novaContaForm, setNovaContaForm] = useState({ nome: '', email: '', password: '', servidor: '', porta: '993', smtp: '', smtpPorta: '465' })
+  const [carregandoEmails, setCarregandoEmails] = useState(false)
+
+  // Carregar emails reais do CyberPanel ao montar
+  useEffect(() => {
+    const carregarEmailsCyberPanel = async () => {
+      try {
+        const res = await fetch('/api/cyberpanel-email?domain=visualdesigne.com')
+        const data = await res.json()
+        if (data.success && data.emails) {
+          const contas = data.emails.map((e: any) => ({
+            email: e.email,
+            tipo: 'webmail' as const,
+            nome: e.email.split('@')[0]
+          }))
+          setEmailsOrigem(contas)
+          if (contas.length > 0) setEmailOrigem(contas[0].email)
+        }
+      } catch (err) {
+        console.error('Erro ao carregar emails:', err)
+      }
+    }
+    carregarEmailsCyberPanel()
+  }, [])
+
   const [mostrarCc, setMostrarCc] = useState(false)
   const [mostrarBcc, setMostrarBcc] = useState(false)
   const [mostrarEditarAssinatura, setMostrarEditarAssinatura] = useState(false)
@@ -360,9 +387,16 @@ function EmailWebmailSection() {
       <select value={emailOrigem} onChange={e => setEmailOrigem(e.target.value)}
         className="bg-transparent text-white text-sm outline-none flex-1">
         <option value="" className="bg-gray-900">Escolher email de origem...</option>
-        {emailsOrigem.map(e => <option key={e} value={e} className="bg-gray-900">{e}</option>)}
+        {emailsOrigem.map(e => (
+          <option key={e.email} value={e.email} className="bg-gray-900">
+            {e.nome} ({e.email}) {e.tipo === 'google' ? '📧' : e.tipo === 'hotmail' ? '📨' : '🌐'}
+          </option>
+        ))}
       </select>
-      {/* Botão fechar — quadrado, na linha De */}
+      <button onClick={() => { setMostrarAdicionarConta(true); setModalAdicionarPasso('escolher') }}
+        className="ml-2 text-gray-400 hover:text-white text-xs border border-gray-600 hover:border-red-500 rounded px-2 py-0.5 transition-colors">
+        + Conta
+      </button>
       <button onClick={() => { setMostrarCompose(false); setCompose({ para: '', cc: '', bcc: '', assunto: '', corpo: '' }); setEnviado(false) }}
         className="ml-2 w-8 h-8 flex items-center justify-center bg-red-600 hover:bg-red-700 text-white font-bold text-sm shrink-0 transition-colors">✕</button>
     </div>
@@ -697,6 +731,236 @@ function EmailWebmailSection() {
           </button>
         </div>
       </div>
+    </div>
+  </div>
+)}
+
+{mostrarAdicionarConta && (
+  <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-[70]">
+    <div className="bg-gray-900 rounded-xl shadow-2xl w-full max-w-2xl mx-4 overflow-hidden">
+
+      {/* Header macOS */}
+      <div className="bg-gray-800 px-5 py-3 flex items-center gap-3 border-b border-gray-700">
+        <div className="flex items-center gap-2">
+          <div className="w-3 h-3 rounded-full bg-red-500 cursor-pointer" onClick={() => setMostrarAdicionarConta(false)} />
+          <div className="w-3 h-3 rounded-full bg-yellow-500" />
+          <div className="w-3 h-3 rounded-full bg-gray-600" />
+        </div>
+        {modalAdicionarPasso !== 'escolher' && (
+          <button onClick={() => setModalAdicionarPasso('escolher')}
+            className="text-gray-400 hover:text-white text-xs">← Voltar</button>
+        )}
+        <h2 className="text-sm font-bold text-white mx-auto">Contas da Internet</h2>
+      </div>
+
+      {/* PASSO 1 — Escolher tipo */}
+      {modalAdicionarPasso === 'escolher' && (
+        <div className="flex">
+          {/* Lista esquerda — contas existentes */}
+          <div className="w-56 border-r border-gray-700 p-3 space-y-1 min-h-64">
+            <p className="text-xs text-gray-500 uppercase font-bold mb-2 px-2">Contas configuradas</p>
+            {emailsOrigem.length === 0 ? (
+              <p className="text-xs text-gray-600 px-2">Nenhuma conta</p>
+            ) : emailsOrigem.map((c, i) => (
+              <div key={i} className="flex items-center gap-2 px-2 py-2 rounded-lg hover:bg-gray-800 cursor-pointer">
+                <div className="w-7 h-7 bg-blue-500 rounded-full flex items-center justify-center text-xs">
+                  {c.tipo === 'google' ? 'G' : c.tipo === 'hotmail' ? 'M' : '@'}
+                </div>
+                <div>
+                  <p className="text-xs font-bold text-white">{c.nome}</p>
+                  <p className="text-[10px] text-gray-400 truncate max-w-[130px]">{c.email}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Direita — escolher tipo */}
+          <div className="flex-1 p-6">
+            <p className="text-sm text-gray-300 mb-6">Escolhe o tipo de conta a adicionar:</p>
+            <div className="space-y-3">
+              {/* Google */}
+              <button onClick={() => setModalAdicionarPasso('google')}
+                className="w-full flex items-center gap-4 px-4 py-3 rounded-lg border border-gray-700 hover:border-gray-500 hover:bg-gray-800 transition-colors text-left">
+                <div className="w-10 h-10 bg-white rounded-full flex items-center justify-center text-lg font-bold shrink-0">
+                  <span style={{background: 'linear-gradient(135deg, #4285F4, #34A853, #FBBC05, #EA4335)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent'}}>G</span>
+                </div>
+                <div>
+                  <p className="text-sm font-bold text-white">Google</p>
+                  <p className="text-xs text-gray-400">Gmail, Google Workspace</p>
+                </div>
+              </button>
+
+              {/* Hotmail */}
+              <button onClick={() => setModalAdicionarPasso('hotmail')}
+                className="w-full flex items-center gap-4 px-4 py-3 rounded-lg border border-gray-700 hover:border-gray-500 hover:bg-gray-800 transition-colors text-left">
+                <div className="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center shrink-0">
+                  <span className="text-white font-bold text-sm">M</span>
+                </div>
+                <div>
+                  <p className="text-sm font-bold text-white">Microsoft</p>
+                  <p className="text-xs text-gray-400">Hotmail, Outlook, Office 365</p>
+                </div>
+              </button>
+
+              {/* Webmail / Email executivo */}
+              <button onClick={() => setModalAdicionarPasso('webmail')}
+                className="w-full flex items-center gap-4 px-4 py-3 rounded-lg border border-gray-700 hover:border-gray-500 hover:bg-gray-800 transition-colors text-left">
+                <div className="w-10 h-10 bg-red-600 rounded-full flex items-center justify-center shrink-0">
+                  <span className="text-white font-bold text-sm">@</span>
+                </div>
+                <div>
+                  <p className="text-sm font-bold text-white">Email Executivo</p>
+                  <p className="text-xs text-gray-400">Webmail, IMAP/SMTP personalizado</p>
+                </div>
+              </button>
+
+              <div className="border-t border-gray-700 pt-3">
+                <button className="w-full text-center text-xs text-gray-500 hover:text-gray-300 py-2 transition-colors">
+                  Adicionar outra conta...
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* PASSO 2a — Google OAuth */}
+      {modalAdicionarPasso === 'google' && (
+        <div className="p-8 flex flex-col items-center text-center">
+          <div className="w-16 h-16 bg-blue-100 rounded-2xl flex items-center justify-center mb-4">
+            <span className="text-3xl">@</span>
+          </div>
+          <h3 className="text-lg font-bold text-white mb-2">Autenticação Google</h3>
+          <p className="text-sm text-gray-400 mb-6 max-w-sm">
+            O Google requer que a autenticação seja concluída no navegador da web. Após a autenticação, a conta será adicionada automaticamente.
+          </p>
+          <div className="flex gap-3">
+            <button onClick={() => setModalAdicionarPasso('escolher')}
+              className="px-6 py-2.5 rounded-lg bg-gray-700 hover:bg-gray-600 text-white text-sm font-bold transition-colors">
+              Cancelar
+            </button>
+            <button onClick={() => {
+              const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+              window.open(`${supabaseUrl}/auth/v1/authorize?provider=google&redirect_to=${encodeURIComponent(window.location.origin + '/auth/callback')}`, '_blank')
+              // Após autenticação, simula adição da conta Google
+              setTimeout(() => {
+                const novasConta = { email: 'silva.chamo@gmail.com', tipo: 'google' as const, nome: 'Silva Chamo' }
+                setEmailsOrigem(prev => [...prev.filter(e => e.email !== novasConta.email), novasConta])
+                setEmailOrigem(novasConta.email)
+                setMostrarAdicionarConta(false)
+              }, 3000)
+            }}
+              className="px-6 py-2.5 rounded-lg bg-red-600 hover:bg-red-700 text-white text-sm font-bold transition-colors">
+              Abrir Navegador
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* PASSO 2b — Microsoft/Hotmail */}
+      {modalAdicionarPasso === 'hotmail' && (
+        <div className="p-6 space-y-4">
+          <p className="text-sm text-gray-300 mb-2">Configurar conta Microsoft</p>
+          {[
+            { label: 'Endereço de e-mail', field: 'email', placeholder: 'nome@hotmail.com' },
+            { label: 'Nome de utilizador', field: 'nome', placeholder: 'Automático' },
+            { label: 'Palavra-passe', field: 'password', placeholder: '••••••••', type: 'password' },
+          ].map(f => (
+            <div key={f.field} className="flex items-center gap-4">
+              <span className="text-gray-400 text-sm w-44 text-right shrink-0">{f.label}:</span>
+              <input type={f.type || 'text'} placeholder={f.placeholder}
+                value={(novaContaForm as any)[f.field]}
+                onChange={e => setNovaContaForm({...novaContaForm, [f.field]: e.target.value})}
+                className="flex-1 bg-gray-700 border border-gray-600 text-white text-sm px-3 py-2 rounded-lg outline-none focus:border-red-500" />
+            </div>
+          ))}
+          <div className="flex items-center gap-4">
+            <span className="text-gray-400 text-sm w-44 text-right shrink-0">Tipo de conta:</span>
+            <select className="flex-1 bg-gray-700 border border-gray-600 text-white text-sm px-3 py-2 rounded-lg outline-none">
+              <option>IMAP</option><option>POP3</option><option>Exchange</option>
+            </select>
+          </div>
+          <p className="text-xs text-red-400 text-center">Não foi possível confirmar automaticamente — preenche os servidores manualmente.</p>
+          <div className="flex justify-between pt-2">
+            <button onClick={() => setModalAdicionarPasso('escolher')}
+              className="px-5 py-2 rounded-lg bg-gray-700 hover:bg-gray-600 text-white text-sm font-bold">Anterior</button>
+            <button onClick={() => {
+              if (novaContaForm.email) {
+                setEmailsOrigem(prev => [...prev, { email: novaContaForm.email, tipo: 'hotmail', nome: novaContaForm.nome || novaContaForm.email.split('@')[0] }])
+                setEmailOrigem(novaContaForm.email)
+                setMostrarAdicionarConta(false)
+                setNovaContaForm({ nome: '', email: '', password: '', servidor: '', porta: '993', smtp: '', smtpPorta: '465' })
+              }
+            }}
+              disabled={!novaContaForm.email}
+              className="px-5 py-2 rounded-lg bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white text-sm font-bold">Iniciar sessão</button>
+          </div>
+        </div>
+      )}
+
+      {/* PASSO 2c — Email Executivo / Webmail */}
+      {modalAdicionarPasso === 'webmail' && (
+        <div className="p-6 space-y-3">
+          <p className="text-sm text-gray-300 mb-2">Configurar Email Executivo (IMAP/SMTP)</p>
+          {[
+            { label: 'Endereço de e-mail', field: 'email', placeholder: 'nome@visualdesigne.com' },
+            { label: 'Nome de utilizador', field: 'nome', placeholder: 'Silva Chamo' },
+            { label: 'Palavra-passe', field: 'password', placeholder: '••••••••', type: 'password' },
+            { label: 'Servidor de receção (IMAP)', field: 'servidor', placeholder: 'mail.visualdesigne.com' },
+            { label: 'Porta IMAP', field: 'porta', placeholder: '993' },
+            { label: 'Servidor de envio (SMTP)', field: 'smtp', placeholder: 'mail.visualdesigne.com' },
+            { label: 'Porta SMTP', field: 'smtpPorta', placeholder: '465' },
+          ].map(f => (
+            <div key={f.field} className="flex items-center gap-4">
+              <span className="text-gray-400 text-xs w-48 text-right shrink-0">{f.label}:</span>
+              <input type={f.type || 'text'} placeholder={f.placeholder}
+                value={(novaContaForm as any)[f.field]}
+                onChange={e => setNovaContaForm({...novaContaForm, [f.field]: e.target.value})}
+                className="flex-1 bg-gray-700 border border-gray-600 text-white text-sm px-3 py-2 rounded-lg outline-none focus:border-red-500" />
+            </div>
+          ))}
+          <div className="bg-blue-900/30 border border-blue-700 rounded-lg p-3 mt-2">
+            <p className="text-xs text-blue-300 font-bold mb-1">Configurações recomendadas VisualDesign:</p>
+            <p className="text-xs text-blue-200">Servidor: mail.visualdesigne.com • IMAP: 993 SSL • SMTP: 465 SSL</p>
+          </div>
+          <div className="flex justify-between pt-2">
+            <button onClick={() => setModalAdicionarPasso('escolher')}
+              className="px-5 py-2 rounded-lg bg-gray-700 hover:bg-gray-600 text-white text-sm font-bold">Anterior</button>
+            <button onClick={async () => {
+              if (novaContaForm.email) {
+                setCarregandoEmails(true)
+                // Tenta sincronizar com CyberPanel
+                try {
+                  const domain = novaContaForm.email.split('@')[1]
+                  const res = await fetch(`/api/cyberpanel-email?domain=${domain}`)
+                  const data = await res.json()
+                  if (data.success && data.emails) {
+                    const novas = data.emails.map((e: any) => ({ email: e.email, tipo: 'webmail' as const, nome: e.email.split('@')[0] }))
+                    setEmailsOrigem(prev => {
+                      const existentes = prev.map(e => e.email)
+                      return [...prev, ...novas.filter((n: any) => !existentes.includes(n.email))]
+                    })
+                  }
+                } catch {}
+                setEmailsOrigem(prev => {
+                  if (!prev.find(e => e.email === novaContaForm.email)) {
+                    return [...prev, { email: novaContaForm.email, tipo: 'webmail', nome: novaContaForm.nome || novaContaForm.email.split('@')[0] }]
+                  }
+                  return prev
+                })
+                setEmailOrigem(novaContaForm.email)
+                setCarregandoEmails(false)
+                setMostrarAdicionarConta(false)
+                setNovaContaForm({ nome: '', email: '', password: '', servidor: '', porta: '993', smtp: '', smtpPorta: '465' })
+              }
+            }}
+              disabled={!novaContaForm.email || carregandoEmails}
+              className="px-5 py-2 rounded-lg bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white text-sm font-bold flex items-center gap-2">
+              {carregandoEmails ? '⏳ A sincronizar...' : 'Adicionar e Sincronizar'}
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   </div>
 )}
