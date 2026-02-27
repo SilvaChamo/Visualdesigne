@@ -3617,39 +3617,21 @@ export function FileManagerSection({ domain, sites }: {
   domain: string,
   sites: CyberPanelWebsite[]
 }) {
-  const [path, setPath] = useState('')
+  const effectiveDomain = domain || sites.find(s => !s.domain.includes('contaboserver'))?.domain || 'visualdesigne.com'
+  const [path, setPath] = useState(`/home/${effectiveDomain}/public_html`)
   const [files, setFiles] = useState<any[]>([])
   const [loading, setLoading] = useState(false)
-  const [selectedDomain, setSelectedDomain] = useState('')
+  const [currentDomain, setCurrentDomain] = useState(effectiveDomain)
 
-  // Sempre que o domain prop muda, actualiza domain e path
-  useEffect(() => {
-    const d = domain || (sites.find(s => !s.domain.includes('contaboserver'))?.domain) || ''
-    if (d) {
-      setSelectedDomain(d)
-      setPath(`/home/${d}/public_html`)
-    }
-  }, [domain])
-
-  // Carregar ficheiros sempre que path muda
-  useEffect(() => {
-    if (path) loadFiles(path)
-  }, [path])
-
-  const loadFiles = async (currentPath: string) => {
+  const loadFiles = async (p: string) => {
     setLoading(true)
     const res = await fetch('/api/server-exec', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        action: 'execCommand',
-        params: { command: `ls -la "${currentPath}" 2>&1` }
-      })
+      body: JSON.stringify({ action: 'execCommand', params: { command: `ls -la "${p}" 2>&1` } })
     })
     const data = await res.json()
-    const lines = (data.data?.output || '').split('\n').filter((l: string) =>
-      l && !l.startsWith('total') && l.trim()
-    )
+    const lines = (data.data?.output || '').split('\n').filter((l: string) => l && !l.startsWith('total') && l.trim())
     const parsed = lines.map((line: string) => {
       const parts = line.trim().split(/\s+/)
       return {
@@ -3658,55 +3640,65 @@ export function FileManagerSection({ domain, sites }: {
         date: `${parts[5]} ${parts[6]} ${parts[7]}`,
         name: parts.slice(8).join(' '),
         isDir: parts[0]?.startsWith('d'),
-        isLink: parts[0]?.startsWith('l'),
       }
     }).filter((f: any) => f.name && f.name !== '.' && f.name !== '..')
     setFiles(parsed)
     setLoading(false)
   }
 
+  useEffect(() => {
+    const d = domain || sites.find(s => !s.domain.includes('contaboserver'))?.domain || 'visualdesigne.com'
+    const p = `/home/${d}/public_html` 
+    setCurrentDomain(d)
+    setPath(p)
+    loadFiles(p)
+  }, [domain])
+
   const navigateTo = (folder: string) => {
+    let newPath
     if (folder === '..') {
       const parts = path.split('/')
       parts.pop()
-      setPath(parts.join('/') || '/')
+      newPath = parts.join('/') || '/'
     } else {
-      setPath(`${path}/${folder}`)
+      newPath = `${path}/${folder}` 
     }
+    setPath(newPath)
+    loadFiles(newPath)
   }
 
-  // Breadcrumb do path
   const pathParts = path.split('/').filter(Boolean)
 
   return (
     <div className="w-full space-y-4">
-      
-      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-bold text-gray-900">Gestor de Ficheiros</h1>
-          <p className="text-xs text-gray-400 mt-0.5">Explorar directório do site</p>
+          <p className="text-xs text-gray-400 mt-0.5">{path}</p>
         </div>
-        {/* Selector de domínio */}
-        <select value={selectedDomain} 
-          onChange={e => { setSelectedDomain(e.target.value); setPath(`/home/${e.target.value}/public_html`) }}
+        <select value={currentDomain}
+          onChange={e => {
+            const d = e.target.value
+            const p = `/home/${d}/public_html` 
+            setCurrentDomain(d)
+            setPath(p)
+            loadFiles(p)
+          }}
           className="px-3 py-2 border border-gray-300 rounded-lg text-sm">
-          {sites.map(s => <option key={s.domain} value={s.domain}>{s.domain}</option>)}
+          {sites.filter(s => !s.domain.includes('contaboserver') && s.isActive).map(s =>
+            <option key={s.domain} value={s.domain}>{s.domain}</option>
+          )}
         </select>
       </div>
 
-      {/* Breadcrumb */}
       <div className="flex items-center gap-1 text-sm bg-white border border-gray-200 rounded-lg px-4 py-2">
-        <button onClick={() => setPath(`/home/${selectedDomain}/public_html`)}
-          className="text-blue-500 hover:text-blue-700 font-medium">home</button>
+        <button onClick={() => navigateTo('..')} className="text-blue-500 hover:text-blue-700 font-medium">← Voltar</button>
+        <span className="mx-2 text-gray-300">|</span>
         {pathParts.map((part, i) => (
           <span key={i} className="flex items-center gap-1">
             <span className="text-gray-400">/</span>
-            <button
-              onClick={() => setPath('/' + pathParts.slice(0, i + 1).join('/'))}
-              className="text-blue-500 hover:text-blue-700">
-              {part}
-            </button>
+            <button onClick={() => { const p = '/' + pathParts.slice(0, i + 1).join('/'); setPath(p); loadFiles(p) }}
+              className="text-blue-500 hover:text-blue-700">{part}</button>
           </span>
         ))}
         <button onClick={() => loadFiles(path)} className="ml-auto text-gray-400 hover:text-gray-600">
@@ -3714,7 +3706,6 @@ export function FileManagerSection({ domain, sites }: {
         </button>
       </div>
 
-      {/* Tabela de ficheiros */}
       <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
         <table className="w-full text-sm">
           <thead>
@@ -3726,16 +3717,6 @@ export function FileManagerSection({ domain, sites }: {
             </tr>
           </thead>
           <tbody>
-            {/* Botão voltar */}
-            <tr className="border-b border-gray-50 hover:bg-gray-50 cursor-pointer"
-              onClick={() => navigateTo('..')}>
-              <td className="px-4 py-2.5 flex items-center gap-2">
-                <FolderOpen className="w-4 h-4 text-yellow-500" />
-                <span className="text-blue-600 font-medium">..</span>
-              </td>
-              <td colSpan={3} className="px-4 py-2.5 text-gray-400 text-xs">Pasta anterior</td>
-            </tr>
-            
             {loading ? (
               <tr><td colSpan={4} className="px-4 py-8 text-center text-gray-400">
                 <RefreshCw className="w-4 h-4 animate-spin mx-auto" />
@@ -3748,18 +3729,14 @@ export function FileManagerSection({ domain, sites }: {
               <tr key={i} className="border-b border-gray-50 hover:bg-gray-50">
                 <td className="px-4 py-2.5">
                   <div className="flex items-center gap-2">
-                    {f.isDir 
+                    {f.isDir
                       ? <FolderOpen className="w-4 h-4 text-yellow-500 shrink-0" />
                       : <FileText className="w-4 h-4 text-gray-400 shrink-0" />
                     }
-                    {f.isDir ? (
-                      <button onClick={() => navigateTo(f.name)}
-                        className="text-blue-600 hover:underline font-medium">
-                        {f.name}
-                      </button>
-                    ) : (
-                      <span className="text-gray-700">{f.name}</span>
-                    )}
+                    {f.isDir
+                      ? <button onClick={() => navigateTo(f.name)} className="text-blue-600 hover:underline font-medium">{f.name}</button>
+                      : <span className="text-gray-700">{f.name}</span>
+                    }
                   </div>
                 </td>
                 <td className="px-4 py-2.5 text-gray-500 font-mono text-xs">{f.permissions}</td>
