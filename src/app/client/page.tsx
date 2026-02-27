@@ -166,6 +166,214 @@ function ClienteDashboardHome() {
   )
 }
 
+// Componente EmailWebmailSection
+function EmailWebmailSection() {
+  const [pasta, setPasta] = useState('inbox')
+  const [emails, setEmails] = useState<any[]>([])
+  const [emailSelecionado, setEmailSelecionado] = useState<any>(null)
+  const [mostrarCompose, setMostrarCompose] = useState(false)
+  const [compose, setCompose] = useState({ para: '', assunto: '', corpo: '' })
+  const [enviando, setEnviando] = useState(false)
+  const [enviado, setEnviado] = useState(false)
+
+  const pastas = [
+    { id: 'inbox', label: 'Caixa de Entrada', icone: '📥' },
+    { id: 'archive', label: 'Arquivo', icone: '🗂️' },
+    { id: 'deleted', label: 'Eliminados', icone: '🗑️' },
+    { id: 'drafts', label: 'Rascunhos', icone: '📝' },
+    { id: 'junk', label: 'Lixo', icone: '⚠️' },
+    { id: 'sent', label: 'Enviados', icone: '📤' },
+  ]
+
+  const botoesToolbar = [
+    { icone: '🔄', label: 'Actualizar' },
+    { icone: '📁', label: 'Arquivar' },
+    { icone: '💾', label: 'Guardar' },
+    { icone: '⚠️', label: 'Spam' },
+    { icone: '🗑️', label: 'Eliminar' },
+    { icone: '☰', label: 'Mais' },
+    { icone: '📅', label: 'Agendar' },
+  ]
+
+  return (
+    <div className="flex h-[calc(100vh-140px)] bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+      
+      {/* Sidebar de pastas */}
+      <div className="w-48 bg-gray-800 flex flex-col shrink-0">
+        {/* Botão Escrever */}
+        <div className="p-3">
+          <button
+            onClick={() => { setMostrarCompose(true); setEnviado(false) }}
+            className="w-full bg-green-500 hover:bg-green-600 text-white text-xs font-bold py-2.5 px-3 rounded-lg transition-colors flex items-center gap-2">
+            ✏️ Escrever
+          </button>
+        </div>
+
+        {/* Pastas */}
+        <nav className="flex-1 px-2 space-y-0.5">
+          {pastas.map(p => (
+            <button key={p.id} onClick={() => { setPasta(p.id); setEmailSelecionado(null) }}
+              className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium transition-colors text-left ${pasta === p.id ? 'bg-gray-600 text-white' : 'text-gray-300 hover:bg-gray-700'}`}>
+              <span>{p.icone}</span> {p.label}
+            </button>
+          ))}
+        </nav>
+
+        {/* Email do utilizador */}
+        <div className="p-3 border-t border-gray-700">
+          <p className="text-xs text-gray-400 truncate">suport@visualdesigne.com</p>
+        </div>
+      </div>
+
+      {/* Área principal */}
+      <div className="flex-1 flex flex-col overflow-hidden">
+
+        {mostrarCompose ? (
+          /* Janela de composição */
+          <div className="flex-1 flex flex-col">
+            {/* Toolbar compose */}
+            <div className="flex items-center gap-2 px-4 py-2 bg-gray-800 border-b border-gray-700">
+              <button onClick={async () => { setEnviando(true); await new Promise(r => setTimeout(r, 1000)); setEnviando(false); setEnviado(true) }}
+                disabled={enviando || !compose.para}
+                className="bg-green-500 hover:bg-green-600 disabled:opacity-50 text-white text-xs font-bold px-4 py-1.5 rounded flex items-center gap-1.5 transition-colors">
+                {enviando ? '⏳' : '✈️'} {enviando ? 'A enviar...' : 'Enviar'}
+              </button>
+              <button className="bg-gray-600 hover:bg-gray-500 text-white text-xs px-3 py-1.5 rounded flex items-center gap-1">
+                💾 Guardar
+              </button>
+              <div className="ml-auto flex items-center gap-2">
+                <button className="text-gray-300 hover:text-white text-xs px-2 py-1.5 rounded border border-gray-600 hover:border-gray-400">Bcc</button>
+                <button className="text-gray-300 hover:text-white text-xs px-2 py-1.5 rounded border border-gray-600 hover:border-gray-400">Cc</button>
+                <button onClick={() => setMostrarCompose(false)} className="text-gray-300 hover:text-red-400 ml-2">✕</button>
+              </div>
+            </div>
+
+            {enviado ? (
+              <div className="flex-1 flex items-center justify-center">
+                <div className="text-center">
+                  <p className="text-4xl mb-3">✅</p>
+                  <p className="text-lg font-bold text-gray-800">Email enviado com sucesso!</p>
+                  <button onClick={() => { setMostrarCompose(false); setCompose({ para: '', assunto: '', corpo: '' }); setEnviado(false) }}
+                    className="mt-4 bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg text-sm font-bold">
+                    Voltar
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="flex-1 flex flex-col p-4 space-y-3">
+                {/* De */}
+                <div className="flex items-center border-b border-gray-200 pb-2">
+                  <span className="text-xs font-bold text-gray-500 w-16">De</span>
+                  <span className="text-sm text-gray-700">suport@visualdesigne.com</span>
+                </div>
+                {/* Para */}
+                <div className="flex items-center border-b border-gray-200 pb-2">
+                  <span className="text-xs font-bold text-gray-500 w-16">Para</span>
+                  <input value={compose.para} onChange={e => setCompose({...compose, para: e.target.value})}
+                    className="flex-1 text-sm outline-none" placeholder="" />
+                </div>
+                {/* Assunto */}
+                <div className="flex items-center border-b border-gray-200 pb-2">
+                  <span className="text-xs font-bold text-gray-500 w-16">Assunto</span>
+                  <input value={compose.assunto} onChange={e => setCompose({...compose, assunto: e.target.value})}
+                    className="flex-1 text-sm outline-none" />
+                </div>
+                {/* Anexo */}
+                <div className="flex items-center border-b border-gray-200 pb-2">
+                  <span className="text-xs font-bold text-gray-500 w-16"></span>
+                  <button className="text-xs text-gray-400 hover:text-gray-600 flex items-center gap-1">📎 + Anexo</button>
+                </div>
+                {/* Tabs Texto/Anexos */}
+                <div className="flex border-b border-gray-200">
+                  <button className="px-4 py-2 text-xs font-bold text-gray-700 border-b-2 border-gray-800 flex items-center gap-1">📄 Texto</button>
+                  <button className="px-4 py-2 text-xs text-gray-400 flex items-center gap-1">📎 Anexos</button>
+                </div>
+                {/* Toolbar formatação */}
+                <div className="flex items-center gap-1 flex-wrap border-b border-gray-200 pb-2">
+                  {[
+                    { i: 'HTML', t: 'Modo HTML' }, { i: 'Arial', t: 'Tipo de letra' }, { i: 'pré', t: 'Tamanho' },
+                    { i: '¶', t: 'Parágrafo' }, { i: '≡', t: 'Alinhamento' }, { i: 'A', t: 'Cor do texto' },
+                    { i: '↺', t: 'Desfazer' }, { i: 'B', t: 'Negrito' }, { i: 'I', t: 'Itálico' },
+                    { i: 'U', t: 'Sublinhado' }, { i: 'S', t: 'Riscado' }, { i: 'x₂', t: 'Subscrito' },
+                    { i: 'x²', t: 'Superscrito' }, { i: '#', t: 'Lista numerada' }, { i: '•', t: 'Lista' },
+                    { i: '"', t: 'Citação' }, { i: '←', t: 'Diminuir recuo' }, { i: '→', t: 'Aumentar recuo' },
+                    { i: '🔗', t: 'Inserir link' }, { i: '🖼', t: 'Inserir imagem' }, { i: '👁', t: 'Pré-visualizar' },
+                  ].map((b, i) => (
+                    <button key={i} title={b.t}
+                      className="px-2 py-1 text-xs border border-gray-300 rounded hover:bg-gray-100 transition-colors relative group">
+                      {b.i}
+                      <span className="absolute -bottom-6 left-1/2 -translate-x-1/2 bg-gray-800 text-white text-[10px] px-1.5 py-0.5 rounded opacity-0 group-hover:opacity-100 whitespace-nowrap z-10 pointer-events-none">
+                        {b.t}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+                {/* Corpo do email */}
+                <textarea value={compose.corpo} onChange={e => setCompose({...compose, corpo: e.target.value})}
+                  className="flex-1 text-sm outline-none resize-none p-2" placeholder="" />
+              </div>
+            )}
+          </div>
+        ) : (
+          /* Vista de caixa de correio */
+          <div className="flex flex-1 overflow-hidden">
+            {/* Lista de emails */}
+            <div className="w-72 border-r border-gray-200 flex flex-col shrink-0">
+              {/* Toolbar lista */}
+              <div className="flex items-center gap-1 px-3 py-2 bg-gray-800 border-b border-gray-700">
+                {botoesToolbar.map((b, i) => (
+                  <button key={i} title={b.label}
+                    className="text-gray-300 hover:text-white p-1.5 rounded hover:bg-gray-700 transition-colors text-sm relative group">
+                    {b.icone}
+                    <span className="absolute top-8 left-1/2 -translate-x-1/2 bg-gray-900 text-white text-[10px] px-1.5 py-0.5 rounded opacity-0 group-hover:opacity-100 whitespace-nowrap z-10 pointer-events-none">
+                      {b.label}
+                    </span>
+                  </button>
+                ))}
+              </div>
+              {/* Search */}
+              <div className="p-2 border-b border-gray-200">
+                <div className="flex items-center gap-2">
+                  <input placeholder="Pesquisar" className="flex-1 px-2 py-1.5 border border-gray-300 rounded text-xs outline-none" />
+                  <button className="text-gray-400 hover:text-gray-600 text-xs px-1">▼</button>
+                </div>
+              </div>
+              {/* Lista */}
+              <div className="flex-1 overflow-y-auto">
+                {emails.length === 0 ? (
+                  <div className="flex items-center justify-center h-full text-gray-400 text-sm">Lista vazia.</div>
+                ) : (
+                  emails.map((e, i) => (
+                    <div key={i} onClick={() => setEmailSelecionado(e)}
+                      className={`px-3 py-3 border-b border-gray-100 cursor-pointer hover:bg-gray-50 ${emailSelecionado?.id === e.id ? 'bg-blue-50' : ''}`}>
+                      <p className="text-xs font-bold text-gray-800 truncate">{e.de}</p>
+                      <p className="text-xs text-gray-600 truncate">{e.assunto}</p>
+                      <p className="text-[10px] text-gray-400 mt-0.5">{e.data}</p>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+
+            {/* Visualizador de email */}
+            <div className="flex-1 flex items-center justify-center text-gray-400 text-sm">
+              {emailSelecionado ? (
+                <div className="p-6 w-full">
+                  <h2 className="font-bold text-gray-800 text-lg mb-2">{emailSelecionado.assunto}</h2>
+                  <p className="text-xs text-gray-500 mb-4">De: {emailSelecionado.de}</p>
+                  <div className="text-sm text-gray-700">{emailSelecionado.corpo}</div>
+                </div>
+              ) : (
+                <p>Escolha uma mensagem na lista para ver o conteúdo aqui.</p>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
 // Componente SuporteSection
 function SuporteSection() {
   const [form, setForm] = useState({ assunto: '', categoria: 'Geral', descricao: '' })
@@ -1188,7 +1396,8 @@ export default function AdminPage() {
     switch (activeSection) {
       case 'dashboard':
         return <ClienteDashboardHome />
-      case 'domains':
+      case 'emails-new':
+        return <EmailWebmailSection />
       case 'domains-list':
         return <ListWebsitesSection 
         sites={cyberPanelSites} 
@@ -1355,19 +1564,15 @@ export default function AdminPage() {
         <div className="px-2 pb-4 border-b border-gray-100 pt-4">
           {isCollapsed ? (
             <div className="flex flex-col items-center gap-3">
-              <img src="/assets/simbolo.png" alt="Logo" className="w-20 h-20 object-contain cursor-pointer" onClick={() => window.location.href = '/'} />
+              <img src="/assets/simbolo.png" alt="Logo" className="w-10 h-10 object-contain cursor-pointer" onClick={() => window.location.href = '/'} />
               <button onClick={() => setIsCollapsed(!isCollapsed)} className="rounded-lg hover:bg-gray-100 transition-colors">
                 <LogOut size={20} className="text-gray-500" />
               </button>
             </div>
           ) : (
             <div className="flex items-center gap-3">
-              <img src="/assets/simbolo.png" alt="Logo" className="w-14 h-14 object-contain cursor-pointer" onClick={() => window.location.href = '/'} />
-              <div className="flex-1">
-                <h1 className="text-xl font-bold text-gray-900">{activeSection === 'dashboard' ? 'Bom dia, João Silva' : 'Painel do Cliente'}</h1>
-                <p className="text-xs text-gray-500">VisualDesign</p>
-              </div>
-              <button onClick={() => setIsCollapsed(!isCollapsed)} className="rounded-lg hover:bg-gray-100 transition-colors">
+              <img src="/assets/logotipo.png" alt="VisualDesign" className="h-10 object-contain cursor-pointer" onClick={() => window.location.href = '/'} />
+              <button onClick={() => setIsCollapsed(!isCollapsed)} className="ml-auto rounded-lg hover:bg-gray-100 transition-colors">
                 <LogOut size={20} className="text-gray-500 rotate-180" />
               </button>
             </div>
