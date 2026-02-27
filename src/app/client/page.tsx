@@ -166,109 +166,6 @@ function ClienteDashboardHome() {
   )
 }
 
-// Componente MeuSiteSection
-function MeuSiteSection() {
-  const cliente = {
-    nome: 'Silva Chamo', email: 'silva.chamo@gmail.com', telefone: '+258 848 066 605',
-    dominio: 'visualdesigne.com', plano: 'Premium', dataInicio: '19/05/2025',
-    dataRenovacao: '17/05/2026', valorAnual: 1500, ssl: true, sslExpira: '17/05/2026',
-    estado: 'active', ip: '109.199.104.22', php: '8.2', disco: '500MB',
-    wordpress: true, wpVersion: '6.4'
-  }
-
-  const hoje = new Date()
-  const renovacao = new Date('2026-05-17')
-  const diasRestantes = Math.ceil((renovacao.getTime() - hoje.getTime()) / (1000 * 60 * 60 * 24))
-
-  return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">O Meu Site</h1>
-          <p className="text-gray-500 mt-1">Informações e estado do teu site.</p>
-        </div>
-        <a href={`https://${cliente.dominio}`} target="_blank"
-          className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 transition-colors">
-          <ExternalLink className="w-4 h-4" /> Visitar Site
-        </a>
-      </div>
-
-      {/* Cards de estado */}
-      <div className="grid grid-cols-4 gap-4">
-        <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
-          <p className="text-xs font-bold text-gray-400 uppercase mb-2">Estado do Site</p>
-          <div className="flex items-center gap-2">
-            <div className="w-2.5 h-2.5 rounded-full bg-green-500 animate-pulse"></div>
-            <p className="text-lg font-bold text-green-600">Online</p>
-          </div>
-          <p className="text-xs text-gray-400 mt-1">{cliente.dominio}</p>
-        </div>
-
-        <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
-          <p className="text-xs font-bold text-gray-400 uppercase mb-2">SSL</p>
-          <div className="flex items-center gap-2">
-            <Lock className="w-4 h-4 text-green-600" />
-            <p className="text-lg font-bold text-green-600">Activo</p>
-          </div>
-          <p className="text-xs text-gray-400 mt-1">Expira: {cliente.sslExpira}</p>
-        </div>
-
-        <div className={`bg-white rounded-xl border shadow-sm p-5 ${diasRestantes < 30 ? 'border-red-200' : 'border-gray-200'}`}>
-          <p className="text-xs font-bold text-gray-400 uppercase mb-2">Renovação</p>
-          <p className={`text-lg font-bold ${diasRestantes < 30 ? 'text-red-600' : 'text-gray-900'}`}>{diasRestantes} dias</p>
-          <p className="text-xs text-gray-400 mt-1">{cliente.dataRenovacao}</p>
-        </div>
-
-        <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
-          <p className="text-xs font-bold text-gray-400 uppercase mb-2">Disco Usado</p>
-          <p className="text-lg font-bold text-gray-900">{cliente.disco}</p>
-          <p className="text-xs text-gray-400 mt-1">de 5GB disponíveis</p>
-        </div>
-      </div>
-
-      {/* Detalhes técnicos */}
-      <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
-        <h2 className="text-sm font-bold text-gray-700 mb-4">Detalhes Técnicos</h2>
-        <div className="grid grid-cols-4 gap-4">
-          {[
-            { label: 'Domínio', value: cliente.dominio },
-            { label: 'Plano', value: cliente.plano },
-            { label: 'IP do Servidor', value: cliente.ip },
-            { label: 'Versão PHP', value: `PHP ${cliente.php}` },
-            { label: 'Data de Início', value: cliente.dataInicio },
-            { label: 'Data de Renovação', value: cliente.dataRenovacao },
-            { label: 'Valor Anual', value: `${cliente.valorAnual.toLocaleString()} MZN` },
-            { label: 'WordPress', value: cliente.wordpress ? `✅ v${cliente.wpVersion}` : '❌ Não instalado' },
-          ].map(({ label, value }) => (
-            <div key={label} className="bg-gray-50 rounded-lg p-3 border border-gray-200">
-              <p className="text-xs font-bold text-gray-400 uppercase mb-1">{label}</p>
-              <p className="text-sm font-bold text-gray-900">{value}</p>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Acções rápidas */}
-      <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
-        <h2 className="text-sm font-bold text-gray-700 mb-4">Acções Rápidas</h2>
-        <div className="flex gap-3">
-          <a href={`https://${cliente.dominio}/wp-admin`} target="_blank"
-            className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg text-xs font-bold transition-colors flex items-center gap-2">
-            <Globe className="w-3.5 h-3.5" /> WP Admin
-          </a>
-          <a href={`https://mail.${cliente.dominio}`} target="_blank"
-            className="bg-cyan-600 hover:bg-cyan-700 text-white px-4 py-2 rounded-lg text-xs font-bold transition-colors flex items-center gap-2">
-            <Mail className="w-3.5 h-3.5" /> Webmail
-          </a>
-          <a href="https://wa.me/258848066605" target="_blank"
-            className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg text-xs font-bold transition-colors flex items-center gap-2">
-            📱 Suporte WhatsApp
-          </a>
-        </div>
-      </div>
-    </div>
-  )
-}
 
 // Componente EmailWebmailSection
 function EmailWebmailSection() {
@@ -276,7 +173,7 @@ function EmailWebmailSection() {
   const [emails] = useState<any[]>([]) 
   const [modalEmail, setModalEmail] = useState<any>(null)
   const [modoResposta, setModoResposta] = useState<'none'|'reply'|'forward'>('none')
-  const [compose, setCompose] = useState({ para: '', assunto: '', corpo: '' })
+  const [compose, setCompose] = useState({ para: '', cc: '', bcc: '', assunto: '', corpo: '' })
   const [mostrarCompose, setMostrarCompose] = useState(false)
   const [enviando, setEnviando] = useState(false)
   const [enviado, setEnviado] = useState(false)
@@ -285,19 +182,19 @@ function EmailWebmailSection() {
 
   const handleReply = () => {
     setModoResposta('reply')
-    setCompose({ para: modalEmail.de, assunto: 'Re: ' + modalEmail.assunto, corpo: '' })
+    setCompose({ para: modalEmail.de, cc: '', bcc: '', assunto: 'Re: ' + modalEmail.assunto, corpo: '' })
   }
 
   const handleForward = () => {
     setModoResposta('forward')  
-    setCompose({ para: '', assunto: 'Fwd: ' + modalEmail.assunto, corpo: modalEmail.corpo })
+    setCompose({ para: '', cc: '', bcc: '', assunto: 'Fwd: ' + modalEmail.assunto, corpo: modalEmail.corpo })
   }
 
   const handleCloseModal = () => {
     setModalEmail(null)
     setModoResposta('none')
     setMostrarCompose(false)
-    setCompose({ para: '', assunto: '', corpo: '' })
+    setCompose({ para: '', cc: '', bcc: '', assunto: '', corpo: '' })
     setEnviado(false)
   }
 
@@ -531,87 +428,173 @@ function EmailWebmailSection() {
       )}
 
       {/* Modal de composição */}
-      {mostrarCompose && !modalEmail && (
-        <div className="fixed inset-0 z-50 bg-white">
-          <div className="bg-gray-900 text-white px-4 py-3 flex items-center justify-between border-b border-gray-800">
-            <h2 className="text-lg font-medium">Novo Email</h2>
-            <button
-              onClick={handleCloseModal}
-              className="text-gray-300 hover:text-white px-3 py-1.5 rounded text-xs font-medium transition-colors"
-            >
-              ✕
-            </button>
-          </div>
+      {mostrarCompose && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
+          <div className="bg-white w-full max-w-4xl h-[85vh] rounded-xl shadow-2xl flex flex-col overflow-hidden">
+            
+            {/* Toolbar superior — fundo escuro */}
+            <div className="bg-gray-900 px-4 py-2 flex items-center gap-2 flex-wrap">
+              <button onClick={async () => { setEnviando(true); await new Promise(r => setTimeout(r, 1000)); setEnviando(false); setEnviado(true) }}
+                disabled={enviando || !compose.para}
+                className="flex items-center gap-1.5 bg-transparent border border-gray-500 hover:border-gray-300 text-white text-xs font-bold px-3 py-1.5 rounded transition-colors disabled:opacity-50">
+                ✈️ {enviando ? 'A enviar...' : 'Enviar'}
+              </button>
+              
+              <div className="w-px h-5 bg-gray-600 mx-1" />
+              
+              {/* Colar com dropdown */}
+              <button className="flex items-center gap-1 text-white text-xs px-2 py-1.5 rounded hover:bg-gray-700 border border-gray-600 transition-colors">
+                📋 Colar ▾
+              </button>
+              
+              <div className="w-px h-5 bg-gray-600 mx-1" />
+              
+              {/* Formatação de texto */}
+              <select className="bg-gray-800 border border-gray-600 text-white text-xs px-2 py-1.5 rounded">
+                <option>Calibri</option><option>Arial</option><option>Times New Roman</option><option>Helvetica</option>
+              </select>
+              <select className="bg-gray-800 border border-gray-600 text-white text-xs px-2 py-1.5 rounded w-16">
+                <option>11</option><option>10</option><option>12</option><option>14</option><option>16</option><option>18</option><option>24</option>
+              </select>
+              
+              <div className="w-px h-5 bg-gray-600 mx-1" />
+              
+              {/* Botões formatação */}
+              {[
+                { l: 'N', t: 'Negrito', s: 'font-bold' },
+                { l: 'I', t: 'Itálico', s: 'italic' },
+                { l: 'S', t: 'Sublinhado', s: 'underline' },
+                { l: 'ab', t: 'Riscado', s: 'line-through' },
+                { l: 'x₂', t: 'Subscrito' },
+                { l: 'x²', t: 'Superscrito' },
+              ].map((b, i) => (
+                <button key={i} title={b.t}
+                  className="text-white text-xs px-2 py-1.5 rounded hover:bg-gray-700 border border-gray-600 transition-colors relative group min-w-[28px]">
+                  <span className={b.s}>{b.l}</span>
+                  <span className="absolute top-8 left-1/2 -translate-x-1/2 bg-black text-white text-[10px] px-1.5 py-0.5 rounded opacity-0 group-hover:opacity-100 whitespace-nowrap z-20 pointer-events-none">{b.t}</span>
+                </button>
+              ))}
+              
+              <div className="w-px h-5 bg-gray-600 mx-1" />
+              
+              {/* Cor do texto e fundo */}
+              <button title="Cor do Texto" className="text-white text-xs px-2 py-1.5 rounded hover:bg-gray-700 border border-gray-600 transition-colors relative group">
+                A <span className="block h-0.5 bg-red-500 mt-0.5"></span>
+                <span className="absolute top-8 left-1/2 -translate-x-1/2 bg-black text-white text-[10px] px-1.5 py-0.5 rounded opacity-0 group-hover:opacity-100 whitespace-nowrap z-20">Cor do Texto</span>
+              </button>
+              <button title="Mudar Fundo" className="text-white text-xs px-2 py-1.5 rounded hover:bg-gray-700 border border-gray-600 transition-colors relative group">
+                🌙
+                <span className="absolute top-8 left-1/2 -translate-x-1/2 bg-black text-white text-[10px] px-1.5 py-0.5 rounded opacity-0 group-hover:opacity-100 whitespace-nowrap z-20">Mudar Fundo</span>
+              </button>
+              
+              <div className="w-px h-5 bg-gray-600 mx-1" />
+              
+              {/* Listas e alinhamento */}
+              {[
+                { l: '≡', t: 'Lista com marcas' },
+                { l: '1.', t: 'Lista numerada' },
+                { l: '←→', t: 'Diminuir recuo' },
+                { l: '→←', t: 'Aumentar recuo' },
+                { l: '¶', t: 'Parágrafo' },
+              ].map((b, i) => (
+                <button key={i} title={b.t}
+                  className="text-white text-xs px-2 py-1.5 rounded hover:bg-gray-700 border border-gray-600 transition-colors relative group">
+                  {b.l}
+                  <span className="absolute top-8 left-1/2 -translate-x-1/2 bg-black text-white text-[10px] px-1.5 py-0.5 rounded opacity-0 group-hover:opacity-100 whitespace-nowrap z-20 pointer-events-none">{b.t}</span>
+                </button>
+              ))}
+              
+              <div className="w-px h-5 bg-gray-600 mx-1" />
+              
+              {/* Alinhamento */}
+              {[
+                { l: '⬛', t: 'Alinhar à esquerda' },
+                { l: '▪', t: 'Centrar' },
+                { l: '⬜', t: 'Alinhar à direita' },
+                { l: '▬', t: 'Justificar' },
+              ].map((b, i) => (
+                <button key={i} title={b.t}
+                  className="text-white text-xs px-2 py-1.5 rounded hover:bg-gray-700 border border-gray-600 transition-colors relative group">
+                  {b.l}
+                  <span className="absolute top-8 left-1/2 -translate-x-1/2 bg-black text-white text-[10px] px-1.5 py-0.5 rounded opacity-0 group-hover:opacity-100 whitespace-nowrap z-20 pointer-events-none">{b.t}</span>
+                </button>
+              ))}
+              
+              <div className="w-px h-5 bg-gray-600 mx-1" />
+              
+              {/* Extras */}
+              <button title="Anexar Ficheiro" className="text-white text-xs px-2 py-1.5 rounded hover:bg-gray-700 border border-gray-600 transition-colors relative group">
+                📎 Anexar Ficheiro
+                <span className="absolute top-8 left-1/2 -translate-x-1/2 bg-black text-white text-[10px] px-1.5 py-0.5 rounded opacity-0 group-hover:opacity-100 whitespace-nowrap z-20 pointer-events-none">Anexar Ficheiro</span>
+              </button>
+              <button title="Tabela" className="text-white text-xs px-2 py-1.5 rounded hover:bg-gray-700 border border-gray-600 transition-colors relative group">
+                ⊞ Tabela
+              </button>
+              <button title="Imagens" className="text-white text-xs px-2 py-1.5 rounded hover:bg-gray-700 border border-gray-600 transition-colors relative group">
+                🖼 Imagens ▾
+              </button>
+              <button title="Assinatura" className="text-white text-xs px-2 py-1.5 rounded hover:bg-gray-700 border border-gray-600 transition-colors relative group">
+                ✍️ Assinatura ▾
+              </button>
+              <button title="Ligação" className="text-white text-xs px-2 py-1.5 rounded hover:bg-gray-700 border border-gray-600 transition-colors relative group">
+                🔗 Ligação
+              </button>
+              
+              <div className="ml-auto flex items-center gap-2">
+                <button title="Recortar" className="text-white text-xs px-2 py-1.5 rounded hover:bg-gray-700 border border-gray-600">✂️ Recortar</button>
+                <button title="Verificar Nomes" className="text-white text-xs px-2 py-1.5 rounded hover:bg-gray-700 border border-gray-600">👤 Verificar</button>
+                <button onClick={() => { setMostrarCompose(false); setCompose({ para: '', cc: '', bcc: '', assunto: '', corpo: '' }); setEnviado(false) }}
+                  className="text-gray-400 hover:text-red-400 ml-2 text-lg">✕</button>
+              </div>
+            </div>
 
-          <div className="flex-1 p-6 overflow-y-auto" style={{ maxHeight: 'calc(100vh - 200px)' }}>
-            <div className="max-w-4xl mx-auto space-y-4">
-              <div>
-                <input
-                  type="text"
-                  value={compose.para}
-                  onChange={(e) => setCompose({...compose, para: e.target.value})}
-                  placeholder="Para"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-              <div>
-                <input
-                  type="text"
-                  value={compose.assunto}
-                  onChange={(e) => setCompose({...compose, assunto: e.target.value})}
-                  placeholder="Assunto"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-              <div>
-                <textarea
-                  value={compose.corpo}
-                  onChange={(e) => setCompose({...compose, corpo: e.target.value})}
-                  placeholder="Escreve a tua mensagem..."
-                  rows={12}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
-                />
-              </div>
+            {/* Campos do email — fundo escuro */}
+            <div className="bg-gray-900 border-b border-gray-700 px-4 py-1 space-y-0">
+              {[
+                { label: 'De:', value: 'silva.chamo@gmail.com (Silva Chamo)', editable: false },
+                { label: 'Para:', field: 'para', editable: true },
+                { label: 'Cc:', field: 'cc', editable: true },
+                { label: 'Bcc:', field: 'bcc', editable: true },
+                { label: 'Assunto:', field: 'assunto', editable: true },
+              ].map((f, i) => (
+                <div key={i} className="flex items-center border-b border-gray-700 py-1.5">
+                  <span className="text-gray-400 text-xs w-16 shrink-0">{f.label}</span>
+                  {f.editable ? (
+                    <input
+                      value={f.field ? (compose as any)[f.field] || '' : ''}
+                      onChange={e => f.field && setCompose({...compose, [f.field]: e.target.value})}
+                      className="flex-1 bg-transparent text-white text-sm outline-none"
+                    />
+                  ) : (
+                    <span className="text-gray-300 text-sm">{f.value}</span>
+                  )}
+                  {(f.label === 'Para:' || f.label === 'Cc:' || f.label === 'Bcc:') && (
+                    <button className="text-gray-500 hover:text-gray-300 ml-2 text-xs">📖</button>
+                  )}
+                </div>
+              ))}
+            </div>
 
-              {enviado ? (
-                <div className="text-center py-8">
+            {/* Área de escrita — fundo branco */}
+            {enviado ? (
+              <div className="flex-1 flex items-center justify-center bg-white">
+                <div className="text-center">
                   <p className="text-4xl mb-3">✅</p>
-                  <p className="text-lg font-medium text-green-600">Email enviado com sucesso!</p>
-                  <button
-                    onClick={handleCloseModal}
-                    className="mt-4 bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg text-sm font-medium transition-colors"
-                  >
+                  <p className="text-lg font-bold text-gray-800">Email enviado com sucesso!</p>
+                  <button onClick={() => { setMostrarCompose(false); setCompose({ para: '', cc: '', bcc: '', assunto: '', corpo: '' }); setEnviado(false) }}
+                    className="mt-4 bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg text-sm font-bold">
                     Voltar
                   </button>
                 </div>
-              ) : (
-                <div className="flex gap-2">
-                  <button
-                    onClick={handleSend}
-                    disabled={enviando || !compose.para || !compose.assunto}
-                    className="bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white px-6 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2"
-                  >
-                    {enviando ? (
-                      <>
-                        <span className="animate-spin">⏳</span>
-                        A enviar...
-                      </>
-                    ) : (
-                      <>
-                        ✈️
-                        Enviar
-                      </>
-                    )}
-                  </button>
-                  <button
-                    onClick={handleCloseModal}
-                    className="bg-gray-500 hover:bg-gray-600 text-white px-6 py-2 rounded-lg text-sm font-medium transition-colors"
-                  >
-                    Cancelar
-                  </button>
-                </div>
-              )}
-            </div>
+              </div>
+            ) : (
+              <textarea
+                value={compose.corpo}
+                onChange={e => setCompose({...compose, corpo: e.target.value})}
+                className="flex-1 p-4 text-sm text-gray-800 outline-none resize-none bg-white"
+                placeholder=""
+              />
+            )}
           </div>
         </div>
       )}
@@ -1644,7 +1627,17 @@ export default function AdminPage() {
       case 'emails-new':
         return <EmailWebmailSection />
       case 'domains':
-        return <MeuSiteSection />
+  return <ListWebsitesSection
+    sites={cyberPanelSites.filter(s => s.domain === 'visualdesigne.com')}
+    onRefresh={loadCyberPanelData}
+    packages={cyberPanelPackages}
+    setActiveSection={setActiveSection}
+    setFileManagerDomain={setFileManagerDomain}
+    setSelectedDNSDomain={setSelectedDNSDomain}
+    loadCyberPanelData={loadCyberPanelData}
+    syncing={syncing}
+    handleSync={handleSync}
+  />
       case 'domains-list':
         return <ListWebsitesSection 
         sites={cyberPanelSites} 
