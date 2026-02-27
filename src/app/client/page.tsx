@@ -180,7 +180,7 @@ function EmailWebmailSection({
   setModalAdicionarPasso?: (value: 'escolher'|'webmail'|'google'|'hotmail') => void
 }) {
   const [pastaActiva, setPastaActiva] = useState('Caixa de Entrada')
-  const [emails] = useState<any[]>([])
+  const [emails, setEmails] = useState<any[]>([])
   const [modalEmail, setModalEmail] = useState<any>(null)
   const [modoResposta, setModoResposta] = useState<'none'|'reply'|'forward'>('none')
   const [compose, setCompose] = useState({ para: '', cc: '', bcc: '', assunto: '', corpo: '' })
@@ -195,10 +195,15 @@ function EmailWebmailSection({
   ])
   const [mostrarConfigContactos, setMostrarConfigContactos] = useState(false)
   const [novoContacto, setNovoContacto] = useState({ nome: '', email: '' })
-  const [emailsOrigem, setEmailsOrigem] = useState<{email: string, tipo: 'webmail'|'google'|'hotmail', nome: string}[]>([])
+  const [emailsOrigem, setEmailsOrigem] = useState<{email: string, tipo: string, nome: string, password?: string}[]>([])
   const [emailOrigem, setEmailOrigem] = useState('')
-  const [novaContaForm, setNovaContaForm] = useState({ nome: '', email: '', password: '', servidor: '', porta: '993', smtp: '', smtpPorta: '465' })
+  const [emailOrigemPassword, setEmailOrigemPassword] = useState('')
   const [carregandoEmails, setCarregandoEmails] = useState(false)
+  const [erroEmail, setErroEmail] = useState('')
+  const editorRef = useRef<HTMLDivElement>(null)
+  const [credenciaisNovas, setCredenciaisNovas] = useState<any>(null)
+  const [mostrarCredenciais, setMostrarCredenciais] = useState(false)
+  const [novaContaForm, setNovaContaForm] = useState({ nome: '', email: '', password: '', servidor: '', porta: '993', smtp: '', smtpPorta: '465' })
 
   // Usar props ou valores locais
   const mostrarAdicionarConta = propMostrarAdicionarConta || false
@@ -206,27 +211,63 @@ function EmailWebmailSection({
   const modalAdicionarPasso = propModalAdicionarPasso || 'escolher'
   const setModalAdicionarPasso = propSetModalAdicionarPasso || (() => {})
 
-  // Carregar emails reais do CyberPanel ao montar
+  // Carregar contas reais do Supabase
   useEffect(() => {
-    const carregarEmailsCyberPanel = async () => {
+    const carregarContas = async () => {
       try {
-        const res = await fetch('/api/cyberpanel-email?domain=visualdesigne.com')
+        const res = await fetch('/api/email-contas?cliente_id=demo')
         const data = await res.json()
-        if (data.success && data.emails) {
-          const contas = data.emails.map((e: any) => ({
-            email: e.email,
-            tipo: 'webmail' as const,
-            nome: e.email.split('@')[0]
-          }))
-          setEmailsOrigem(contas)
-          if (contas.length > 0) setEmailOrigem(contas[0].email)
+        if (data.success && data.contas.length > 0) {
+          setEmailsOrigem(data.contas.map((c: any) => ({
+            email: c.email, tipo: c.tipo_conta, nome: c.nome_conta, password: ''
+          })))
+        } else {
+          // Fallback: carregar do CyberPanel
+          const res2 = await fetch('/api/cyberpanel-email?domain=visualdesigne.com')
+          const data2 = await res2.json()
+          if (data2.success && data2.emails) {
+            setEmailsOrigem(data2.emails.map((e: any) => ({
+              email: e.email, tipo: 'webmail', nome: e.email.split('@')[0], password: ''
+            })))
+          }
         }
-      } catch (err) {
-        console.error('Erro ao carregar emails:', err)
-      }
+      } catch {}
     }
-    carregarEmailsCyberPanel()
+    carregarContas()
   }, [])
+
+  // Carregar emails da pasta activa
+  useEffect(() => {
+    if (!emailOrigem || !emailOrigemPassword) return
+    const carregar = async () => {
+      setCarregandoEmails(true)
+      setErroEmail('')
+      try {
+        const res = await fetch('/api/read-emails', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: emailOrigem, password: emailOrigemPassword, folder: pastaParaIMAP(pastaActiva) })
+        })
+        const data = await res.json()
+        if (data.success) setEmailsOrigem(data.emails)
+        else setErroEmail(data.error)
+      } catch (e: any) { setErroEmail(e.message) }
+      setCarregandoEmails(false)
+    }
+    carregar()
+  }, [pastaActiva, emailOrigem, emailOrigemPassword])
+
+  const pastaParaIMAP = (pasta: string) => {
+    const mapa: Record<string, string> = {
+      'Caixa de Entrada': 'INBOX',
+      'Enviados': 'Sent',
+      'Rascunhos': 'Drafts',
+      'Arquivo': 'Archive',
+      'Lixo': 'Trash',
+      'Spam': 'Junk'
+    }
+    return mapa[pasta] || 'INBOX'
+  }
 
   const [mostrarCc, setMostrarCc] = useState(false)
   const [mostrarBcc, setMostrarBcc] = useState(false)
@@ -238,13 +279,62 @@ function EmailWebmailSection({
   ])
   const [assinaturaActiva, setAssinaturaActiva] = useState(0)
 
+  const execCmd = (cmd: string, value?: string) => {
+  editorRef.current?.focus()
+  document.execCommand(cmd, false, value)
+}
+
+const inserirLink = () => {
+  const url = prompt('URL da ligação:')
+  if (url) execCmd('createLink', url)
+}
+
+const inserirImagem = () => {
+  const url = prompt('URL da imagem:')
+  if (url) execCmd('insertImage', url)
+}
+
+const inserirTabela = () => {
+  const html = `<table border="1" style="border-collapse:collapse;width:100%">
+    <tr><td style="padding:8px">&nbsp;</td><td style="padding:8px">&nbsp;</td><td style="padding:8px">&nbsp;</td></tr>
+    <tr><td style="padding:8px">&nbsp;</td><td style="padding:8px">&nbsp;</td><td style="padding:8px">&nbsp;</td></tr>
+    <tr><td style="padding:8px">&nbsp;</td><td style="padding:8px">&nbsp;</td><td style="padding:8px">&nbsp;</td></tr>
+  </table><br/>`
+  execCmd('insertHTML', html)
+}
+
   const handleCloseModal = () => { setModalEmail(null); setModoResposta('none'); setCompose({ para: '', cc: '', bcc: '', assunto: '', corpo: '' }); setEnviado(false) }
 
   const handleSend = async () => {
+    if (!emailOrigem || !emailOrigemPassword) {
+      alert('Selecciona uma conta de email e introduz a password')
+      return
+    }
     setEnviando(true)
-    await new Promise(r => setTimeout(r, 1000))
+    try {
+      const htmlCorpo = editorRef.current?.innerHTML || ''
+      const htmlFinal = assinatura ? `${htmlCorpo}<br/><br/>--<br/>${assinatura.replace(/\n/g, '<br/>')}` : htmlCorpo
+
+      const res = await fetch('/api/send-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          from: emailOrigem,
+          fromPassword: emailOrigemPassword,
+          to: compose.para,
+          cc: compose.cc,
+          bcc: compose.bcc,
+          subject: compose.assunto,
+          html: htmlFinal
+        })
+      })
+      const data = await res.json()
+      if (data.success) setEnviado(true)
+      else alert('Erro ao enviar: ' + data.error)
+    } catch (e: any) {
+      alert('Erro: ' + e.message)
+    }
     setEnviando(false)
-    setEnviado(true)
   }
 
   const pastas = ['Caixa de Entrada','Enviados','Rascunhos','Arquivo','Lixo','Spam']
@@ -523,8 +613,14 @@ function EmailWebmailSection({
             </div>
           ) : (
             <div className="flex-1 flex flex-col bg-white">
-              <textarea value={compose.corpo} onChange={e => setCompose({...compose, corpo: e.target.value})}
-                className="flex-1 p-6 text-sm text-gray-800 outline-none resize-none" placeholder="Escreve a tua mensagem aqui..." />
+              <div
+  ref={editorRef}
+  contentEditable
+  suppressContentEditableWarning
+  className="flex-1 p-6 text-sm text-gray-800 outline-none overflow-y-auto min-h-[200px]"
+  style={{ whiteSpace: 'pre-wrap' }}
+  onInput={() => {}}
+/>
               {assinatura && (
                 <div className="px-6 py-3 border-t border-gray-200 text-xs text-gray-500 whitespace-pre-wrap">--{'\n'}{assinatura}</div>
               )}
