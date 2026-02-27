@@ -736,7 +736,7 @@ case 'cp-file-manager':
       case 'infrastructure':
         return <APIConfigSection />
       case 'cp-wp-list':
-        return <WPListSection sites={cyberPanelSites} />
+        return <WPListSection sites={cyberPanelSites} setFileManagerDomain={setFileManagerDomain} setActiveSection={setActiveSection} />
       case 'cp-wp-plugins':
         return <WPPluginsSection sites={cyberPanelSites} />
       case 'cp-wp-restore-backup':
