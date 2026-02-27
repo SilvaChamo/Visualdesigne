@@ -169,257 +169,158 @@ function ClienteDashboardHome() {
 
 // Componente EmailWebmailSection
 function EmailWebmailSection() {
-  const [pastaActiva, setPastaActiva] = useState('inbox')
-  const [emails] = useState<any[]>([]) 
+  const [pastaActiva, setPastaActiva] = useState('Caixa de Entrada')
+  const [emails] = useState<any[]>([])
   const [modalEmail, setModalEmail] = useState<any>(null)
   const [modoResposta, setModoResposta] = useState<'none'|'reply'|'forward'>('none')
   const [compose, setCompose] = useState({ para: '', cc: '', bcc: '', assunto: '', corpo: '' })
   const [mostrarCompose, setMostrarCompose] = useState(false)
   const [enviando, setEnviando] = useState(false)
   const [enviado, setEnviado] = useState(false)
+  const [assinatura, setAssinatura] = useState('')
+  const [mostrarConfigAssinatura, setMostrarConfigAssinatura] = useState(false)
+  const [contactos, setContactos] = useState([
+    { nome: 'Silva Chamo', email: 'silva.chamo@gmail.com' },
+    { nome: 'Suporte VisualDesign', email: 'suport@visualdesigne.com' },
+  ])
+  const [mostrarConfigContactos, setMostrarConfigContactos] = useState(false)
+  const [novoContacto, setNovoContacto] = useState({ nome: '', email: '' })
+  const [emailOrigem, setEmailOrigem] = useState('')
+  const emailsOrigem = ['suport@visualdesigne.com', 'info@visualdesigne.com', 'silva.chamo@gmail.com']
 
-  const pastas = ['Caixa de Entrada','Enviados','Rascunhos','Arquivo','Lixo','Spam']
-
-  const handleReply = () => {
-    setModoResposta('reply')
-    setCompose({ para: modalEmail.de, cc: '', bcc: '', assunto: 'Re: ' + modalEmail.assunto, corpo: '' })
-  }
-
-  const handleForward = () => {
-    setModoResposta('forward')  
-    setCompose({ para: '', cc: '', bcc: '', assunto: 'Fwd: ' + modalEmail.assunto, corpo: modalEmail.corpo })
-  }
-
-  const handleCloseModal = () => {
-    setModalEmail(null)
-    setModoResposta('none')
-    setMostrarCompose(false)
-    setCompose({ para: '', cc: '', bcc: '', assunto: '', corpo: '' })
-    setEnviado(false)
-  }
+  const handleCloseModal = () => { setModalEmail(null); setModoResposta('none'); setCompose({ para: '', cc: '', bcc: '', assunto: '', corpo: '' }); setEnviado(false) }
 
   const handleSend = async () => {
     setEnviando(true)
-    await new Promise(resolve => setTimeout(resolve, 1000))
+    await new Promise(r => setTimeout(r, 1000))
     setEnviando(false)
     setEnviado(true)
-    setTimeout(() => {
-      handleCloseModal()
-    }, 2000)
   }
+
+  const pastas = ['Caixa de Entrada','Enviados','Rascunhos','Arquivo','Lixo','Spam']
+
+  const botoesFormato = [
+    { l: 'N', t: 'Negrito' }, { l: 'I', t: 'Itálico' }, { l: 'S', t: 'Sublinhado' },
+    { l: 'ab', t: 'Riscado' }, { l: 'x₂', t: 'Subscrito' }, { l: 'x²', t: 'Superscrito' },
+  ]
 
   return (
     <div className="flex flex-col h-[calc(100vh-120px)] -mx-6 -mt-6">
-      {/* Toolbar principal */}
-      <div className="bg-gray-900 text-white px-4 py-3 flex items-center gap-3 border-b border-gray-800">
-        <button
-          onClick={() => { setMostrarCompose(true); setModalEmail(null); setModoResposta('none'); setEnviado(false) }}
-          className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg text-xs font-bold transition-colors flex items-center gap-2">
+
+      {/* TOOLBAR PRINCIPAL */}
+      <div className="bg-gray-900 px-4 py-2 flex items-center gap-2 flex-wrap border-b border-gray-800">
+        <button onClick={() => { setMostrarCompose(true); setEnviado(false) }}
+          className="bg-green-500 hover:bg-green-600 text-white px-5 py-2 rounded-lg text-sm font-bold flex items-center gap-2 shadow-lg">
           ✏️ Escrever
         </button>
-        
-        <div className="flex items-center gap-1 ml-auto">
-          <button className="p-2 hover:bg-gray-800 rounded transition-colors" title="Actualizar">
-            🔄
+        <a href="https://109.199.104.22:8090/rainloop/" target="_blank"
+          className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-xs font-bold flex items-center gap-2">
+          🌐 Webmail
+        </a>
+        <div className="w-px h-5 bg-gray-700 mx-1" />
+        {pastas.map(p => (
+          <button key={p} onClick={() => setPastaActiva(p)}
+            className={`px-3 py-1.5 rounded text-xs font-medium transition-colors ${pastaActiva === p ? 'bg-gray-600 text-white' : 'text-gray-400 hover:text-white hover:bg-gray-700'}`}>
+            {p}
           </button>
-          <button className="p-2 hover:bg-gray-800 rounded transition-colors" title="Arquivar">
-            📁
+        ))}
+        <div className="ml-auto flex items-center gap-2">
+          <button onClick={() => setMostrarConfigAssinatura(true)}
+            className="text-gray-400 hover:text-white text-xs px-3 py-1.5 rounded border border-gray-700 hover:border-gray-500 transition-colors">
+            ✍️ Assinatura
           </button>
-          <button className="p-2 hover:bg-gray-800 rounded transition-colors" title="Spam">
-            ⚠️
-          </button>
-          <button className="p-2 hover:bg-gray-800 rounded transition-colors" title="Eliminar">
-            🗑️
+          <button onClick={() => setMostrarConfigContactos(true)}
+            className="text-gray-400 hover:text-white text-xs px-3 py-1.5 rounded border border-gray-700 hover:border-gray-500 transition-colors">
+            👥 Contactos
           </button>
         </div>
+      </div>
 
-        {/* Tabs de pastas */}
-        <div className="flex items-center gap-1 border-l border-gray-700 pl-3">
-          {pastas.map((pasta, index) => (
-            <button
-              key={pasta}
-              onClick={() => setPastaActiva(pasta.toLowerCase().replace(' ', ''))}
-              className={`px-3 py-1.5 text-xs font-medium transition-colors rounded ${
-                pastaActiva === pasta.toLowerCase().replace(' ', '') 
-                  ? 'bg-gray-800 text-white' 
-                  : 'text-gray-300 hover:bg-gray-800 hover:text-white'
-              }`}
-            >
-              {pasta}
+      {/* LISTA DE EMAILS */}
+      <div className="flex-1 flex flex-col overflow-hidden bg-white">
+        <div className="flex items-center gap-2 px-4 py-2 border-b border-gray-200 bg-gray-50">
+          <input placeholder="🔍 Pesquisar emails..." className="flex-1 max-w-sm px-3 py-1.5 border border-gray-300 rounded-lg text-xs outline-none" />
+          {[{ i: '🔄', t: 'Actualizar' }, { i: '📁', t: 'Arquivar' }, { i: '⚠️', t: 'Spam' }, { i: '🗑️', t: 'Eliminar' }].map((b, i) => (
+            <button key={i} className="flex items-center gap-1 text-xs text-gray-600 hover:text-gray-900 px-3 py-1.5 rounded border border-gray-300 hover:bg-gray-100 transition-colors">
+              {b.i} {b.t}
             </button>
+          ))}
+        </div>
+        <div className="flex-1 overflow-y-auto">
+          {emails.length === 0 ? (
+            <div className="flex flex-col items-center justify-center h-full text-gray-400 space-y-3">
+              <span className="text-5xl">📭</span>
+              <p className="text-sm font-medium">A caixa está vazia</p>
+              <p className="text-xs text-gray-300">{pastaActiva}</p>
+            </div>
+          ) : emails.map((e, i) => (
+            <div key={i} onClick={() => setModalEmail(e)}
+              className="flex items-center gap-4 px-5 py-3 border-b border-gray-100 hover:bg-blue-50 cursor-pointer">
+              <div className="w-8 h-8 bg-gray-200 rounded-full flex items-center justify-center shrink-0">
+                <span className="text-xs font-bold">{e.de?.[0]?.toUpperCase()}</span>
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center justify-between">
+                  <p className="text-sm font-bold text-gray-800 truncate">{e.de}</p>
+                  <p className="text-xs text-gray-400">{e.data}</p>
+                </div>
+                <p className="text-xs text-gray-600 truncate">{e.assunto}</p>
+              </div>
+            </div>
           ))}
         </div>
       </div>
 
-      {/* Lista de emails */}
-      <div className="flex-1 bg-white overflow-hidden">
-        <div className="h-full overflow-y-auto">
-          {emails.length === 0 ? (
-            <div className="flex items-center justify-center h-full text-gray-400">
-              <div className="text-center">
-                <p className="text-6xl mb-4">📭</p>
-                <p className="text-lg font-medium">Caixa de correio vazia</p>
-                <p className="text-sm mt-1">Não há emails na {pastas.find(p => p.toLowerCase().replace(' ', '') === pastaActiva)?.toLowerCase() || 'caixa de entrada'}.</p>
-              </div>
-            </div>
-          ) : (
-            <div className="divide-y divide-gray-200">
-              {emails.map((email, index) => (
-                <div
-                  key={index}
-                  onClick={() => { setModalEmail(email); setModoResposta('none') }}
-                  className="px-4 py-3 hover:bg-gray-50 cursor-pointer transition-colors"
-                >
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-1">
-                        <span className="text-sm font-medium text-gray-900 truncate">{email.de}</span>
-                        <span className="text-xs text-gray-500">{email.data}</span>
-                      </div>
-                      <p className="text-sm font-medium text-gray-800 truncate">{email.assunto}</p>
-                      <p className="text-sm text-gray-600 truncate mt-1">{email.corpo?.substring(0, 100)}...</p>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Modal do email */}
+      {/* MODAL LER EMAIL — FULLSCREEN */}
       {modalEmail && (
-        <div className="fixed inset-0 z-50 bg-white">
-          {/* Header do modal */}
-          <div className="bg-gray-900 text-white px-4 py-3 flex items-center justify-between border-b border-gray-800">
-            <div className="flex-1 min-w-0">
-              <h2 className="text-lg font-medium truncate">{modalEmail.assunto}</h2>
-              <p className="text-sm text-gray-300">De: {modalEmail.de}</p>
-            </div>
-            <div className="flex items-center gap-2 ml-4">
-              <button
-                onClick={handleReply}
-                className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded text-xs font-medium transition-colors"
-              >
-                Responder
-              </button>
-              <button
-                onClick={handleForward}
-                className="bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1.5 rounded text-xs font-medium transition-colors"
-              >
-                Reencaminhar
-              </button>
-              <button
-                className="bg-red-600 hover:bg-red-700 text-white px-3 py-1.5 rounded text-xs font-medium transition-colors"
-              >
-                Eliminar
-              </button>
-              <button
-                className="bg-gray-600 hover:bg-gray-700 text-white px-3 py-1.5 rounded text-xs font-medium transition-colors"
-              >
-                Arquivar
-              </button>
-              <button
-                onClick={handleCloseModal}
-                className="text-gray-300 hover:text-white px-3 py-1.5 rounded text-xs font-medium transition-colors"
-              >
-                ✕
-              </button>
+        <div className="fixed inset-0 bg-white z-50 flex flex-col">
+          <div className="bg-gray-900 px-6 py-3 flex items-center gap-3">
+            <button onClick={() => { setModoResposta('reply'); setCompose({ para: modalEmail.de, cc: '', bcc: '', assunto: 'Re: ' + modalEmail.assunto, corpo: '' }) }}
+              className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-xs font-bold">↩️ Responder</button>
+            <button onClick={() => { setModoResposta('forward'); setCompose({ para: '', cc: '', bcc: '', assunto: 'Fwd: ' + modalEmail.assunto, corpo: modalEmail.corpo }) }}
+              className="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-lg text-xs font-bold">↪️ Reencaminhar</button>
+            <button onClick={handleCloseModal} className="bg-red-900 hover:bg-red-800 text-white px-4 py-2 rounded-lg text-xs font-bold">🗑️ Eliminar</button>
+            <button onClick={handleCloseModal} className="bg-gray-700 hover:bg-gray-600 text-white px-4 py-2 rounded-lg text-xs font-bold">📁 Arquivar</button>
+            <div className="ml-auto">
+              <button onClick={handleCloseModal} className="w-9 h-9 flex items-center justify-center rounded-full bg-red-600 hover:bg-red-700 text-white font-bold text-lg">✕</button>
             </div>
           </div>
-
-          {/* Conteúdo do modal */}
-          <div className="flex-1 overflow-y-auto" style={{ maxHeight: 'calc(100vh - 200px)' }}>
-            {/* Email original */}
-            <div className="p-6 border-b border-gray-200">
-              <div className="max-w-4xl mx-auto">
-                <div className="mb-4">
-                  <span className="text-sm text-gray-500">De:</span>
-                  <span className="text-sm text-gray-900 ml-2 font-medium">{modalEmail.de}</span>
-                </div>
-                <div className="mb-4">
-                  <span className="text-sm text-gray-500">Data:</span>
-                  <span className="text-sm text-gray-900 ml-2">{modalEmail.data}</span>
-                </div>
-                <div className="prose max-w-none">
-                  <p className="text-gray-800 whitespace-pre-wrap">{modalEmail.corpo}</p>
-                </div>
+          <div className="flex-1 overflow-y-auto p-8 max-w-4xl mx-auto w-full">
+            <h1 className="text-2xl font-bold text-gray-900 mb-4">{modalEmail.assunto}</h1>
+            <div className="flex items-center gap-3 mb-6 pb-4 border-b border-gray-200">
+              <div className="w-10 h-10 bg-red-600 rounded-full flex items-center justify-center">
+                <span className="text-white font-bold">{modalEmail.de?.[0]?.toUpperCase()}</span>
+              </div>
+              <div>
+                <p className="font-bold text-gray-800">{modalEmail.de}</p>
+                <p className="text-xs text-gray-500">{modalEmail.data}</p>
               </div>
             </div>
-
-            {/* Área de resposta/reencaminhamento */}
-            {(modoResposta === 'reply' || modoResposta === 'forward') && (
-              <div className="p-6 bg-gray-50 border-t border-gray-200">
-                <div className="max-w-4xl mx-auto">
-                  <div className="mb-4">
-                    <span className="text-sm font-medium text-gray-700">
-                      {modoResposta === 'reply' ? 'Responder para:' : 'Reencaminhar para:'}
-                    </span>
+            <div className="text-sm text-gray-700 leading-relaxed">{modalEmail.corpo}</div>
+            {modoResposta !== 'none' && (
+              <div className="mt-8 border-t border-gray-200 pt-6">
+                <h3 className="text-sm font-bold text-gray-700 mb-4">{modoResposta === 'reply' ? '↩️ Responder' : '↪️ Reencaminhar'}</h3>
+                <div className="border border-gray-300 rounded-xl overflow-hidden">
+                  <div className="bg-gray-50 border-b border-gray-200 px-4 py-2 space-y-1">
+                    {[{ label: 'Para:', field: 'para' }, { label: 'Cc:', field: 'cc' }, { label: 'Assunto:', field: 'assunto' }].map(f => (
+                      <div key={f.field} className="flex items-center gap-3 py-1 border-b border-gray-100 last:border-0">
+                        <span className="text-xs font-bold text-gray-500 w-16">{f.label}</span>
+                        <input value={(compose as any)[f.field]} onChange={e => setCompose({...compose, [f.field]: e.target.value})}
+                          className="flex-1 text-sm bg-transparent outline-none" />
+                      </div>
+                    ))}
                   </div>
-                  
-                  <div className="space-y-3 mb-4">
-                    <div>
-                      <input
-                        type="text"
-                        value={compose.para}
-                        onChange={(e) => setCompose({...compose, para: e.target.value})}
-                        placeholder="Email do destinatário"
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      />
-                    </div>
-                    <div>
-                      <input
-                        type="text"
-                        value={compose.assunto}
-                        onChange={(e) => setCompose({...compose, assunto: e.target.value})}
-                        placeholder="Assunto"
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      />
-                    </div>
+                  <textarea value={compose.corpo} onChange={e => setCompose({...compose, corpo: e.target.value})}
+                    rows={6} className="w-full p-4 text-sm outline-none resize-none" placeholder="Escreve a tua resposta..." />
+                  {assinatura && <div className="px-4 pb-3 border-t border-gray-100 text-xs text-gray-500 whitespace-pre-wrap">--{'\n'}{assinatura}</div>}
+                  <div className="flex gap-2 p-3 border-t border-gray-200 bg-gray-50">
+                    <button onClick={handleSend} disabled={enviando}
+                      className="bg-green-600 hover:bg-green-700 text-white px-5 py-2 rounded-lg text-xs font-bold disabled:opacity-50">
+                      {enviando ? '⏳ A enviar...' : '✈️ Enviar'}
+                    </button>
+                    <button onClick={() => setModoResposta('none')}
+                      className="bg-gray-200 hover:bg-gray-300 text-gray-700 px-4 py-2 rounded-lg text-xs font-bold">Cancelar</button>
                   </div>
-
-                  <div className="mb-4">
-                    <textarea
-                      value={compose.corpo}
-                      onChange={(e) => setCompose({...compose, corpo: e.target.value})}
-                      placeholder="Escreve a tua mensagem..."
-                      rows={6}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
-                    />
-                  </div>
-
-                  {enviado ? (
-                    <div className="text-center py-4">
-                      <p className="text-2xl mb-2">✅</p>
-                      <p className="text-green-600 font-medium">Email enviado com sucesso!</p>
-                    </div>
-                  ) : (
-                    <div className="flex gap-2">
-                      <button
-                        onClick={handleSend}
-                        disabled={enviando || !compose.para || !compose.assunto}
-                        className="bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2"
-                      >
-                        {enviando ? (
-                          <>
-                            <span className="animate-spin">⏳</span>
-                            A enviar...
-                          </>
-                        ) : (
-                          <>
-                            ✈️
-                            Enviar
-                          </>
-                        )}
-                      </button>
-                      <button
-                        onClick={() => setModoResposta('none')}
-                        className="bg-gray-500 hover:bg-gray-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
-                      >
-                        Cancelar
-                      </button>
-                    </div>
-                  )}
                 </div>
               </div>
             )}
@@ -427,174 +328,143 @@ function EmailWebmailSection() {
         </div>
       )}
 
-      {/* Modal de composição */}
+      {/* POPUP ESCREVER — FULLSCREEN */}
       {mostrarCompose && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
-          <div className="bg-white w-full max-w-4xl h-[85vh] rounded-xl shadow-2xl flex flex-col overflow-hidden">
-            
-            {/* Toolbar superior — fundo escuro */}
-            <div className="bg-gray-900 px-4 py-2 flex items-center gap-2 flex-wrap">
-              <button onClick={async () => { setEnviando(true); await new Promise(r => setTimeout(r, 1000)); setEnviando(false); setEnviado(true) }}
-                disabled={enviando || !compose.para}
-                className="flex items-center gap-1.5 bg-transparent border border-gray-500 hover:border-gray-300 text-white text-xs font-bold px-3 py-1.5 rounded transition-colors disabled:opacity-50">
-                ✈️ {enviando ? 'A enviar...' : 'Enviar'}
+        <div className="fixed inset-0 bg-white z-50 flex flex-col">
+
+          {/* LINHA 1 — Envio e campos */}
+          <div className="bg-gray-900 px-4 py-2 flex items-center gap-2 border-b border-gray-700 flex-wrap">
+            <button onClick={handleSend} disabled={enviando || !compose.para || !emailOrigem}
+              className="bg-green-500 hover:bg-green-600 disabled:opacity-50 text-white font-bold px-6 py-2 rounded-lg text-sm flex items-center gap-2 shadow-lg">
+              {enviando ? '⏳ A enviar...' : '✈️ Enviar'}
+            </button>
+            <div className="w-px h-5 bg-gray-700" />
+            <select value={emailOrigem} onChange={e => setEmailOrigem(e.target.value)}
+              className="bg-gray-800 border border-gray-600 text-white text-xs px-3 py-2 rounded-lg outline-none">
+              <option value="">Escolher email de origem...</option>
+              {emailsOrigem.map(e => <option key={e} value={e}>{e}</option>)}
+            </select>
+            <div className="flex items-center gap-1 flex-1">
+              <span className="text-gray-400 text-xs">Para:</span>
+              <input list="contactos-list" value={compose.para} onChange={e => setCompose({...compose, para: e.target.value})}
+                className="flex-1 bg-gray-800 border border-gray-600 text-white text-sm px-3 py-2 rounded-lg outline-none" placeholder="destinatario@email.com" />
+              <datalist id="contactos-list">
+                {contactos.map(c => <option key={c.email} value={c.email}>{c.nome}</option>)}
+              </datalist>
+            </div>
+            <input value={compose.assunto} onChange={e => setCompose({...compose, assunto: e.target.value})}
+              className="bg-gray-800 border border-gray-600 text-white text-sm px-3 py-2 rounded-lg outline-none w-56" placeholder="Assunto" />
+            <input value={compose.cc} onChange={e => setCompose({...compose, cc: e.target.value})}
+              className="bg-gray-800 border border-gray-600 text-white text-xs px-2 py-2 rounded-lg outline-none w-28" placeholder="Cc" />
+            <input value={compose.bcc} onChange={e => setCompose({...compose, bcc: e.target.value})}
+              className="bg-gray-800 border border-gray-600 text-white text-xs px-2 py-2 rounded-lg outline-none w-28" placeholder="Bcc" />
+            <button onClick={() => { setMostrarCompose(false); setCompose({ para: '', cc: '', bcc: '', assunto: '', corpo: '' }); setEnviado(false) }}
+              className="ml-2 w-9 h-9 flex items-center justify-center rounded-full bg-red-600 hover:bg-red-700 text-white font-bold text-lg shadow-lg">✕</button>
+          </div>
+
+          {/* LINHA 2 — Formatação */}
+          <div className="bg-gray-800 px-4 py-1.5 flex items-center gap-1 flex-wrap border-b border-gray-700">
+            <select className="bg-gray-700 border border-gray-600 text-white text-xs px-2 py-1 rounded">
+              <option>Calibri</option><option>Arial</option><option>Times New Roman</option>
+            </select>
+            <select className="bg-gray-700 border border-gray-600 text-white text-xs px-2 py-1 rounded w-14">
+              <option>11</option><option>12</option><option>14</option><option>16</option><option>18</option>
+            </select>
+            <div className="w-px h-4 bg-gray-600 mx-1" />
+            {botoesFormato.map((b, i) => (
+              <button key={i} title={b.t}
+                className="text-white text-xs px-2 py-1 rounded hover:bg-gray-600 border border-gray-600 relative group">
+                {b.l}
+                <span className="absolute top-7 left-1/2 -translate-x-1/2 bg-black text-white text-[10px] px-1.5 py-0.5 rounded opacity-0 group-hover:opacity-100 whitespace-nowrap z-20 pointer-events-none">{b.t}</span>
               </button>
-              
-              <div className="w-px h-5 bg-gray-600 mx-1" />
-              
-              {/* Colar com dropdown */}
-              <button className="flex items-center gap-1 text-white text-xs px-2 py-1.5 rounded hover:bg-gray-700 border border-gray-600 transition-colors">
-                📋 Colar ▾
+            ))}
+            <div className="w-px h-4 bg-gray-600 mx-1" />
+            {[{ l: '≡', t: 'Lista' }, { l: '1.', t: 'Numerada' }, { l: '⬛', t: 'Esquerda' }, { l: '▪', t: 'Centro' }, { l: '⬜', t: 'Direita' }, { l: '▬', t: 'Justificar' }].map((b, i) => (
+              <button key={i} title={b.t} className="text-white text-xs px-2 py-1 rounded hover:bg-gray-600 border border-gray-600 relative group">
+                {b.l}
+                <span className="absolute top-7 left-1/2 -translate-x-1/2 bg-black text-white text-[10px] px-1.5 py-0.5 rounded opacity-0 group-hover:opacity-100 whitespace-nowrap z-20 pointer-events-none">{b.t}</span>
               </button>
-              
-              <div className="w-px h-5 bg-gray-600 mx-1" />
-              
-              {/* Formatação de texto */}
-              <select className="bg-gray-800 border border-gray-600 text-white text-xs px-2 py-1.5 rounded">
-                <option>Calibri</option><option>Arial</option><option>Times New Roman</option><option>Helvetica</option>
-              </select>
-              <select className="bg-gray-800 border border-gray-600 text-white text-xs px-2 py-1.5 rounded w-16">
-                <option>11</option><option>10</option><option>12</option><option>14</option><option>16</option><option>18</option><option>24</option>
-              </select>
-              
-              <div className="w-px h-5 bg-gray-600 mx-1" />
-              
-              {/* Botões formatação */}
-              {[
-                { l: 'N', t: 'Negrito', s: 'font-bold' },
-                { l: 'I', t: 'Itálico', s: 'italic' },
-                { l: 'S', t: 'Sublinhado', s: 'underline' },
-                { l: 'ab', t: 'Riscado', s: 'line-through' },
-                { l: 'x₂', t: 'Subscrito' },
-                { l: 'x²', t: 'Superscrito' },
-              ].map((b, i) => (
-                <button key={i} title={b.t}
-                  className="text-white text-xs px-2 py-1.5 rounded hover:bg-gray-700 border border-gray-600 transition-colors relative group min-w-[28px]">
-                  <span className={b.s}>{b.l}</span>
-                  <span className="absolute top-8 left-1/2 -translate-x-1/2 bg-black text-white text-[10px] px-1.5 py-0.5 rounded opacity-0 group-hover:opacity-100 whitespace-nowrap z-20 pointer-events-none">{b.t}</span>
-                </button>
-              ))}
-              
-              <div className="w-px h-5 bg-gray-600 mx-1" />
-              
-              {/* Cor do texto e fundo */}
-              <button title="Cor do Texto" className="text-white text-xs px-2 py-1.5 rounded hover:bg-gray-700 border border-gray-600 transition-colors relative group">
-                A <span className="block h-0.5 bg-red-500 mt-0.5"></span>
-                <span className="absolute top-8 left-1/2 -translate-x-1/2 bg-black text-white text-[10px] px-1.5 py-0.5 rounded opacity-0 group-hover:opacity-100 whitespace-nowrap z-20">Cor do Texto</span>
+            ))}
+            <div className="w-px h-4 bg-gray-600 mx-1" />
+            {[{ l: '🔗', t: 'Ligação' }, { l: '🖼', t: 'Imagem' }, { l: '⊞', t: 'Tabela' }, { l: '📎', t: 'Anexo' }].map((b, i) => (
+              <button key={i} title={b.t} className="text-white text-xs px-2 py-1 rounded hover:bg-gray-600 border border-gray-600 flex items-center gap-1 relative group">
+                {b.l} <span className="text-gray-300 text-[10px]">{b.t}</span>
               </button>
-              <button title="Mudar Fundo" className="text-white text-xs px-2 py-1.5 rounded hover:bg-gray-700 border border-gray-600 transition-colors relative group">
-                🌙
-                <span className="absolute top-8 left-1/2 -translate-x-1/2 bg-black text-white text-[10px] px-1.5 py-0.5 rounded opacity-0 group-hover:opacity-100 whitespace-nowrap z-20">Mudar Fundo</span>
-              </button>
-              
-              <div className="w-px h-5 bg-gray-600 mx-1" />
-              
-              {/* Listas e alinhamento */}
-              {[
-                { l: '≡', t: 'Lista com marcas' },
-                { l: '1.', t: 'Lista numerada' },
-                { l: '←→', t: 'Diminuir recuo' },
-                { l: '→←', t: 'Aumentar recuo' },
-                { l: '¶', t: 'Parágrafo' },
-              ].map((b, i) => (
-                <button key={i} title={b.t}
-                  className="text-white text-xs px-2 py-1.5 rounded hover:bg-gray-700 border border-gray-600 transition-colors relative group">
-                  {b.l}
-                  <span className="absolute top-8 left-1/2 -translate-x-1/2 bg-black text-white text-[10px] px-1.5 py-0.5 rounded opacity-0 group-hover:opacity-100 whitespace-nowrap z-20 pointer-events-none">{b.t}</span>
-                </button>
-              ))}
-              
-              <div className="w-px h-5 bg-gray-600 mx-1" />
-              
-              {/* Alinhamento */}
-              {[
-                { l: '⬛', t: 'Alinhar à esquerda' },
-                { l: '▪', t: 'Centrar' },
-                { l: '⬜', t: 'Alinhar à direita' },
-                { l: '▬', t: 'Justificar' },
-              ].map((b, i) => (
-                <button key={i} title={b.t}
-                  className="text-white text-xs px-2 py-1.5 rounded hover:bg-gray-700 border border-gray-600 transition-colors relative group">
-                  {b.l}
-                  <span className="absolute top-8 left-1/2 -translate-x-1/2 bg-black text-white text-[10px] px-1.5 py-0.5 rounded opacity-0 group-hover:opacity-100 whitespace-nowrap z-20 pointer-events-none">{b.t}</span>
-                </button>
-              ))}
-              
-              <div className="w-px h-5 bg-gray-600 mx-1" />
-              
-              {/* Extras */}
-              <button title="Anexar Ficheiro" className="text-white text-xs px-2 py-1.5 rounded hover:bg-gray-700 border border-gray-600 transition-colors relative group">
-                📎 Anexar Ficheiro
-                <span className="absolute top-8 left-1/2 -translate-x-1/2 bg-black text-white text-[10px] px-1.5 py-0.5 rounded opacity-0 group-hover:opacity-100 whitespace-nowrap z-20 pointer-events-none">Anexar Ficheiro</span>
-              </button>
-              <button title="Tabela" className="text-white text-xs px-2 py-1.5 rounded hover:bg-gray-700 border border-gray-600 transition-colors relative group">
-                ⊞ Tabela
-              </button>
-              <button title="Imagens" className="text-white text-xs px-2 py-1.5 rounded hover:bg-gray-700 border border-gray-600 transition-colors relative group">
-                🖼 Imagens ▾
-              </button>
-              <button title="Assinatura" className="text-white text-xs px-2 py-1.5 rounded hover:bg-gray-700 border border-gray-600 transition-colors relative group">
-                ✍️ Assinatura ▾
-              </button>
-              <button title="Ligação" className="text-white text-xs px-2 py-1.5 rounded hover:bg-gray-700 border border-gray-600 transition-colors relative group">
-                🔗 Ligação
-              </button>
-              
-              <div className="ml-auto flex items-center gap-2">
-                <button title="Recortar" className="text-white text-xs px-2 py-1.5 rounded hover:bg-gray-700 border border-gray-600">✂️ Recortar</button>
-                <button title="Verificar Nomes" className="text-white text-xs px-2 py-1.5 rounded hover:bg-gray-700 border border-gray-600">👤 Verificar</button>
+            ))}
+            <button onClick={() => setMostrarConfigAssinatura(true)}
+              className="text-white text-xs px-2 py-1 rounded hover:bg-gray-600 border border-gray-600 flex items-center gap-1">
+              ✍️ <span className="text-gray-300 text-[10px]">Assinatura</span>
+            </button>
+          </div>
+
+          {/* ÁREA DE ESCRITA */}
+          {enviado ? (
+            <div className="flex-1 flex items-center justify-center bg-white">
+              <div className="text-center">
+                <p className="text-5xl mb-4">✅</p>
+                <p className="text-xl font-bold text-gray-800">Email enviado com sucesso!</p>
                 <button onClick={() => { setMostrarCompose(false); setCompose({ para: '', cc: '', bcc: '', assunto: '', corpo: '' }); setEnviado(false) }}
-                  className="text-gray-400 hover:text-red-400 ml-2 text-lg">✕</button>
+                  className="mt-5 bg-red-600 hover:bg-red-700 text-white px-6 py-2.5 rounded-lg text-sm font-bold">Fechar</button>
               </div>
             </div>
+          ) : (
+            <div className="flex-1 flex flex-col bg-white">
+              <textarea value={compose.corpo} onChange={e => setCompose({...compose, corpo: e.target.value})}
+                className="flex-1 p-6 text-sm text-gray-800 outline-none resize-none" placeholder="Escreve a tua mensagem aqui..." />
+              {assinatura && (
+                <div className="px-6 py-3 border-t border-gray-200 text-xs text-gray-500 whitespace-pre-wrap">--{'\n'}{assinatura}</div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
 
-            {/* Campos do email — fundo escuro */}
-            <div className="bg-gray-900 border-b border-gray-700 px-4 py-1 space-y-0">
-              {[
-                { label: 'De:', value: 'silva.chamo@gmail.com (Silva Chamo)', editable: false },
-                { label: 'Para:', field: 'para', editable: true },
-                { label: 'Cc:', field: 'cc', editable: true },
-                { label: 'Bcc:', field: 'bcc', editable: true },
-                { label: 'Assunto:', field: 'assunto', editable: true },
-              ].map((f, i) => (
-                <div key={i} className="flex items-center border-b border-gray-700 py-1.5">
-                  <span className="text-gray-400 text-xs w-16 shrink-0">{f.label}</span>
-                  {f.editable ? (
-                    <input
-                      value={f.field ? (compose as any)[f.field] || '' : ''}
-                      onChange={e => f.field && setCompose({...compose, [f.field]: e.target.value})}
-                      className="flex-1 bg-transparent text-white text-sm outline-none"
-                    />
-                  ) : (
-                    <span className="text-gray-300 text-sm">{f.value}</span>
-                  )}
-                  {(f.label === 'Para:' || f.label === 'Cc:' || f.label === 'Bcc:') && (
-                    <button className="text-gray-500 hover:text-gray-300 ml-2 text-xs">📖</button>
-                  )}
+      {/* MODAL ASSINATURA */}
+      {mostrarConfigAssinatura && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[60]">
+          <div className="bg-white rounded-xl shadow-2xl p-6 w-full max-w-lg">
+            <h2 className="text-lg font-bold text-gray-900 mb-4">✍️ Configurar Assinatura</h2>
+            <textarea value={assinatura} onChange={e => setAssinatura(e.target.value)}
+              rows={6} placeholder="Nome, cargo, contacto, website..."
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm resize-none mb-3" />
+            <p className="text-xs text-gray-400 mb-4">Para incluir logo, cola o URL: [img]https://url-da-imagem.png[/img]</p>
+            <div className="flex gap-3">
+              <button onClick={() => setMostrarConfigAssinatura(false)}
+                className="flex-1 bg-red-600 hover:bg-red-700 text-white py-2.5 rounded-lg text-sm font-bold">Guardar</button>
+              <button onClick={() => setMostrarConfigAssinatura(false)}
+                className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 py-2.5 rounded-lg text-sm font-bold">Cancelar</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL CONTACTOS */}
+      {mostrarConfigContactos && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[60]">
+          <div className="bg-white rounded-xl shadow-2xl p-6 w-full max-w-lg">
+            <h2 className="text-lg font-bold text-gray-900 mb-4">👥 Contactos Guardados</h2>
+            <div className="space-y-2 mb-4 max-h-48 overflow-y-auto">
+              {contactos.map((c, i) => (
+                <div key={i} className="flex items-center justify-between bg-gray-50 rounded-lg px-3 py-2 border border-gray-200">
+                  <div>
+                    <p className="text-sm font-bold text-gray-800">{c.nome}</p>
+                    <p className="text-xs text-gray-500">{c.email}</p>
+                  </div>
+                  <button onClick={() => setContactos(contactos.filter((_, j) => j !== i))}
+                    className="text-red-400 hover:text-red-600 text-xs">✕</button>
                 </div>
               ))}
             </div>
-
-            {/* Área de escrita — fundo branco */}
-            {enviado ? (
-              <div className="flex-1 flex items-center justify-center bg-white">
-                <div className="text-center">
-                  <p className="text-4xl mb-3">✅</p>
-                  <p className="text-lg font-bold text-gray-800">Email enviado com sucesso!</p>
-                  <button onClick={() => { setMostrarCompose(false); setCompose({ para: '', cc: '', bcc: '', assunto: '', corpo: '' }); setEnviado(false) }}
-                    className="mt-4 bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg text-sm font-bold">
-                    Voltar
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <textarea
-                value={compose.corpo}
-                onChange={e => setCompose({...compose, corpo: e.target.value})}
-                className="flex-1 p-4 text-sm text-gray-800 outline-none resize-none bg-white"
-                placeholder=""
-              />
-            )}
+            <div className="flex gap-2 mb-4">
+              <input value={novoContacto.nome} onChange={e => setNovoContacto({...novoContacto, nome: e.target.value})}
+                placeholder="Nome" className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm" />
+              <input value={novoContacto.email} onChange={e => setNovoContacto({...novoContacto, email: e.target.value})}
+                placeholder="Email" className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm" />
+              <button onClick={() => { if (novoContacto.nome && novoContacto.email) { setContactos([...contactos, novoContacto]); setNovoContacto({ nome: '', email: '' }) }}}
+                className="bg-red-600 hover:bg-red-700 text-white px-3 py-2 rounded-lg text-sm font-bold">+</button>
+            </div>
+            <button onClick={() => setMostrarConfigContactos(false)}
+              className="w-full bg-gray-800 hover:bg-gray-900 text-white py-2.5 rounded-lg text-sm font-bold">Fechar</button>
           </div>
         </div>
       )}
