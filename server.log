@@ -855,3 +855,11 @@ Auth state changed: INITIAL_SESSION undefined
 ✓ Compiled in 104ms
 ⚠ You are using an experimental edge runtime, the API might change.
 ✓ Compiled in 168ms
+ POST /api/server-exec 200 in 5.3s (compile: 6ms, render: 5.3s)
+ POST /api/server-exec 200 in 5.7s (compile: 1967µs, render: 5.7s)
+ POST /api/server-exec 200 in 4.9s (compile: 2ms, render: 4.8s)
+ POST /api/server-exec 200 in 4.1s (compile: 1850µs, render: 4.1s)
+⚠ You are using an experimental edge runtime, the API might change.
+✓ Compiled in 127ms
+⚠ You are using an experimental edge runtime, the API might change.
+✓ Compiled in 87ms
