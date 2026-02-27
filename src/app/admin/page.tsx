@@ -685,7 +685,8 @@ export default function AdminPage() {
         handleSync={handleSync}
       />
       case 'file-manager':
-        return <FileManagerSection domain={fileManagerDomain} sites={cyberPanelSites} />
+case 'cp-file-manager':
+  return <FileManagerSection domain={fileManagerDomain || 'visualdesigne.com'} sites={cyberPanelSites} />
       case 'domains-new':
         return <CreateWebsiteSection packages={cyberPanelPackages} onRefresh={loadCyberPanelData} />
       case 'cp-subdomains':
