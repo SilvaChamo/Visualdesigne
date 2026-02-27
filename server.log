@@ -809,3 +809,49 @@ Auth state changed: INITIAL_SESSION undefined
 ✓ Compiled in 77ms
 ✓ Compiled in 62ms
 ✓ Compiled in 98ms
+Auth state changed: INITIAL_SESSION undefined
+ GET /admin 200 in 724ms (compile: 143ms, render: 581ms)
+ POST /api/server-exec 200 in 4.5s (compile: 14ms, render: 4.5s)
+ POST /api/server-exec 200 in 4.5s (compile: 10ms, render: 4.5s)
+ POST /api/server-exec 200 in 8.2s (compile: 4ms, render: 8.2s)
+ POST /api/server-exec 200 in 4.3s (compile: 6ms, render: 4.3s)
+ POST /api/server-exec 200 in 4.3s (compile: 14ms, render: 4.3s)
+ GET /admin 200 in 403ms (compile: 97ms, render: 306ms)
+[server-exec] connect ENETUNREACH 109.199.104.22:22 - Local (0.0.0.0:64661)
+ POST /api/server-exec 500 in 33ms (compile: 7ms, render: 26ms)
+[server-exec] connect ENETUNREACH 109.199.104.22:22 - Local (0.0.0.0:64662)
+ POST /api/server-exec 500 in 44ms (compile: 38ms, render: 6ms)
+[server-exec] connect ENETUNREACH 109.199.104.22:22 - Local (0.0.0.0:64663)
+ POST /api/server-exec 500 in 50ms (compile: 45ms, render: 5ms)
+[server-exec] connect ENETUNREACH 109.199.104.22:22 - Local (0.0.0.0:64679)
+ POST /api/server-exec 500 in 19ms (compile: 4ms, render: 15ms)
+[server-exec] connect ENETUNREACH 109.199.104.22:22 - Local (0.0.0.0:64680)
+ POST /api/server-exec 500 in 30ms (compile: 23ms, render: 7ms)
+ GET /admin 200 in 130ms (compile: 7ms, render: 123ms)
+[server-exec] connect ENETUNREACH 109.199.104.22:22 - Local (0.0.0.0:64716)
+ POST /api/server-exec 500 in 10ms (compile: 4ms, render: 6ms)
+[server-exec] connect ENETUNREACH 109.199.104.22:22 - Local (0.0.0.0:64717)
+ POST /api/server-exec 500 in 15ms (compile: 11ms, render: 5ms)
+[server-exec] connect ENETUNREACH 109.199.104.22:22 - Local (0.0.0.0:64718)
+ POST /api/server-exec 500 in 22ms (compile: 16ms, render: 6ms)
+ GET /admin 200 in 132ms (compile: 5ms, render: 127ms)
+ POST /api/server-exec 200 in 5.5s (compile: 13ms, render: 5.5s)
+ POST /api/server-exec 200 in 5.5s (compile: 9ms, render: 5.5s)
+ POST /api/server-exec 200 in 5.5s (compile: 5ms, render: 5.5s)
+ GET /admin 200 in 123ms (compile: 4ms, render: 119ms)
+ POST /api/server-exec 200 in 4.0s (compile: 10ms, render: 4.0s)
+ POST /api/server-exec 200 in 4.1s (compile: 12ms, render: 4.1s)
+ POST /api/server-exec 200 in 7.9s (compile: 6ms, render: 7.9s)
+ POST /api/server-exec 200 in 7.5s (compile: 3ms, render: 7.5s)
+ POST /api/server-exec 200 in 7.7s (compile: 6ms, render: 7.7s)
+ POST /api/server-exec 200 in 4.7s (compile: 3ms, render: 4.7s)
+ POST /api/server-exec 200 in 3.4s (compile: 1753µs, render: 3.4s)
+⚠ You are using an experimental edge runtime, the API might change.
+⚠ You are using an experimental edge runtime, the API might change.
+⚠ You are using an experimental edge runtime, the API might change.
+⚠ You are using an experimental edge runtime, the API might change.
+✓ Compiled in 917ms
+⚠ You are using an experimental edge runtime, the API might change.
+✓ Compiled in 104ms
+⚠ You are using an experimental edge runtime, the API might change.
+✓ Compiled in 168ms

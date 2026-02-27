@@ -4,6 +4,36 @@ import { promisify } from 'util'
 
 const execAsync = promisify(exec)
 
+// Função para executar comandos SSH no servidor
+async function execSSH(command: string): Promise<string> {
+  const { exec } = require('child_process')
+  const { Client } = require('ssh2')
+  
+  return new Promise((resolve, reject) => {
+    const conn = new Client()
+    let out = ''
+    const rawKey = process.env.SSH_PRIVATE_KEY || ''
+    const privateKey = rawKey.replace(/\\n/g, '\n')
+
+    conn.on('ready', () => {
+      conn.exec(command, (err: any, stream: any) => {
+        if (err) { conn.end(); return reject(err); }
+        stream.on('data', (d: Buffer) => { out += d.toString(); });
+        stream.stderr.on('data', (d: Buffer) => { out += d.toString(); });
+        stream.on('close', () => { conn.end(); resolve(out); });
+      });
+    });
+
+    conn.on('error', reject);
+    conn.connect({
+      host: '109.199.104.22',
+      port: 22,
+      username: 'root',
+      privateKey,
+    });
+  });
+}
+
 const GITHUB_TOKEN = process.env.GITHUB_TOKEN
 const GITHUB_OWNER = process.env.GITHUB_OWNER || 'SilvaChamo'
 const GITHUB_REPO = process.env.GITHUB_REPO || 'Visualdesigne'
@@ -204,6 +234,42 @@ export async function POST(req: NextRequest) {
         message: 'Deploy iniciado! Vercel está a fazer deploy em ~1-2 minutos.',
         vercelDashboard: `https://vercel.com/silvachamo/${GITHUB_REPO.toLowerCase()}/deployments`,
       })
+    }
+
+    // ── DEPLOY DO SITE NO SERVIDOR ──
+    if (action === 'deploySite') {
+      const { domain = 'visualdesigne.com' } = body
+      const raw = await execSSH(`
+        git config --global --add safe.directory /home/${domain}/public_html 2>/dev/null
+        cd /home/${domain}/public_html
+        git pull origin main 2>&1
+        npm install --production 2>&1 | tail -5
+        npm run build 2>&1 | tail -10
+        echo "DEPLOY_COMPLETE"
+      `)
+      return NextResponse.json({ 
+        output: raw, 
+        success: raw.includes('DEPLOY_COMPLETE'),
+        message: raw.includes('DEPLOY_COMPLETE') ? 'Deploy concluído com sucesso!' : 'Erro no deploy'
+      })
+    }
+
+    if (action === 'getDeployStatus') {
+      const { domain = 'visualdesigne.com' } = body
+      const raw = await execSSH(`
+        git config --global --add safe.directory /home/${domain}/public_html 2>/dev/null
+        cd /home/${domain}/public_html && git log --oneline -5 2>&1
+      `)
+      return NextResponse.json({ output: raw, success: true })
+    }
+
+    if (action === 'getGitLog') {
+      const { domain = 'visualdesigne.com' } = body
+      const raw = await execSSH(`
+        git config --global --add safe.directory /home/${domain}/public_html 2>/dev/null
+        cd /home/${domain}/public_html && git log --oneline -10 2>&1
+      `)
+      return NextResponse.json({ output: raw, success: true })
     }
 
     return NextResponse.json({ success: false, error: 'Acção inválida.' }, { status: 400 })

@@ -5101,3 +5101,119 @@ export function DomainManagerSection({ sites }: { sites: CyberPanelWebsite[] }) 
 
   return null
 }
+
+// ============================================================
+// DEPLOY SECTION
+// ============================================================
+export function DeploySection({ sites }: { sites: CyberPanelWebsite[] }) {
+  const [deploying, setDeploying] = useState(false)
+  const [log, setLog] = useState('')
+  const [status, setStatus] = useState<'idle'|'success'|'error'>('idle')
+  const [gitLog, setGitLog] = useState('')
+  const [selectedDomain, setSelectedDomain] = useState('visualdesigne.com')
+
+  const loadGitLog = async () => {
+    const res = await fetch('/api/git-deploy', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'getGitLog', params: { domain: selectedDomain } })
+    })
+    const data = await res.json()
+    setGitLog(data.data?.output || '')
+  }
+
+  useEffect(() => { loadGitLog() }, [selectedDomain])
+
+  const handleDeploy = async () => {
+    if (!confirm(`Fazer deploy de "${selectedDomain}"?\n\nIsto vai actualizar o site online com o código mais recente do GitHub.`)) return
+    setDeploying(true)
+    setStatus('idle')
+    setLog('A iniciar deploy...\n')
+
+    const res = await fetch('/api/git-deploy', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'deploySite', params: { domain: selectedDomain } })
+    })
+    const data = await res.json()
+    const output = data.data?.output || ''
+    setLog(output)
+    setStatus(data.data?.success ? 'success' : 'error')
+    if (data.data?.success) await loadGitLog()
+    setDeploying(false)
+  }
+
+  const activeSites = Array.isArray(sites) ? sites.filter(s => 
+    s.isActive && !s.domain.includes('contaboserver')
+  ) : []
+
+  return (
+    <div className="w-full space-y-4">
+      <div>
+        <h1 className="text-xl font-bold text-gray-900">Deploy / GitHub</h1>
+        <p className="text-xs text-gray-400 mt-0.5">Actualizar site online com o código mais recente do GitHub</p>
+      </div>
+
+      {/* Selector + Botão Deploy */}
+      <div className="flex items-center gap-3">
+        <select value={selectedDomain}
+          onChange={e => setSelectedDomain(e.target.value)}
+          className="flex-1 px-3 py-2.5 border border-gray-300 rounded-lg text-sm">
+          {activeSites.map(s => (
+            <option key={s.domain} value={s.domain}>{s.domain}</option>
+          ))}
+        </select>
+        <button onClick={handleDeploy} disabled={deploying}
+          className="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-2.5 rounded-lg text-sm font-bold flex items-center gap-2 disabled:opacity-50 transition-colors">
+          {deploying 
+            ? <><RefreshCw className="w-4 h-4 animate-spin" /> A fazer deploy...</>
+            : <><Upload className="w-4 h-4" /> Deploy</>
+          }
+        </button>
+      </div>
+
+      {/* Status */}
+      {status !== 'idle' && (
+        <div className={`px-4 py-2.5 rounded-lg text-sm font-medium border ${
+          status === 'success' 
+            ? 'bg-green-50 text-green-700 border-green-200' 
+            : 'bg-red-50 text-red-700 border-red-200'
+        }`}>
+          {status === 'success' ? '✅ Deploy concluído com sucesso!' : '❌ Erro no deploy — ver log abaixo'}
+        </div>
+      )}
+
+      <div className="grid grid-cols-2 gap-4">
+        {/* Git Log */}
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+          <div className="px-4 py-3 border-b border-gray-100 bg-gray-50 flex items-center justify-between">
+            <h2 className="text-sm font-bold text-gray-700">Últimos Commits</h2>
+            <button onClick={loadGitLog}
+              className="text-gray-400 hover:text-gray-600">
+              <RefreshCw className="w-4 h-4" />
+            </button>
+          </div>
+          <div className="p-4">
+            {gitLog ? (
+              <pre className="text-xs text-gray-600 font-mono whitespace-pre-wrap">{gitLog}</pre>
+            ) : (
+              <p className="text-xs text-gray-400">Nenhum commit encontrado</p>
+            )}
+          </div>
+        </div>
+
+        {/* Deploy Log */}
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+          <div className="px-4 py-3 border-b border-gray-100 bg-gray-50">
+            <h2 className="text-sm font-bold text-gray-700">Log do Deploy</h2>
+          </div>
+          <div className="p-4 min-h-32">
+            {log ? (
+              <pre className="text-xs text-gray-600 font-mono whitespace-pre-wrap">{log}</pre>
+            ) : (
+              <p className="text-xs text-gray-400">Clica em Deploy para iniciar</p>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
