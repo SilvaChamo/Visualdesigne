@@ -670,6 +670,7 @@ export default function AdminPage() {
           onNavigate={setActiveSection} 
           onRefresh={loadCyberPanelData}
           onSetDNSDomain={setSelectedDNSDomain}
+          onSetFileManagerDomain={setFileManagerDomain}
         />
       case 'domains':
       case 'domains-list':
@@ -779,7 +780,7 @@ export default function AdminPage() {
       case 'packages-list':
         return <PackagesSection packages={cyberPanelPackages} onRefresh={loadCyberPanelData} />
       default:
-        return <CpanelDashboard sites={cyberPanelSites} users={cyberPanelUsers} isFetching={isFetchingCyberPanel} onNavigate={setActiveSection} onRefresh={loadCyberPanelData} />
+        return <CpanelDashboard sites={cyberPanelSites} users={cyberPanelUsers} isFetching={isFetchingCyberPanel} onNavigate={setActiveSection} onRefresh={loadCyberPanelData} onSetFileManagerDomain={setFileManagerDomain} />
     }
   }
 
