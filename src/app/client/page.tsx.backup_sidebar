@@ -501,21 +501,10 @@ const inserirTabela = () => {
       </div>
 
       {/* LISTA DE EMAILS */}
-      <div className="flex-1 flex overflow-hidden bg-white">
-        <div className="w-72 shrink-0 border-r border-gray-200 bg-gray-50 flex flex-col overflow-y-auto">
-          <div className="px-3 py-2 border-b border-gray-200"><p className="text-[10px] font-bold text-gray-400 uppercase tracking-wide">Contas</p></div>
-          {emailsOrigem.map(c => (
-            <button key={c.email} onClick={() => { setEmailOrigem(c.email); if (c.password) setEmailOrigemPassword(c.password) }}
-              className={`flex flex-col px-3 py-2 text-left text-xs border-b border-gray-100 hover:bg-white transition-colors ${emailOrigem === c.email ? "bg-white border-l-2 border-l-red-500 text-red-600 font-bold" : "text-gray-600"}`}>
-              <span className="truncate w-full">{c.nome || c.email}</span>
-              {c.nome && <span className="text-[10px] text-gray-400 truncate w-full">{c.email}</span>}
-            </button>
-          ))}
-        </div>
-        <div className="flex-1 flex flex-col overflow-hidden">
+      <div className="flex-1 flex flex-col overflow-hidden bg-white">
         <div className="flex items-center gap-2 px-4 py-2 border-b border-gray-200 bg-gray-50">
-          <input type="search" autoComplete="off" placeholder="🔍 Pesquisar emails..." className="flex-1 max-w-sm px-3 py-1.5 border border-gray-300 rounded-lg text-xs outline-none" />
-          {[{ i: '↪️', t: 'Reencaminhar' }, { i: '🔄', t: 'Actualizar' }, { i: '📁', t: 'Arquivar' }, { i: '⚠️', t: 'Spam' }, { i: '🗑️', t: 'Eliminar' }].map((b, i) => (
+          <input placeholder="🔍 Pesquisar emails..." className="flex-1 max-w-sm px-3 py-1.5 border border-gray-300 rounded-lg text-xs outline-none" />
+          {[{ i: '🔄', t: 'Actualizar' }, { i: '📁', t: 'Arquivar' }, { i: '⚠️', t: 'Spam' }, { i: '🗑️', t: 'Eliminar' }].map((b, i) => (
             <button key={i} className="flex items-center gap-1 text-xs text-gray-600 hover:text-gray-900 px-3 py-1.5 rounded border border-gray-300 hover:bg-gray-100 transition-colors">
               {b.i} {b.t}
             </button>
@@ -603,7 +592,6 @@ const inserirTabela = () => {
         </div>
       )}
 
-        </div>
       {/* POPUP ESCREVER — FULLSCREEN */}
       {mostrarCompose && (
         <div className="fixed inset-0 bg-white z-50 flex flex-col">
@@ -2729,7 +2717,7 @@ export default function AdminPage() {
               {activeSection === 'emails-new' && (
                 <button
                   onClick={() => { setMostrarAdicionarConta(true); setModalAdicionarPasso('escolher') }}
-                  className="ml-2 bg-red-600 hover:bg-red-700 text-white text-xs border border-red-600 rounded-lg px-4 py-2 transition-colors font-bold">
+                  className="ml-2 text-gray-400 hover:text-white text-xs border border-gray-600 hover:border-red-500 rounded px-2 py-1.5 transition-colors">
                   + Adicionar Conta
                 </button>
               )}
