@@ -56,12 +56,11 @@ export default function LoginPage() {
   }
 
   const handleGoogleLogin = () => {
-    setLoadingGoogle(true)
-    setError('')
-    // Redirecionar para o endpoint OAuth do Supabase
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-    window.location.href = `${supabaseUrl}/auth/v1/authorize?provider=google&redirect_to=${encodeURIComponent(window.location.origin + '/auth/callback')}`
-  }
+  setLoadingGoogle(true)
+  setError('')
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+  window.location.href = `${supabaseUrl}/auth/v1/authorize?provider=google&redirect_to=${encodeURIComponent(window.location.origin + '/auth/callback')}` 
+}
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
