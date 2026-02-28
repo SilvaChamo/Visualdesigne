@@ -501,39 +501,59 @@ const inserirTabela = () => {
       </div>
 
       {/* LISTA DE EMAILS */}
-      <div className="flex-1 flex flex-col overflow-hidden bg-white">
-        <div className="flex items-center gap-2 px-4 py-2 border-b border-gray-200 bg-gray-50">
-  <select
-    value={emailOrigem}
-    onChange={e => {
-      const conta = emailsOrigem.find(c => c.email === e.target.value)
-      setEmailOrigem(e.target.value)
-      if (conta?.password) setEmailOrigemPassword(conta.password)
-    }}
-    className="w-80 min-w-[200px] max-w-[400px] px-3 py-1.5 border border-gray-300 rounded-lg text-xs outline-none bg-white text-gray-700 truncate">
-    <option value="">📬 Seleccionar conta...</option>
-    {emailsOrigem.map(c => (
-      <option key={c.email} value={c.email}>
-        {c.nome ? `${c.nome} (${c.email})` : c.email}
-      </option>
-    ))}
-  </select>
-  {[{ i: '🔄', t: 'Actualizar' }, { i: '📁', t: 'Arquivar' }, { i: '⚠️', t: 'Spam' }, { i: '🗑️', t: 'Eliminar' }].map((b, i) => (
-    <button key={i} className="flex items-center gap-1 text-xs text-gray-600 hover:text-gray-900 px-3 py-1.5 rounded-lg border border-gray-300 hover:bg-gray-100 transition-colors whitespace-nowrap shrink-0">
-      {b.i} {b.t}
+      <div className="flex-1 flex overflow-hidden bg-white">
+
+  {/* BARRA LATERAL — contas */}
+  <div className="w-52 shrink-0 border-r border-gray-200 bg-gray-50 flex flex-col overflow-y-auto">
+    <div className="px-3 py-2 border-b border-gray-200">
+      <p className="text-xs font-bold text-gray-500 uppercase tracking-wide">Contas</p>
+    </div>
+    <button
+      onClick={() => setEmailOrigem('')}
+      className={`flex items-center gap-2 px-3 py-2 text-xs transition-colors hover:bg-gray-100 ${emailOrigem === '' ? 'bg-red-50 text-red-600 font-bold' : 'text-gray-700'}`}>
+      📬 Todas as contas
     </button>
-  ))}
-  <input 
-    type="text"
-    placeholder="🔍 Pesquisar emails..." 
-    className="flex-1 px-3 py-1.5 border border-gray-300 rounded-lg text-xs outline-none"
-    onChange={(e) => {
-      // Implementar busca de emails aqui
-      console.log('Buscando:', e.target.value)
-    }}
-  />
-</div>
-        <div className="flex-1 overflow-y-auto">
+    {emailsOrigem.map(c => (
+      <button key={c.email}
+        onClick={() => {
+          setEmailOrigem(c.email)
+          if (c.password) setEmailOrigemPassword(c.password)
+        }}
+        className={`flex flex-col px-3 py-2 text-left text-xs transition-colors hover:bg-gray-100 border-b border-gray-100 ${emailOrigem === c.email ? 'bg-red-50 text-red-600 font-bold' : 'text-gray-700'}`}>
+        <span className="font-medium truncate w-full">{c.nome || c.email}</span>
+        {c.nome && <span className="text-gray-400 truncate w-full">{c.email}</span>}
+      </button>
+    ))}
+  </div>
+
+  {/* PAINEL DIREITO */}
+  <div className="flex-1 flex flex-col overflow-hidden">
+    <div className="flex items-center gap-2 px-4 py-2 border-b border-gray-200 bg-gray-50">
+      {[
+        { i: '🔄', t: 'Actualizar', fn: () => {} },
+        { i: '↩️', t: 'Responder', fn: () => {} },
+        { i: '↪️', t: 'Reencaminhar', fn: () => {
+          if (!modalEmail) return
+          setCompose({
+            para: '',
+            cc: '',
+            bcc: '',
+            assunto: 'Fwd: ' + (modalEmail.assunto || ''),
+            corpo: modalEmail.corpo || ''
+          })
+          setMostrarCompose(true)
+        }},
+        { i: '📁', t: 'Arquivar', fn: () => {} },
+        { i: '⚠️', t: 'Spam', fn: () => {} },
+        { i: '🗑️', t: 'Eliminar', fn: () => {} }
+      ].map((b, i) => (
+        <button key={i} onClick={b.fn} className="flex items-center gap-1 text-xs text-gray-600 hover:text-gray-900 px-3 py-1.5 rounded border border-gray-300 hover:bg-gray-100 transition-colors whitespace-nowrap shrink-0">
+          {b.i} {b.t}
+        </button>
+      ))}
+      <input placeholder="🔍 Pesquisar emails..." className="flex-1 px-3 py-1.5 border border-gray-300 rounded text-xs outline-none" />
+    </div>
+    <div className="flex-1 overflow-y-auto">
           {emails.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full text-gray-400 space-y-3">
               <span className="text-5xl">📭</span>
@@ -614,6 +634,9 @@ const inserirTabela = () => {
           </div>
         </div>
       )}
+    </div>
+  </div>
+</div>
 
       {/* POPUP ESCREVER — FULLSCREEN */}
       {mostrarCompose && (
