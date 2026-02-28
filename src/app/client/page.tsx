@@ -581,43 +581,36 @@ const inserirTabela = () => {
                 <option>11</option><option>12</option><option>14</option><option>16</option><option>18</option>
               </select>
               <div className="w-px h-5 bg-gray-600 mx-1" />
-              {botoesFormato.map((b, i) => (
-                <button key={i} title={b.t}
-                  className="text-white text-sm px-2.5 py-1.5 rounded hover:bg-gray-600 border border-gray-600 relative group font-bold"
-                  onClick={() => {
-                    if (b.t === 'Negrito') execCmd('bold')
-                    else if (b.t === 'Itálico') execCmd('italic')
-                    else if (b.t === 'Sublinhado') execCmd('underline')
-                    else if (b.t === 'Riscado') execCmd('strikeThrough')
-                    else if (b.t === 'Subscrito') {
-                      // Toggle: se já estiver activo, desactiva
-                      if (document.queryCommandState('subscript')) {
-                        execCmd('subscript')
-                      } else {
-                        // Se superscript estiver activo, desactiva primeiro
-                        if (document.queryCommandState('superscript')) {
-                          execCmd('superscript')
-                        }
-                        execCmd('subscript')
-                      }
-                    }
-                    else if (b.t === 'Superscrito') {
-                      // Toggle: se já estiver activo, desactiva
-                      if (document.queryCommandState('superscript')) {
-                        execCmd('superscript')
-                      } else {
-                        // Se subscript estiver activo, desactiva primeiro
-                        if (document.queryCommandState('subscript')) {
-                          execCmd('subscript')
-                        }
-                        execCmd('superscript')
-                      }
-                    }
-                  }}>
-                  {b.l}
-                  <span className="absolute top-8 left-1/2 -translate-x-1/2 bg-black text-white text-[10px] px-1.5 py-0.5 rounded opacity-0 group-hover:opacity-100 whitespace-nowrap z-20 pointer-events-none">{b.t}</span>
-                </button>
-              ))}
+              {botoesFormato.map((b, i) => {
+  const cmd =
+    b.t === 'Negrito' ? 'bold' :
+    b.t === 'Itálico' ? 'italic' :
+    b.t === 'Sublinhado' ? 'underline' :
+    b.t === 'Riscado' ? 'strikeThrough' :
+    b.t === 'Subscrito' ? 'subscript' :
+    b.t === 'Superscrito' ? 'superscript' : ''
+  const activo = cmd ? document.queryCommandState(cmd) : false
+  return (
+    <button key={i} title={b.t}
+      className={`text-sm px-2.5 py-1.5 rounded border relative group font-bold transition-colors
+        ${activo
+          ? 'bg-blue-600 border-blue-500 text-white'
+          : 'bg-transparent border-gray-600 text-white hover:bg-gray-600'
+        }`}
+      onMouseDown={(e) => {
+        e.preventDefault()
+        if (!cmd) return
+        if (b.t === 'Subscrito' && document.queryCommandState('superscript')) execCmd('superscript')
+        if (b.t === 'Superscrito' && document.queryCommandState('subscript')) execCmd('subscript')
+        execCmd(cmd)
+      }}>
+      {b.t === 'Itálico' ? <em>{b.l}</em> :
+       b.t === 'Riscado' ? <s>{b.l}</s> :
+       b.l}
+      <span className="absolute top-8 left-1/2 -translate-x-1/2 bg-black text-white text-[10px] px-1.5 py-0.5 rounded opacity-0 group-hover:opacity-100 whitespace-nowrap z-20 pointer-events-none">{b.t}</span>
+    </button>
+  )
+})}
               <div className="w-px h-5 bg-gray-600 mx-1" />
               <button title="Alinhar à esquerda" className="w-7 h-7 flex items-center justify-center rounded hover:bg-gray-600 text-white transition-colors" onClick={() => execCmd('justifyLeft')}>
   <svg viewBox="0 0 16 16" className="w-3.5 h-3.5" fill="currentColor"><rect x="1" y="2" width="14" height="1.5" rx="0.75"/><rect x="1" y="5.5" width="10" height="1.5" rx="0.75"/><rect x="1" y="9" width="14" height="1.5" rx="0.75"/><rect x="1" y="12.5" width="8" height="1.5" rx="0.75"/></svg>
@@ -633,27 +626,13 @@ const inserirTabela = () => {
 </button>
 <button title="Lista de pontos" className="w-7 h-7 flex items-center justify-center rounded hover:bg-gray-600 text-white transition-colors" onMouseDown={(e) => {
   e.preventDefault()
-  // Testar diferentes comandos para lista
-  try {
-    execCmd('insertUnorderedList')
-  } catch (e) {
-    // Se não funcionar, usar HTML
-    const html = '<ul><li>Item 1</li><li>Item 2</li></ul>'
-    execCmd('insertHTML', html)
-  }
+  execCmd('insertUnorderedList')
 }}>
   <svg viewBox="0 0 16 16" className="w-3.5 h-3.5" fill="currentColor"><circle cx="2" cy="4" r="1.2"/><rect x="5" y="3.2" width="9" height="1.5" rx="0.75"/><circle cx="2" cy="8" r="1.2"/><rect x="5" y="7.2" width="9" height="1.5" rx="0.75"/><circle cx="2" cy="12" r="1.2"/><rect x="5" y="11.2" width="9" height="1.5" rx="0.75"/></svg>
 </button>
 <button title="Lista numerada" className="w-7 h-7 flex items-center justify-center rounded hover:bg-gray-600 text-white transition-colors" onMouseDown={(e) => {
   e.preventDefault()
-  // Testar diferentes comandos para lista numerada
-  try {
-    execCmd('insertOrderedList')
-  } catch (e) {
-    // Se não funcionar, usar HTML
-    const html = '<ol><li>Item 1</li><li>Item 2</li></ol>'
-    execCmd('insertHTML', html)
-  }
+  execCmd('insertOrderedList')
 }}>
   <svg viewBox="0 0 16 16" className="w-3.5 h-3.5" fill="currentColor"><rect x="1" y="2" width="2" height="1.5" rx="0.5"/><rect x="5" y="2" width="9" height="1.5" rx="0.75"/><rect x="1" y="5.5" width="2" height="1.5" rx="0.5"/><rect x="5" y="5.5" width="9" height="1.5" rx="0.75"/><rect x="1" y="9" width="2" height="1.5" rx="0.5"/><rect x="5" y="9" width="9" height="1.5" rx="0.75"/></svg>
 </button>
