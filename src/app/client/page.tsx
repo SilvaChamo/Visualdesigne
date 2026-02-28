@@ -925,7 +925,7 @@ const inserirTabela = () => {
       onClick={(e) => e.stopPropagation()}>
 <button onClick={() => setMostrarPopupFechar(false)}
   className="absolute top-3 right-3 w-7 h-7 flex items-center justify-center rounded-full hover:bg-gray-100 text-gray-400 hover:text-gray-700 font-bold transition-colors">✕</button>
-      <p className="text-xl">ℹ️</p>
+      <div className="w-12 h-12 rounded-full border-2 border-red-500 flex items-center justify-center text-red-500 font-bold text-xl">i</div>
       <p className="text-base font-bold text-gray-800">Guardar rascunho?</p>
       <p className="text-xs text-gray-500">A mensagem não foi enviada. O que pretendes fazer?</p>
       <div className="flex gap-2 w-full mt-1">
