@@ -26,6 +26,14 @@ import {
 import { cyberPanelAPI } from '@/lib/cyberpanel-api'
 import type { CyberPanelWebsite, CyberPanelUser, CyberPanelPackage } from '@/lib/cyberpanel-api'
 
+const CORES_PALETA = [
+  '#000000','#434343','#666666','#999999','#b7b7b7','#cccccc','#d9d9d9','#ffffff',
+  '#ff0000','#ff4500','#ff9900','#ffff00','#00ff00','#00ffff','#4a86e8','#0000ff',
+  '#9900ff','#ff00ff','#e6b8a2','#f4cccc','#fce5cd','#fff2cc','#d9ead3','#d0e0e3',
+  '#c9daf8','#cfe2f3','#d9d2e9','#ead1dc','#cc0000','#e69138','#f1c232','#6aa84f',
+  '#45818e','#3c78d8','#3d85c6','#674ea7','#a64d79','#85200c','#783f04','#7f6000',
+]
+
 // Componente ClienteDashboardHome
 function ClienteDashboardHome() {
   const cliente = {
@@ -206,6 +214,7 @@ function EmailWebmailSection({
   const [novaContaForm, setNovaContaForm] = useState({ nome: '', email: '', password: '', servidor: '', porta: '993', smtp: '', smtpPorta: '465' })
   const [corTexto, setCorTexto] = useState('#000000')
   const [corFundo, setCorFundo] = useState('#ffff00')
+  const [mostrarPaletaCor, setMostrarPaletaCor] = useState<'texto' | 'fundo' | null>(null)
 
   // Usar props ou valores locais
   const mostrarAdicionarConta = propMostrarAdicionarConta || false
@@ -493,9 +502,12 @@ const inserirTabela = () => {
   {/* Coluna esquerda — só botão Enviar */}
   <div className="flex flex-col border-r border-gray-700 shrink-0">
     <button onClick={handleSend} disabled={enviando || !compose.para || !emailOrigem}
-      className="flex-1 bg-green-500 hover:bg-green-600 disabled:opacity-50 text-white font-bold px-6 text-sm flex items-center justify-center gap-2 shadow-lg transition-colors min-w-[110px]">
-      {enviando ? '⏳' : '✈️'} {enviando ? 'A enviar...' : 'Enviar'}
-    </button>
+  className="flex-1 bg-gradient-to-b from-green-500 to-green-700 hover:from-green-400 hover:to-green-600 disabled:opacity-40 text-white font-bold px-6 text-sm flex flex-col items-center justify-center gap-1 shadow-lg transition-all min-w-[110px] border-r border-green-800">
+  {enviando
+    ? <><span className="text-xl">⏳</span><span className="text-[11px] tracking-wide">A enviar...</span></>
+    : <><svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg><span className="text-[11px] tracking-wide uppercase">Enviar</span></>
+  }
+</button>
   </div>
 
   {/* Coluna direita — Campos */}
@@ -582,19 +594,67 @@ const inserirTabela = () => {
 }}>
                 <option>11</option><option>12</option><option>14</option><option>16</option><option>18</option>
               </select>
-              {/* Cor do texto */}
-<label title="Cor do texto" className="w-7 h-7 flex items-center justify-center rounded hover:bg-gray-600 border border-gray-600 cursor-pointer relative">
-  <span className="text-white text-xs font-bold" style={{ textDecoration: 'underline', textDecorationColor: corTexto }}>A</span>
-  <input type="color" className="absolute opacity-0 w-0 h-0" value={corTexto}
-    onChange={(e) => { setCorTexto(e.target.value); editorRef.current?.focus(); document.execCommand('foreColor', false, e.target.value) }} />
-</label>
+              {/* Botão cor do texto */}
+<div className="relative">
+  <button title="Cor do texto"
+    onMouseDown={(e) => { e.preventDefault(); setMostrarPaletaCor(prev => prev === 'texto' ? null : 'texto') }}
+    className="w-7 h-7 flex flex-col items-center justify-center rounded hover:bg-gray-600 border border-gray-600 gap-0.5">
+    <span className="text-white text-xs font-bold leading-none" style={{ color: corTexto === '#000000' ? 'white' : corTexto }}>A</span>
+    <div className="w-4 h-1 rounded-sm" style={{ backgroundColor: corTexto }} />
+  </button>
+  {mostrarPaletaCor === 'texto' && (
+    <div className="absolute top-8 left-0 bg-gray-800 border border-gray-600 rounded shadow-xl p-2 z-50 w-48">
+      <p className="text-gray-400 text-[10px] mb-1.5">Cor do texto</p>
+      <div className="grid grid-cols-8 gap-0.5">
+        {CORES_PALETA.map(cor => (
+          <button key={cor} title={cor}
+            onMouseDown={(e) => {
+              e.preventDefault()
+              const sel = window.getSelection()
+              const range = sel && sel.rangeCount > 0 ? sel.getRangeAt(0) : null
+              setCorTexto(cor)
+              setMostrarPaletaCor(null)
+              if (range) { sel!.removeAllRanges(); sel!.addRange(range) }
+              document.execCommand('foreColor', false, cor)
+            }}
+            className="w-4 h-4 rounded-sm border border-gray-600 hover:scale-125 transition-transform"
+            style={{ backgroundColor: cor }} />
+        ))}
+      </div>
+    </div>
+  )}
+</div>
 
-{/* Cor de fundo/realce */}
-<label title="Realçar texto" className="w-7 h-7 flex items-center justify-center rounded hover:bg-gray-600 border border-gray-600 cursor-pointer relative">
-  <span className="text-white text-xs font-bold">🖌</span>
-  <input type="color" className="absolute opacity-0 w-0 h-0" value={corFundo}
-    onChange={(e) => { setCorFundo(e.target.value); editorRef.current?.focus(); document.execCommand('hiliteColor', false, e.target.value) }} />
-</label>
+{/* Botão cor de fundo/realce */}
+<div className="relative">
+  <button title="Realçar texto"
+    onMouseDown={(e) => { e.preventDefault(); setMostrarPaletaCor(prev => prev === 'fundo' ? null : 'fundo') }}
+    className="w-7 h-7 flex flex-col items-center justify-center rounded hover:bg-gray-600 border border-gray-600 gap-0.5">
+    <span className="text-white text-xs leading-none">🖌</span>
+    <div className="w-4 h-1 rounded-sm" style={{ backgroundColor: corFundo }} />
+  </button>
+  {mostrarPaletaCor === 'fundo' && (
+    <div className="absolute top-8 left-0 bg-gray-800 border border-gray-600 rounded shadow-xl p-2 z-50 w-48">
+      <p className="text-gray-400 text-[10px] mb-1.5">Realçar texto</p>
+      <div className="grid grid-cols-8 gap-0.5">
+        {CORES_PALETA.map(cor => (
+          <button key={cor} title={cor}
+            onMouseDown={(e) => {
+              e.preventDefault()
+              const sel = window.getSelection()
+              const range = sel && sel.rangeCount > 0 ? sel.getRangeAt(0) : null
+              setCorFundo(cor)
+              setMostrarPaletaCor(null)
+              if (range) { sel!.removeAllRanges(); sel!.addRange(range) }
+              document.execCommand('hiliteColor', false, cor)
+            }}
+            className="w-4 h-4 rounded-sm border border-gray-600 hover:scale-125 transition-transform"
+            style={{ backgroundColor: cor }} />
+        ))}
+      </div>
+    </div>
+  )}
+</div>
               <div className="w-px h-5 bg-gray-600 mx-1" />
               {botoesFormato.map((b, i) => {
   const cmd =
