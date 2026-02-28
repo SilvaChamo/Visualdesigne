@@ -1,6 +1,5 @@
-import { createServerClient } from '@supabase/auth-helpers-nextjs'
+import { createClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
-import { cookies } from 'next/headers'
 
 export async function GET(request: Request) {
   const requestUrl = new URL(request.url)
@@ -17,25 +16,11 @@ export async function GET(request: Request) {
   }
 
   if (code) {
-    const cookieStore = await cookies()
-
-    const supabase = createServerClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      {
-        cookies: {
-          get: (name) => cookieStore.get(name)?.value,
-          set: (name, value, options) => {
-            cookieStore.set({ name, value, ...options })
-          },
-          remove: (name, options) => {
-            cookieStore.set({ name, value: '', ...options })
-          },
-        },
-      }
-    )
-
-    // Troca o código OAuth por uma sessão e guarda nos cookies automaticamente
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
+    const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+    const supabase = createClient(supabaseUrl, supabaseAnonKey)
+    
+    // Troca o código OAuth por uma sessão
     const { data, error: exchangeError } = await supabase.auth.exchangeCodeForSession(code)
 
     if (exchangeError || !data.user) {
