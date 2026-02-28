@@ -306,11 +306,25 @@ const inserirLink = () => {
   setMostrarPopupLink(true)
 }
 const confirmarLink = () => {
-  if (urlLinkTemp && rangeLink) {
-    const sel = window.getSelection()
-    sel?.removeAllRanges()
-    sel?.addRange(rangeLink)
-    execCmd('createLink', urlLinkTemp)
+  if (urlLinkTemp) {
+    editorRef.current?.focus()
+    if (rangeLink) {
+      const sel = window.getSelection()
+      sel?.removeAllRanges()
+      sel?.addRange(rangeLink)
+    }
+    const url = urlLinkTemp.startsWith('http') ? urlLinkTemp : 'https://' + urlLinkTemp
+    document.execCommand('createLink', false, url)
+    // Garantir que o link abre numa nova tab
+    setTimeout(() => {
+      const links = editorRef.current?.querySelectorAll('a')
+      if (links?.length) {
+        const last = links[links.length - 1] as HTMLAnchorElement
+        last.target = '_blank'
+        last.style.color = '#3b82f6'
+        last.style.textDecoration = 'underline'
+      }
+    }, 50)
   }
   setMostrarPopupLink(false)
   setUrlLinkTemp('')
@@ -427,7 +441,15 @@ const inserirTabela = () => {
 
       {/* TOOLBAR PRINCIPAL */}
       <div className="bg-gray-900 px-4 py-2 flex items-center gap-2 flex-wrap border-b border-gray-800">
-        <button onClick={() => { setMostrarCompose(true); setEnviado(false) }}
+        <button onClick={() => {
+  setMostrarCompose(true)
+  setEnviado(false)
+  setCompose({ para: '', cc: '', bcc: '', assunto: '', corpo: '' })
+  setAnexos([])
+  setTimeout(() => {
+    if (editorRef.current) editorRef.current.innerHTML = ''
+  }, 50)
+}}
   className="bg-red-600 hover:bg-red-700 text-white px-4 py-1.5 rounded-md text-sm font-bold flex items-center gap-2 transition-colors">
   ✏️ Escrever
 </button>
@@ -663,7 +685,7 @@ const inserirTabela = () => {
 <div className="relative">
   <button title="Cor do texto"
     onMouseDown={(e) => { e.preventDefault(); setMostrarPaletaCor(prev => prev === 'texto' ? null : 'texto') }}
-    className="w-7 h-7 flex flex-col items-center justify-center rounded hover:bg-gray-600 border border-gray-600 gap-0.5">
+    className="w-7 h-7 flex flex-col items-center justify-center rounded hover:bg-gray-600 bg-gray-700 border border-gray-600 gap-0.5">
     <span className="text-white text-xs font-bold leading-none" style={{ color: corTexto === '#000000' ? 'white' : corTexto }}>A</span>
     <div className="w-4 h-1 rounded-sm" style={{ backgroundColor: corTexto }} />
   </button>
