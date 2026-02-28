@@ -921,14 +921,14 @@ const inserirTabela = () => {
     className="absolute inset-0 bg-black/50 flex items-center justify-center z-50"
     onClick={() => setMostrarPopupFechar(false)}>
     <div
-      className="bg-white rounded-2xl shadow-2xl p-8 w-96 flex flex-col items-center text-center gap-4 relative"
+      className="bg-white rounded-2xl shadow-2xl p-6 w-80 flex flex-col items-center text-center gap-2 relative"
       onClick={(e) => e.stopPropagation()}>
 <button onClick={() => setMostrarPopupFechar(false)}
   className="absolute top-3 right-3 w-7 h-7 flex items-center justify-center rounded-full hover:bg-gray-100 text-gray-400 hover:text-gray-700 font-bold transition-colors">✕</button>
-      <p className="text-2xl">📝</p>
+      <p className="text-xl">ℹ️</p>
       <p className="text-base font-bold text-gray-800">Guardar rascunho?</p>
-      <p className="text-sm text-gray-500">A mensagem não foi enviada. O que pretendes fazer?</p>
-      <div className="flex gap-3 w-full mt-2">
+      <p className="text-xs text-gray-500">A mensagem não foi enviada. O que pretendes fazer?</p>
+      <div className="flex gap-2 w-full mt-1">
   <button onClick={() => {
     setMostrarPopupFechar(false)
     setMostrarCompose(false)
@@ -936,11 +936,11 @@ const inserirTabela = () => {
     setAnexos([])
     if (editorRef.current) editorRef.current.innerHTML = ''
   }}
-    className="flex-1 bg-black/70 hover:bg-red-900 text-white font-bold py-2.5 rounded-lg text-sm transition-colors">
+    className="flex-1 bg-black/70 hover:bg-red-900 text-white font-bold py-2 rounded-lg text-xs transition-colors">
     🗑️ Descartar
   </button>
   <button onClick={guardarRascunho}
-    className="flex-1 bg-red-600 hover:bg-red-700 text-white font-bold py-2.5 rounded-lg text-sm transition-colors">
+    className="flex-1 bg-red-600 hover:bg-red-700 text-white font-bold py-2 rounded-lg text-xs transition-colors">
     💾 Guardar
   </button>
 </div>
