@@ -216,6 +216,9 @@ function EmailWebmailSection({
   const [corFundo, setCorFundo] = useState('#ffff00')
   const [mostrarPaletaCor, setMostrarPaletaCor] = useState<'texto' | 'fundo' | null>(null)
   const [anexos, setAnexos] = useState<File[]>([])
+  const [mostrarPopupLink, setMostrarPopupLink] = useState(false)
+  const [urlLinkTemp, setUrlLinkTemp] = useState('')
+  const [rangeLink, setRangeLink] = useState<Range | null>(null)
 
   // Usar props ou valores locais
   const mostrarAdicionarConta = propMostrarAdicionarConta || false
@@ -298,23 +301,54 @@ function EmailWebmailSection({
 
 const inserirLink = () => {
   const sel = window.getSelection()
-  const range = sel && sel.rangeCount > 0 ? sel.getRangeAt(0) : null
-  const url = prompt('URL da ligação:')
-  if (url && range) {
-    sel!.removeAllRanges()
-    sel!.addRange(range)
-    execCmd('createLink', url)
+  if (sel && sel.rangeCount > 0) setRangeLink(sel.getRangeAt(0).cloneRange())
+  setUrlLinkTemp('')
+  setMostrarPopupLink(true)
+}
+const confirmarLink = () => {
+  if (urlLinkTemp && rangeLink) {
+    const sel = window.getSelection()
+    sel?.removeAllRanges()
+    sel?.addRange(rangeLink)
+    execCmd('createLink', urlLinkTemp)
   }
+  setMostrarPopupLink(false)
+  setUrlLinkTemp('')
+  setRangeLink(null)
 }
 
 const inserirImagem = () => {
   const sel = window.getSelection()
-  const range = sel && sel.rangeCount > 0 ? sel.getRangeAt(0) : null
-  const url = prompt('URL da imagem:')
-  if (url) {
-    if (range) { sel!.removeAllRanges(); sel!.addRange(range) }
-    execCmd('insertImage', url)
+  const range = sel && sel.rangeCount > 0 ? sel.getRangeAt(0).cloneRange() : null
+  const input = document.createElement('input')
+  input.type = 'file'
+  input.accept = 'image/*'
+  input.onchange = (e) => {
+    const file = (e.target as HTMLInputElement).files?.[0]
+    if (!file) return
+    const reader = new FileReader()
+    reader.onload = (ev) => {
+      const base64 = ev.target?.result as string
+      if (range) {
+        const sel2 = window.getSelection()
+        sel2?.removeAllRanges()
+        sel2?.addRange(range)
+      } else {
+        editorRef.current?.focus()
+      }
+      document.execCommand('insertImage', false, base64)
+      setTimeout(() => {
+        const imgs = editorRef.current?.querySelectorAll('img')
+        if (imgs?.length) {
+          const last = imgs[imgs.length - 1] as HTMLImageElement
+          last.style.maxWidth = '100%'
+          last.style.borderRadius = '4px'
+        }
+      }, 50)
+    }
+    reader.readAsDataURL(file)
   }
+  input.click()
 }
 
 const inserirAnexo = () => {
@@ -770,20 +804,22 @@ const inserirTabela = () => {
               </div>
             </div>
           ) : (
-            <div className="flex-1 flex flex-col bg-white">
+            <div className="flex-1 flex flex-col bg-gray-100 overflow-y-auto">
               <style>{`
   [contenteditable] ul { list-style-type: disc; padding-left: 1.5rem; color: #1f2937; }
   [contenteditable] ol { list-style-type: decimal; padding-left: 1.5rem; color: #1f2937; }
   [contenteditable] li { color: #1f2937; }
 `}</style>
-              <div
-  ref={editorRef}
-  contentEditable
-  suppressContentEditableWarning
-  className="flex-1 p-6 text-sm outline-none overflow-y-auto min-h-[200px]"
-  style={{ whiteSpace: 'pre-wrap', color: '#1f2937' }}
-  onInput={(e) => { const el = e.currentTarget as HTMLDivElement; if (el) setCompose(prev => ({ ...prev, corpo: el.innerHTML })) }}
-/>
+              <div className="flex-1 flex justify-center py-6 px-4">
+  <div className="w-3/4 bg-white rounded-xl shadow-md">
+    <div
+      ref={editorRef}
+      contentEditable
+      suppressContentEditableWarning
+      className="p-6 text-sm outline-none min-h-[400px] w-full"
+      style={{ whiteSpace: 'pre-wrap', color: '#1f2937' }}
+      onInput={(e) => { const el = e.currentTarget as HTMLDivElement; if (el) setCompose(prev => ({ ...prev, corpo: el.innerHTML })) }}
+    />
               {anexos.length > 0 && (
                 <div className="px-6 py-2 border-t border-gray-200 flex flex-wrap gap-2">
                   {anexos.map((f, i) => (
@@ -798,10 +834,30 @@ const inserirTabela = () => {
               {assinatura && (
                 <div className="px-6 py-3 border-t border-gray-200 text-xs text-gray-500 whitespace-pre-wrap">--{'\n'}{assinatura}</div>
               )}
+    </div>
+  </div>
             </div>
           )}
         </div>
       )}
+
+      {mostrarPopupLink && (
+  <div className="absolute inset-0 bg-black/40 flex items-center justify-center z-50">
+    <div className="bg-white rounded-xl shadow-2xl p-6 w-96">
+      <p className="text-sm font-bold text-gray-800 mb-3">🔗 Inserir ligação</p>
+      <input autoFocus value={urlLinkTemp} onChange={e => setUrlLinkTemp(e.target.value)}
+        onKeyDown={e => { if (e.key === 'Enter') confirmarLink(); if (e.key === 'Escape') setMostrarPopupLink(false) }}
+        placeholder="https://exemplo.com"
+        className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm outline-none focus:border-blue-500 mb-4" />
+      <div className="flex gap-2 justify-end">
+        <button onClick={() => setMostrarPopupLink(false)}
+          className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg">Cancelar</button>
+        <button onClick={confirmarLink}
+          className="px-4 py-2 text-sm bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg">Inserir</button>
+      </div>
+    </div>
+  </div>
+)}
 
       {mostrarConfigAssinatura && (
   <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-[60]">
