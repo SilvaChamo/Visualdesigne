@@ -501,7 +501,23 @@ const inserirTabela = () => {
       </div>
 
       {/* LISTA DE EMAILS */}
-      <div className="flex-1 flex flex-col overflow-hidden bg-white">
+      <div className="flex-1 flex overflow-hidden bg-white">
+  {/* BARRA LATERAL — contas */}
+  <div className="w-48 shrink-0 border-r border-gray-200 bg-gray-50 flex flex-col overflow-y-auto">
+    <div className="px-3 py-2 border-b border-gray-200">
+      <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wide">Contas</p>
+    </div>
+    {emailsOrigem.map(c => (
+      <button key={c.email}
+        onClick={() => { setEmailOrigem(c.email); if (c.password) setEmailOrigemPassword(c.password) }}
+        className={`flex flex-col px-3 py-2 text-left text-xs border-b border-gray-100 hover:bg-white transition-colors ${emailOrigem === c.email ? 'bg-white border-l-2 border-l-red-500 text-red-600 font-bold' : 'text-gray-600'}`}>
+        <span className="truncate w-full">{c.nome || c.email}</span>
+        {c.nome && <span className="text-[10px] text-gray-400 truncate w-full">{c.email}</span>}
+      </button>
+    ))}
+  </div>
+  {/* PAINEL DIREITO */}
+  <div className="flex-1 flex flex-col overflow-hidden">
         <div className="flex items-center gap-2 px-4 py-2 border-b border-gray-200 bg-gray-50">
           <input placeholder="🔍 Pesquisar emails..." className="flex-1 max-w-sm px-3 py-1.5 border border-gray-300 rounded-lg text-xs outline-none" />
           {[{ i: '🔄', t: 'Actualizar' }, { i: '📁', t: 'Arquivar' }, { i: '⚠️', t: 'Spam' }, { i: '🗑️', t: 'Eliminar' }].map((b, i) => (
@@ -591,6 +607,8 @@ const inserirTabela = () => {
           </div>
         </div>
       )}
+  </div>
+</div>
 
       {/* POPUP ESCREVER — FULLSCREEN */}
       {mostrarCompose && (
