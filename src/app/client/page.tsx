@@ -636,7 +636,6 @@ const inserirTabela = () => {
       )}
     </div>
   </div>
-}
 
       {/* POPUP ESCREVER — FULLSCREEN */}
       {mostrarCompose && (
@@ -2422,6 +2421,7 @@ function ListWebsitesSection({ sites, onRefresh, packages, setActiveSection, set
       )}
     </div>
   )}
+}
 
 export default function AdminPage() {
   const [activeSection, setActiveSection] = useState('dashboard')
