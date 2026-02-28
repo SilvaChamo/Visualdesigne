@@ -1,54 +1,32 @@
 'use client'
-
 import React, { useState } from 'react'
-import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { useAuth } from '@/components/auth/AuthProvider'
-
+import { useAuth } from '../../../components/auth/AuthProvider'
 
 export default function LoginPage() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
   const [loadingGoogle, setLoadingGoogle] = useState(false)
+  const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState('')
-  
   const { signIn, getRedirectPath } = useAuth()
   const router = useRouter()
-  
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
     setError('')
-
-    console.log('Login attempt:', email)
-
     try {
-      if (password.length < 6) {
-        throw new Error('A senha deve ter pelo menos 6 caracteres.')
-      }
-
       await signIn(email, password)
-      console.log('SignIn successful for:', email)
-      
       const redirectPath = await getRedirectPath()
-      console.log('Redirect path determined:', redirectPath)
-      
-      console.log('Redirecting to:', redirectPath)
       router.push(redirectPath)
-    } catch (error: any) {
-      console.error('Login error:', error)
-      const msg = String(error?.message || '')
+    } catch (err: unknown) {
+      const msg = String((err as Error)?.message || '')
       if (msg.toLowerCase().includes('invalid login credentials')) {
-        setError(
-          `Credenciais inválidas. Confirme que:
-1) a senha tem pelo menos 6 caracteres
-2) o email foi confirmado (verifique a caixa de entrada/spam)
-3) ou use "Esqueci a senha" para redefinir.`
-        )
+        setError('Credenciais inválidas. Verifique o email e a password.')
       } else {
-        setError(error.message || 'Erro ao fazer login')
+        setError((err as Error).message || 'Erro ao fazer login')
       }
     } finally {
       setLoading(false)
@@ -56,132 +34,159 @@ export default function LoginPage() {
   }
 
   const handleGoogleLogin = () => {
-  setLoadingGoogle(true)
-  setError('')
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-  window.location.href = `${supabaseUrl}/auth/v1/authorize?provider=google&redirect_to=${encodeURIComponent(window.location.origin + '/auth/callback')}` 
-}
+    setLoadingGoogle(true)
+    setError('')
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+    window.location.href = `${supabaseUrl}/auth/v1/authorize?provider=google&redirect_to=${encodeURIComponent(window.location.origin + '/auth/callback')}`
+  }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl shadow-xl p-8 w-full max-w-md">
-        {/* Logo */}
-        <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 bg-red-600 rounded-full mb-4">
-            <span className="text-white text-2xl font-bold">VD</span>
+    <div className="min-h-screen bg-black flex flex-col items-center justify-center p-4 relative overflow-hidden">
+
+      {/* Gradiente apenas no canto superior esquerdo */}
+      <div className="absolute inset-0 pointer-events-none overflow-hidden">
+        <div
+          style={{
+            position: 'absolute',
+            top: '-15%',
+            left: '-15%',
+            width: '65%',
+            height: '65%',
+            background: 'radial-gradient(ellipse at top left, rgba(180,0,0,0.65) 0%, rgba(120,0,0,0.4) 45%, transparent 75%)',
+            filter: 'blur(45px)',
+          }}
+        />
+      </div>
+
+      {/* Logo no topo */}
+      <div className="flex flex-col items-center mb-6 z-10 transition-all duration-300">
+        <img
+          src="/assets/logotipoII.png"
+          alt="VisualDesigne"
+          className="h-32 object-contain"
+          onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }}
+        />
+      </div>
+
+      {/* Formulário com glassmorphism */}
+      <div
+        className="w-full max-w-md rounded-2xl p-10 z-10"
+        style={{
+          background: 'rgba(255,255,255,0.08)',
+          border: '1px solid rgba(255,255,255,0.12)',
+          backdropFilter: 'blur(24px)',
+          WebkitBackdropFilter: 'blur(24px)',
+        }}
+      >
+        {error && (
+          <div className="mb-5 p-3 bg-red-900/40 border border-red-700 rounded-lg text-red-300 text-sm">
+            {error}
           </div>
-          <h1 className="text-2xl font-bold text-gray-900">VisualDesign</h1>
-          <p className="text-gray-600 text-sm mt-1">Gestão de Clientes</p>
-        </div>
+        )}
 
-        {/* Botão Google */}
-        <button
-          onClick={handleGoogleLogin}
-          disabled={loadingGoogle}
-          className="w-full flex items-center justify-center gap-3 border border-gray-300 rounded-lg py-3 px-4 text-gray-700 font-medium hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed mb-6"
-        >
-          {loadingGoogle ? (
-            <svg className="animate-spin h-5 w-5 text-gray-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-            </svg>
-          ) : (
-            <svg width="20" height="20" viewBox="0 0 48 48">
-              <path fill="#FFC107" d="M43.6 20.1H42V20H24v8h11.3C33.7 32.9 29.2 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.1 7.9 3l5.7-5.7C34.5 6.5 29.5 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.7-.4-3.9z"/>
-              <path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.7 16 19.1 13 24 13c3.1 0 5.8 1.1 7.9 3l5.7-5.7C34.5 6.5 29.5 4 24 4 16.3 4 9.7 8.3 6.3 14.7z"/>
-              <path fill="#4CAF50" d="M24 44c5.2 0 9.9-2 13.4-5.2l-6.2-5.2C29.3 35.5 26.8 36.5 24 36.5c-5.2 0-9.6-3.1-11.3-7.6l-6.5 5C9.5 40.1 16.3 44 24 44z"/>
-              <path fill="#1976D2" d="M43.6 20.1H42V20H24v8h11.3c-.8 2.3-2.3 4.3-4.3 5.7l6.2 5.2C37 38.1 44 33 44 24c0-1.3-.1-2.7-.4-3.9z"/>
-            </svg>
-          )}
-          {loadingGoogle ? 'A entrar...' : 'Entrar com Google'}
-        </button>
-
-        {/* Divisor */}
-        <div className="flex items-center gap-3 mb-6">
-          <div className="flex-1 border-t border-gray-200"></div>
-          <span className="text-sm text-gray-400">ou</span>
-          <div className="flex-1 border-t border-gray-200"></div>
-        </div>
-
-        {/* Form email/senha */}
-        <form onSubmit={handleSubmit} className="space-y-6">
-          {error && (
-            <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-lg text-sm">
-              {error}
-            </div>
-          )}
-
+        <form onSubmit={handleSubmit} className="space-y-5">
+          {/* Campo Email */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Email
+            <label className="block text-xs font-semibold text-gray-400 uppercase tracking-widest mb-2">
+              E-mail
             </label>
             <input
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              placeholder="seu@email.com"
+              className="w-full px-4 py-3 rounded-lg text-white placeholder-gray-600 focus:outline-none focus:border-red-600 transition-all duration-200"
+              style={{
+                background: 'rgba(0,0,0,0.4)',
+                border: '1px solid rgba(127, 0, 0, 0.4)',
+                color: 'white',
+              }}
+              placeholder="email@visualdesigne.com"
               required
             />
           </div>
 
+          {/* Campo Password */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Password
+            <label className="block text-xs font-semibold text-gray-400 uppercase tracking-widest mb-2">
+              Palavra-passe
             </label>
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              placeholder="••••••••"
-              required
-              minLength={6}
-            />
+            <div className="relative mb-2">
+              <input
+                type={showPassword ? 'text' : 'password'}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="w-full px-4 py-3 rounded-lg text-white placeholder-gray-600 focus:outline-none focus:border-red-600 transition-all duration-200 pr-12"
+                style={{
+                  background: 'rgba(0,0,0,0.4)',
+                  border: '1px solid rgba(127, 0, 0, 0.4)',
+                  color: 'white',
+                }}
+                placeholder="••••••••"
+                required
+                minLength={6}
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-300 transition text-sm"
+              >
+                {showPassword ? '🙈' : '👁️'}
+              </button>
+            </div>
+            <div className="flex justify-start mt-2">
+              <a href="/auth/forgot-password" className="text-xs text-red-500 hover:text-red-400 uppercase tracking-widest font-semibold transition">
+                ESQUECEU A SENHA?
+              </a>
+            </div>
           </div>
 
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full bg-red-600 text-white py-3 rounded-lg font-medium hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {loading ? (
-              <span className="flex items-center justify-center">
-                <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                </svg>
-                A entrar...
-              </span>
-            ) : (
-              "Entrar"
-            )}
-          </button>
+          {/* Botões lado a lado */}
+          <div className="flex gap-3 pt-2">
+            <button
+              type="submit"
+              disabled={loading}
+              className="flex-1 py-3 bg-red-700 hover:bg-red-600 disabled:bg-red-900 disabled:cursor-not-allowed text-white font-bold rounded-lg transition-all duration-200 shadow-lg shadow-red-900/20 uppercase tracking-widest"
+            >
+              {loading ? 'A ENTRAR...' : 'ENTRAR'}
+            </button>
+            <button
+              type="button"
+              onClick={handleGoogleLogin}
+              disabled={loadingGoogle}
+              title="Entrar com Google"
+              className="flex items-center justify-center gap-2 px-5 py-3 rounded-lg font-semibold transition-all duration-200 hover:bg-white/10"
+              style={{
+                background: 'rgba(255,255,255,0.06)',
+                border: '1px solid rgba(255,255,255,0.12)',
+                color: 'white',
+              }}
+            >
+              <svg className="w-5 h-5" viewBox="0 0 24 24">
+                <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
+                <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
+                <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" />
+                <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" />
+              </svg>
+              {loadingGoogle ? '...' : ''}
+            </button>
+          </div>
         </form>
 
-        {/* Links */}
-        <div className="mt-6 text-center space-y-2">
-          <Link href="/auth/forgot-password" className="text-sm text-blue-600 hover:text-blue-700">
-            Esqueci a password
-          </Link>
-          
-          <div className="text-sm text-gray-600">
-            Não tens conta?{' '}
-            <Link href="/auth/register" className="text-blue-600 hover:text-blue-700">
-              Registar
-            </Link>
-          </div>
-        </div>
-
-        {/* Admin Access */}
-        <div className="mt-6 pt-6 border-t border-gray-200">
-          <div className="text-xs text-gray-500 text-center">
-            <p>Admin Access:</p>
-            <p>Email: geral@visualdesign.ao</p>
-            <p>Use sua senha de admin</p>
-          </div>
-        </div>
+        {/* Link registo */}
+        <p className="text-center text-white/50 text-sm mt-6">
+          Ainda não tens conta?{' '}
+          <a href="/auth/register" className="text-white hover:text-red-400 transition font-semibold uppercase tracking-wider">
+            Registe-se
+          </a>
+        </p>
       </div>
+
+      {/* Linha vermelha no rodapé */}
+      <div
+        className="fixed bottom-0 left-0 right-0 z-50"
+        style={{ height: '3px', background: 'linear-gradient(90deg, #7f0000, #cc0000, #7f0000)' }}
+      />
+
     </div>
   )
 }
