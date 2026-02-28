@@ -219,6 +219,7 @@ function EmailWebmailSection({
   const [mostrarPopupLink, setMostrarPopupLink] = useState(false)
   const [urlLinkTemp, setUrlLinkTemp] = useState('')
   const [rangeLink, setRangeLink] = useState<Range | null>(null)
+  const [mostrarPopupFechar, setMostrarPopupFechar] = useState(false)
 
   // Usar props ou valores locais
   const mostrarAdicionarConta = propMostrarAdicionarConta || false
@@ -329,6 +330,29 @@ const confirmarLink = () => {
   setMostrarPopupLink(false)
   setUrlLinkTemp('')
   setRangeLink(null)
+}
+
+const guardarRascunho = async () => {
+  try {
+    await fetch('/api/save-draft', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        email: emailOrigem,
+        password: emailOrigemPassword,
+        to: compose.para,
+        subject: compose.assunto,
+        html: editorRef.current?.innerHTML || ''
+      })
+    })
+  } catch (e) {
+    console.error('Erro ao guardar rascunho:', e)
+  }
+  setMostrarPopupFechar(false)
+  setMostrarCompose(false)
+  setCompose({ para: '', cc: '', bcc: '', assunto: '', corpo: '' })
+  setAnexos([])
+  if (editorRef.current) editorRef.current.innerHTML = ''
 }
 
 const inserirImagem = () => {
@@ -600,7 +624,7 @@ const inserirTabela = () => {
           </option>
         ))}
       </select>
-      <button onClick={() => { setMostrarCompose(false); setCompose({ para: '', cc: '', bcc: '', assunto: '', corpo: '' }); setEnviado(false); setAnexos([]) }}
+      <button onClick={() => setMostrarPopupFechar(true)}
         className="ml-2 w-8 h-full min-h-[32px] flex items-center justify-center bg-red-600 hover:bg-red-700 text-white font-bold text-sm shrink-0 transition-colors -mr-0 self-stretch">✕</button>
     </div>
     {emailOrigem && (
@@ -887,6 +911,21 @@ const inserirTabela = () => {
           className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg">Cancelar</button>
         <button onClick={confirmarLink}
           className="px-4 py-2 text-sm bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg">Inserir</button>
+      </div>
+    </div>
+  </div>
+)}
+
+      {mostrarPopupFechar && (
+  <div className="absolute inset-0 bg-black/40 flex items-center justify-center z-50">
+    <div className="bg-white rounded-xl shadow-2xl p-6 w-96">
+      <p className="text-sm font-bold text-gray-800 mb-3">📝 Guardar rascunho?</p>
+      <p className="text-sm text-gray-600 mb-4">Podes guardar este email como rascunho e continuar a editá-lo mais tarde.</p>
+      <div className="flex gap-2 justify-end">
+        <button onClick={() => setMostrarPopupFechar(false)}
+          className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg">Cancelar</button>
+        <button onClick={guardarRascunho}
+          className="px-4 py-2 text-sm bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg">Guardar rascunho</button>
       </div>
     </div>
   </div>
