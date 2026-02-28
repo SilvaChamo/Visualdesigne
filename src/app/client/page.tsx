@@ -636,6 +636,7 @@ const inserirTabela = () => {
       )}
     </div>
   </div>
+}
 
       {/* POPUP ESCREVER — FULLSCREEN */}
       {mostrarCompose && (
