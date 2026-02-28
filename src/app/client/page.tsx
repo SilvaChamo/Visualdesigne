@@ -607,11 +607,9 @@ const inserirTabela = () => {
       {/* POPUP ESCREVER — FULLSCREEN */}
       {mostrarCompose && (
         <div className="fixed inset-0 bg-white z-50 flex flex-col">
-
           {/* LINHA 1 — Layout 2 colunas */}
-<div className="bg-gray-900 border-b border-gray-700 flex">
-
-  {/* Coluna esquerda — só botão Enviar */}
+          <div className="bg-gray-900 border-b border-gray-700 flex">
+            {/* Coluna esquerda — só botão Enviar */}
   <div className="flex flex-col border-r border-gray-700 shrink-0">
     <button onClick={handleSend} disabled={enviando || !compose.para || !emailOrigem}
   className="flex-1 bg-gradient-to-b from-green-500 to-green-700 hover:from-green-400 hover:to-green-600 disabled:opacity-40 text-white font-bold px-6 text-sm flex flex-col items-center justify-center gap-1 shadow-lg transition-all min-w-[110px] border-r border-green-800">
