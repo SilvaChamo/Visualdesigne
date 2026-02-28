@@ -917,11 +917,20 @@ const inserirTabela = () => {
 )}
 
       {mostrarPopupFechar && (
-  <div className="absolute inset-0 bg-black/40 flex items-center justify-center z-50">
-    <div className="bg-white rounded-xl shadow-2xl p-6 w-96">
-      <p className="text-sm font-bold text-gray-800 mb-3">📝 Guardar rascunho?</p>
-      <p className="text-sm text-gray-600 mb-4">Podes guardar este email como rascunho e continuar a editá-lo mais tarde.</p>
-      <div className="flex gap-2 justify-end">
+  <div
+    className="absolute inset-0 bg-black/50 flex items-center justify-center z-50"
+    onClick={() => setMostrarPopupFechar(false)}>
+    <div
+      className="bg-white rounded-2xl shadow-2xl p-8 w-96 flex flex-col items-center text-center gap-4"
+      onClick={(e) => e.stopPropagation()}>
+      <p className="text-2xl">📝</p>
+      <p className="text-base font-bold text-gray-800">Guardar rascunho?</p>
+      <p className="text-sm text-gray-500">A mensagem não foi enviada. O que pretendes fazer?</p>
+      <div className="flex flex-col gap-2 w-full mt-2">
+        <button onClick={guardarRascunho}
+          className="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-2.5 rounded-lg text-sm transition-colors">
+          💾 Guardar no rascunho
+        </button>
         <button onClick={() => {
           setMostrarPopupFechar(false)
           setMostrarCompose(false)
@@ -929,9 +938,13 @@ const inserirTabela = () => {
           setAnexos([])
           if (editorRef.current) editorRef.current.innerHTML = ''
         }}
-          className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg">Descartar</button>
-        <button onClick={guardarRascunho}
-          className="px-4 py-2 text-sm bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg">Guardar rascunho</button>
+          className="w-full bg-black/70 hover:bg-red-900 text-white font-bold py-2.5 rounded-lg text-sm transition-colors">
+          🗑️ Descartar mensagem
+        </button>
+        <button onClick={() => setMostrarPopupFechar(false)}
+          className="w-full bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold py-2.5 rounded-lg text-sm transition-colors">
+          ✏️ Continuar a editar
+        </button>
       </div>
     </div>
   </div>
