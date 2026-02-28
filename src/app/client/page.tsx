@@ -922,8 +922,14 @@ const inserirTabela = () => {
       <p className="text-sm font-bold text-gray-800 mb-3">📝 Guardar rascunho?</p>
       <p className="text-sm text-gray-600 mb-4">Podes guardar este email como rascunho e continuar a editá-lo mais tarde.</p>
       <div className="flex gap-2 justify-end">
-        <button onClick={() => setMostrarPopupFechar(false)}
-          className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg">Cancelar</button>
+        <button onClick={() => {
+          setMostrarPopupFechar(false)
+          setMostrarCompose(false)
+          setCompose({ para: '', cc: '', bcc: '', assunto: '', corpo: '' })
+          setAnexos([])
+          if (editorRef.current) editorRef.current.innerHTML = ''
+        }}
+          className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg">Descartar</button>
         <button onClick={guardarRascunho}
           className="px-4 py-2 text-sm bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg">Guardar rascunho</button>
       </div>
