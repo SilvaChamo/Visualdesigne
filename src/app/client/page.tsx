@@ -204,6 +204,8 @@ function EmailWebmailSection({
   const [credenciaisNovas, setCredenciaisNovas] = useState<any>(null)
   const [mostrarCredenciais, setMostrarCredenciais] = useState(false)
   const [novaContaForm, setNovaContaForm] = useState({ nome: '', email: '', password: '', servidor: '', porta: '993', smtp: '', smtpPorta: '465' })
+  const [corTexto, setCorTexto] = useState('#000000')
+  const [corFundo, setCorFundo] = useState('#ffff00')
 
   // Usar props ou valores locais
   const mostrarAdicionarConta = propMostrarAdicionarConta || false
@@ -580,6 +582,19 @@ const inserirTabela = () => {
 }}>
                 <option>11</option><option>12</option><option>14</option><option>16</option><option>18</option>
               </select>
+              {/* Cor do texto */}
+<label title="Cor do texto" className="w-7 h-7 flex items-center justify-center rounded hover:bg-gray-600 border border-gray-600 cursor-pointer relative">
+  <span className="text-white text-xs font-bold" style={{ textDecoration: 'underline', textDecorationColor: corTexto }}>A</span>
+  <input type="color" className="absolute opacity-0 w-0 h-0" value={corTexto}
+    onChange={(e) => { setCorTexto(e.target.value); editorRef.current?.focus(); document.execCommand('foreColor', false, e.target.value) }} />
+</label>
+
+{/* Cor de fundo/realce */}
+<label title="Realçar texto" className="w-7 h-7 flex items-center justify-center rounded hover:bg-gray-600 border border-gray-600 cursor-pointer relative">
+  <span className="text-white text-xs font-bold">🖌</span>
+  <input type="color" className="absolute opacity-0 w-0 h-0" value={corFundo}
+    onChange={(e) => { setCorFundo(e.target.value); editorRef.current?.focus(); document.execCommand('hiliteColor', false, e.target.value) }} />
+</label>
               <div className="w-px h-5 bg-gray-600 mx-1" />
               {botoesFormato.map((b, i) => {
   const cmd =
@@ -675,12 +690,17 @@ const inserirTabela = () => {
             </div>
           ) : (
             <div className="flex-1 flex flex-col bg-white">
+              <style>{`
+  [contenteditable] ul { list-style-type: disc; padding-left: 1.5rem; color: #1f2937; }
+  [contenteditable] ol { list-style-type: decimal; padding-left: 1.5rem; color: #1f2937; }
+  [contenteditable] li { color: #1f2937; }
+`}</style>
               <div
   ref={editorRef}
   contentEditable
   suppressContentEditableWarning
-  className="flex-1 p-6 text-sm text-gray-800 outline-none overflow-y-auto min-h-[200px]"
-  style={{ whiteSpace: 'pre-wrap' }}
+  className="flex-1 p-6 text-sm outline-none overflow-y-auto min-h-[200px]"
+  style={{ whiteSpace: 'pre-wrap', color: '#1f2937' }}
   onInput={(e) => { const el = e.currentTarget as HTMLDivElement; if (el) setCompose(prev => ({ ...prev, corpo: el.innerHTML })) }}
 />
               {assinatura && (
