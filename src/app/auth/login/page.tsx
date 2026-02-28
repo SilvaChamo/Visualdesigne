@@ -1,6 +1,6 @@
 'use client'
-import React, { useState } from 'react'
-import { useRouter } from 'next/navigation'
+import React, { useState, useEffect } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { useAuth } from '../../../components/auth/AuthProvider'
 
 export default function LoginPage() {
@@ -10,8 +10,50 @@ export default function LoginPage() {
   const [loadingGoogle, setLoadingGoogle] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState('')
-  const { signIn, getRedirectPath } = useAuth()
+  const [oauthError, setOauthError] = useState<{ title: string, desc: string } | null>(null)
+  const { signIn, getRedirectPath, user, loading: sessionLoading } = useAuth()
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const hasChecked = React.useRef(false)
+
+  // Ler erros de OAuth do URL (vindos do callback)
+  useEffect(() => {
+    const urlError = searchParams.get('error')
+    const urlErrorDesc = searchParams.get('error_description')
+    if (urlError) {
+      let title = 'Erro de Autenticação'
+      let desc = urlErrorDesc || 'Ocorreu um erro inesperado.'
+      if (urlError === 'access_denied') {
+        title = 'Acesso Negado'
+        desc = 'Cancelaste o login com Google ou a conta não tem permissões suficientes.'
+      } else if (urlError === 'callback_error') {
+        title = 'Erro no Callback'
+        desc = desc
+      }
+      setOauthError({ title, desc })
+    }
+  }, [searchParams])
+
+  useEffect(() => {
+    // Só redireciona se a sessão foi verificada E o utilizador está autenticado
+    // Ignora o estado inicial antes da verificação terminar
+    if (!sessionLoading) {
+      if (!hasChecked.current) {
+        hasChecked.current = true
+      }
+      if (user) {
+        getRedirectPath().then((path) => router.push(path))
+      }
+    }
+  }, [user, sessionLoading])
+
+  if (sessionLoading) {
+    return (
+      <div className="min-h-screen bg-black flex items-center justify-center">
+        <div className="w-8 h-8 border-2 border-red-600 border-t-transparent rounded-full animate-spin" />
+      </div>
+    )
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -33,11 +75,27 @@ export default function LoginPage() {
     }
   }
 
-  const handleGoogleLogin = () => {
+  const handleGoogleLogin = async () => {
     setLoadingGoogle(true)
     setError('')
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-    window.location.href = `${supabaseUrl}/auth/v1/authorize?provider=google&redirect_to=${encodeURIComponent(window.location.origin + '/auth/callback')}`
+    try {
+      const { supabase } = await import('../../../lib/supabase-client')
+      const { error: oauthErr } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: `${window.location.origin}/auth/callback`,
+          queryParams: { access_type: 'offline', prompt: 'consent' },
+        },
+      })
+      if (oauthErr) throw oauthErr
+      // O browser será redirecionado automaticamente
+    } catch (err: unknown) {
+      setLoadingGoogle(false)
+      setOauthError({
+        title: 'Erro ao iniciar login com Google',
+        desc: (err as Error).message || 'Não foi possível iniciar a autenticação com Google.',
+      })
+    }
   }
 
   return (
@@ -81,6 +139,31 @@ export default function LoginPage() {
         {error && (
           <div className="mb-5 p-3 bg-red-900/40 border border-red-700 rounded-lg text-red-300 text-sm">
             {error}
+          </div>
+        )}
+
+        {/* Modal de Erro OAuth */}
+        {oauthError && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+            <div className="bg-zinc-900 border border-red-900/50 rounded-2xl p-6 max-w-sm w-full shadow-2xl animate-in zoom-in duration-200">
+              <div className="flex flex-col items-center text-center">
+                <div className="w-12 h-12 bg-red-900/20 rounded-full flex items-center justify-center mb-4">
+                  <svg className="w-6 h-6 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                  </svg>
+                </div>
+                <h3 className="text-white text-lg font-bold mb-2 uppercase tracking-tight">{oauthError.title}</h3>
+                <p className="text-gray-400 text-sm mb-6 leading-relaxed">
+                  {oauthError.desc}
+                </p>
+                <button
+                  onClick={() => setOauthError(null)}
+                  className="w-full py-2.5 bg-red-700 hover:bg-red-600 text-white font-bold rounded-lg transition-colors uppercase text-xs tracking-widest"
+                >
+                  Fechar
+                </button>
+              </div>
+            </div>
           </div>
         )}
 

@@ -1,19 +1,20 @@
 'use client'
 import React, { useState } from 'react'
+import { useAuth } from '../../../components/auth/AuthProvider'
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState('')
   const [loading, setLoading] = useState(false)
   const [enviado, setEnviado] = useState(false)
   const [error, setError] = useState('')
+  const { resetPassword } = useAuth()
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
     setError('')
     try {
-      // TODO Fase 2: ligar ao Supabase auth.resetPasswordForEmail
-      console.log('Recuperação de password para:', email)
+      await resetPassword(email)
       setEnviado(true)
     } catch (err: any) {
       setError(err.message || 'Erro ao enviar email.')

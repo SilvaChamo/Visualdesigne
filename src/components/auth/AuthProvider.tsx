@@ -32,7 +32,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const currentUser = session?.user || null
         console.log('AuthProvider initializeAuth: User:', currentUser?.email)
         setUser(currentUser)
-        
+
         if (currentUser) {
           const role = await auth.getUserRole()
           console.log('AuthProvider initializeAuth: Role:', role)
@@ -54,7 +54,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         console.log('AuthProvider onAuthStateChange:', event, session?.user?.email)
         const currentUser = session?.user || null
         setUser(currentUser)
-        
+
         if (currentUser) {
           const role = await auth.getUserRole()
           console.log('AuthProvider onAuthStateChange: Role:', role)
@@ -65,7 +65,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           setIsAdmin(false)
           setUserRole(null)
         }
-        
+
         setLoading(false)
       }
     )
@@ -79,7 +79,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       console.log('AuthProvider signIn: Attempting login for:', email)
       const data = await auth.signIn(email, password)
       console.log('AuthProvider signIn: Sign-in successful, data:', data.user?.email)
-      
+
       if (data.user) {
         const role = await auth.getUserRole()
         console.log('AuthProvider signIn: Role determined:', role)
@@ -121,9 +121,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const resetPassword = async (email: string) => {
     try {
-      await auth.resetPassword(email)
+      setLoading(true)
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: `${window.location.origin}/auth/reset-password`,
+      })
+      if (error) throw error
     } catch (error) {
+      console.error('AuthProvider resetPassword: Error:', error)
       throw error
+    } finally {
+      setLoading(false)
     }
   }
 
