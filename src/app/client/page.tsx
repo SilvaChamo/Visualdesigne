@@ -265,7 +265,7 @@ function EmailWebmailSection({
           body: JSON.stringify({ email: emailOrigem, password: emailOrigemPassword, folder: pastaParaIMAP(pastaActiva) })
         })
         const data = await res.json()
-        if (data.success) setEmailsOrigem(data.emails)
+        if (data.success) setEmails(data.emails)
         else setErroEmail(data.error)
       } catch (e: any) { setErroEmail(e.message) }
       setCarregandoEmails(false)
