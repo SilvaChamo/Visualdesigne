@@ -1302,7 +1302,8 @@ const inserirTabela = () => {
             </button>
             <button onClick={() => {
               const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-              window.open(`${supabaseUrl}/auth/v1/authorize?provider=google&redirect_to=${encodeURIComponent(window.location.origin + '/auth/callback')}`, '_blank')
+              const redirectUrl = process.env.NODE_ENV === 'development' ? 'http://localhost:3002/auth/callback' : window.location.origin + '/auth/callback'
+              window.open(`${supabaseUrl}/auth/v1/authorize?provider=google&redirect_to=${encodeURIComponent(redirectUrl)}`, '_blank')
               // Após autenticação, simula adição da conta Google
               setTimeout(() => {
                 const novasConta = { email: 'silva.chamo@gmail.com', tipo: 'google' as const, nome: 'Silva Chamo' }
