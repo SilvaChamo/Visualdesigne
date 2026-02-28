@@ -122,22 +122,28 @@ export const auth = {
       email,
       password
     })
-    
+
     if (error) throw error
     return data
   },
 
   // Registrar novo usuário
   async signUp(email: string, password: string, metadata: { nome: string; telefone?: string }) {
+    console.log('supabase-client auth.signUp: Initing signup for:', email)
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
       options: {
-        data: metadata
+        data: metadata,
+        emailRedirectTo: `${window.location.origin}/auth/callback`
       }
     })
-    
-    if (error) throw error
+
+    if (error) {
+      console.error('supabase-client auth.signUp: Error:', error)
+      throw error
+    }
+    console.log('supabase-client auth.signUp: Success:', data.user?.email)
     return data
   },
 
@@ -149,11 +155,16 @@ export const auth = {
 
   // Recuperar senha
   async resetPassword(email: string) {
+    console.log('supabase-client auth.resetPassword: Sending email to:', email)
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
       redirectTo: `${window.location.origin}/auth/reset-password`
     })
-    
-    if (error) throw error
+
+    if (error) {
+      console.error('supabase-client auth.resetPassword: Error:', error)
+      throw error
+    }
+    console.log('supabase-client auth.resetPassword: Email sent successfully')
   },
 
   // Obter usuário atual
@@ -169,17 +180,17 @@ export const auth = {
       console.log('getUserRole: No user found')
       return 'client'
     }
-    
+
     console.log('getUserRole: User found:', user.email)
     console.log('getUserRole: User metadata:', user.user_metadata)
-    
+
     // Admin por email
     const adminEmails = ['admin@visualdesigne.com', 'silva.chamo@gmail.com']
     if (adminEmails.includes(user.email || '')) {
       console.log('getUserRole: Admin by email:', user.email)
       return 'admin'
     }
-    
+
     // Verificar role nos metadados do Supabase
     if (user.user_metadata?.role === 'admin') {
       console.log('getUserRole: Admin by metadata')
@@ -189,16 +200,16 @@ export const auth = {
       console.log('getUserRole: Reseller by metadata')
       return 'reseller'
     }
-    
+
     // Verificar na tabela profiles do Supabase
     const { data, error } = await supabase
       .from('profiles')
       .select('role')
       .eq('id', user.id)
       .single()
-    
+
     console.log('getUserRole: Profile data:', data, 'Error:', error)
-    
+
     if (data?.role === 'admin') {
       console.log('getUserRole: Admin by profile')
       return 'admin'
@@ -207,7 +218,7 @@ export const auth = {
       console.log('getUserRole: Reseller by profile')
       return 'reseller'
     }
-    
+
     console.log('getUserRole: Default client role')
     return 'client'
   },
@@ -222,15 +233,15 @@ export const auth = {
   async getRedirectPath(): Promise<string> {
     const role = await this.getUserRole()
     console.log('getRedirectPath: Role detected:', role)
-    
+
     switch (role) {
-      case 'admin': 
+      case 'admin':
         console.log('getRedirectPath: Redirecting to /admin')
         return '/admin'
-      case 'reseller': 
+      case 'reseller':
         console.log('getRedirectPath: Redirecting to /dashboard')
         return '/dashboard'
-      default: 
+      default:
         console.log('getRedirectPath: Redirecting to /client')
         return '/client'
     }
@@ -246,7 +257,7 @@ export const auth = {
 // Listener para mudanças de autenticação
 supabase.auth.onAuthStateChange((event, session) => {
   console.log('Auth state changed:', event, session?.user?.email)
-  
+
   if (event === 'SIGNED_IN') {
     // Usuário logou
     console.log('User signed in:', session?.user?.email)

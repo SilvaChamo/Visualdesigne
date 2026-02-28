@@ -1,6 +1,7 @@
 'use client'
 import React, { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { useAuth } from '../../../components/auth/AuthProvider'
 
 export default function RegisterPage() {
   const [nome, setNome] = useState('')
@@ -11,6 +12,7 @@ export default function RegisterPage() {
   const [loadingGoogle, setLoadingGoogle] = useState(false)
   const [error, setError] = useState('')
   const [sucesso, setSucesso] = useState(false)
+  const { signUp } = useAuth()
   const router = useRouter()
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -26,16 +28,7 @@ export default function RegisterPage() {
     }
     setLoading(true)
     try {
-      const { supabase } = await import('../../lib/supabase-client')
-      const { error } = await supabase.auth.signUp({
-        email,
-        password,
-        options: {
-          data: { nome },
-          emailRedirectTo: `${window.location.origin}/auth/callback`
-        }
-      })
-      if (error) throw error
+      await signUp(email, password, nome)
       setSucesso(true)
     } catch (err: unknown) {
       setError((err as Error).message || 'Erro ao criar conta.')
