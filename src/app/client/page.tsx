@@ -344,6 +344,28 @@ const inserirTabela = () => {
     { l: 'ab', t: 'Riscado' }, { l: 'x₂', t: 'Subscrito' }, { l: 'x²', t: 'Superscrito' },
   ]
 
+  const inserirCor = () => {
+    const cor = prompt('Cor (ex: red, #FF0000):')
+    if (cor) execCmd('foreColor', cor)
+  }
+
+  const inserirFundo = () => {
+    const cor = prompt('Cor de fundo (ex: yellow, #FFFF00):')
+    if (cor) execCmd('hiliteColor', cor)
+  }
+
+  const limparFormatacao = () => {
+    execCmd('removeFormat')
+  }
+
+  const desfazer = () => {
+    execCmd('undo')
+  }
+
+  const refazer = () => {
+    execCmd('redo')
+  }
+
   return (
     <div className="flex flex-col h-[calc(100vh-120px)] -mx-6 -mt-6">
 
@@ -558,12 +580,29 @@ const inserirTabela = () => {
           <div className="bg-gray-800 px-3 py-1 flex items-center justify-between gap-1 flex-wrap border-b border-gray-700">
             {/* Lado esquerdo — formatação */}
             <div className="flex items-center gap-1 flex-wrap">
-              <select className="bg-gray-700 border border-gray-600 text-white text-xs px-2 py-1.5 rounded">
+              <select className="bg-gray-700 border border-gray-600 text-white text-xs px-2 py-1.5 rounded" onChange={(e) => execCmd('fontName', e.target.value)}>
                 <option>Calibri</option><option>Arial</option><option>Times New Roman</option>
               </select>
-              <select className="bg-gray-700 border border-gray-600 text-white text-xs px-2 py-1.5 rounded w-14">
+              <select className="bg-gray-700 border border-gray-600 text-white text-xs px-2 py-1.5 rounded w-14" onChange={(e) => execCmd('fontSize', e.target.value)}>
                 <option>11</option><option>12</option><option>14</option><option>16</option><option>18</option>
               </select>
+              <div className="w-px h-5 bg-gray-600 mx-1" />
+              <button title="Cor do texto" className="w-7 h-7 flex items-center justify-center rounded hover:bg-gray-600 text-white transition-colors" onClick={inserirCor}>
+                <div className="w-3.5 h-3.5 rounded" style={{background: 'linear-gradient(45deg, red, orange, yellow, green, blue, purple)'}}></div>
+              </button>
+              <button title="Cor de fundo" className="w-7 h-7 flex items-center justify-center rounded hover:bg-gray-600 text-white transition-colors" onClick={inserirFundo}>
+                <div className="w-3.5 h-3.5 border border-gray-400 rounded" style={{background: 'linear-gradient(45deg, yellow, lime)'}}></div>
+              </button>
+              <div className="w-px h-5 bg-gray-600 mx-1" />
+              <button title="Desfazer" className="w-7 h-7 flex items-center justify-center rounded hover:bg-gray-600 text-white transition-colors" onClick={desfazer}>
+                <svg viewBox="0 0 16 16" className="w-3.5 h-3.5" fill="currentColor"><path d="M8 3a5 5 0 1 0 0 10v1h1V8a4 4 0 1 1-8 0v6a4 4 0 0 0 8 0h5v-1H8a3 3 0 0 1-3-3V8a3 3 0 0 1 3 3z"/></svg>
+              </button>
+              <button title="Refazer" className="w-7 h-7 flex items-center justify-center rounded hover:bg-gray-600 text-white transition-colors" onClick={refazer}>
+                <svg viewBox="0 0 16 16" className="w-3.5 h-3.5" fill="currentColor"><path d="M8 13a5 5 0 1 1 0-10v-1h1v1a4 4 0 1 0 8 0V7a4 4 0 0 0-8 0H3v1h5a3 3 0 0 1 3 3v6a3 3 0 0 1-3 3z"/></svg>
+              </button>
+              <button title="Limpar formatação" className="w-7 h-7 flex items-center justify-center rounded hover:bg-gray-600 text-white transition-colors" onClick={limparFormatacao}>
+                <svg viewBox="0 0 16 16" className="w-3.5 h-3.5" fill="currentColor"><path d="M2 2h12v2H2V2zm0 3h12v1H2V5zm0 2h12v1H2V7zm0 2h12v1H2V9zm0 2h12v1H2v11zm0 2h12v1H2v13z"/></svg>
+              </button>
               <div className="w-px h-5 bg-gray-600 mx-1" />
               {botoesFormato.map((b, i) => (
                 <button key={i} title={b.t}
