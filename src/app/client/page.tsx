@@ -501,59 +501,16 @@ const inserirTabela = () => {
       </div>
 
       {/* LISTA DE EMAILS */}
-      <div className="flex-1 flex overflow-hidden bg-white">
-
-  {/* BARRA LATERAL — contas */}
-  <div className="w-52 shrink-0 border-r border-gray-200 bg-gray-50 flex flex-col overflow-y-auto">
-    <div className="px-3 py-2 border-b border-gray-200">
-      <p className="text-xs font-bold text-gray-500 uppercase tracking-wide">Contas</p>
-    </div>
-    <button
-      onClick={() => setEmailOrigem('')}
-      className={`flex items-center gap-2 px-3 py-2 text-xs transition-colors hover:bg-gray-100 ${emailOrigem === '' ? 'bg-red-50 text-red-600 font-bold' : 'text-gray-700'}`}>
-      📬 Todas as contas
-    </button>
-    {emailsOrigem.map(c => (
-      <button key={c.email}
-        onClick={() => {
-          setEmailOrigem(c.email)
-          if (c.password) setEmailOrigemPassword(c.password)
-        }}
-        className={`flex flex-col px-3 py-2 text-left text-xs transition-colors hover:bg-gray-100 border-b border-gray-100 ${emailOrigem === c.email ? 'bg-red-50 text-red-600 font-bold' : 'text-gray-700'}`}>
-        <span className="font-medium truncate w-full">{c.nome || c.email}</span>
-        {c.nome && <span className="text-gray-400 truncate w-full">{c.email}</span>}
-      </button>
-    ))}
-  </div>
-
-  {/* PAINEL DIREITO */}
-  <div className="flex-1 flex flex-col overflow-hidden">
-    <div className="flex items-center gap-2 px-4 py-2 border-b border-gray-200 bg-gray-50">
-      {[
-        { i: '🔄', t: 'Actualizar', fn: () => {} },
-        { i: '↩️', t: 'Responder', fn: () => {} },
-        { i: '↪️', t: 'Reencaminhar', fn: () => {
-          if (!modalEmail) return
-          setCompose({
-            para: '',
-            cc: '',
-            bcc: '',
-            assunto: 'Fwd: ' + (modalEmail.assunto || ''),
-            corpo: modalEmail.corpo || ''
-          })
-          setMostrarCompose(true)
-        }},
-        { i: '📁', t: 'Arquivar', fn: () => {} },
-        { i: '⚠️', t: 'Spam', fn: () => {} },
-        { i: '🗑️', t: 'Eliminar', fn: () => {} }
-      ].map((b, i) => (
-        <button key={i} onClick={b.fn} className="flex items-center gap-1 text-xs text-gray-600 hover:text-gray-900 px-3 py-1.5 rounded border border-gray-300 hover:bg-gray-100 transition-colors whitespace-nowrap shrink-0">
-          {b.i} {b.t}
-        </button>
-      ))}
-      <input placeholder="🔍 Pesquisar emails..." className="flex-1 px-3 py-1.5 border border-gray-300 rounded text-xs outline-none" />
-    </div>
-    <div className="flex-1 overflow-y-auto">
+      <div className="flex-1 flex flex-col overflow-hidden bg-white">
+        <div className="flex items-center gap-2 px-4 py-2 border-b border-gray-200 bg-gray-50">
+          <input placeholder="🔍 Pesquisar emails..." className="flex-1 max-w-sm px-3 py-1.5 border border-gray-300 rounded-lg text-xs outline-none" />
+          {[{ i: '🔄', t: 'Actualizar' }, { i: '📁', t: 'Arquivar' }, { i: '⚠️', t: 'Spam' }, { i: '🗑️', t: 'Eliminar' }].map((b, i) => (
+            <button key={i} className="flex items-center gap-1 text-xs text-gray-600 hover:text-gray-900 px-3 py-1.5 rounded border border-gray-300 hover:bg-gray-100 transition-colors">
+              {b.i} {b.t}
+            </button>
+          ))}
+        </div>
+        <div className="flex-1 overflow-y-auto">
           {emails.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full text-gray-400 space-y-3">
               <span className="text-5xl">📭</span>
@@ -634,8 +591,6 @@ const inserirTabela = () => {
           </div>
         </div>
       )}
-    </div>
-  </div>
 
       {/* POPUP ESCREVER — FULLSCREEN */}
       {mostrarCompose && (
@@ -657,35 +612,87 @@ const inserirTabela = () => {
 
   {/* Coluna direita — Campos */}
   <div className="flex-1 flex flex-col">
-    {/* Header */}
-    <div className="bg-gray-800 px-4 py-2 flex items-center justify-between border-b border-gray-700">
-      <div className="flex items-center gap-3">
-        <button onClick={() => setMostrarPopupFechar(true)}
-          className="ml-2 w-8 h-full min-h-[32px] flex items-center justify-center bg-red-600 hover:bg-red-700 text-white font-bold text-sm shrink-0 transition-colors -mr-0 self-stretch">✕</button>
-        <div className="flex items-center gap-2">
-          <div className="w-3 h-3 rounded-full bg-red-500" />
-          <div className="w-3 h-3 rounded-full bg-yellow-500" />
-          <div className="w-3 h-3 rounded-full bg-green-500" />
-        </div>
-        <span className="text-white text-xs font-medium">Nova Mensagem</span>
-      </div>
-      <div className="flex items-center gap-2">
-        <button className="text-gray-400 hover:text-white text-xs px-2 py-1 rounded transition-colors">Anexar</button>
-        <button className="text-gray-400 hover:text-white text-xs px-2 py-1 rounded transition-colors">Opções</button>
-      </div>
+    {/* Linha De + botão fechar */}
+    <div className="flex items-center border-b border-gray-700 px-3 py-1">
+      <span className="text-gray-400 text-xs w-16 shrink-0">De:</span>
+      <select value={emailOrigem} onChange={e => setEmailOrigem(e.target.value)}
+        className="bg-transparent text-white text-sm outline-none flex-1">
+        <option value="" className="bg-gray-900">Escolher email de origem...</option>
+        {emailsOrigem.map(e => (
+          <option key={e.email} value={e.email} className="bg-gray-900">
+            {e.nome} ({e.email}) {e.tipo === 'google' ? '📧' : e.tipo === 'hotmail' ? '📨' : '🌐'}
+          </option>
+        ))}
+      </select>
+      <button onClick={() => setMostrarPopupFechar(true)}
+        className="ml-2 w-8 h-full min-h-[32px] flex items-center justify-center bg-red-600 hover:bg-red-700 text-white font-bold text-sm shrink-0 transition-colors -mr-0 self-stretch">✕</button>
     </div>
-
-    {/* Campos do email */}
-    <div className="bg-white border-b border-gray-200">
-      <div className="px-4 py-2 border-b border-gray-100 flex items-center gap-3">
-        <span className="text-gray-600 text-xs font-medium w-16">Para:</span>
+    {emailOrigem && (
+      <div className="flex items-center border-b border-gray-700 px-3 py-1.5">
+        <span className="text-gray-400 text-xs w-16 shrink-0">Password:</span>
         <input
-          type="email"
-          value={compose.para}
-          onChange={e => setCompose({...compose, para: e.target.value})}
-          className="flex-1 text-sm outline-none"
-          placeholder="destinatário@exemplo.com"
+          type="password"
+          value={emailOrigemPassword}
+          onChange={e => setEmailOrigemPassword(e.target.value)}
+          placeholder="Password da conta de email"
+          className="flex-1 bg-transparent text-white text-sm outline-none"
         />
+      </div>
+    )}
+    {/* Linha Para */}
+    <div className="flex items-center border-b border-gray-700 px-3 py-1.5">
+      <span className="text-gray-400 text-xs w-16 shrink-0">Para:</span>
+      <input list="contactos-list" value={compose.para} onChange={e => setCompose({...compose, para: e.target.value})}
+        className="flex-1 bg-transparent text-white text-sm outline-none" />
+      <datalist id="contactos-list">
+        {contactos.map(c => <option key={c.email} value={c.email}>{c.nome}</option>)}
+      </datalist>
+      <button title="Seleccionar contacto" className="text-gray-500 hover:text-gray-300 ml-2 text-xs border border-gray-600 rounded px-1.5 py-0.5">📖</button>
+      {/* Botões para mostrar Cc e Bcc */}
+      <button onClick={() => setMostrarCc(!mostrarCc)}
+        className={`ml-1 text-xs px-2 py-0.5 rounded border transition-colors ${mostrarCc ? 'border-blue-500 text-blue-400' : 'border-gray-600 text-gray-500 hover:text-gray-300'}`}>Cc</button>
+      <button onClick={() => setMostrarBcc(!mostrarBcc)}
+        className={`ml-1 text-xs px-2 py-0.5 rounded border transition-colors ${mostrarBcc ? 'border-blue-500 text-blue-400' : 'border-gray-600 text-gray-500 hover:text-gray-300'}`}>Bcc</button>
+    </div>
+    {/* Linha Cc — só aparece se activado */}
+    {mostrarCc && (
+      <div className="flex items-center border-b border-gray-700 px-3 py-1.5">
+        <span className="text-gray-400 text-xs w-16 shrink-0">Cc:</span>
+        <input value={compose.cc} onChange={e => setCompose({...compose, cc: e.target.value})}
+          className="flex-1 bg-transparent text-white text-sm outline-none" />
+        <button className="text-gray-500 hover:text-gray-300 ml-2 text-xs border border-gray-600 rounded px-1.5 py-0.5">📖</button>
+      </div>
+    )}
+    {/* Linha Bcc — só aparece se activado */}
+    {mostrarBcc && (
+      <div className="flex items-center border-b border-gray-700 px-3 py-1.5">
+        <span className="text-gray-400 text-xs w-16 shrink-0">Bcc:</span>
+        <input value={compose.bcc} onChange={e => setCompose({...compose, bcc: e.target.value})}
+          className="flex-1 bg-transparent text-white text-sm outline-none" />
+        <button className="text-gray-500 hover:text-gray-300 ml-2 text-xs border border-gray-600 rounded px-1.5 py-0.5">📖</button>
+      </div>
+    )}
+    {/* Linha Assunto */}
+    <div className="flex items-center px-3 py-1.5">
+      <span className="text-gray-400 text-xs w-16 shrink-0">Assunto:</span>
+      <input value={compose.assunto} onChange={e => setCompose({...compose, assunto: e.target.value})}
+        className="flex-1 bg-transparent text-white text-sm outline-none" />
+    </div>
+  </div>
+</div>
+
+          {/* LINHA 2 — Formatação */}
+          <div className="bg-gray-800 px-3 py-1 flex items-center justify-between gap-1 flex-wrap border-b border-gray-700">
+            {/* Lado esquerdo — formatação */}
+            <div className="flex items-center gap-1 flex-wrap">
+<button title="Desfazer (Ctrl+Z)"
+  onMouseDown={(e) => { e.preventDefault(); execCmd('undo') }}
+  className="w-7 h-7 flex items-center justify-center rounded hover:bg-gray-600 border border-gray-600 text-white transition-colors">
+  <svg viewBox="0 0 16 16" className="w-3.5 h-3.5" fill="currentColor"><path d="M4.5 4.5l-3 3 3 3V8a5.5 5.5 0 1 1 5.5 5.5H6v1.5h4A7 7 0 1 0 4 5.6V4.5z"/></svg>
+</button>
+<button title="Refazer (Ctrl+Y)"
+  onMouseDown={(e) => { e.preventDefault(); execCmd('redo') }}
+  className="w-7 h-7 flex items-center justify-center rounded hover:bg-gray-600 border border-gray-600 text-white transition-colors">
   <svg viewBox="0 0 16 16" className="w-3.5 h-3.5" fill="currentColor"><path d="M11.5 4.5l3 3-3 3V8a5.5 5.5 0 1 0-5.5 5.5H10v1.5H6A7 7 0 1 1 12 5.6V4.5z"/></svg>
 </button>
 <div className="w-px h-5 bg-gray-600 mx-1" />
@@ -2369,7 +2376,6 @@ function ListWebsitesSection({ sites, onRefresh, packages, setActiveSection, set
       )}
     </div>
   )}
-}
 
 export default function AdminPage() {
   const [activeSection, setActiveSection] = useState('dashboard')
