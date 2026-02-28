@@ -921,31 +921,29 @@ const inserirTabela = () => {
     className="absolute inset-0 bg-black/50 flex items-center justify-center z-50"
     onClick={() => setMostrarPopupFechar(false)}>
     <div
-      className="bg-white rounded-2xl shadow-2xl p-8 w-96 flex flex-col items-center text-center gap-4"
+      className="bg-white rounded-2xl shadow-2xl p-8 w-96 flex flex-col items-center text-center gap-4 relative"
       onClick={(e) => e.stopPropagation()}>
+<button onClick={() => setMostrarPopupFechar(false)}
+  className="absolute top-3 right-3 w-7 h-7 flex items-center justify-center rounded-full hover:bg-gray-100 text-gray-400 hover:text-gray-700 font-bold transition-colors">✕</button>
       <p className="text-2xl">📝</p>
       <p className="text-base font-bold text-gray-800">Guardar rascunho?</p>
       <p className="text-sm text-gray-500">A mensagem não foi enviada. O que pretendes fazer?</p>
-      <div className="flex flex-col gap-2 w-full mt-2">
-        <button onClick={guardarRascunho}
-          className="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-2.5 rounded-lg text-sm transition-colors">
-          💾 Guardar no rascunho
-        </button>
-        <button onClick={() => {
-          setMostrarPopupFechar(false)
-          setMostrarCompose(false)
-          setCompose({ para: '', cc: '', bcc: '', assunto: '', corpo: '' })
-          setAnexos([])
-          if (editorRef.current) editorRef.current.innerHTML = ''
-        }}
-          className="w-full bg-black/70 hover:bg-red-900 text-white font-bold py-2.5 rounded-lg text-sm transition-colors">
-          🗑️ Descartar mensagem
-        </button>
-        <button onClick={() => setMostrarPopupFechar(false)}
-          className="w-full bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold py-2.5 rounded-lg text-sm transition-colors">
-          ✏️ Continuar a editar
-        </button>
-      </div>
+      <div className="flex gap-3 w-full mt-2">
+  <button onClick={() => {
+    setMostrarPopupFechar(false)
+    setMostrarCompose(false)
+    setCompose({ para: '', cc: '', bcc: '', assunto: '', corpo: '' })
+    setAnexos([])
+    if (editorRef.current) editorRef.current.innerHTML = ''
+  }}
+    className="flex-1 bg-black/70 hover:bg-red-900 text-white font-bold py-2.5 rounded-lg text-sm transition-colors">
+    🗑️ Descartar
+  </button>
+  <button onClick={guardarRascunho}
+    className="flex-1 bg-red-600 hover:bg-red-700 text-white font-bold py-2.5 rounded-lg text-sm transition-colors">
+    💾 Guardar
+  </button>
+</div>
     </div>
   </div>
 )}
