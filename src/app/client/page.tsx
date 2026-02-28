@@ -929,7 +929,7 @@ const inserirTabela = () => {
           setAnexos([])
           if (editorRef.current) editorRef.current.innerHTML = ''
         }}
-          className="px-4 py-2 text-sm text-black hover:bg-red-100 rounded-lg">Descartar</button>
+          className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg">Descartar</button>
         <button onClick={guardarRascunho}
           className="px-4 py-2 text-sm bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg">Guardar rascunho</button>
       </div>
