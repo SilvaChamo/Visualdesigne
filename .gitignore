@@ -42,3 +42,5 @@ next-env.d.ts
 server.log
 client_secret*.json
 Visual author/
+client_secret*.json
+Visual author/
