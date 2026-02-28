@@ -510,7 +510,7 @@ const inserirTabela = () => {
       setEmailOrigem(e.target.value)
       if (conta?.password) setEmailOrigemPassword(conta.password)
     }}
-    className="w-64 min-w-[160px] max-w-[320px] px-3 py-1.5 border border-gray-300 rounded-lg text-xs outline-none bg-white text-gray-700 truncate">
+    className="w-80 min-w-[200px] max-w-[400px] px-3 py-1.5 border border-gray-300 rounded-lg text-xs outline-none bg-white text-gray-700 truncate">
     <option value="">📬 Seleccionar conta...</option>
     {emailsOrigem.map(c => (
       <option key={c.email} value={c.email}>
@@ -519,11 +519,19 @@ const inserirTabela = () => {
     ))}
   </select>
   {[{ i: '🔄', t: 'Actualizar' }, { i: '📁', t: 'Arquivar' }, { i: '⚠️', t: 'Spam' }, { i: '🗑️', t: 'Eliminar' }].map((b, i) => (
-    <button key={i} className="flex items-center gap-1 text-xs text-gray-600 hover:text-gray-900 px-3 py-1.5 rounded border border-gray-300 hover:bg-gray-100 transition-colors whitespace-nowrap shrink-0">
+    <button key={i} className="flex items-center gap-1 text-xs text-gray-600 hover:text-gray-900 px-3 py-1.5 rounded-lg border border-gray-300 hover:bg-gray-100 transition-colors whitespace-nowrap shrink-0">
       {b.i} {b.t}
     </button>
   ))}
-  <input placeholder="🔍 Pesquisar emails..." className="flex-1 px-3 py-1.5 border border-gray-300 rounded-lg text-xs outline-none" />
+  <input 
+    type="text"
+    placeholder="🔍 Pesquisar emails..." 
+    className="flex-1 px-3 py-1.5 border border-gray-300 rounded-lg text-xs outline-none"
+    onChange={(e) => {
+      // Implementar busca de emails aqui
+      console.log('Buscando:', e.target.value)
+    }}
+  />
 </div>
         <div className="flex-1 overflow-y-auto">
           {emails.length === 0 ? (
