@@ -10,6 +10,8 @@ export default function RegisterPage() {
   const [confirmar, setConfirmar] = useState('')
   const [loading, setLoading] = useState(false)
   const [loadingGoogle, setLoadingGoogle] = useState(false)
+  const [showPassword, setShowPassword] = useState(false)
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [error, setError] = useState('')
   const [sucesso, setSucesso] = useState(false)
   const { signUp } = useAuth()
@@ -143,37 +145,55 @@ export default function RegisterPage() {
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-semibold text-gray-400 uppercase tracking-widest mb-1.5">Password</label>
-                  <input
-                    type="password"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    className="w-full px-4 py-2.5 rounded-lg text-white placeholder-gray-600 focus:outline-none focus:border-red-600 transition-all duration-200"
-                    style={{
-                      background: 'rgba(0,0,0,0.4)',
-                      border: '1px solid rgba(127, 0, 0, 0.4)',
-                      color: 'white',
-                    }}
-                    placeholder="Mínimo 6"
-                    required
-                    minLength={6}
-                  />
+                  <div className="relative">
+                    <input
+                      type={showPassword ? 'text' : 'password'}
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      className="w-full px-4 py-2.5 rounded-lg text-white placeholder-gray-600 focus:outline-none focus:border-red-600 transition-all duration-200 pr-10"
+                      style={{
+                        background: 'rgba(0,0,0,0.4)',
+                        border: '1px solid rgba(127, 0, 0, 0.4)',
+                        color: 'white',
+                      }}
+                      placeholder="Mínimo 6"
+                      required
+                      minLength={6}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-300 transition text-sm"
+                    >
+                      {showPassword ? '🙈' : '👁️'}
+                    </button>
+                  </div>
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-gray-400 uppercase tracking-widest mb-1.5">Confirmar</label>
-                  <input
-                    type="password"
-                    value={confirmar}
-                    onChange={(e) => setConfirmar(e.target.value)}
-                    className="w-full px-4 py-2.5 rounded-lg text-white placeholder-gray-600 focus:outline-none focus:border-red-600 transition-all duration-200"
-                    style={{
-                      background: 'rgba(0,0,0,0.4)',
-                      border: '1px solid rgba(127, 0, 0, 0.4)',
-                      color: 'white',
-                    }}
-                    placeholder="Repete"
-                    required
-                    minLength={6}
-                  />
+                  <div className="relative">
+                    <input
+                      type={showConfirmPassword ? 'text' : 'password'}
+                      value={confirmar}
+                      onChange={(e) => setConfirmar(e.target.value)}
+                      className="w-full px-4 py-2.5 rounded-lg text-white placeholder-gray-600 focus:outline-none focus:border-red-600 transition-all duration-200 pr-10"
+                      style={{
+                        background: 'rgba(0,0,0,0.4)',
+                        border: '1px solid rgba(127, 0, 0, 0.4)',
+                        color: 'white',
+                      }}
+                      placeholder="Repete"
+                      required
+                      minLength={6}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-300 transition text-sm"
+                    >
+                      {showConfirmPassword ? '🙈' : '👁️'}
+                    </button>
+                  </div>
                 </div>
               </div>
 
@@ -199,6 +219,6 @@ export default function RegisterPage() {
         className="fixed bottom-0 left-0 right-0 z-50"
         style={{ height: '3px', background: 'linear-gradient(90deg, #7f0000, #cc0000, #7f0000)' }}
       />
-    </div>
+    </div >
   )
 }

@@ -59,9 +59,11 @@ export default function LoginPage() {
     e.preventDefault()
     setLoading(true)
     setError('')
+    console.log('Tentando login com:', { email, passwordLength: password.length })
     try {
       await signIn(email, password)
       const redirectPath = await getRedirectPath()
+      console.log('Login bem-sucedido, redirecionando para:', redirectPath)
       router.push(redirectPath)
     } catch (err: unknown) {
       const msg = String((err as Error)?.message || '')
