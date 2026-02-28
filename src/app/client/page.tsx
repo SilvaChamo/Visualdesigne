@@ -285,8 +285,14 @@ function EmailWebmailSection({
 }
 
 const inserirLink = () => {
+  const sel = window.getSelection()
+  const range = sel && sel.rangeCount > 0 ? sel.getRangeAt(0) : null
   const url = prompt('URL da ligação:')
-  if (url) execCmd('createLink', url)
+  if (url && range) {
+    sel!.removeAllRanges()
+    sel!.addRange(range)
+    execCmd('createLink', url)
+  }
 }
 
 const inserirImagem = () => {
@@ -295,12 +301,19 @@ const inserirImagem = () => {
 }
 
 const inserirTabela = () => {
-  const html = `<table border="1" style="border-collapse:collapse;width:100%">
-    <tr><td style="padding:8px">&nbsp;</td><td style="padding:8px">&nbsp;</td><td style="padding:8px">&nbsp;</td></tr>
-    <tr><td style="padding:8px">&nbsp;</td><td style="padding:8px">&nbsp;</td><td style="padding:8px">&nbsp;</td></tr>
-    <tr><td style="padding:8px">&nbsp;</td><td style="padding:8px">&nbsp;</td><td style="padding:8px">&nbsp;</td></tr>
-  </table><br/>`
-  execCmd('insertHTML', html)
+  const table = document.createElement('table')
+  table.style.cssText = 'border-collapse:collapse;width:100%;margin:8px 0'
+  for (let r = 0; r < 3; r++) {
+    const tr = table.insertRow()
+    for (let c = 0; c < 3; c++) {
+      const td = tr.insertCell()
+      td.style.cssText = 'border:1px solid #9ca3af;padding:8px;min-width:60px'
+      td.innerHTML = '&nbsp;'
+    }
+  }
+  const br = document.createElement('br')
+  editorRef.current?.appendChild(table)
+  editorRef.current?.appendChild(br)
 }
 
   const handleCloseModal = () => { setModalEmail(null); setModoResposta('none'); setCompose({ para: '', cc: '', bcc: '', assunto: '', corpo: '' }); setEnviado(false) }
@@ -343,28 +356,6 @@ const inserirTabela = () => {
     { l: 'N', t: 'Negrito' }, { l: 'I', t: 'Itálico' }, { l: 'S', t: 'Sublinhado' },
     { l: 'ab', t: 'Riscado' }, { l: 'x₂', t: 'Subscrito' }, { l: 'x²', t: 'Superscrito' },
   ]
-
-  const inserirCor = () => {
-    const cor = prompt('Cor (ex: red, #FF0000):')
-    if (cor) execCmd('foreColor', cor)
-  }
-
-  const inserirFundo = () => {
-    const cor = prompt('Cor de fundo (ex: yellow, #FFFF00):')
-    if (cor) execCmd('hiliteColor', cor)
-  }
-
-  const limparFormatacao = () => {
-    execCmd('removeFormat')
-  }
-
-  const desfazer = () => {
-    execCmd('undo')
-  }
-
-  const refazer = () => {
-    execCmd('redo')
-  }
 
   return (
     <div className="flex flex-col h-[calc(100vh-120px)] -mx-6 -mt-6">
@@ -583,26 +574,12 @@ const inserirTabela = () => {
               <select className="bg-gray-700 border border-gray-600 text-white text-xs px-2 py-1.5 rounded" onChange={(e) => execCmd('fontName', e.target.value)}>
                 <option>Calibri</option><option>Arial</option><option>Times New Roman</option>
               </select>
-              <select className="bg-gray-700 border border-gray-600 text-white text-xs px-2 py-1.5 rounded w-14" onChange={(e) => execCmd('fontSize', e.target.value)}>
+              <select className="bg-gray-700 border border-gray-600 text-white text-xs px-2 py-1.5 rounded w-14" onChange={(e) => {
+  const mapeamento: Record<string, string> = { '11': '1', '12': '2', '14': '3', '16': '4', '18': '5' }
+  execCmd('fontSize', mapeamento[e.target.value] || '3')
+}}>
                 <option>11</option><option>12</option><option>14</option><option>16</option><option>18</option>
               </select>
-              <div className="w-px h-5 bg-gray-600 mx-1" />
-              <button title="Cor do texto" className="w-7 h-7 flex items-center justify-center rounded hover:bg-gray-600 text-white transition-colors" onClick={inserirCor}>
-                <div className="w-3.5 h-3.5 rounded" style={{background: 'linear-gradient(45deg, red, orange, yellow, green, blue, purple)'}}></div>
-              </button>
-              <button title="Cor de fundo" className="w-7 h-7 flex items-center justify-center rounded hover:bg-gray-600 text-white transition-colors" onClick={inserirFundo}>
-                <div className="w-3.5 h-3.5 border border-gray-400 rounded" style={{background: 'linear-gradient(45deg, yellow, lime)'}}></div>
-              </button>
-              <div className="w-px h-5 bg-gray-600 mx-1" />
-              <button title="Desfazer" className="w-7 h-7 flex items-center justify-center rounded hover:bg-gray-600 text-white transition-colors" onClick={desfazer}>
-                <svg viewBox="0 0 16 16" className="w-3.5 h-3.5" fill="currentColor"><path d="M8 3a5 5 0 1 0 0 10v1h1V8a4 4 0 1 1-8 0v6a4 4 0 0 0 8 0h5v-1H8a3 3 0 0 1-3-3V8a3 3 0 0 1 3 3z"/></svg>
-              </button>
-              <button title="Refazer" className="w-7 h-7 flex items-center justify-center rounded hover:bg-gray-600 text-white transition-colors" onClick={refazer}>
-                <svg viewBox="0 0 16 16" className="w-3.5 h-3.5" fill="currentColor"><path d="M8 13a5 5 0 1 1 0-10v-1h1v1a4 4 0 1 0 8 0V7a4 4 0 0 0-8 0H3v1h5a3 3 0 0 1 3 3v6a3 3 0 0 1-3 3z"/></svg>
-              </button>
-              <button title="Limpar formatação" className="w-7 h-7 flex items-center justify-center rounded hover:bg-gray-600 text-white transition-colors" onClick={limparFormatacao}>
-                <svg viewBox="0 0 16 16" className="w-3.5 h-3.5" fill="currentColor"><path d="M2 2h12v2H2V2zm0 3h12v1H2V5zm0 2h12v1H2V7zm0 2h12v1H2V9zm0 2h12v1H2v11zm0 2h12v1H2v13z"/></svg>
-              </button>
               <div className="w-px h-5 bg-gray-600 mx-1" />
               {botoesFormato.map((b, i) => (
                 <button key={i} title={b.t}
@@ -612,8 +589,30 @@ const inserirTabela = () => {
                     else if (b.t === 'Itálico') execCmd('italic')
                     else if (b.t === 'Sublinhado') execCmd('underline')
                     else if (b.t === 'Riscado') execCmd('strikeThrough')
-                    else if (b.t === 'Subscrito') execCmd('subscript')
-                    else if (b.t === 'Superscrito') execCmd('superscript')
+                    else if (b.t === 'Subscrito') {
+                      // Toggle: se já estiver activo, desactiva
+                      if (document.queryCommandState('subscript')) {
+                        execCmd('subscript')
+                      } else {
+                        // Se superscript estiver activo, desactiva primeiro
+                        if (document.queryCommandState('superscript')) {
+                          execCmd('superscript')
+                        }
+                        execCmd('subscript')
+                      }
+                    }
+                    else if (b.t === 'Superscrito') {
+                      // Toggle: se já estiver activo, desactiva
+                      if (document.queryCommandState('superscript')) {
+                        execCmd('superscript')
+                      } else {
+                        // Se subscript estiver activo, desactiva primeiro
+                        if (document.queryCommandState('subscript')) {
+                          execCmd('subscript')
+                        }
+                        execCmd('superscript')
+                      }
+                    }
                   }}>
                   {b.l}
                   <span className="absolute top-8 left-1/2 -translate-x-1/2 bg-black text-white text-[10px] px-1.5 py-0.5 rounded opacity-0 group-hover:opacity-100 whitespace-nowrap z-20 pointer-events-none">{b.t}</span>
@@ -632,10 +631,30 @@ const inserirTabela = () => {
 <button title="Justificar" className="w-7 h-7 flex items-center justify-center rounded hover:bg-gray-600 text-white transition-colors" onClick={() => execCmd('justifyFull')}>
   <svg viewBox="0 0 16 16" className="w-3.5 h-3.5" fill="currentColor"><rect x="1" y="2" width="14" height="1.5" rx="0.75"/><rect x="1" y="5.5" width="14" height="1.5" rx="0.75"/><rect x="1" y="9" width="14" height="1.5" rx="0.75"/><rect x="1" y="12.5" width="14" height="1.5" rx="0.75"/></svg>
 </button>
-<button title="Lista de pontos" className="w-7 h-7 flex items-center justify-center rounded hover:bg-gray-600 text-white transition-colors" onClick={() => execCmd('insertUnorderedList')}>
+<button title="Lista de pontos" className="w-7 h-7 flex items-center justify-center rounded hover:bg-gray-600 text-white transition-colors" onMouseDown={(e) => {
+  e.preventDefault()
+  // Testar diferentes comandos para lista
+  try {
+    execCmd('insertUnorderedList')
+  } catch (e) {
+    // Se não funcionar, usar HTML
+    const html = '<ul><li>Item 1</li><li>Item 2</li></ul>'
+    execCmd('insertHTML', html)
+  }
+}}>
   <svg viewBox="0 0 16 16" className="w-3.5 h-3.5" fill="currentColor"><circle cx="2" cy="4" r="1.2"/><rect x="5" y="3.2" width="9" height="1.5" rx="0.75"/><circle cx="2" cy="8" r="1.2"/><rect x="5" y="7.2" width="9" height="1.5" rx="0.75"/><circle cx="2" cy="12" r="1.2"/><rect x="5" y="11.2" width="9" height="1.5" rx="0.75"/></svg>
 </button>
-<button title="Lista numerada" className="w-7 h-7 flex items-center justify-center rounded hover:bg-gray-600 text-white transition-colors" onClick={() => execCmd('insertOrderedList')}>
+<button title="Lista numerada" className="w-7 h-7 flex items-center justify-center rounded hover:bg-gray-600 text-white transition-colors" onMouseDown={(e) => {
+  e.preventDefault()
+  // Testar diferentes comandos para lista numerada
+  try {
+    execCmd('insertOrderedList')
+  } catch (e) {
+    // Se não funcionar, usar HTML
+    const html = '<ol><li>Item 1</li><li>Item 2</li></ol>'
+    execCmd('insertHTML', html)
+  }
+}}>
   <svg viewBox="0 0 16 16" className="w-3.5 h-3.5" fill="currentColor"><rect x="1" y="2" width="2" height="1.5" rx="0.5"/><rect x="5" y="2" width="9" height="1.5" rx="0.75"/><rect x="1" y="5.5" width="2" height="1.5" rx="0.5"/><rect x="5" y="5.5" width="9" height="1.5" rx="0.75"/><rect x="1" y="9" width="2" height="1.5" rx="0.5"/><rect x="5" y="9" width="9" height="1.5" rx="0.75"/></svg>
 </button>
 <button title="Diminuir indentação" className="w-7 h-7 flex items-center justify-center rounded hover:bg-gray-600 text-white transition-colors" onClick={() => execCmd('outdent')}>
@@ -683,7 +702,7 @@ const inserirTabela = () => {
   suppressContentEditableWarning
   className="flex-1 p-6 text-sm text-gray-800 outline-none overflow-y-auto min-h-[200px]"
   style={{ whiteSpace: 'pre-wrap' }}
-  onInput={() => {}}
+  onInput={(e) => { const el = e.currentTarget as HTMLDivElement; if (el) setCompose(prev => ({ ...prev, corpo: el.innerHTML })) }}
 />
               {assinatura && (
                 <div className="px-6 py-3 border-t border-gray-200 text-xs text-gray-500 whitespace-pre-wrap">--{'\n'}{assinatura}</div>
