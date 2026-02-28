@@ -639,6 +639,17 @@ const inserirTabela = () => {
           <div className="bg-gray-800 px-3 py-1 flex items-center justify-between gap-1 flex-wrap border-b border-gray-700">
             {/* Lado esquerdo — formatação */}
             <div className="flex items-center gap-1 flex-wrap">
+<button title="Desfazer (Ctrl+Z)"
+  onMouseDown={(e) => { e.preventDefault(); execCmd('undo') }}
+  className="w-7 h-7 flex items-center justify-center rounded hover:bg-gray-600 border border-gray-600 text-white transition-colors">
+  <svg viewBox="0 0 16 16" className="w-3.5 h-3.5" fill="currentColor"><path d="M4.5 4.5l-3 3 3 3V8a5.5 5.5 0 1 1 5.5 5.5H6v1.5h4A7 7 0 1 0 4 5.6V4.5z"/></svg>
+</button>
+<button title="Refazer (Ctrl+Y)"
+  onMouseDown={(e) => { e.preventDefault(); execCmd('redo') }}
+  className="w-7 h-7 flex items-center justify-center rounded hover:bg-gray-600 border border-gray-600 text-white transition-colors">
+  <svg viewBox="0 0 16 16" className="w-3.5 h-3.5" fill="currentColor"><path d="M11.5 4.5l3 3-3 3V8a5.5 5.5 0 1 0-5.5 5.5H10v1.5H6A7 7 0 1 1 12 5.6V4.5z"/></svg>
+</button>
+<div className="w-px h-5 bg-gray-600 mx-1" />
               <select className="bg-gray-700 border border-gray-600 text-white text-xs px-2 py-1.5 rounded" onChange={(e) => execCmd('fontName', e.target.value)}>
                 <option>Calibri</option><option>Arial</option><option>Times New Roman</option>
               </select>
