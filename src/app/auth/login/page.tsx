@@ -4,7 +4,7 @@ import React, { useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/components/auth/AuthProvider'
-import { useI18n } from '@/lib/i18n'
+
 
 export default function LoginPage() {
   const [email, setEmail] = useState('')
@@ -15,7 +15,7 @@ export default function LoginPage() {
   
   const { signIn, getRedirectPath } = useAuth()
   const router = useRouter()
-  const { t } = useI18n()
+  
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -68,7 +68,7 @@ export default function LoginPage() {
       <div className="bg-white rounded-2xl shadow-xl p-8 w-full max-w-md">
         {/* Logo */}
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 bg-blue-600 rounded-full mb-4">
+          <div className="inline-flex items-center justify-center w-16 h-16 bg-red-600 rounded-full mb-4">
             <span className="text-white text-2xl font-bold">VD</span>
           </div>
           <h1 className="text-2xl font-bold text-gray-900">VisualDesign</h1>
@@ -114,7 +114,7 @@ export default function LoginPage() {
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              {t('auth.login.email')}
+              Email
             </label>
             <input
               type="email"
@@ -128,7 +128,7 @@ export default function LoginPage() {
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              {t('auth.login.password')}
+              Password
             </label>
             <input
               type="password"
@@ -144,7 +144,7 @@ export default function LoginPage() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full bg-blue-600 text-white py-3 rounded-lg font-medium hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            className="w-full bg-red-600 text-white py-3 rounded-lg font-medium hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {loading ? (
               <span className="flex items-center justify-center">
@@ -152,10 +152,10 @@ export default function LoginPage() {
                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                 </svg>
-                {t('auth.login.signingIn')}
+                A entrar...
               </span>
             ) : (
-              t('auth.login.signIn')
+              "Entrar"
             )}
           </button>
         </form>
@@ -163,13 +163,13 @@ export default function LoginPage() {
         {/* Links */}
         <div className="mt-6 text-center space-y-2">
           <Link href="/auth/forgot-password" className="text-sm text-blue-600 hover:text-blue-700">
-            {t('auth.login.forgotPassword')}
+            Esqueci a password
           </Link>
           
           <div className="text-sm text-gray-600">
-            {t('auth.login.noAccount')}{' '}
+            Não tens conta?{' '}
             <Link href="/auth/register" className="text-blue-600 hover:text-blue-700">
-              {t('auth.login.signUp')}
+              Registar
             </Link>
           </div>
         </div>
