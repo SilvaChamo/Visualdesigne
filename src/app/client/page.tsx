@@ -215,6 +215,7 @@ function EmailWebmailSection({
   const [corTexto, setCorTexto] = useState('#000000')
   const [corFundo, setCorFundo] = useState('#ffff00')
   const [mostrarPaletaCor, setMostrarPaletaCor] = useState<'texto' | 'fundo' | null>(null)
+  const [anexos, setAnexos] = useState<File[]>([])
 
   // Usar props ou valores locais
   const mostrarAdicionarConta = propMostrarAdicionarConta || false
@@ -307,8 +308,27 @@ const inserirLink = () => {
 }
 
 const inserirImagem = () => {
+  const sel = window.getSelection()
+  const range = sel && sel.rangeCount > 0 ? sel.getRangeAt(0) : null
   const url = prompt('URL da imagem:')
-  if (url) execCmd('insertImage', url)
+  if (url) {
+    if (range) { sel!.removeAllRanges(); sel!.addRange(range) }
+    execCmd('insertImage', url)
+  }
+}
+
+const inserirAnexo = () => {
+  const input = document.createElement('input')
+  input.type = 'file'
+  input.multiple = true
+  input.onchange = (e) => {
+    const files = (e.target as HTMLInputElement).files
+    if (!files) return
+    Array.from(files).forEach(file => {
+      setAnexos(prev => [...prev, file])
+    })
+  }
+  input.click()
 }
 
 const inserirTabela = () => {
@@ -327,7 +347,7 @@ const inserirTabela = () => {
   editorRef.current?.appendChild(br)
 }
 
-  const handleCloseModal = () => { setModalEmail(null); setModoResposta('none'); setCompose({ para: '', cc: '', bcc: '', assunto: '', corpo: '' }); setEnviado(false) }
+  const handleCloseModal = () => { setModalEmail(null); setModoResposta('none'); setCompose({ para: '', cc: '', bcc: '', assunto: '', corpo: '' }); setEnviado(false); setAnexos([]) }
 
   const handleSend = async () => {
     if (!emailOrigem || !emailOrigemPassword) {
@@ -524,7 +544,7 @@ const inserirTabela = () => {
           </option>
         ))}
       </select>
-      <button onClick={() => { setMostrarCompose(false); setCompose({ para: '', cc: '', bcc: '', assunto: '', corpo: '' }); setEnviado(false) }}
+      <button onClick={() => { setMostrarCompose(false); setCompose({ para: '', cc: '', bcc: '', assunto: '', corpo: '' }); setEnviado(false); setAnexos([]) }}
         className="ml-2 w-8 h-full min-h-[32px] flex items-center justify-center bg-red-600 hover:bg-red-700 text-white font-bold text-sm shrink-0 transition-colors -mr-0 self-stretch">✕</button>
     </div>
     {emailOrigem && (
@@ -727,6 +747,7 @@ const inserirTabela = () => {
                     if (b.t === 'Ligação') inserirLink()
                     else if (b.t === 'Imagem') inserirImagem()
                     else if (b.t === 'Tabela') inserirTabela()
+                    else if (b.t === 'Anexo') inserirAnexo()
                   }}>
                   {b.l} <span className="text-white text-xs">{b.t}</span>
                 </button>
@@ -744,7 +765,7 @@ const inserirTabela = () => {
               <div className="text-center">
                 <p className="text-5xl mb-4">✅</p>
                 <p className="text-xl font-bold text-gray-800">Email enviado com sucesso!</p>
-                <button onClick={() => { setMostrarCompose(false); setCompose({ para: '', cc: '', bcc: '', assunto: '', corpo: '' }); setEnviado(false) }}
+                <button onClick={() => { setMostrarCompose(false); setCompose({ para: '', cc: '', bcc: '', assunto: '', corpo: '' }); setEnviado(false); setAnexos([]) }}
                   className="mt-5 bg-red-600 hover:bg-red-700 text-white px-6 py-2.5 rounded-lg text-sm font-bold">Fechar</button>
               </div>
             </div>
@@ -763,6 +784,17 @@ const inserirTabela = () => {
   style={{ whiteSpace: 'pre-wrap', color: '#1f2937' }}
   onInput={(e) => { const el = e.currentTarget as HTMLDivElement; if (el) setCompose(prev => ({ ...prev, corpo: el.innerHTML })) }}
 />
+              {anexos.length > 0 && (
+                <div className="px-6 py-2 border-t border-gray-200 flex flex-wrap gap-2">
+                  {anexos.map((f, i) => (
+                    <div key={i} className="flex items-center gap-1 bg-gray-100 rounded px-2 py-1 text-xs text-gray-700">
+                      📎 {f.name}
+                      <button onMouseDown={(e) => { e.preventDefault(); setAnexos(prev => prev.filter((_, j) => j !== i)) }}
+                        className="text-red-500 hover:text-red-700 font-bold ml-1">✕</button>
+                    </div>
+                  ))}
+                </div>
+              )}
               {assinatura && (
                 <div className="px-6 py-3 border-t border-gray-200 text-xs text-gray-500 whitespace-pre-wrap">--{'\n'}{assinatura}</div>
               )}
