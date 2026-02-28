@@ -503,7 +503,22 @@ const inserirTabela = () => {
       {/* LISTA DE EMAILS */}
       <div className="flex-1 flex flex-col overflow-hidden bg-white">
         <div className="flex items-center gap-2 px-4 py-2 border-b border-gray-200 bg-gray-50">
-          <input placeholder="🔍 Pesquisar emails..." className="flex-1 max-w-sm px-3 py-1.5 border border-gray-300 rounded-lg text-xs outline-none" />
+          <select
+  value={emailOrigem}
+  onChange={e => {
+    const conta = emailsOrigem.find(c => c.email === e.target.value)
+    setEmailOrigem(e.target.value)
+    if (conta?.password) setEmailOrigemPassword(conta.password)
+  }}
+  className="px-3 py-1.5 border border-gray-300 rounded-lg text-xs outline-none bg-white text-gray-700 max-w-[220px]">
+  <option value="">📬 Seleccionar conta...</option>
+  {emailsOrigem.map(c => (
+    <option key={c.email} value={c.email}>
+      {c.nome ? `${c.nome} (${c.email})` : c.email}
+    </option>
+  ))}
+</select>
+<input placeholder="🔍 Pesquisar emails..." className="flex-1 px-3 py-1.5 border border-gray-300 rounded-lg text-xs outline-none" />
           {[{ i: '🔄', t: 'Actualizar' }, { i: '📁', t: 'Arquivar' }, { i: '⚠️', t: 'Spam' }, { i: '🗑️', t: 'Eliminar' }].map((b, i) => (
             <button key={i} className="flex items-center gap-1 text-xs text-gray-600 hover:text-gray-900 px-3 py-1.5 rounded border border-gray-300 hover:bg-gray-100 transition-colors">
               {b.i} {b.t}
