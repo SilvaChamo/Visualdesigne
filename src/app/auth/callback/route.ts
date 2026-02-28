@@ -18,7 +18,7 @@ export async function GET(request: Request) {
     if (user) {
   const userEmail = user.email || ''
   const userRole = user.user_metadata?.role
-  const adminEmails = ['admin@visualdesigne.com', 'geral@visualdesign.ao', 'silva.chamo@gmail.com']
+  const adminEmails = ['admin@visualdesigne.com', 'geral@visualdesigne.com', 'silva.chamo@gmail.com']
   let redirectPath = '/client'
   if (adminEmails.includes(userEmail) || userRole === 'admin') {
     redirectPath = '/admin'
