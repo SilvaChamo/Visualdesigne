@@ -335,7 +335,16 @@ export function EmailWebmailSection({
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               email: emailOrigem || (todasAsContas ? modalEmail.conta : ''),
-              password: emailOrigemPassword || (emailOrigem?.endsWith('@your-domain.com') ? 'YourSecurePass' : ''),
+              password: emailOrigemPassword || (() => {
+                const senhas: Record<string, string> = {
+                  'geral@visualdesigne.com': '***REMOVIDO***',
+                  'silva.chamo@visualdesigne.com': '***REMOVIDO***',
+                  'admin@visualdesigne.com': '***REMOVIDO***',
+                  'noreply@visualdesigne.com': 'VisualDesign#2026',
+                  'suporte@visualdesigne.com': 'SupaEmail#2026?*',
+                }
+                return senhas[emailOrigem || ''] || ''
+              })(),
               emailId: modalEmail.id,
               folder: pastaParaIMAP(pastaActiva)
             })
