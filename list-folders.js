@@ -5,7 +5,7 @@ async function listFolders() {
         host: '109.199.104.22',
         port: 993,
         secure: true,
-        auth: { user: "admin@visualdesigne.com", pass: "***REMOVIDO***" },
+        auth: { user: "admin@visualdesignmoz.com", pass: "***REMOVIDO***" },
         tls: { rejectUnauthorized: false },
         logger: false
     });

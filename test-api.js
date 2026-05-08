@@ -6,7 +6,7 @@ async function testApi() {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      email: 'silva.chamo@visualdesigne.com',
+      email: 'silva.chamo@visualdesignmoz.com',
       password: '***REMOVIDO***',
       folder: 'INBOX'
     })
@@ -19,7 +19,7 @@ async function testApi() {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      email: 'silva.chamo@visualdesigne.com',
+      email: 'silva.chamo@visualdesignmoz.com',
       password: '***REMOVIDO***',
       folder: 'Trash'
     })

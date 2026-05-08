@@ -8,13 +8,13 @@ const { ImapFlow } = require('imapflow');
 
 // Credenciais padrão
 const CREDENCIAIS = {
-  'silva.chamo@visualdesigne.com': '***REMOVIDO***',
-  'duduchamatavele@visualdesigne.com': 'Dudu#2425?*',
-  'geral@visualdesigne.com': '***REMOVIDO***',
-  'admin@visualdesigne.com': '***REMOVIDO***',
-  'info@visualdesigne.com': 'Informação!#2020?*',
-  'suporte@visualdesigne.com': 'SupaEmail#2026?*',
-  'noreply@visualdesigne.com': 'VisualDesign#2026',
+  'silva.chamo@visualdesignmoz.com': '***REMOVIDO***',
+  'duduchamatavele@visualdesignmoz.com': 'Dudu#2425?*',
+  'geral@visualdesignmoz.com': '***REMOVIDO***',
+  'admin@visualdesignmoz.com': '***REMOVIDO***',
+  'info@visualdesignmoz.com': 'Informação!#2020?*',
+  'suporte@visualdesignmoz.com': 'SupaEmail#2026?*',
+  'noreply@visualdesignmoz.com': 'VisualDesign#2026',
 };
 
 const IMAP_HOST = process.env.IMAP_HOST || '109.199.104.22';
