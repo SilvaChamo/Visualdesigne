@@ -24,7 +24,7 @@ export async function GET() {
 
     const { data: quotations, error } = await admin
       .from('quotation_requests')
-      .select('id, categoria_label, produto, quantidade, total_mt, sob_consulta, status, data_limite_entrega, created_at')
+      .select('id, batch_id, categoria_id, categoria_label, produto, quantidade, total_mt, sob_consulta, status, data_limite_entrega, metodo_pagamento, remanescente_metodo_pagamento, created_at')
       .eq('user_id', user.id)
       .order('created_at', { ascending: false });
 
@@ -157,8 +157,14 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Não foi possível gerar a cotação. Tente novamente mais tarde.' }, { status: 503 });
     }
 
+    // Todas as linhas desta submissão partilham o mesmo batch_id — é o que
+    // as torna "uma encomenda só", mesmo que incluam serviços de categorias
+    // diferentes (ex.: cartões + webdesign na mesma cotação).
+    const batchId = crypto.randomUUID();
+
     const rows = validatedItems.map(({ categoriaId, categoriaLabel, produto, precoUnitario, quantidadeNum, sobConsulta, totalMt }) => ({
       user_id: user.id,
+      batch_id: batchId,
       empresa,
       nif: nif || null,
       endereco: endereco || null,

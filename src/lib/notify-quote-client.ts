@@ -84,3 +84,58 @@ export async function notifyQuoteClientStatusChange(params: {
     console.error('[notify-quote-client] falha ao enviar email ao cliente:', err);
   }
 }
+
+/**
+ * Avisa o cliente (email) quando a equipa responde a uma mensagem sobre a
+ * sua encomenda (quotation_messages). Isolado em try/catch, mesmo padrão de
+ * notifyQuoteClientStatusChange.
+ */
+export async function notifyQuoteClientNewMessage(params: {
+  to: string;
+  clientName: string;
+  produto: string;
+  message: string;
+}) {
+  const { to, clientName, produto, message } = params;
+  const title = 'Nova mensagem sobre a sua encomenda';
+  const body = `A equipa respondeu sobre a sua encomenda "${produto}":\n\n"${message}"`;
+
+  try {
+    await sendEmail({
+      to,
+      subject: title,
+      html: buildClientEmailHtml({ clientName, title, message: body }),
+      category: 'transactional',
+    });
+  } catch (err) {
+    console.error('[notify-quote-client] falha ao enviar email de nova mensagem:', err);
+  }
+}
+
+/**
+ * Avisa o cliente (email) quando a equipa envia um novo layout de design
+ * para aprovação (quotation_layouts). Assunto inclui a descrição e a fase,
+ * para o cliente identificar de imediato do que se trata.
+ */
+export async function notifyQuoteClientNewLayout(params: {
+  to: string;
+  clientName: string;
+  produto: string;
+  descricao: string;
+  fase: number;
+}) {
+  const { to, clientName, produto, descricao, fase } = params;
+  const title = `Novo layout enviado: ${descricao} — Fase ${fase}`;
+  const body = `A equipa enviou um novo layout para a sua encomenda "${produto}":\n\nFase ${fase} — ${descricao}\n\nEntre no painel para ver e descarregar.`;
+
+  try {
+    await sendEmail({
+      to,
+      subject: title,
+      html: buildClientEmailHtml({ clientName, title, message: body }),
+      category: 'transactional',
+    });
+  } catch (err) {
+    console.error('[notify-quote-client] falha ao enviar email de novo layout:', err);
+  }
+}

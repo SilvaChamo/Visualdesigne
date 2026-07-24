@@ -169,6 +169,17 @@ function CotacaoContent() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // isAuthenticated pode passar de false a true a meio da submissão (login
+  // automático logo a seguir a criar a conta, no passo "Criar Conta") — os
+  // passos disponíveis (STEPS, mais abaixo) encolhem nesse momento, por isso o
+  // passo actual tem de ser reancorado para não apontar para fora do novo
+  // array e rebentar o render.
+  useEffect(() => {
+    const baseLen = tipoCliente === 'individual' ? 1 : 2;
+    const stepCount = isAuthenticated ? baseLen + 1 : baseLen + 2;
+    setCurrentStep((s) => Math.min(s, stepCount - 1));
+  }, [isAuthenticated, tipoCliente]);
+
   const minDate = minDeliveryDate();
   const dataLimiteCedoDemais = dataLimite !== '' && dataLimite < minDate;
 
@@ -225,8 +236,12 @@ function CotacaoContent() {
   const STEPS = isAuthenticated
     ? [...baseSteps, { key: 'servico', label: 'Serviço', icon: Package }]
     : [...baseSteps, { key: 'conta', label: 'Criar Conta', icon: Lock }, { key: 'servico', label: 'Serviço', icon: Package }];
-  const stepKey = STEPS[currentStep].key;
-  const isLastStep = currentStep === STEPS.length - 1;
+  // currentStep pode ficar temporariamente fora dos limites no primeiro render
+  // a seguir a isAuthenticated mudar (STEPS encolhe) — o useEffect acima já o
+  // reancora, mas isto evita rebentar nesse render intermédio.
+  const safeStep = Math.min(currentStep, STEPS.length - 1);
+  const stepKey = STEPS[safeStep].key;
+  const isLastStep = safeStep === STEPS.length - 1;
 
   const validateStep = (key: string): string | null => {
     if (key === 'empresa') {
@@ -292,7 +307,18 @@ function CotacaoContent() {
     setStatus('idle');
 
     try {
-      if (isAuthenticated === false) {
+      // isAuthenticated vem do contexto, verificado só uma vez ao abrir a página —
+      // se o cliente demorou a preencher o formulário, a sessão (1h) pode já ter
+      // expirado entretanto. Revalida agora, em vez de descobrir isso só na resposta
+      // 401 do /api/cotacoes, para poder dar uma mensagem clara em vez da genérica.
+      const { data: { user: liveUser } } = await supabase.auth.getUser();
+      const stillAuthenticated = !!liveUser;
+
+      if (isAuthenticated && !stillAuthenticated) {
+        throw new Error('A sua sessão expirou enquanto preenchia o formulário. Por favor, inicie sessão novamente e volte a submeter o pedido.');
+      }
+
+      if (!stillAuthenticated) {
         setStatus('registering');
         const res = await fetch('/api/auth/register', {
           method: 'POST',
@@ -317,7 +343,9 @@ function CotacaoContent() {
           // esse passo falhar por algum motivo — tenta uma vez a partir do browser.
           try {
             await supabase.auth.signInWithPassword({ email: accountEmail, password });
-          } catch (e) {}
+          } catch (e) {
+            throw new Error('Não foi possível iniciar sessão com a conta criada. Tente submeter novamente.');
+          }
         }
       }
 

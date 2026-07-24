@@ -14,7 +14,7 @@ function getSupabaseAdmin() {
   return createClient(supabaseUrl, supabaseServiceKey);
 }
 
-const VALID_STATUS = ['pending', 'payment_selected', 'approved', 'rejected', 'done', 'cancelled'];
+const VALID_STATUS = ['pending', 'payment_selected', 'approved', 'delivered', 'rejected', 'done', 'cancelled'];
 
 // Lista todos os pedidos de cotação recebidos, para a equipa acompanhar no dashboard.
 export async function GET(request: Request) {
@@ -74,6 +74,17 @@ export async function PATCH(request: Request) {
       .single();
 
     if (error) throw error;
+
+    try {
+      await supabase.from('quotation_status_history').insert({
+        quotation_id: id,
+        status,
+        note: status === 'rejected' ? (rejectionReason || null) : null,
+        changed_by: 'admin',
+      });
+    } catch (historyError) {
+      console.error('[admin/cotacoes] falha ao registar histórico:', historyError);
+    }
 
     // Não aguardar o envio do email (ver /api/cotacoes) — a actualização de
     // estado já ficou gravada, não pode falhar por causa de um SMTP lento.

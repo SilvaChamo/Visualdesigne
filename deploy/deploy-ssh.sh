@@ -17,7 +17,7 @@ SSH_HOST="${SSH_HOST:-37.27.17.25}"
 SERVER="root@${SSH_HOST}"
 SSH_OPTS="-i $SSH_KEY -o StrictHostKeyChecking=no -o ConnectTimeout=30 -p $SSH_PORT"
 REMOTE_PATH="${REMOTE_PATH:-/home/visualdesignmoz.com/public_html}"
-LOCAL_PATH="/Users/macbook/Desktop/APP/visualdesign"
+LOCAL_PATH="${LOCAL_PATH:-$(pwd)}"
 
 echo "📤 Enviando arquivos para o servidor..."
 

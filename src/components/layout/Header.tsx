@@ -156,7 +156,8 @@ export function Header({ isScrolled = false }: { isScrolled?: boolean }) {
   const [showTopBar, setShowTopBar] = useState(true)
   const [lastScrollY, setLastScrollY] = useState(0)
   const { items, setIsCartOpen } = useCart()
-  const { user, signOut } = useAuth()
+  const { user, userRole, signOut } = useAuth()
+  const showEncomendasLink = userRole !== 'admin' && userRole !== 'manager'
 
   const pathname = usePathname()
 
@@ -384,13 +385,15 @@ export function Header({ isScrolled = false }: { isScrolled?: boolean }) {
                     <LayoutDashboard className="w-4 h-4 shrink-0 group-hover:scale-110 transition-transform" />
                     <span>Painel</span>
                   </Link>
-                  <Link
-                    href="/encomendas"
-                    className="px-2.5 py-1.5 sm:px-4 sm:py-2 bg-white dark:bg-zinc-900 text-black dark:text-white border border-slate-300 dark:border-zinc-700 text-[10px] lg:text-xs font-black uppercase tracking-tighter rounded-md hover:border-red-600 hover:text-red-600 dark:hover:text-red-500 transition-all flex items-center gap-1.5 sm:gap-2 group whitespace-nowrap"
-                  >
-                    <FileText className="w-4 h-4 shrink-0 group-hover:scale-110 transition-transform" />
-                    <span>Encomendas</span>
-                  </Link>
+                  {showEncomendasLink && (
+                    <Link
+                      href="/encomendas"
+                      className="px-2.5 py-1.5 sm:px-4 sm:py-2 bg-white dark:bg-zinc-900 text-black dark:text-white border border-slate-300 dark:border-zinc-700 text-[10px] lg:text-xs font-black uppercase tracking-tighter rounded-md hover:border-red-600 hover:text-red-600 dark:hover:text-red-500 transition-all flex items-center gap-1.5 sm:gap-2 group whitespace-nowrap"
+                    >
+                      <FileText className="w-4 h-4 shrink-0 group-hover:scale-110 transition-transform" />
+                      <span>Encomendas</span>
+                    </Link>
+                  )}
                   <button
                     type="button"
                     onClick={async () => {

@@ -6,6 +6,11 @@ import { notifyQuoteTeam } from '@/lib/notify-quote-team';
 
 const VALID_METHODS = ['mpesa', 'transferencia'];
 
+// Pagamento do remanescente (30% restante, pago na entrega/levantamento) —
+// só depois de a equipa marcar os itens como 'delivered' (Entregue, pronto
+// para levantamento). Não muda o estado (fica 'delivered' até a equipa
+// confirmar o recebimento e marcar 'done') — só regista o método escolhido,
+// mesmo padrão de /pagamento para o adiantamento.
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params;
@@ -28,7 +33,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
     const admin = getSupabaseAdmin();
     if (!admin) {
-      console.error('[cotacoes/pagamento] Supabase service role não configurado.');
+      console.error('[cotacoes/pagamento-remanescente] Supabase service role não configurado.');
       return NextResponse.json({ error: 'Não foi possível actualizar a cotação. Tente novamente mais tarde.' }, { status: 503 });
     }
 
@@ -49,43 +54,41 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       }
     }
 
-    // Aplica-se a toda a encomenda (todas as linhas do mesmo batch_id) —
-    // só às que ainda estão pendentes, para não voltar atrás em itens já
-    // aprovados/concluídos/cancelados/rejeitados nesse mesmo lote.
     const { data: siblings } = await admin
       .from('quotation_requests')
       .select('id, produto, categoria_label, total_mt, sob_consulta')
       .eq('batch_id', quotation.batch_id)
-      .eq('status', 'pending');
-    const batchItems = siblings && siblings.length > 0 ? siblings : [quotation];
+      .eq('status', 'delivered');
+
+    if (!siblings || siblings.length === 0) {
+      return NextResponse.json(
+        { error: 'Esta encomenda ainda não está pronta para levantamento.' },
+        { status: 409 },
+      );
+    }
 
     const { error: updateError } = await admin
       .from('quotation_requests')
-      .update({ metodo_pagamento: metodoPagamento, status: 'payment_selected', updated_at: new Date().toISOString() })
-      .in('id', batchItems.map((i) => i.id));
+      .update({ remanescente_metodo_pagamento: metodoPagamento, updated_at: new Date().toISOString() })
+      .in('id', siblings.map((i) => i.id));
 
     if (updateError) {
-      console.error('[cotacoes/pagamento] update error:', updateError);
+      console.error('[cotacoes/pagamento-remanescente] update error:', updateError);
       return NextResponse.json({ error: 'Não foi possível actualizar a cotação.' }, { status: 500 });
     }
 
-    // Não aguardar o envio do email (ver /api/cotacoes) — o cliente já
-    // confirmou o método de pagamento, isso não pode falhar por causa de um
-    // SMTP lento.
     const metodoLabel = metodoPagamento === 'mpesa' ? 'M-Pesa' : 'Transferência Bancária';
-    const totalBatch = batchItems.reduce((sum, i) => sum + (i.sob_consulta ? 0 : i.total_mt), 0);
-    const allSobConsulta = batchItems.every((i) => i.sob_consulta);
+    const totalBatch = siblings.reduce((sum, i) => sum + (i.sob_consulta ? 0 : i.total_mt), 0);
+    const remanescente = Math.round(totalBatch * 0.3 * 100) / 100;
     notifyQuoteTeam({
-      title: 'Cliente escolheu método de pagamento',
-      message: `${quotation.empresa} escolheu ${metodoLabel} para a encomenda (${batchItems.map((i) => i.produto).join(', ')}). ${
-        allSobConsulta ? 'Valor sob consulta — confirmar com o cliente.' : `Valor: ${formatMt(totalBatch)} MT.`
-      }`,
+      title: 'Cliente escolheu método para o remanescente',
+      message: `${quotation.empresa} escolheu ${metodoLabel} para pagar o remanescente da encomenda (${siblings.map((i) => i.produto).join(', ')}). Valor: ${formatMt(remanescente)} MT.`,
       link: `${process.env.NEXT_PUBLIC_SITE_URL || ''}/dashboard?section=cotacoes`,
-    }).catch((err) => console.error('[cotacoes/pagamento] falha ao notificar equipa:', err));
+    }).catch((err) => console.error('[cotacoes/pagamento-remanescente] falha ao notificar equipa:', err));
 
     return NextResponse.json({ success: true });
   } catch (error: unknown) {
-    console.error('[cotacoes/pagamento] error:', error);
+    console.error('[cotacoes/pagamento-remanescente] error:', error);
     const message = error instanceof Error ? error.message : 'Erro interno';
     return NextResponse.json({ success: false, error: message }, { status: 500 });
   }

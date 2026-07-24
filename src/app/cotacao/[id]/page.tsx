@@ -10,6 +10,7 @@ import { Loader2, AlertCircle, Printer, ArrowRight } from 'lucide-react';
 
 type QuotationRow = {
   id: string;
+  batch_id: string;
   empresa: string;
   nif: string | null;
   endereco: string | null;
@@ -43,34 +44,48 @@ function CotacaoDocumentContent() {
   // do site e a navegação, mostra só o documento e o botão de transferir.
   const embed = searchParams.get('embed') === '1';
 
-  const [quotation, setQuotation] = useState<QuotationRow | null>(null);
+  const [items, setItems] = useState<QuotationRow[] | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
   useEffect(() => {
     if (!id) return;
     (async () => {
-      const { data, error: fetchError } = await supabase
+      const { data: row, error: fetchError } = await supabase
         .from('quotation_requests')
         .select('*')
         .eq('id', id)
         .single();
 
-      if (fetchError || !data) {
+      if (fetchError || !row) {
         setError('Não foi possível encontrar esta cotação.');
+        setLoading(false);
+        return;
+      }
+
+      // A encomenda é o conjunto de linhas submetidas juntas (mesmo
+      // batch_id), não só esta linha — mostra a fatura completa.
+      const { data: siblings, error: siblingsError } = await supabase
+        .from('quotation_requests')
+        .select('*')
+        .eq('batch_id', row.batch_id)
+        .order('created_at', { ascending: true });
+
+      if (siblingsError || !siblings || siblings.length === 0) {
+        setItems([row as QuotationRow]);
       } else {
-        setQuotation(data as QuotationRow);
+        setItems(siblings as QuotationRow[]);
       }
       setLoading(false);
     })();
   }, [id]);
 
   useEffect(() => {
-    if (autoPrint && quotation) {
+    if (autoPrint && items) {
       const t = setTimeout(() => window.print(), 400);
       return () => clearTimeout(t);
     }
-  }, [autoPrint, quotation]);
+  }, [autoPrint, items]);
 
   if (loading) {
     return (
@@ -80,7 +95,7 @@ function CotacaoDocumentContent() {
     );
   }
 
-  if (error || !quotation) {
+  if (error || !items || items.length === 0) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-zinc-50 dark:bg-black px-4">
         <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg p-8 text-center space-y-4 max-w-md">
@@ -90,6 +105,11 @@ function CotacaoDocumentContent() {
       </div>
     );
   }
+
+  const quotation = items[0];
+  const totalMt = items.reduce((sum, i) => sum + (i.sob_consulta ? 0 : i.total_mt), 0);
+  const allSobConsulta = items.every((i) => i.sob_consulta);
+  const someSobConsulta = items.some((i) => i.sob_consulta);
 
   const dataEmissao = new Date(quotation.created_at).toLocaleDateString('pt-PT', {
     day: '2-digit',
@@ -101,8 +121,8 @@ function CotacaoDocumentContent() {
     month: 'long',
     year: 'numeric',
   });
-  const adiantamento = Math.round(quotation.total_mt * 0.7 * 100) / 100;
-  const numeroCotacao = quotation.id.split('-')[0].toUpperCase();
+  const adiantamento = Math.round(totalMt * 0.7 * 100) / 100;
+  const numeroCotacao = quotation.batch_id.split('-')[0].toUpperCase();
 
   const documentCard = (
         <div id="quote-print-area" className="bg-white dark:bg-white text-zinc-900 rounded-lg shadow-sm border border-zinc-200 p-8 sm:p-12">
@@ -145,7 +165,7 @@ function CotacaoDocumentContent() {
             </div>
           </div>
 
-          {/* Linha do serviço */}
+          {/* Linhas de serviço */}
           <table className="w-full text-sm mb-8">
             <thead>
               <tr className="border-b border-zinc-300 text-left text-xs uppercase tracking-wide text-zinc-500">
@@ -156,30 +176,32 @@ function CotacaoDocumentContent() {
               </tr>
             </thead>
             <tbody>
-              <tr className="border-b border-zinc-100">
-                <td className="py-3">
-                  <span className="font-semibold text-zinc-800">{quotation.categoria_label}</span>
-                  <br />
-                  <span className="text-zinc-500">{quotation.produto}</span>
-                </td>
-                <td className="py-3 text-right">{quotation.quantidade}</td>
-                <td className="py-3 text-right">{quotation.sob_consulta ? 'Sob Consulta' : `${formatMt(quotation.preco_unitario_mt)} MT`}</td>
-                <td className="py-3 text-right font-bold">{quotation.sob_consulta ? 'Sob Consulta' : `${formatMt(quotation.total_mt)} MT`}</td>
-              </tr>
+              {items.map((item) => (
+                <tr key={item.id} className="border-b border-zinc-100">
+                  <td className="py-3">
+                    <span className="font-semibold text-zinc-800">{item.categoria_label}</span>
+                    <br />
+                    <span className="text-zinc-500">{item.produto}</span>
+                  </td>
+                  <td className="py-3 text-right">{item.quantidade}</td>
+                  <td className="py-3 text-right">{item.sob_consulta ? 'Sob Consulta' : `${formatMt(item.preco_unitario_mt)} MT`}</td>
+                  <td className="py-3 text-right font-bold">{item.sob_consulta ? 'Sob Consulta' : `${formatMt(item.total_mt)} MT`}</td>
+                </tr>
+              ))}
             </tbody>
-            {!quotation.sob_consulta && (
+            {!allSobConsulta && (
               <tfoot>
                 <tr>
                   <td colSpan={3} className="pt-4 text-right font-bold text-zinc-900">Total</td>
-                  <td className="pt-4 text-right font-bold text-zinc-900">{formatMt(quotation.total_mt)} MT</td>
+                  <td className="pt-4 text-right font-bold text-zinc-900">{formatMt(totalMt)} MT</td>
                 </tr>
               </tfoot>
             )}
           </table>
 
-          {quotation.notas && (
+          {items.some((i) => i.notas) && (
             <div className="bg-zinc-50 border border-zinc-200 rounded-md p-4 mb-4 text-sm">
-              <p className="text-zinc-700"><span className="font-bold">Notas:</span> {quotation.notas}</p>
+              <p className="text-zinc-700"><span className="font-bold">Notas:</span> {items.find((i) => i.notas)?.notas}</p>
             </div>
           )}
 
@@ -191,7 +213,7 @@ function CotacaoDocumentContent() {
 
           {/* Pagamento */}
           <div className="bg-red-50 border border-red-200 rounded-md p-4 text-sm">
-            {quotation.sob_consulta ? (
+            {allSobConsulta ? (
               <p className="text-zinc-800">
                 <span className="font-bold">Condições de pagamento:</span> serviço Sob Consulta — entraremos em contacto para confirmar o valor e as condições de pagamento.
               </p>
@@ -202,6 +224,9 @@ function CotacaoDocumentContent() {
                   ({formatMt(adiantamento)} MT), restante na entrega.
                 </p>
                 <p className="text-xs text-zinc-600 mt-1">Adiantamento via M-Pesa: {MPESA_NUMBER}</p>
+                {someSobConsulta && (
+                  <p className="text-xs text-zinc-600 mt-1">Os itens Sob Consulta acima não entram neste valor — o preço é confirmado à parte.</p>
+                )}
               </>
             )}
           </div>
@@ -212,21 +237,13 @@ function CotacaoDocumentContent() {
         </div>
   );
 
-  // Embutido dentro de /encomendas (iframe) — só o documento e o botão de
-  // transferir, sem o cabeçalho do site nem a navegação.
+  // Embutido dentro de /encomendas (iframe) — só o documento, sem o
+  // cabeçalho do site nem a navegação. O botão de transferir vive fora do
+  // iframe (painel), que abre esta mesma página numa nova aba com
+  // ?print=1 para disparar o window.print() automaticamente.
   if (embed) {
     return (
       <div className="min-h-screen bg-white">
-        <div className="no-print max-w-3xl mx-auto px-4 pt-4 flex justify-end">
-          <button
-            type="button"
-            onClick={() => window.print()}
-            className="inline-flex items-center gap-2 bg-zinc-900 text-white font-bold px-4 py-2 rounded-md text-xs hover:opacity-90 transition-opacity"
-          >
-            <Printer className="w-3.5 h-3.5" />
-            <span>Transferir PDF</span>
-          </button>
-        </div>
         <div className="max-w-3xl mx-auto px-4 py-4">{documentCard}</div>
       </div>
     );

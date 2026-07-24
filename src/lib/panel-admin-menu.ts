@@ -81,7 +81,7 @@ export const NEW_MENU_ITEM_DEFS: PanelMenuItemDef[] = [
   },
   {
     id: 'cotacoes',
-    label: 'Cotações',
+    label: 'Encomendas',
     isNewMenu: true,
   },
   {
