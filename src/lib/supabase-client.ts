@@ -4,9 +4,9 @@ import { createBrowserClient } from '@supabase/ssr'
 import type { User } from '@supabase/supabase-js'
 import {
   resolveUserRole,
-  getRedirectPathForRole,
   type UserRole,
 } from '@/lib/user-roles'
+import { defaultLandingPath } from '@/lib/panel-origin'
 import { getOAuthCallbackUrl } from '@/lib/oauth-callback'
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://placeholder.supabase.co'
@@ -317,7 +317,21 @@ export const auth = {
   // Redirecionamento por role — sem API pesada de produtos no momento do login
   async getRedirectPath(userHint?: User | null, cachedRole?: UserRole | null): Promise<string> {
     const role = cachedRole ?? (await this.getUserRole(userHint))
-    return getRedirectPathForRole(role)
+
+    let hasEncomendas = false
+    if (role === 'guest') {
+      try {
+        const res = await fetch('/api/cotacoes', { credentials: 'include' })
+        if (res.ok) {
+          const data = await res.json()
+          hasEncomendas = Array.isArray(data?.quotations) && data.quotations.length > 0
+        }
+      } catch {
+        /* falha ao verificar encomendas — cai no painel guest, sem bloquear o login */
+      }
+    }
+
+    return defaultLandingPath(role, hasEncomendas)
   },
 
   // Obter sessão actual

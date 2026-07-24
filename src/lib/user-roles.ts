@@ -34,10 +34,14 @@ function readRole(value: unknown): UserRole | null {
 export function resolveUserRole(source: RoleSource): UserRole {
   const email = (source.email || '').toLowerCase();
 
+  // Emails de bootstrap (donos/operadores do painel) são sempre admin — evita que
+  // a conta caia em "cliente"/"guest" no pós-login e só chegue ao admin ao
+  // navegar manualmente para /dashboard (que já reconhecia este mesmo email).
+  if (email && ADMIN_BOOTSTRAP_EMAILS.has(email)) return 'admin';
+
   const metaRole = readRole(source.userMetadata?.role) ?? readRole(source.appMetadata?.role);
   const profileRole = readRole(source.profileRole);
 
-  // Admin e gestão só por promoção manual (perfil ou metadata), nunca por email fixo.
   if (profileRole === 'admin' || metaRole === 'admin') return 'admin';
   if (profileRole === 'manager' || metaRole === 'manager') return 'manager';
 

@@ -3,6 +3,18 @@ import { createClient } from '@/utils/supabase/server';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { requireAdminOrReseller } from '@/lib/panel-api-auth';
 
+// Só para decidir o destino pós-login (painel /encomendas) — não confundir
+// com resolveQuotationAccess, que valida acesso a UMA encomenda específica.
+export async function userHasQuotationRequests(userId: string): Promise<boolean> {
+  const admin = getSupabaseAdmin();
+  if (!admin) return false;
+  const { count } = await admin
+    .from('quotation_requests')
+    .select('id', { count: 'exact', head: true })
+    .eq('user_id', userId);
+  return (count ?? 0) > 0;
+}
+
 export type QuotationAccess =
   | { ok: true; role: 'client' | 'admin'; userId: string; quotation: Record<string, any>; batchQuotationIds: string[] }
   | { ok: false; response: NextResponse };

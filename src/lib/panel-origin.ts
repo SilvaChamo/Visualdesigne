@@ -80,9 +80,17 @@ function isPanelPathAllowedForRole(pathname: string, role: UserRole): boolean {
   return normalizedPath === roleBase || normalizedPath.startsWith(`${roleBase}/`)
 }
 
+/** Destino por defeito: guest com encomendas já submetidas vai directo ao
+ * painel de encomendas, em vez do painel guest genérico. */
+export function defaultLandingPath(role: UserRole, hasEncomendas: boolean): string {
+  if (role === 'guest' && hasEncomendas) return '/encomendas'
+  return getRedirectPathForRole(role)
+}
+
 export function resolveInnerPanelPath(
   from: string | null | undefined,
   role: UserRole,
+  hasEncomendas = false,
 ): string {
   const fromPainel = from ? panelRouteFromPublicEntry(from) : null
   const candidate = fromPainel ?? from
@@ -90,10 +98,10 @@ export function resolveInnerPanelPath(
   if (candidate && PANEL_PATHS.some((b) => candidate === b || candidate.startsWith(`${b}/`))) {
     return isPanelPathAllowedForRole(candidate, role)
       ? candidate
-      : getRedirectPathForRole(role)
+      : defaultLandingPath(role, hasEncomendas)
   }
 
-  return getRedirectPathForRole(role)
+  return defaultLandingPath(role, hasEncomendas)
 }
 
 /** Painel e site público vivem sempre no mesmo host — redirecionamento simples. */
@@ -124,9 +132,10 @@ export function resolvePostLoginUrl(options: {
   origin: string
   role: UserRole
   from?: string | null
+  hasEncomendas?: boolean
 }): string {
-  const { role, from } = options
-  return resolveInnerPanelPath(from, role)
+  const { role, from, hasEncomendas } = options
+  return resolveInnerPanelPath(from, role, hasEncomendas ?? false)
 }
 
 export function getSharedAuthCookieDomain(_hostname?: string): string | undefined {

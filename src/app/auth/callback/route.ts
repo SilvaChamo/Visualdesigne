@@ -10,6 +10,7 @@ import {
 } from '@/lib/panel-origin'
 import { resolveRoleForAuthUser } from '@/lib/server-auth-role'
 import { PANEL_FROM_COOKIE, readPanelFromCookie } from '@/lib/panel-oauth-from'
+import { userHasQuotationRequests } from '@/lib/quotation-access'
 
 export async function GET(request: NextRequest) {
   const { searchParams } = request.nextUrl
@@ -60,11 +61,13 @@ export async function GET(request: NextRequest) {
 
   const role = await resolveRoleForAuthUser(supabase, user)
   const from = readPanelFromCookie(request.headers.get('cookie'))
+  const hasEncomendas = role === 'guest' ? await userHasQuotationRequests(user.id) : false
 
   const target = resolvePostLoginUrl({
     origin: request.nextUrl.origin,
     role,
     from: from || PUBLIC_PANEL_ENTRY,
+    hasEncomendas,
   })
 
   const response = NextResponse.redirect(

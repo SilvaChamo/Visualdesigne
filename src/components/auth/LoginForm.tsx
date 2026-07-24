@@ -4,9 +4,10 @@ import React, { useState, useEffect, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { Eye, EyeOff } from 'lucide-react'
 import { useAuth } from '@/components/auth/AuthProvider'
+import { auth } from '@/lib/supabase-client'
 import { useI18n } from '@/lib/i18n'
 import { googleOAuthUserMessage } from '@/lib/auth-messages'
-import { PUBLIC_PANEL_ENTRY, resolvePostLoginUrl } from '@/lib/panel-origin'
+import { PUBLIC_PANEL_ENTRY } from '@/lib/panel-origin'
 import { AuthPageShell, AuthLoadingShell } from '@/components/auth/AuthPageShell'
 import {
   authCardClass,
@@ -41,19 +42,14 @@ function LoginFormInner() {
     }
   }, [searchParams])
 
-  const goToPanel = (role: Parameters<typeof resolvePostLoginUrl>[0]['role']) => {
+  const goToPanel = async (role: Awaited<ReturnType<typeof auth.getUserRole>>) => {
     const redirectTo = searchParams.get('redirect') || searchParams.get('next')
     if (redirectTo && typeof redirectTo === 'string' && redirectTo.startsWith('/')) {
       window.location.assign(redirectTo)
       return
     }
-    window.location.assign(
-      resolvePostLoginUrl({
-        origin: window.location.origin,
-        role,
-        from: PUBLIC_PANEL_ENTRY,
-      }),
-    )
+    const target = await auth.getRedirectPath(undefined, role)
+    window.location.assign(new URL(target, window.location.origin).toString())
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -65,7 +61,7 @@ function LoginFormInner() {
     setError('')
     try {
       const role = await signIn(email, password)
-      goToPanel(role)
+      await goToPanel(role)
     } catch (err: unknown) {
       const msg = String((err as Error)?.message || '')
       if (msg.toLowerCase().includes('invalid login credentials')) {

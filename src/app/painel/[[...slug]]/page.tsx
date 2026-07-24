@@ -11,6 +11,7 @@ import {
 import { profileAuthOrFilter } from '@/lib/profile-db'
 import { resolveUserRole } from '@/lib/user-roles'
 import { fetchUserProductsSummary } from '@/lib/user-products'
+import { userHasQuotationRequests } from '@/lib/quotation-access'
 
 type Props = {
   params: Promise<{ slug?: string[] }>
@@ -52,8 +53,10 @@ export default async function PainelEntryPage({ params }: Props) {
     hasPaidProducts: products.hasPaidProducts,
   })
 
+  const hasEncomendas = role === 'guest' ? await userHasQuotationRequests(user.id) : false
+
   const inner =
-    panelRouteFromPublicEntry(pathname) ?? resolveInnerPanelPath(null, role)
+    panelRouteFromPublicEntry(pathname) ?? resolveInnerPanelPath(null, role, hasEncomendas)
 
   redirect(resolvePanelInnerRedirect(requestUrl, inner))
 }
