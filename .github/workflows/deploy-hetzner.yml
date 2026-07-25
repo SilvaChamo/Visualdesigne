@@ -27,7 +27,7 @@ jobs:
         run: npm run build
 
       - name: Deploy to Hetzner via SSH
-        uses: appleboy/ssh-action@v0.2.0
+        uses: appleboy/ssh-action@v1.2.5
         with:
           host: ${{ secrets.HETZNER_HOST }}
           port: ${{ secrets.HETZNER_PORT }}
@@ -35,9 +35,9 @@ jobs:
           key: ${{ secrets.HETZNER_SSH_KEY }}
           script: |
             set -e
-            cd /home/visualdesignmoz.com/public_html
+            cd /opt/visualdesign-site
             rsync -avz --delete --exclude 'node_modules' --exclude '.next' --exclude '.git' --exclude '*.env*' --exclude '.DS_Store' $GITHUB_WORKSPACE/ .
             npm ci
             npm run build
-            pm2 restart visualdesign || pm2 start npm --name "visualdesign" -- start
+            pm2 restart visualdesign-site || pm2 start npm --name "visualdesign-site" -- start -- -p 3003
             pm2 save
