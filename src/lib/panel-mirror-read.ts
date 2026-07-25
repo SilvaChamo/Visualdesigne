@@ -142,7 +142,7 @@ function mapPackage(row: Record<string, unknown>): PanelPackage {
     const fromForm = (key: string, fallback: number | string | undefined) => {
       const rowLimit = form.limits?.[key];
       if (!rowLimit) return fallback ?? 0;
-      if (rowLimit.unlimited) return 0;
+      if (rowLimit.unlimited) return '-';
       const n = Number(String(rowLimit.value || '').replace(/[^\d.]/g, ''));
       return Number.isFinite(n) && n > 0 ? n : (fallback ?? 0);
     };

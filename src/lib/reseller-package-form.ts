@@ -722,7 +722,7 @@ export function packageListRowToForm(pkg: Record<string, unknown>, packageName: 
     const raw = String(v ?? '').trim();
     if (!raw) return null;
     const lower = raw.toLowerCase();
-    if (raw === '-' || lower === 'unlimited' || lower === 'ilimitado') {
+    if (raw === '-' || raw === '-1' || lower === 'unlimited' || lower === 'ilimitado') {
       return { value: '', unlimited: true };
     }
     return { value: raw, unlimited: false };

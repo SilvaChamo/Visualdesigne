@@ -27,9 +27,10 @@ function normalizeDaFields(data: Record<string, unknown>): Record<string, string
   return out;
 }
 
+/** -1 sinaliza "ilimitado" (mesma convenção usada em limitNumberFromForm, panel-mirror-write.ts). */
 export function parseLimitNumber(value: string): number {
   const raw = String(value || '').trim().toLowerCase();
-  if (!raw || raw === 'unlimited' || raw === '-1') return 0;
+  if (!raw || raw === 'unlimited' || raw === '-1') return -1;
   const n = parseInt(raw, 10);
   return Number.isFinite(n) ? n : 0;
 }
