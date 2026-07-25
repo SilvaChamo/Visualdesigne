@@ -19,7 +19,7 @@ import {
   fetchPanelUsers,
   fetchPanelUsersStaleWhileRevalidate,
 } from '@/lib/panel-users-cache'
-import { readPackagesCache, writePackagesCache, clearPackagesCache } from '@/lib/panel-packages-cache'
+import { readPackagesCache, writePackagesCache } from '@/lib/panel-packages-cache'
 import {
   invalidateFmDirCache,
   invalidateFmDirCaches,
@@ -7551,8 +7551,10 @@ export function PackagesSection({
   useEffect(() => {
     if (!isActive) return
     setChrome(null)
-    clearPackagesCache(panelScope)
-    void loadLivePackages({ sync: true })
+    // Leitura rápida (espelho + tentativa de live em paralelo no servidor) — não força
+    // uma re-sincronização completa da conta a cada visita à página (isso é lento e é
+    // o que o botão "Actualizar" faz sob pedido explícito do admin).
+    void loadLivePackages({ background: true })
     if (initialOpenCreate) {
       setEditingPackageName(null)
       setPackageForm(createDefaultResellerPackageForm())
