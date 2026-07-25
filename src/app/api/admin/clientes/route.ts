@@ -174,6 +174,7 @@ export async function GET(req: NextRequest) {
       listMirrorPackages(mirrorScope),
     ]);
 
+    let stale = false;
     if (syncNow) {
       await runDaFullSyncDeduped();
       [users, sites, packages] = await Promise.all([
@@ -182,7 +183,7 @@ export async function GET(req: NextRequest) {
         listMirrorPackages(mirrorScope),
       ]);
     } else {
-      const stale = await isMirrorStale(120);
+      stale = await isMirrorStale(120);
       if (stale) scheduleDaSync(0);
     }
 
@@ -211,31 +212,36 @@ export async function GET(req: NextRequest) {
 
     const osherCreds = await loadResellerCredentialsByDaUsername(OSHER_RESELLER);
 
-    // Pacotes admin — leitura live evita «Default» obsoleto no espelho
-    try {
-      const adminApi = await getAdminDirectAdminAPI();
-      const liveAdminPkgs = await adminApi.listPackages();
-      if (liveAdminPkgs.length) {
-        const { mergePackageListByName } = await import('@/lib/panel-list-resolve');
-        packages = mergePackageListByName(packages, liveAdminPkgs);
+    // Pacotes admin — leitura live só quando o espelho está desactualizado ou vazio
+    // (evita esperar por chamadas ao DirectAdmin em todas as visitas a esta página;
+    // um sync completo já grava os pacotes ao vivo, incluindo os de revenda, no espelho).
+    if (stale || packages.length === 0) {
+      try {
+        const adminApi = await getAdminDirectAdminAPI();
+        const liveAdminPkgs = await adminApi.listPackages();
+        if (liveAdminPkgs.length) {
+          const { mergePackageListByName } = await import('@/lib/panel-list-resolve');
+          packages = mergePackageListByName(packages, liveAdminPkgs);
+        }
+      } catch {
+        packages = packages.filter((p) => p.packageName !== 'Default');
       }
-    } catch {
-      packages = packages.filter((p) => p.packageName !== 'Default');
+
+      if (osherCreds) {
+        try {
+          const osherApi = await getDirectAdminAPIForDaUsername(OSHER_RESELLER);
+          const resellerPkgs = await osherApi.listPackages();
+          for (const p of resellerPkgs) {
+            if (p.packageName) packages.push(p);
+          }
+        } catch {
+          /* espelho apenas */
+        }
+      }
     }
 
     // Pacotes do servidor: admin live + revendas (ex. Osher) para o wizard
     const packageMap = new Map(packages.map((p) => [p.packageName, p]));
-    if (osherCreds) {
-      try {
-        const osherApi = await getDirectAdminAPIForDaUsername(OSHER_RESELLER);
-        const resellerPkgs = await osherApi.listPackages();
-        for (const p of resellerPkgs) {
-          if (p.packageName) packageMap.set(p.packageName, p);
-        }
-      } catch {
-        /* espelho apenas */
-      }
-    }
     const allPackages = Array.from(packageMap.values()).sort((a, b) =>
       a.packageName.localeCompare(b.packageName),
     );
@@ -251,7 +257,6 @@ export async function GET(req: NextRequest) {
     }));
 
     const lastSyncedAt = await getMirrorLastSyncAt();
-    const stale = await isMirrorStale(120);
 
     return NextResponse.json({
       success: true,
