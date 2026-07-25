@@ -3905,6 +3905,8 @@ function ClientPageContent() {
                 type="button"
                 onClick={async () => {
                   await createClientInstance.auth.signOut()
+                  const { clearAllPanelClientCaches } = await import('@/lib/panel-session-cache-clear')
+                  clearAllPanelClientCaches()
                   window.location.href = '/auth/login'
                 }}
                 className={panelBtnSecondary}

@@ -258,6 +258,8 @@ export const auth = {
   // Logout
   async signOut() {
     const { error } = await supabase.auth.signOut()
+    const { clearAllPanelClientCaches } = await import('@/lib/panel-session-cache-clear')
+    clearAllPanelClientCaches()
     if (error) throw error
   },
 

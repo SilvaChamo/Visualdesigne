@@ -22,7 +22,9 @@ export function AuthButton() {
     setLoading(true)
     
     const { error } = await supabase.auth.signOut()
-    
+    const { clearAllPanelClientCaches } = await import('@/lib/panel-session-cache-clear')
+    clearAllPanelClientCaches()
+
     if (error) {
       console.error('Error signing out:', error.message)
     }
