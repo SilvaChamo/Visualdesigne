@@ -9,6 +9,7 @@ import { useCart } from '@/contexts/CartContext'
 import ServicosWebCarousel from '@/components/ServicosWebCarousel'
 import DomainSearch from '@/components/DomainSearch'
 import { NotchSection } from '@/components/home/NotchSection'
+import { getHostingCyclePrice, getHostingMonthlyEquivalent, formatHostingPrice } from '@/lib/hosting-plans'
 
 /** Banner (hero) da VisualWeb — usado tanto na home como em /web. */
 export function VisualWebHero() {
@@ -71,38 +72,13 @@ export function VisualWebBody() {
   const [subscribed, setSubscribed] = useState(false)
   const [billingCycle, setBillingCycle] = useState<'monthly' | 'semiannual' | 'annual'>('monthly')
 
-  const formatPrice = (val: number) => {
-    if (val >= 1000) {
-      const thousands = Math.floor(val / 1000)
-      const remainder = val % 1000
-      return `${thousands}.${remainder.toString().padStart(3, '0')}`
-    }
-    return val.toString()
-  }
+  const formatPrice = formatHostingPrice
 
   const getPlanPrice = (basePrice: number) => {
-    let mainPrice = basePrice
-    let monthlyEquivalent = basePrice
-    let savings = 0
-    let savingsText = ''
-
-    const isBasic = basePrice === 680
-    const semiannualRate = isBasic ? 0.9 : 0.95
-    const annualRate = isBasic ? 0.8 : 0.9
-
-    if (billingCycle === 'semiannual') {
-      const monthlyDiscounted = Math.round(basePrice * semiannualRate)
-      mainPrice = monthlyDiscounted * 6
-      monthlyEquivalent = monthlyDiscounted
-      savings = basePrice - monthlyDiscounted
-      savingsText = `Poupe ${formatPrice(savings)} MT/mês!`
-    } else if (billingCycle === 'annual') {
-      const monthlyDiscounted = Math.round(basePrice * annualRate)
-      mainPrice = monthlyDiscounted * 12
-      monthlyEquivalent = monthlyDiscounted
-      savings = basePrice - monthlyDiscounted
-      savingsText = `Poupe ${formatPrice(savings)} MT/mês!`
-    }
+    const mainPrice = getHostingCyclePrice(basePrice, billingCycle)
+    const monthlyEquivalent = getHostingMonthlyEquivalent(basePrice, billingCycle)
+    const savings = basePrice - monthlyEquivalent
+    const savingsText = savings > 0 ? `Poupe ${formatPrice(savings)} MT/mês!` : ''
 
     return { price: formatPrice(mainPrice), rawPrice: mainPrice, monthlyEquivalent: formatPrice(monthlyEquivalent), savingsText }
   }

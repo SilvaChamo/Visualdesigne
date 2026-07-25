@@ -5,48 +5,23 @@ import { useI18n } from '@/lib/i18n'
 import Link from 'next/link'
 import { useCart } from '@/contexts/CartContext'
 import { ArrowLeft, HardDrive, Mail, Send, Megaphone, Globe, GitBranch, FolderOpen, Database, Lock, LifeBuoy } from 'lucide-react'
+import { getHostingCyclePrice, getHostingMonthlyEquivalent, formatHostingPrice } from '@/lib/hosting-plans'
 
 export default function PrecosHospedagem() {
   const { t } = useI18n()
   const { addItem, setIsCartOpen } = useCart()
   const [billingCycle, setBillingCycle] = useState<'monthly' | 'semiannual' | 'annual'>('monthly')
 
-  const formatPrice = (val: number) => {
-    if (val >= 1000) {
-      const thousands = Math.floor(val / 1000)
-      const remainder = val % 1000
-      return `${thousands}.${remainder.toString().padStart(3, '0')}`
-    }
-    return val.toString()
-  }
+  const formatPrice = formatHostingPrice
 
   const getPlanPrice = (basePrice: number) => {
-    let mainPrice = basePrice
-    let cycleSuffix = `/${t('pricing.hosting.month')}`
-    let monthlyEquivalent = basePrice
-    let savings = 0
-    let savingsText = ''
-    
-    const isBasic = basePrice === 680
-    const semiannualRate = isBasic ? 0.9 : 0.95
-    const annualRate = isBasic ? 0.8 : 0.9
-    
-    if (billingCycle === 'semiannual') {
-      const monthlyDiscounted = Math.round(basePrice * semiannualRate)
-      mainPrice = monthlyDiscounted * 6
-      cycleSuffix = '/6 meses'
-      monthlyEquivalent = monthlyDiscounted
-      savings = basePrice - monthlyDiscounted
-      savingsText = `Poupe ${formatPrice(savings)} MT/mês!`
-    } else if (billingCycle === 'annual') {
-      const monthlyDiscounted = Math.round(basePrice * annualRate)
-      mainPrice = monthlyDiscounted * 12
-      cycleSuffix = '/12 meses'
-      monthlyEquivalent = monthlyDiscounted
-      savings = basePrice - monthlyDiscounted
-      savingsText = `Poupe ${formatPrice(savings)} MT/mês!`
-    }
-    
+    const mainPrice = getHostingCyclePrice(basePrice, billingCycle)
+    const monthlyEquivalent = getHostingMonthlyEquivalent(basePrice, billingCycle)
+    const savings = basePrice - monthlyEquivalent
+    const cycleSuffix =
+      billingCycle === 'semiannual' ? '/6 meses' : billingCycle === 'annual' ? '/12 meses' : `/${t('pricing.hosting.month')}`
+    const savingsText = savings > 0 ? `Poupe ${formatPrice(savings)} MT/mês!` : ''
+
     return {
       price: formatPrice(mainPrice),
       rawPrice: mainPrice,

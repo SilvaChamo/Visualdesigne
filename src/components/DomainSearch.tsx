@@ -7,6 +7,7 @@ import { useCart } from '@/contexts/CartContext'
 import { DomainPricingCarousel } from '@/components/DomainPricingCarousel'
 import { DOMAIN_TLD_PRICES, formatMtPrice } from '@/lib/domain-tld-prices'
 import { panelTabBtn, panelTabList } from '@/lib/panel-ui'
+import { getHostingPlan, getHostingCyclePrice, getHostingMonthlyEquivalent, formatHostingPrice } from '@/lib/hosting-plans'
 
 interface SearchResult {
   domain: string
@@ -368,87 +369,103 @@ export default function DomainSearch({
     </div>
   )
 
-  const renderPlansSection = () => (
-    <div className="mt-2">
-      <div className="mb-8 flex justify-center">
-        <div className="inline-flex gap-1 rounded-full bg-slate-100 p-1">
-          <button
-            type="button"
-            onClick={() => setBillingCycle('mensal')}
-            className={`rounded-full px-5 py-1.5 text-sm font-semibold transition-all ${billingCycle === 'mensal' ? 'bg-white text-slate-900 shadow' : 'text-slate-500'}`}
-          >
-            Mensal
-          </button>
-          <button
-            type="button"
-            onClick={() => setBillingCycle('anual')}
-            className={`flex items-center gap-2 rounded-full px-5 py-1.5 text-sm font-semibold transition-all ${billingCycle === 'anual' ? 'bg-white text-slate-900 shadow' : 'text-slate-500'}`}
-          >
-            Anual <span className="rounded-full bg-green-500 px-1.5 py-0.5 text-[10px] text-white">-20%</span>
-          </button>
+  const renderPlansSection = () => {
+    const cycle = billingCycle === 'anual' ? 'annual' : 'monthly'
+    const basico = getHostingPlan('hosting-basico')!
+    const pro = getHostingPlan('hosting-pro')!
+    const basicoPrice = getHostingCyclePrice(basico.basePrice, cycle)
+    const proPrice = getHostingCyclePrice(pro.basePrice, cycle)
+    const basicoSavings = basico.basePrice - getHostingMonthlyEquivalent(basico.basePrice, cycle)
+    const proSavings = pro.basePrice - getHostingMonthlyEquivalent(pro.basePrice, cycle)
+
+    return (
+      <div className="mt-2">
+        <div className="mb-8 flex justify-center">
+          <div className="inline-flex gap-1 rounded-full bg-slate-100 p-1">
+            <button
+              type="button"
+              onClick={() => setBillingCycle('mensal')}
+              className={`rounded-full px-5 py-1.5 text-sm font-semibold transition-all ${billingCycle === 'mensal' ? 'bg-white text-slate-900 shadow' : 'text-slate-500'}`}
+            >
+              Mensal
+            </button>
+            <button
+              type="button"
+              onClick={() => setBillingCycle('anual')}
+              className={`flex items-center gap-2 rounded-full px-5 py-1.5 text-sm font-semibold transition-all ${billingCycle === 'anual' ? 'bg-white text-slate-900 shadow' : 'text-slate-500'}`}
+            >
+              Anual <span className="rounded-full bg-green-500 px-1.5 py-0.5 text-[10px] text-white">até -20%</span>
+            </button>
+          </div>
+        </div>
+        <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
+          <div className="flex flex-col rounded-xl border border-slate-200 bg-white p-6 transition-all duration-300 hover:shadow-lg">
+            <h4 className="mb-2 text-xl font-bold text-slate-800">Webhost Básico</h4>
+            <p className="mb-4 text-sm text-slate-500">Ideal para sites e blogs pessoais.</p>
+            <div className="mb-6">
+              <span className="text-3xl font-black text-red-600">{formatHostingPrice(basicoPrice)} MT</span>
+              <span className="ml-1 text-sm font-normal text-slate-500">/{billingCycle === 'anual' ? 'ano' : 'mês'}</span>
+              {billingCycle === 'anual' && basicoSavings > 0 && (
+                <p className="mt-1 text-xs font-semibold text-green-600">Poupe {formatHostingPrice(basicoSavings)} MT/mês!</p>
+              )}
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                addItem({ id: 'hosting-basico', type: 'hosting', name: 'Webhost Básico', price: basicoPrice, period: 1 })
+                setIsCartOpen(true)
+              }}
+              className="mt-auto w-full rounded-lg bg-red-600 py-2.5 font-bold text-white transition-colors hover:bg-red-700"
+            >
+              Adicionar
+            </button>
+          </div>
+          <div className="relative flex flex-col rounded-xl border-2 border-red-600 bg-white p-6 shadow-lg">
+            <div className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-full bg-red-600 px-4 py-1 text-[10px] font-bold text-white">
+              MAIS POPULAR
+            </div>
+            <h4 className="mb-2 mt-1 text-xl font-bold text-slate-800">Webhost Pro</h4>
+            <p className="mb-4 text-sm text-slate-500">Para negócios e lojas online.</p>
+            <div className="mb-6">
+              <span className="text-3xl font-black text-red-600">{formatHostingPrice(proPrice)} MT</span>
+              <span className="ml-1 text-sm font-normal text-slate-500">/{billingCycle === 'anual' ? 'ano' : 'mês'}</span>
+              {billingCycle === 'anual' && proSavings > 0 && (
+                <p className="mt-1 text-xs font-semibold text-green-600">Poupe {formatHostingPrice(proSavings)} MT/mês!</p>
+              )}
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                addItem({ id: 'hosting-pro', type: 'hosting', name: 'Webhost Pro', price: proPrice, period: 1 })
+                setIsCartOpen(true)
+              }}
+              className="mt-auto w-full rounded-lg bg-red-600 py-2.5 font-bold text-white transition-colors hover:bg-red-700"
+            >
+              Adicionar
+            </button>
+          </div>
+          <div className="flex flex-col rounded-xl border border-slate-200 bg-white p-6 transition-all duration-300 hover:shadow-lg">
+            <h4 className="mb-2 text-xl font-bold text-slate-800">Email Profissional</h4>
+            <p className="mb-4 text-sm text-slate-500">Emails corporativos.</p>
+            <div className="mb-6">
+              <span className="text-3xl font-black text-red-600">{billingCycle === 'anual' ? '2.700' : '250'} MT</span>
+              <span className="ml-1 text-sm font-normal text-slate-500">/{billingCycle === 'anual' ? 'ano' : 'mês'}</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                addItem({ id: 'email-pro', type: 'email', name: 'Email Profissional', price: billingCycle === 'anual' ? 2700 : 250, period: 1 })
+                setIsCartOpen(true)
+              }}
+              className="mt-auto w-full rounded-lg bg-red-600 py-2.5 font-bold text-white transition-colors hover:bg-red-700"
+            >
+              Adicionar
+            </button>
+          </div>
         </div>
       </div>
-      <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
-        <div className="flex flex-col rounded-xl border border-slate-200 bg-white p-6 transition-all duration-300 hover:shadow-lg">
-          <h4 className="mb-2 text-xl font-bold text-slate-800">Webhost Básico</h4>
-          <p className="mb-4 text-sm text-slate-500">Ideal para sites e blogs pessoais.</p>
-          <div className="mb-6">
-            <span className="text-3xl font-black text-red-600">{billingCycle === 'anual' ? '7.344' : '680'} MT</span>
-            <span className="ml-1 text-sm font-normal text-slate-500">/{billingCycle === 'anual' ? 'ano' : 'mês'}</span>
-          </div>
-          <button
-            type="button"
-            onClick={() => {
-              addItem({ id: 'hosting-basico', type: 'hosting', name: 'Webhost Básico', price: billingCycle === 'anual' ? 7344 : 680, period: 1 })
-              setIsCartOpen(true)
-            }}
-            className="mt-auto w-full rounded-lg bg-red-600 py-2.5 font-bold text-white transition-colors hover:bg-red-700"
-          >
-            Adicionar
-          </button>
-        </div>
-        <div className="relative flex flex-col rounded-xl border-2 border-red-600 bg-white p-6 shadow-lg">
-          <div className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-full bg-red-600 px-4 py-1 text-[10px] font-bold text-white">
-            MAIS POPULAR
-          </div>
-          <h4 className="mb-2 mt-1 text-xl font-bold text-slate-800">Webhost Pro</h4>
-          <p className="mb-4 text-sm text-slate-500">Para negócios e lojas online.</p>
-          <div className="mb-6">
-            <span className="text-3xl font-black text-red-600">{billingCycle === 'anual' ? '16.200' : '1.500'} MT</span>
-            <span className="ml-1 text-sm font-normal text-slate-500">/{billingCycle === 'anual' ? 'ano' : 'mês'}</span>
-          </div>
-          <button
-            type="button"
-            onClick={() => {
-              addItem({ id: 'hosting-pro', type: 'hosting', name: 'Webhost Pro', price: billingCycle === 'anual' ? 16200 : 1500, period: 1 })
-              setIsCartOpen(true)
-            }}
-            className="mt-auto w-full rounded-lg bg-red-600 py-2.5 font-bold text-white transition-colors hover:bg-red-700"
-          >
-            Adicionar
-          </button>
-        </div>
-        <div className="flex flex-col rounded-xl border border-slate-200 bg-white p-6 transition-all duration-300 hover:shadow-lg">
-          <h4 className="mb-2 text-xl font-bold text-slate-800">Email Profissional</h4>
-          <p className="mb-4 text-sm text-slate-500">Emails corporativos.</p>
-          <div className="mb-6">
-            <span className="text-3xl font-black text-red-600">{billingCycle === 'anual' ? '2.700' : '250'} MT</span>
-            <span className="ml-1 text-sm font-normal text-slate-500">/{billingCycle === 'anual' ? 'ano' : 'mês'}</span>
-          </div>
-          <button
-            type="button"
-            onClick={() => {
-              addItem({ id: 'email-pro', type: 'email', name: 'Email Profissional', price: billingCycle === 'anual' ? 2700 : 250, period: 1 })
-              setIsCartOpen(true)
-            }}
-            className="mt-auto w-full rounded-lg bg-red-600 py-2.5 font-bold text-white transition-colors hover:bg-red-700"
-          >
-            Adicionar
-          </button>
-        </div>
-      </div>
-    </div>
-  )
+    )
+  }
 
   const renderSearchRow = () => (
     <div className={`flex w-full flex-col gap-4 sm:flex-row ${searchContainerClassName}`}>
