@@ -26,15 +26,16 @@ import {
 } from '@/lib/panel-mirror-read';
 import { mergePackageListByName, resolveMirrorOrLive } from '@/lib/panel-list-resolve';
 import type { PanelPackage } from '@/lib/directadmin-hosting-api';
-
-function isValidHomePath(targetPath: string): boolean {
-  const p = targetPath.trim();
-  return p.startsWith('/home/') && !p.includes('..') && !p.includes('\0');
-}
+import { isValidHomePath, assertPathsOwnedByCaller } from '@/lib/panel-fs-ownership';
 
 function normalizeHomePaths(raw: unknown): string[] {
   if (!Array.isArray(raw)) return [];
   return raw.map((item) => String(item).trim()).filter(isValidHomePath);
+}
+
+/** Domínio/username têm de bater certo com formato de hostname/DA-username — evita injecção em comandos shell. */
+function isSafeShellToken(value: string): boolean {
+  return /^[a-z0-9]([a-z0-9._-]{0,63})?$/i.test(value);
 }
 
 async function runPythonOnServer(script: string): Promise<string> {
@@ -367,12 +368,22 @@ export async function POST(req: NextRequest) {
       }
 
       if (action === 'siteDiskUsage') {
-        const domain = String(params.domain || '').trim();
-        const owner = String(params.owner || 'admin').trim();
+        const domain = String(params.domain || '').trim().toLowerCase();
         if (!domain) {
           return NextResponse.json({ success: true, data: { usage: '—' } });
         }
+        if (!isSafeShellToken(domain)) {
+          return NextResponse.json({ success: false, error: 'Domínio inválido' }, { status: 400 });
+        }
         try {
+          const { getMirrorSiteOwner } = await import('@/lib/panel-mirror-read');
+          const owner = (await getMirrorSiteOwner(domain)) || 'admin';
+          if (!isSafeShellToken(owner)) {
+            return NextResponse.json({ success: true, data: { usage: '—' } });
+          }
+          if (auth.user.role !== 'admin' && !(await assertPathsOwnedByCaller([`/home/${owner}/`], auth.user.id))) {
+            return NextResponse.json({ success: false, error: 'Domínio fora do seu painel.' }, { status: 403 });
+          }
           const { executeServerCommand } = await import('@/lib/server-ssh-exec');
           const sitePath = `/home/${owner}/domains/${domain}`;
           const output = await executeServerCommand(
@@ -438,6 +449,9 @@ export async function POST(req: NextRequest) {
       const { getMirrorSiteOwner } = await import('@/lib/panel-mirror-read');
       const mirrorOwner = await getMirrorSiteOwner(targetDomain);
       if (mirrorOwner) {
+        if (auth.user.role !== 'admin' && !(await assertPathsOwnedByCaller([`/home/${mirrorOwner}/`], auth.user.id))) {
+          return NextResponse.json({ success: false, error: 'Domínio fora do seu painel.' }, { status: 403 });
+        }
         return NextResponse.json({
           success: true,
           data: {
@@ -451,6 +465,9 @@ export async function POST(req: NextRequest) {
       const site = await resolveDomainSitePath(targetDomain);
       if (!site) {
         return NextResponse.json({ success: false, error: 'Caminho do site não encontrado' }, { status: 404 });
+      }
+      if (auth.user.role !== 'admin' && !(await assertPathsOwnedByCaller([`/home/${site.user}/`], auth.user.id))) {
+        return NextResponse.json({ success: false, error: 'Domínio fora do seu painel.' }, { status: 403 });
       }
 
       return NextResponse.json({
@@ -466,6 +483,9 @@ export async function POST(req: NextRequest) {
       const targetPath = String(params.path || '').trim();
       if (!targetPath.startsWith('/home/') || targetPath.includes('..')) {
         return NextResponse.json({ success: false, error: 'Caminho inválido' }, { status: 400 });
+      }
+      if (auth.user.role !== 'admin' && !(await assertPathsOwnedByCaller([targetPath], auth.user.id))) {
+        return NextResponse.json({ success: false, error: 'Caminho fora do seu painel.' }, { status: 403 });
       }
 
       const { executeServerCommand } = await import('@/lib/server-ssh-exec');
@@ -530,6 +550,16 @@ export async function POST(req: NextRequest) {
       if ('error' in auth) return auth.error;
 
       const p = params as Record<string, unknown>;
+
+      if (auth.user.role !== 'admin') {
+        const candidatePaths = [p.path, p.destDir, p.archivePath]
+          .concat(Array.isArray(p.paths) ? p.paths : [])
+          .concat(Array.isArray(p.sources) ? p.sources : [])
+          .filter((v): v is string => typeof v === 'string' && v.trim().startsWith('/home/'));
+        if (!(await assertPathsOwnedByCaller(candidatePaths, auth.user.id))) {
+          return NextResponse.json({ success: false, error: 'Caminho fora do seu painel.' }, { status: 403 });
+        }
+      }
 
       if (action === 'readFileContent') {
         const filePath = String(p.path || '').trim();

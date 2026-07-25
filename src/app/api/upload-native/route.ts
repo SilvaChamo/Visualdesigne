@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { executeServerCommand } from '@/lib/server-ssh-exec';
 import { requireAdminOrReseller } from '@/lib/panel-api-auth';
+import { isShellSafeHomePath, assertPathsOwnedByCaller } from '@/lib/panel-fs-ownership';
 
 export async function POST(req: NextRequest) {
   try {
@@ -10,14 +11,18 @@ export async function POST(req: NextRequest) {
     const pathHeader = req.headers.get('x-file-path');
     const path = pathHeader ? decodeURIComponent(pathHeader) : null;
 
-    if (!path) {
+    if (!path || !isShellSafeHomePath(path)) {
       return NextResponse.json({ success: false, error: 'Destino inválido' }, { status: 400 });
+    }
+
+    if (auth.user.role !== 'admin' && !(await assertPathsOwnedByCaller([path], auth.user.id))) {
+      return NextResponse.json({ success: false, error: 'Caminho fora do seu painel.' }, { status: 403 });
     }
 
     if (!req.body) {
       return NextResponse.json({ success: false, error: 'Sem conteúdo' }, { status: 400 });
     }
-    
+
     // Upload natively via SSH stdin stream (bypassing ARG_MAX limit)
     const { uploadFileViaSsh } = await import('@/lib/server-ssh-exec');
     await uploadFileViaSsh(path, req.body as any);

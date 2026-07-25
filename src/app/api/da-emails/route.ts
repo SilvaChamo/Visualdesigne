@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { applyBrevoMxToDomain } from '@/lib/bind-email-dns';
 import { daRequest } from '@/lib/directadmin';
 import { requireAdminOrReseller } from '@/lib/panel-api-auth';
+import { loadResellerCredentialsByUserId } from '@/lib/da-credential-store';
+import { getMirrorSiteOwner } from '@/lib/panel-mirror-read';
 
 /**
  * GET  ?action=list&domain=visualdesignmoz.com  → lista emails
@@ -9,6 +11,14 @@ import { requireAdminOrReseller } from '@/lib/panel-api-auth';
  * DELETE action=delete → apaga email
  * PATCH action=password → muda password
  */
+
+async function canAccessDomain(role: 'admin' | 'reseller', userId: string, domain: string): Promise<boolean> {
+  if (role === 'admin') return true;
+  const creds = await loadResellerCredentialsByUserId(userId);
+  if (!creds?.user) return false;
+  const owner = await getMirrorSiteOwner(domain);
+  return owner === creds.user;
+}
 
 export async function GET(req: NextRequest) {
   try {
@@ -21,6 +31,9 @@ export async function GET(req: NextRequest) {
     const domain = searchParams.get('domain') || '';
 
     if (action === 'domains') {
+      if (ctx.role !== 'admin') {
+        return NextResponse.json({ success: false, error: 'Acção restrita a administradores.' }, { status: 403 });
+      }
       // Listar todos os domínios que têm email no servidor
       const res = await daRequest('CMD_API_SHOW_ALL_USERS', 'GET', { json: 'yes' }, ctx.role, ctx);
       const domainsRes = await daRequest('CMD_API_ADDITIONAL_DOMAINS', 'GET', { domain: 'admin' }, ctx.role, ctx);
@@ -28,6 +41,9 @@ export async function GET(req: NextRequest) {
     }
 
     if (action === 'list' && domain) {
+      if (!(await canAccessDomain(ctx.role, ctx.id, domain))) {
+        return NextResponse.json({ success: false, error: 'Domínio fora do seu painel.' }, { status: 403 });
+      }
       // CMD_API_POP lista as contas de email para um domínio
       const res = await daRequest('CMD_API_POP', 'GET', { action: 'list', domain }, ctx.role, ctx);
 
@@ -76,6 +92,10 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: false, error: 'domain, username e password são obrigatórios' }, { status: 400 });
     }
 
+    if (!(await canAccessDomain(ctx.role, ctx.id, domain))) {
+      return NextResponse.json({ success: false, error: 'Domínio fora do seu painel.' }, { status: 403 });
+    }
+
     if (action === 'create') {
       const res = await daRequest(
         'CMD_API_POP',
@@ -116,6 +136,10 @@ export async function DELETE(req: NextRequest) {
       return NextResponse.json({ success: false, error: 'domain e username são obrigatórios' }, { status: 400 });
     }
 
+    if (!(await canAccessDomain(ctx.role, ctx.id, domain))) {
+      return NextResponse.json({ success: false, error: 'Domínio fora do seu painel.' }, { status: 403 });
+    }
+
     const res = await daRequest('CMD_API_POP', 'POST', { action: 'delete', domain, user: username }, ctx.role, ctx);
 
     if (res.error) {
@@ -138,6 +162,10 @@ export async function PATCH(req: NextRequest) {
 
     if (!domain || !username || !password) {
       return NextResponse.json({ success: false, error: 'domain, username e password são obrigatórios' }, { status: 400 });
+    }
+
+    if (!(await canAccessDomain(ctx.role, ctx.id, domain))) {
+      return NextResponse.json({ success: false, error: 'Domínio fora do seu painel.' }, { status: 403 });
     }
 
     const res = await daRequest(
