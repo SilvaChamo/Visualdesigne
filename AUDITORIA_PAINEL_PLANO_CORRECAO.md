@@ -1,181 +1,152 @@
 # Auditoria do painel (admin/revendedor/cliente) — achados e plano de correção
 
-Documento de handoff para outra sessão/agente continuar. Gerado depois de uma auditoria
-completa ao menu lateral do painel (4 investigações em paralelo + verificação manual),
+Documento de handoff. Gerado depois de uma auditoria completa ao menu lateral do painel,
 motivada por um bug real: a página de DNS Central mostrava registos da conta VisualDesign
 dentro do painel de um cliente.
 
-**Estado actual (actualizado nesta sessão):** todos os itens P0 (P0-1..P0-5) e quase todos os
-P1 (P1-1..P1-4, P1-6) estão corrigidos, verificados (`tsc --noEmit` limpo) e **commitados e
-publicados em `main`** (push feito, commits `96d1753`..`36b06f9`). **P1-5 ficou deliberadamente
-por fazer** — ver secção 2. P2/P3 não foram tocados (não urgentes).
+**Estado actual: todos os pontos do plano original (P0, P1, P2) estão corrigidos, verificados
+(`tsc --noEmit` limpo) e commitados.** P1-5 tem uma limitação conhecida e documentada (ver
+secção 2). P3 (dívida técnica de baixo risco) não foi tocado. O `git push` para `origin/main`
+fica pendente de confirmação do utilizador antes de cada publicação — ver secção 4 para o
+estado exacto do que já foi/não foi publicado.
 
-**P0-6 (novo, encontrado depois do push inicial) — fuga de cache na impersonação de
-revendedor.** O utilizador reportou que ao impersonar a conta "Osher" no painel admin, os dados
-apresentados apareciam misturados com os da própria conta admin. Causa: nenhum dos 6 pontos de
-entrar/sair de "impersonar revendedor" (`ClientesDaSection.tsx`, `HostingSections.tsx`,
-`revendedor/page.tsx`) chamava `clearAllPanelClientCaches()` antes de navegar — a mesma
-causa-raiz do bug original de DNS (commit `3bc1d23`), mas nunca aplicada à impersonação
-(`window.location.href`/`<a href>` não limpam sessionStorage/localStorage). Corrigido: os 6
-pontos passaram a limpar as caches antes de navegar. Commit `21ac2dc`, **commitado localmente,
-push ainda NÃO pedido/feito** — confirmar com o utilizador antes de publicar.
-
-**Aviso:** durante esta sessão confirmou-se, por diffs inesperados em `AdminSidebar.tsx` e
-`panel-ui.ts` (ajustes cosméticos de hover, não feitos por esta sessão), que **outra sessão
-esteve a editar este mesmo working tree em paralelo**, tal como já tinha acontecido antes. Uma
-próxima sessão deve verificar `git status`/`git diff` antes de assumir que o working tree está
-limpo, e nunca usar `git add -A`.
+**Aviso permanente:** este repositório é editado por mais do que uma sessão/agente em
+paralelo, mesmo quando não parece estar a acontecer. Confirmado repetidamente nesta sessão
+(commits "encomendas" e alterações de hover em `AdminSidebar.tsx`/`panel-ui.ts` que esta sessão
+não fez, aparecendo em `git log`/`git status` sem aviso). **Nunca usar `git add -A` ou `git
+add .`** — adicionar sempre só os ficheiros explicitamente tocados pela tarefa em mãos, e correr
+`git status`/`git diff --stat` imediatamente antes de cada commit.
 
 ---
 
-## 1. JÁ CORRIGIDO E COMMITADO LOCALMENTE (sem push)
-
-Não repetir este trabalho.
+## 1. JÁ CORRIGIDO — histórico de commits
 
 ### Sessões anteriores (commitado + push para `main`)
-1. **Unificação de preços de hospedagem** — `src/lib/hosting-plans.ts`. Commit `4747ef6`.
-2. **Lentidão ao abrir "Pacotes"** — `PackagesSection` deixou de forçar `fullSync`. Commit `e370b19`.
-3. **Campos "ilimitado" a zerar depois de sincronizar** — 3 sítios corrigidos. Commit `d8d9a7d`.
-4. **Lentidão nas contas de revendedores** — chamadas ao vivo só quando o espelho está stale. Commit `8e7f20f`.
-5. **Fuga de cache entre contas no logout** (causa raiz do bug do DNS) — `clearAllPanelClientCaches()`
-   criada e chamada em todos os pontos de logout. Commit `3bc1d23`. (Lacunas desta correcção
-   fechadas agora em P0-5, ver abaixo.)
+1. Unificação de preços de hospedagem — `src/lib/hosting-plans.ts`. Commit `4747ef6`.
+2. Lentidão ao abrir "Pacotes" — `PackagesSection` deixou de forçar `fullSync`. Commit `e370b19`.
+3. Campos "ilimitado" a zerar depois de sincronizar. Commit `d8d9a7d`.
+4. Lentidão nas contas de revendedores — chamadas ao vivo só quando o espelho está stale. Commit `8e7f20f`.
+5. Fuga de cache entre contas no logout (causa raiz do bug do DNS). Commit `3bc1d23`.
 
-### Esta sessão (commitado localmente, `git push` ainda NÃO feito)
-6. **P0-1 — RCE não autenticado em `/api/git-deploy`.** `POST()` passou a exigir
-   `requireAdminOrReseller()` + `role==='admin'` (igual ao `GET()`). `isSafeDomain()` aplicado
-   em `deploySite`, `getDeployStatus` e também `getGitLog` (mesmo padrão de injecção, não
-   estava no plano original mas foi corrigido por consistência). `unlock`/`auth-code` em
-   `registrar/domain/manage/route.ts` (já vinha pronto de antes desta sessão) incluído no mesmo
-   commit. Menu "Git Integration" removido do painel de revendedor (`revendedor/page.tsx`).
+### Esta sessão — segurança (P0/P1)
+6. **P0-1** — RCE não autenticado em `/api/git-deploy`. `POST()` passou a exigir admin;
+   `isSafeDomain()` valida `domain` em `deploySite`/`getDeployStatus`/`getGitLog` antes de
+   interpolar em comandos SSH. Menu "Git Integration" removido do painel de revendedor.
    Commit `96d1753`.
-7. **P0-2..P0-5 — fugas de dados entre contas.** Commit `b5c337c`:
-   - P0-2: `db-manager/route.ts` — `resolveOwner()` deixou de aceitar `owner` explícito do
-     pedido; deriva sempre do `domain` autenticado (mesmo padrão do `backup-manager`). O
-     frontend (`DatabasesManagerSection.tsx`) continua a enviar `owner` mas é ignorado —
-     deliberadamente não tocado, ver nota no ficheiro.
-   - P0-3: `listMirrorPackages()` em `panel-mirror-read.ts` — para scope não-admin, filtra
-     agora aos pacotes já atribuídos a algum site do próprio revendedor (via `prefetchedSites`
-     ou auto-fetch de `listMirrorWebsites` quando não vier). `revendedor/contas/route.ts`
-     actualizado para passar `sites` já obtidos, evitando fetch duplicado. Limitação conhecida
-     mantida: pacote recém-criado sem site atribuído ainda não aparece (documentado no código).
-   - P0-4: `email-dns-brevo/route.ts` — `{all:true}` agora admin-only; acção de domínio único
-     usa novo `canAccessDomain()` (mesmo padrão de `panel-dns/route.ts`).
-   - P0-5: `panel-session-cache-clear.ts` — passa a varrer também `localStorage` (não só
-     `sessionStorage`) e prefixos `vd-` (hífen) e `webmail_`.
-8. **P1-1..P1-4 — IDOR em renewals/cotações/newsletter.** Commit `c922b49`:
-   - P1-1: `/api/renewals` GET — `userId` do query só é aceite quando `role==='admin'`.
-   - P1-2: `/api/admin/cotacoes` GET+PATCH — restringido a `role==='admin'`.
-   - P1-3: fallback "sem contactos no domínio → busca todos" removido em
-     `MailMarketingSection.tsx` (`fetchSubs` E também no fluxo de ENVIO de campanha, que tinha
-     o mesmo padrão + um bypass `allowedDomains.size===0 → permitir tudo`, não estava no plano
-     original mas é a mesma vulnerabilidade). **Réplica encontrada e corrigida também em
-     `src/app/cliente/page.tsx`** (painel de cliente tem a sua própria cópia deste componente
-     com o mesmo bug no fluxo de envio — mais grave por ser client-facing). O fallback da
-     listagem de contactos em `cliente/page.tsx` não precisou de correcção — já filtrava
-     correctamente depois do fallback.
-   - P1-4: `adminRemoverCampanha`/`adminRemoverSubscritor` em `mailmarketing.ts` passaram a
-     verificar posse (`sender_email`/`metadata.domain` do registo == chamador) antes de apagar.
-     Assinatura das funções mudou (agora exigem `ownerEmail`/`dominio`) — todos os call-sites
-     actualizados, incluindo os duplicados em `cliente/page.tsx` (4 pontos: delete individual,
-     delete em lote, delete de campanha individual, delete de campanhas seleccionadas em lote).
-   - **Nota:** `src/lib/clientes-api.ts` tem uma TERCEIRA implementação de
-     `removerSubscritor`/`removerCampanha` (client-side, chave anon, depende de RLS), usada
-     pela UI legada em `src/app/dashboard/mensagens/*`. Não foi tocada — já estava marcada como
-     P3/dívida técnica no plano original ("não avaliado em detalhe"). Continua por avaliar.
-9. **P1-6 — portefólio de domínios exposto.** `registrar/account/domains/route.ts` GET
-   restringido a `role==='admin'` (opção (a) do plano, recomendada por omissão). Confirmado que
-   o separador "Domínios registados" já não era alcançável pelo menu do revendedor (nenhum
-   `MenuItem` aponta para `domains-registados`) — sem regressão visível. Commit `427878a`.
+7. **P0-2..P0-5** — fugas de dados entre contas: `db-manager` deixou de confiar no `owner` do
+   pedido; `listMirrorPackages` deixou de devolver pacotes de outros revendedores;
+   `email-dns-brevo` passou a verificar posse do domínio; `panel-session-cache-clear.ts` passou
+   a varrer também `localStorage` e os prefixos `vd-`/`webmail_`. Commit `b5c337c`.
+8. **P1-1..P1-4** — IDOR em `/api/renewals`, `/api/admin/cotacoes`, e fallbacks de newsletter
+   que devolviam/enviavam para contactos de outras contas (`MailMarketingSection.tsx` E réplica
+   em `src/app/cliente/page.tsx`, mais grave por ser client-facing). `adminRemoverCampanha`/
+   `adminRemoverSubscritor` passaram a verificar posse antes de apagar. Commit `c922b49`.
+9. **P1-6** — `/api/registrar/account/domains` restringido a admin (stopgap; sem coluna de
+   posse por domínio ainda). Commit `427878a`.
+10. **P0-6** — impersonação de revendedor não limpava caches do browser ao entrar/sair
+    (`ClientesDaSection.tsx`, `HostingSections.tsx`, `revendedor/page.tsx`), mesma causa-raiz do
+    bug original de DNS mas nunca aplicada à impersonação — um admin via dados da própria conta
+    ou de um revendedor impersonado antes, misturados com os da conta actual. Commit `21ac2dc`.
+11. **P0-7, P0-8** — `/api/da-emails` geria email de qualquer domínio sem verificar posse;
+    `server-exec` (resolveSitePath/listDirectory/siteDiskUsage/FILE_OPS) e `upload-native`
+    davam acesso a ficheiros de QUALQUER cliente via SSH root, só validando formato do caminho,
+    nunca posse — `siteDiskUsage` e `upload-native` também tinham injecção de comandos (mesma
+    classe do P0-1). Novo módulo `src/lib/panel-fs-ownership.ts`. Commit `add10aa`.
+12. **P0-9, P0-10** — `requireAdmin()` (`src/lib/admin-api-auth.ts`) tratava 'manager' como
+    admin real, dando acesso a `/api/admin/impersonate` (impersonar qualquer revendedor),
+    `/api/admin/panel-users` (criar contas e atribuir roles — incluindo tornar-se admin),
+    `/api/admin/reseller-provision`, `/api/admin/wp-install` — o escalonamento mais grave
+    encontrado. `/api/email-contas`, `/api/email-senha`, `imap-panel-shared.ts` davam a
+    QUALQUER revendedor/manager a password de servidor de email de QUALQUER conta, sem
+    verificar domínio. Commit `c945953`.
+13. **P1-5** — ver secção 2 abaixo (resolvido com limitação documentada). Commit `a8d8b01`.
+
+### Esta sessão — performance/UX (P2)
+14. **P2-1..P2-4** — `moveToReseller` passou a confirmar posse antes de mover conta;
+    `listPackages`/`LIVE_LIST_FALLBACK` em `server-exec` deixaram de ir sempre ao DirectAdmin
+    ao vivo (gate por `isMirrorStale`); "Transferir domínio" deixou de afirmar sucesso falso;
+    dropdown de "proprietário" em Contas de email passou a filtrar por posse para revendedor
+    (`ownerScopeToSites`), sem restringir a vista do admin. Commit `bd699fc`.
 
 ---
 
-## 2. P1-5 — DELIBERADAMENTE NÃO FEITO, decisão pendente do utilizador
+## 2. P1-5 — resolvido, com uma lacuna documentada (não bloqueante)
 
-### "manager" tratado como "admin" em `requireAdminOrReseller`
-**Ficheiro:** `src/lib/panel-api-auth.ts`, linha 52:
-```ts
-if (effectiveRole === 'admin' || effectiveRole === 'manager' || ADMIN_EMAILS.has(email)) {
-  return { user: { id: user.id, email, role: 'admin' } };  // 'manager' vira 'admin'
-}
-```
-**Confirmado nesta sessão (não só suspeita):** isto propaga-se a `resolvePanelDaContext()`
-(`src/lib/panel-api-context.ts`), que para `role==='admin'` chama
-`getDirectAdminAPIForAuth(auth.user)` com `mirrorScope: { role: 'admin' }` — ou seja, contas
-"manager" recebem literalmente credenciais DirectAdmin admin/root, sem qualquer scoping, em
-~30 rotas que usam `requireAdminOrReseller` (`api/da`, `api/db-manager`, `api/backup-manager`,
-`api/directadmin-access`, `api/server-exec`, `api/registrar/*`, `api/dns-sync`, etc.).
+**O que era:** `requireAdminOrReseller()` (`panel-api-auth.ts`) coercia `'manager'` para
+`role:'admin'`, dando a qualquer conta "manager" credenciais DirectAdmin admin reais em ~30
+rotas — confirmado por leitura de `resolvePanelDaContext()`.
 
-**Por que não foi corrigido nesta sessão:** `resolvePanelDaContext()` só sabe tratar `'admin'`
-e `'reseller'` — não tem NENHUM caminho escopado para `'manager'`. Só
-`requirePanelBootstrapAccess()` (usada em `/api/panel/bootstrap`) já trata `'manager'`
-correctamente, isolando-o aos próprios sites via `listMirrorWebsitesForClientUser(userId,
-email)`.
+**Fix aplicado:**
+1. `requireAdminOrReseller()` agora rejeita `'manager'` explicitamente (403) — seguro por
+   omissão em TODAS as rotas, sem precisar de as tocar uma a uma. Nova função
+   `requireAdminResellerOrManager()` para rotas onde um manager, escopado à sua própria conta
+   DA, pode legitimamente actuar.
+2. `resolvePanelDaContext()` ganhou um ramo `'manager'` que usa exactamente o mesmo mecanismo
+   de credenciais escopadas de um revendedor (nunca admin real).
+3. Aplicado a 12 rotas: `admin/wp-update`, `admin/wp-users`, `backup-manager`,
+   `backup-schedule`, `db-manager`, `directadmin-access`, `panel-dns`, `da-emails`,
+   `email-dns-brevo`, `reseller/da-profile`, `reseller/ensure-provision`, `revendedor/context`.
 
-Isto significa que **simplesmente remover `'manager'` da condição em `panel-api-auth.ts:52`
-NÃO É uma correcção segura por si só** — bloquearia managers com 403 em todas essas ~30 rotas,
-possivelmente partindo funcionalidade legítima que hoje "funciona" (mesmo que sobre-
--privilegiada). Corrigir a sério exige:
-1. Construir um caminho `'manager'` escopado dentro de `resolvePanelDaContext()` (ou equivalente),
-   limitado aos sites do próprio manager — usando o mesmo mecanismo do bootstrap como referência.
-2. Decidir, rota a rota, quais das ~30 acções fazem sentido para um manager (ex.: PHP/SSL/email
-   dos seus próprios sites) e quais devem continuar bloqueadas mesmo com scoping (ex.:
-   `server-exec`, `registrar/*` — provavelmente nunca deviam ser acessíveis a "manager").
-3. **Testar login real como conta "manager"** depois da alteração — não foi possível nesta
-   sessão por falta de credenciais/ambiente de teste.
+**Achado adicional (corrigido no mesmo commit):** `directadmin-access/route.ts` tinha uma
+falha PRÉ-EXISTENTE mais grave que já afectava qualquer revendedor, não só manager — sem
+`?as=reseller` no pedido, `target` assumia `'admin'` por omissão e devolvia SSO real de admin
+do DirectAdmin a QUALQUER chamador autenticado. `parseAccessTarget()` agora deriva sempre o
+target da role real do chamador, nunca do valor pedido pelo cliente.
 
-**Recomendação para a próxima sessão:** perguntar ao utilizador se quer (a) o fix escopado
-completo (trabalho maior, mais seguro), ou (b) um bloqueio simples imediato aceitando que
-managers ficam sem acesso a essas rotas até o scoping estar pronto. Não aplicar nenhuma das
-duas sem confirmação — é o item de maior alcance/risco de toda a auditoria.
+**Lacuna que fica por resolver (bloqueada para manager, 403 seguro, sem regressão):**
+`/api/da` e `/api/server-exec` — dispatchers grandes com dezenas de acções, algumas claramente
+escopáveis a um manager (PHP/SSL/DNS/email/BD do seu próprio site — `da/route.ts` tem a lista
+completa comentada no código) e outras claramente não (`createPackage`/`deletePackage`,
+`createUser`/`deleteUser` de sub-contas, firewall, `execCommand`). Dividir acção a acção requer
+tocar em cada branch do dispatcher e não foi feito por ser trabalho maior sem ganho de
+segurança adicional (o comportamento actual — manager bloqueado nestas duas rotas — já é
+seguro, só incompleto). Se o utilizador quiser managers a gerir PHP/SSL/DNS via estas duas
+rotas especificamente, é o próximo passo natural.
+
+**Nota sobre teste:** não foi possível fazer login real como conta "manager" para validar
+end-to-end — a correcção foi feita por leitura cuidada do código de resolução de credenciais
+(`resolveDirectAdminCredentials`, que já tratava qualquer role não-admin de forma idêntica via
+`loadResellerCredentialsByUserId`), não por teste ao vivo. Recomenda-se um teste manual de
+login como manager numa próxima sessão com acesso a uma conta de teste.
 
 ---
 
-## 3. P2 / P3 — não urgentes, não tocados nesta sessão
+## 3. P3 — dívida técnica de baixo risco, não tocada
 
-Convenção de severidade: **P2 médio** (lentidão/UX), **P3 baixo** (cosmético).
-
-### P2-1. `moveToReseller` não verifica que a conta pertence ao revendedor de origem
-**Ficheiro:** `src/app/api/admin/clientes/route.ts`, acção `moveToReseller` (linhas ~729-746).
-Já exige `role==='admin'`, não é explorável por outro revendedor — só protecção contra UI
-desactualizada. **Fix:** verificação tipo `assertManagedUser` (já existe em
-`revendedor/contas/route.ts:105-109`) antes de `CMD_API_MOVE_USERS`.
-
-### P2-2. Chamada ao vivo desnecessária em `listPackages`
-**Ficheiro:** `src/app/api/server-exec/route.ts`, bloco `LIVE_LIST_FALLBACK` (linhas ~212-245).
-Mesmo padrão já corrigido em `/api/admin/clientes` (commit `8e7f20f`). **Fix:** gate por
-`isMirrorStale`.
-
-### P2-3. Transferir domínio — funcionalidade finge funcionar mas não faz nada
-**Ficheiro:** `src/app/dashboard/DomainTransferSection.tsx`. Código EPP nunca é enviado a
-nenhum backend; UI mente dizendo "Pedido registado". **Fix curto prazo:** mudar mensagem.
-**Fix longo prazo:** implementar endpoint real (fora do âmbito de segurança).
-
-### P2-4. Dropdown "proprietário" em Contas de e-mail sem filtro visível
-**Ficheiro:** `src/app/dashboard/HostingSections.tsx:1559` (`EmailManagementSection`). Depende
-inteiramente de RLS na tabela `clientes`. **Fix:** confirmar RLS em produção; adicionar filtro
-explícito se necessário.
-
-### P3. Itens de baixo risco / cosmético
 - `GitDeploySection` guarda `git-deploy-cache` em localStorage, fora da limpeza de logout —
   inofensivo (histórico de commits partilhado).
 - Painel do cliente mostra placeholders "Secção não disponível" — código morto inofensivo.
-- `src/app/dashboard/mensagens/*` + `src/lib/clientes-api.ts` — implementação antiga/duplicada
-  de newsletter, com a sua própria versão (sem verificação de posse) de
-  `removerSubscritor`/`removerCampanha`, protegida só por RLS (chave anon). Ainda não avaliada
-  em detalhe — candidato natural ao próximo P1 se for reavaliada.
+- **`src/app/dashboard/mensagens/*` + `src/lib/clientes-api.ts`** — implementação antiga/
+  duplicada de newsletter, com a sua própria versão (client-side, chave anon, sem verificação
+  de posse) de `removerSubscritor`/`removerCampanha`, protegida só por RLS. Mesma classe de bug
+  do P1-4, mas nunca avaliada em detalhe nesta ronda — candidato natural a próximo P1 se for
+  reavaliada.
 
 ---
 
-## 4. Notas para a próxima sessão
+## 4. Estado de publicação (push)
 
-- Todos os commits desta sessão estão **locais, sem push**. Confirmar com o utilizador antes de
-  `git push origin main`.
-- Antes de qualquer commit novo: `git status` e `git diff --stat`, e nunca `git add -A` — há
-  historicamente outra sessão a editar ficheiros de UI (`deploy.sh`, `deploy/deploy-ssh.sh`,
-  `deploy/pm2.config.js`, `src/proxy.ts`, `src/app/api/cotacoes/[id]/layouts/route.ts`,
-  `src/components/quotations/QuotationLayoutsList.tsx`, `src/components/admin/AdminSidebar.tsx`,
-  `src/lib/panel-ui.ts` vistos com alterações não relacionadas durante esta sessão) — só adicionar
-  os ficheiros explicitamente tocados pela tarefa em mãos.
+Confirmar sempre com o utilizador antes de publicar. Estado à data deste documento:
+- Commits `96d1753` até `36b06f9` (P0-1..P1-6 + doc): **publicados em `main`** (push feito
+  a pedido explícito do utilizador).
+- Commits seguintes (`21ac2dc` P0-6, `de8564c` doc, `add10aa` P0-7/8, `c945953` P0-9/10,
+  `a8d8b01` P1-5, `bd699fc` P2): estado de publicação depende de quando este documento for
+  lido — verificar `git log origin/main..HEAD` para confirmar o que ainda não foi publicado
+  antes de assumir.
+- **Importante:** este branch local partilha working tree com outra sessão activa, que também
+  cria commits (ex.: vários commits "encomendas" vistos nesta sessão). Um `git push` publica
+  TODOS os commits locais à frente de `origin/main`, incluindo os dessa outra sessão — avisar
+  o utilizador disso antes de cada push, não assumir que só os commits de segurança serão
+  publicados.
+
+---
+
+## 5. Notas gerais para a próxima sessão
+
 - Depois de qualquer alteração: `npx tsc --noEmit -p tsconfig.json` (ignorar erros em
   `.next/dev/types/**` — são artefactos de cache stale, não relacionados com o código-fonte).
+- Antes de qualquer commit: `git status` e `git diff --stat`; nunca `git add -A`.
+- Padrão de verificação de posse de domínio (`canAccessDomain` via
+  `loadResellerCredentialsByUserId` + `getMirrorSiteOwner`) foi replicado em 5+ rotas nesta
+  sessão — reutilizar em vez de reinventar sempre que aparecer um novo endpoint sem esta
+  verificação.
