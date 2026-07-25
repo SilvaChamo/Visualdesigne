@@ -152,15 +152,11 @@ export async function proxy(request: NextRequest) {
       appMetadata: user.app_metadata,
     })
     const inner = panelRouteFromPublicEntry(pathname) ?? resolveInnerPanelPath(null, role)
-    const target = resolvePanelInnerRedirect(
-      request.url,
-      inner,
-      request.nextUrl.search,
-    )
+    const target = resolvePanelInnerRedirect(request.url, inner, request.nextUrl.search)
     return redirectWithSession(target)
   }
 
-  // Rotas do painel: /dashboard, /client…
+  // Rotas do painel: /dashboard, /cliente, /revendedor, /guest
   if (isPanelRoute(pathname) && !pathname.startsWith(PUBLIC_PANEL_ENTRY)) {
     if (!user) {
       return redirectWithSession(buildPanelLoginUrl(request.url))

@@ -32,7 +32,7 @@ CREATE POLICY quotation_requests_admin ON quotation_requests
   FOR ALL USING (
     EXISTS (
       SELECT 1 FROM profiles
-      WHERE id = auth.uid() AND role = 'admin'
+      WHERE user_id = auth.uid() AND role = 'admin'
     )
   );
 

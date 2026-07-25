@@ -5,6 +5,7 @@ import { FileText } from 'lucide-react';
 import { formatMt } from '@/lib/pricing-catalog';
 import { statusMeta } from '@/lib/quotation-status-labels';
 import { groupIntoBatches, batchNumero, type BatchItem } from '@/lib/quotation-batch';
+import { useBatchNumeros } from '@/lib/use-batch-numeros';
 import { QuotationLayoutsList } from '@/components/quotations/QuotationLayoutsList';
 
 type Quotation = BatchItem & {
@@ -31,6 +32,7 @@ export function EncomendasLayoutsSection() {
   }, []);
 
   const batches = useMemo(() => groupIntoBatches(quotations), [quotations]);
+  const numeros = useBatchNumeros();
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-[320px_1fr] gap-4 lg:gap-6 min-h-0 h-full">
@@ -68,7 +70,7 @@ export function EncomendasLayoutsSection() {
                 <FileText className="w-4 h-4 text-red-600 dark:text-red-500" />
               </div>
               <div className="min-w-0 flex-1">
-                <p className="font-bold text-sm text-gray-900 dark:text-white truncate">Encomenda Nº {batchNumero(batch.batchId)}</p>
+                <p className="font-bold text-sm text-black dark:text-white truncate">Encomenda Nº {numeros[batch.batchId] ?? batchNumero(batch.batchId)}</p>
                 <p className="text-xs text-gray-500 dark:text-zinc-400 mt-0.5 truncate">{resumo}</p>
                 <p className="text-xs text-gray-500 dark:text-zinc-400 mt-0.5">
                   {batch.sobConsulta ? 'Sob Consulta' : `${formatMt(batch.totalMt)} MT`}

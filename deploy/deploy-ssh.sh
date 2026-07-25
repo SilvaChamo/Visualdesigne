@@ -6,7 +6,7 @@
 echo "🚀 Iniciando deploy para visualdesignmoz.com..."
 
 # Verificar se a chave SSH existe
-SSH_KEY="${SSH_KEY:-/Users/macbook/.ssh/visualdesign_hetzner}"
+SSH_KEY="${SSH_KEY:-$HOME/.ssh/claude_hetzner}"
 if [ ! -f "$SSH_KEY" ]; then
     echo "❌ Chave SSH não encontrada: $SSH_KEY"
     exit 1
@@ -16,7 +16,7 @@ SSH_PORT="${SSH_PORT:-2234}"
 SSH_HOST="${SSH_HOST:-37.27.17.25}"
 SERVER="root@${SSH_HOST}"
 SSH_OPTS="-i $SSH_KEY -o StrictHostKeyChecking=no -o ConnectTimeout=30 -p $SSH_PORT"
-REMOTE_PATH="${REMOTE_PATH:-/home/visualdesignmoz.com/public_html}"
+REMOTE_PATH="${REMOTE_PATH:-/opt/visualdesign-site}"
 LOCAL_PATH="${LOCAL_PATH:-$(pwd)}"
 
 echo "📤 Enviando arquivos para o servidor..."
@@ -40,8 +40,9 @@ fi
 echo "🔨 Executando build no servidor..."
 
 # Executar build e restart do PM2
-ssh $SSH_OPTS "$SERVER" << 'EOF'
-    cd /home/visualdesignmoz.com/public_html
+ssh $SSH_OPTS "$SERVER" <<EOF
+    set -e
+    cd "$REMOTE_PATH" || exit 1
     
     # Verificar se há node_modules, se não, instalar
     if [ ! -d "node_modules" ]; then
@@ -55,7 +56,7 @@ ssh $SSH_OPTS "$SERVER" << 'EOF'
     
     # Restart PM2
     echo "🔄 Reiniciando serviço..."
-    pm2 restart visualdesign || pm2 start npm --name "visualdesign" -- start
+    pm2 restart visualdesign-site || pm2 start npm --name "visualdesign-site" -- start -- -p 3003
     pm2 save
     
     echo "✅ Deploy concluído!"

@@ -6,6 +6,63 @@ import { notifyQuoteTeam } from '@/lib/notify-quote-team';
 import { QUOTATION_ATTACHMENTS_BUCKET } from '@/lib/quotation-attachments-bucket';
 import { QUOTATION_LAYOUTS_BUCKET } from '@/lib/quotation-layouts-bucket';
 import { computeBatchStatus } from '@/lib/quotation-status-labels';
+import { resolveRoleForAuthUser } from '@/lib/server-auth-role';
+
+// Uma encomenda (linha + irmãs do mesmo batch) — usada pelo documento de
+// cotação e pelo painel de detalhe. Consulta com service role (não a sessão
+// do browser) porque o admin precisa de ver encomendas de qualquer cliente;
+// as RLS policies em quotation_requests só reconhecem profiles.role='admin',
+// que é mais restrito do que resolveRoleForAuthUser (usado em todo o resto
+// do painel), causando "encomenda não encontrada" para admins reais.
+export async function GET(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  try {
+    const { id } = await params;
+
+    const supabase = await createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      return NextResponse.json({ error: 'Faça login para continuar.' }, { status: 401 });
+    }
+
+    const admin = getSupabaseAdmin();
+    if (!admin) {
+      return NextResponse.json({ error: 'Serviço indisponível.' }, { status: 503 });
+    }
+
+    const { data: row, error: fetchError } = await admin
+      .from('quotation_requests')
+      .select('*')
+      .eq('id', id)
+      .single();
+
+    if (fetchError || !row) {
+      return NextResponse.json({ error: 'Não foi possível encontrar esta cotação.' }, { status: 404 });
+    }
+
+    if (row.user_id !== user.id) {
+      const role = await resolveRoleForAuthUser(supabase, user);
+      if (role !== 'admin') {
+        return NextResponse.json({ error: 'Não tem permissão para ver esta cotação.' }, { status: 403 });
+      }
+    }
+
+    const { data: siblings, error: siblingsError } = await admin
+      .from('quotation_requests')
+      .select('*')
+      .eq('batch_id', row.batch_id)
+      .order('created_at', { ascending: true });
+
+    const items = !siblingsError && siblings && siblings.length > 0 ? siblings : [row];
+
+    return NextResponse.json({ success: true, items });
+  } catch (error: unknown) {
+    console.error('[cotacoes/[id] GET] error:', error);
+    return NextResponse.json({ error: 'Erro interno' }, { status: 500 });
+  }
+}
 
 // Edição de uma encomenda pelo próprio cliente, só enquanto ainda está
 // 'pending' (antes de a equipa reagir). Permite ajustar notas/prazo/

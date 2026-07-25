@@ -6,6 +6,7 @@ import { formatMt } from '@/lib/pricing-catalog';
 import { MPESA_NUMBER, BANK_NAME, BANK_ACCOUNT, BANK_NIB, metodoPagamentoLabel } from '@/lib/quotation-payment-info';
 import { panelCard, panelBtnPrimary } from '@/lib/panel-ui';
 import { groupIntoBatches, batchNumero, type BatchItem } from '@/lib/quotation-batch';
+import { useBatchNumeros } from '@/lib/use-batch-numeros';
 
 type Quotation = BatchItem & {
   categoria_label: string;
@@ -47,6 +48,7 @@ export function EncomendasPagamentosSection() {
     () => groupIntoBatches(quotations).filter((b) => ['payment_selected', 'approved', 'delivered'].includes(b.status)),
     [quotations],
   );
+  const numeros = useBatchNumeros();
 
   if (loading) {
     return <p className="text-sm text-gray-400 dark:text-zinc-500">A carregar...</p>;
@@ -77,7 +79,7 @@ export function EncomendasPagamentosSection() {
           <div key={batch.batchId} className={`${panelCard} p-4`}>
             <div className="flex items-center justify-between gap-3 mb-2">
               <div>
-                <p className="font-bold text-gray-900 dark:text-white">Encomenda Nº {batchNumero(batch.batchId)}</p>
+                <p className="font-bold text-black dark:text-white">Encomenda Nº {numeros[batch.batchId] ?? batchNumero(batch.batchId)}</p>
                 <p className="text-sm text-gray-500 dark:text-zinc-400">{resumo}</p>
                 <p className="text-sm text-gray-500 dark:text-zinc-400">
                   {batch.sobConsulta ? 'Sob Consulta' : `${formatMt(batch.totalMt)} MT`}

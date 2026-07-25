@@ -24,7 +24,7 @@ CREATE POLICY quotation_messages_own ON quotation_messages
 
 CREATE POLICY quotation_messages_admin ON quotation_messages
   FOR ALL USING (
-    EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin')
+    EXISTS (SELECT 1 FROM profiles WHERE user_id = auth.uid() AND role = 'admin')
   );
 
 -- Escrita feita apenas pelo servidor (service role), nunca directamente pelo browser.

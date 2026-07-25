@@ -31,7 +31,7 @@ CREATE POLICY quotation_layouts_own ON quotation_layouts
 
 CREATE POLICY quotation_layouts_admin ON quotation_layouts
   FOR ALL USING (
-    EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin')
+    EXISTS (SELECT 1 FROM profiles WHERE user_id = auth.uid() AND role = 'admin')
   );
 
 -- Escrita feita apenas pelo servidor (service role), nunca directamente pelo browser.

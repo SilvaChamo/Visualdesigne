@@ -3,11 +3,11 @@
 import { useEffect, useState, Suspense } from 'react';
 import { useParams, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
-import { supabase } from '@/lib/supabase-client';
 import { formatMt } from '@/lib/pricing-catalog';
 import { NotchSection } from '@/components/home/NotchSection';
 import { Loader2, AlertCircle, Printer, ArrowRight } from 'lucide-react';
 import { Spinner } from '@/components/ui/spinner';
+import { useBatchNumeros } from '@/lib/use-batch-numeros';
 
 type QuotationRow = {
   id: string;
@@ -48,36 +48,25 @@ function CotacaoDocumentContent() {
   const [items, setItems] = useState<QuotationRow[] | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const numeros = useBatchNumeros();
 
   useEffect(() => {
     if (!id) return;
     (async () => {
-      const { data: row, error: fetchError } = await supabase
-        .from('quotation_requests')
-        .select('*')
-        .eq('id', id)
-        .single();
-
-      if (fetchError || !row) {
+      try {
+        const res = await fetch(`/api/cotacoes/${id}`);
+        const data = await res.json();
+        if (!res.ok || !data.success) {
+          setError(data.error || 'Não foi possível encontrar esta cotação.');
+          setLoading(false);
+          return;
+        }
+        setItems(data.items as QuotationRow[]);
+      } catch {
         setError('Não foi possível encontrar esta cotação.');
+      } finally {
         setLoading(false);
-        return;
       }
-
-      // A encomenda é o conjunto de linhas submetidas juntas (mesmo
-      // batch_id), não só esta linha — mostra a fatura completa.
-      const { data: siblings, error: siblingsError } = await supabase
-        .from('quotation_requests')
-        .select('*')
-        .eq('batch_id', row.batch_id)
-        .order('created_at', { ascending: true });
-
-      if (siblingsError || !siblings || siblings.length === 0) {
-        setItems([row as QuotationRow]);
-      } else {
-        setItems(siblings as QuotationRow[]);
-      }
-      setLoading(false);
     })();
   }, [id]);
 
@@ -123,7 +112,7 @@ function CotacaoDocumentContent() {
     year: 'numeric',
   });
   const adiantamento = Math.round(totalMt * 0.7 * 100) / 100;
-  const numeroCotacao = quotation.batch_id.split('-')[0].toUpperCase();
+  const numeroCotacao = numeros[quotation.batch_id] ?? quotation.batch_id.split('-')[0].toUpperCase();
 
   const documentCard = (
         <div id="quote-print-area" className="bg-white dark:bg-white text-zinc-900 rounded-lg shadow-sm border border-zinc-200 p-8 sm:p-12">
@@ -145,7 +134,7 @@ function CotacaoDocumentContent() {
 
           <div className="flex flex-col sm:flex-row items-start justify-between gap-4 mb-8">
             <div>
-              <h1 className="text-xl font-bold text-zinc-900">Cotação Nº {numeroCotacao}</h1>
+              <h1 className="text-xl font-bold text-black">Cotação Nº {numeroCotacao}</h1>
               <p className="text-xs text-zinc-500 mt-1">Data de emissão: {dataEmissao}</p>
             </div>
             <div className="text-xs text-zinc-600 sm:text-right leading-relaxed">
@@ -276,7 +265,7 @@ function CotacaoDocumentContent() {
       <div className="no-print -mt-[16px] relative z-20 bg-zinc-200 dark:bg-black pt-12 pb-2">
         <div className="max-w-3xl mx-auto px-4">
           <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
-            <p className="text-sm text-zinc-500 dark:text-zinc-400">Cotação Nº {numeroCotacao}</p>
+            <p className="text-sm font-bold text-black dark:text-white">Cotação Nº {numeroCotacao}</p>
             <div className="flex gap-3">
               <button
                 type="button"

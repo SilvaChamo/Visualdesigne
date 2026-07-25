@@ -12,6 +12,7 @@ import {
 import { formatMt, BRANDS } from '@/lib/pricing-catalog'
 import { statusMeta, type StatusBucket } from '@/lib/quotation-status-labels'
 import { groupIntoBatches, groupBatchesByBrand, filterBatchesByBucket, batchNumero, type BatchItem, type QuotationBatch } from '@/lib/quotation-batch'
+import { useBatchNumeros } from '@/lib/use-batch-numeros'
 import { QuotationHistoryTimeline } from '@/components/quotations/QuotationHistoryTimeline'
 import { QuotationAttachmentsList } from '@/components/quotations/QuotationAttachmentsList'
 import { QuotationMessagesThread } from '@/components/quotations/QuotationMessagesThread'
@@ -110,6 +111,7 @@ export function CotacoesSection() {
   const [activeBucket, setActiveBucket] = useState<StatusBucket>('pending')
   const [updatingId, setUpdatingId] = useState<string | null>(null)
   const [expandedBatchId, setExpandedBatchId] = useState<string | null>(null)
+  const numeros = useBatchNumeros()
 
   const fetchCotacoes = useCallback(async (opts?: { background?: boolean }) => {
     if (!opts?.background) setLoading(true)
@@ -224,8 +226,8 @@ export function CotacoesSection() {
 
   return (
     <div>
-      <div className="grid grid-cols-1 lg:grid-cols-[220px_1fr] gap-4 lg:gap-5 items-start">
-        <nav className={`${panelSectionCard} sticky top-4 h-[calc(100vh-116px)] space-y-5 overflow-y-auto p-3`}>
+      <div className="flex flex-col lg:flex-row gap-4 lg:gap-5 items-start">
+        <nav className={`${panelSectionCard} sticky top-0 h-[calc(100vh-116px)] w-full shrink-0 space-y-5 overflow-y-auto p-3 lg:w-[220px]`}>
           <div>
             <button
               type="button"
@@ -267,7 +269,7 @@ export function CotacoesSection() {
           </div>
         </nav>
 
-        <div className="min-w-0">
+        <div className="min-w-0 flex-1 w-full">
           {loading ? (
             <div className="text-center py-12 text-sm text-gray-400 dark:text-zinc-500">A carregar encomendas...</div>
           ) : visibleGroups.every((g) => g.batches.length === 0) ? (
@@ -293,6 +295,7 @@ export function CotacoesSection() {
                             key={batch.batchId}
                             number={cardNumber}
                             batch={batch}
+                            numero={numeros[batch.batchId] ?? batchNumero(batch.batchId)}
                             isExpanded={expandedBatchId === batch.batchId}
                             onToggle={() => setExpandedBatchId(expandedBatchId === batch.batchId ? null : batch.batchId)}
                             updatingId={updatingId}
@@ -334,6 +337,7 @@ function phoneToWhatsAppDigits(raw: string): string {
 function BatchCard({
   number,
   batch,
+  numero,
   isExpanded,
   onToggle,
   updatingId,
@@ -342,6 +346,7 @@ function BatchCard({
 }: {
   number: number
   batch: QuotationBatch<QuotationRequest>
+  numero: string
   isExpanded: boolean
   onToggle: () => void
   updatingId: string | null
@@ -355,7 +360,7 @@ function BatchCard({
   const anchor = batch.primaryItem
   const whatsappDigits = phoneToWhatsAppDigits(anchor.telefone || '')
   const whatsappHref = whatsappDigits
-    ? `https://wa.me/${whatsappDigits}?text=${encodeURIComponent(`Olá ${anchor.responsavel || ''}, sobre a sua encomenda Nº ${batchNumero(batch.batchId)} (${anchor.empresa}):`)}`
+    ? `https://wa.me/${whatsappDigits}?text=${encodeURIComponent(`Olá ${anchor.responsavel || ''}, sobre a sua encomenda Nº ${numero} (${anchor.empresa}):`)}`
     : null
   const meta = statusMeta(batch.status, batch.sobConsulta)
   const resumo = batch.sobConsulta
@@ -374,8 +379,8 @@ function BatchCard({
           <div className="flex items-center gap-3">
             <Building2 className="w-4 h-4 text-gray-400 shrink-0" />
             <span className="min-w-0 truncate font-bold text-gray-900 dark:text-white">{anchor.empresa}</span>
-            <span className="shrink-0 rounded border border-gray-200 px-1.5 py-0.5 font-mono text-xs text-gray-500 dark:border-zinc-700 dark:text-zinc-400">
-              Nº {batchNumero(batch.batchId)}
+            <span className="shrink-0 rounded border border-gray-300 bg-gray-50 px-1.5 py-0.5 font-mono text-xs font-bold text-black dark:border-zinc-600 dark:bg-zinc-800 dark:text-white">
+              Nº {numero}
             </span>
             <div className="ml-auto shrink-0 flex items-center gap-2 pl-2">
               <span className="shrink-0 w-28 text-right text-sm font-semibold whitespace-nowrap">

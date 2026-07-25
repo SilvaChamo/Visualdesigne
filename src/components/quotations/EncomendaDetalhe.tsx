@@ -7,6 +7,7 @@ import { Spinner } from '@/components/ui/spinner';
 import { formatMt } from '@/lib/pricing-catalog';
 import { statusMeta, computeBatchStatus } from '@/lib/quotation-status-labels';
 import { batchNumero } from '@/lib/quotation-batch';
+import { useBatchNumeros } from '@/lib/use-batch-numeros';
 import { panelTabBar, panelTabBtn, panelTabBtnActive, panelTabBtnInactive, panelBtnPrimary, panelBtnSecondary } from '@/lib/panel-ui';
 import { QuotationHistoryTimeline } from '@/components/quotations/QuotationHistoryTimeline';
 import { QuotationAttachmentsList } from '@/components/quotations/QuotationAttachmentsList';
@@ -52,6 +53,7 @@ export function EncomendaDetalhe({
   const [items, setItems] = useState<QuotationRow[] | null>(null);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<Tab>('detalhes');
+  const numeros = useBatchNumeros();
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
   const [cancelling, setCancelling] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -155,7 +157,9 @@ export function EncomendaDetalhe({
       <div className="p-4 border-b border-gray-100 dark:border-zinc-800">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <h3 className="font-bold text-gray-900 dark:text-white">Encomenda Nº {batchNumero(primary.batch_id)}</h3>
+            <h3 className="font-bold text-black dark:text-white">
+              Encomenda Nº <span className="font-mono">{numeros[primary.batch_id] ?? batchNumero(primary.batch_id)}</span>
+            </h3>
             <p className="text-sm text-gray-500 dark:text-zinc-400 mt-0.5">
               {allSobConsulta ? 'Sob Consulta' : `${formatMt(totalMt)} MT`}
             </p>
