@@ -6,7 +6,7 @@ import {
   Inbox, Clock, Factory, PackageCheck, XCircle, CheckCircle2, MessageCircle, X,
 } from 'lucide-react'
 import {
-  panelBtn, panelBtnPrimary, panelBtnSecondary, panelField, panelSectionPadding,
+  panelBtnPrimary, panelBtnSecondary, panelField,
   panelTabBar, panelTabBtn, panelTabBtnActive, panelTabBtnInactive, panelSectionCard,
 } from '@/lib/panel-ui'
 import { formatMt, BRANDS } from '@/lib/pricing-catalog'
@@ -171,7 +171,7 @@ export function CotacoesSection() {
     }`
 
   return (
-    <div className={panelSectionPadding}>
+    <div>
       <div className="flex flex-wrap items-center justify-between gap-3 mb-5">
         <div>
           <h2 className="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2">
@@ -333,51 +333,44 @@ function BatchCard({
       {isExpanded && (
         <div className="border-t border-gray-100 dark:border-zinc-800" onClick={(e) => e.stopPropagation()}>
           <div className={`${panelTabBar} px-4 pt-2`}>
-            <div className="flex flex-wrap gap-5">
-              {BATCH_TABS.map((t) => (
-                <button
-                  key={t.id}
-                  type="button"
-                  onClick={() => setActiveTab(t.id)}
-                  className={`${panelTabBtn} ${activeTab === t.id ? panelTabBtnActive : panelTabBtnInactive}`}
-                >
-                  {t.label}
-                </button>
-              ))}
+            <div className="flex flex-wrap items-end justify-between gap-3">
+              <div className="flex flex-wrap gap-5">
+                {BATCH_TABS.map((t) => (
+                  <button
+                    key={t.id}
+                    type="button"
+                    onClick={() => setActiveTab(t.id)}
+                    className={`${panelTabBtn} ${activeTab === t.id ? panelTabBtnActive : panelTabBtnInactive}`}
+                  >
+                    {t.label}
+                  </button>
+                ))}
+              </div>
+              <p className="pb-2.5 shrink-0 text-xs text-gray-500 dark:text-zinc-400 flex items-center gap-1.5">
+                <Calendar className="w-3.5 h-3.5" /> Entrega até {new Date(anchor.data_limite_entrega).toLocaleDateString('pt-PT')}
+              </p>
             </div>
           </div>
 
           <div className="p-4 text-sm">
             {activeTab === 'itens' && (
               <div className="space-y-4">
-                <div className="flex flex-wrap items-start justify-between gap-3 rounded-lg bg-blue-50 dark:bg-blue-950/20 px-4 py-3">
-                  <p className="text-gray-600 dark:text-zinc-300 flex items-center gap-1.5">
-                    <Calendar className="w-3.5 h-3.5 shrink-0" /> Entrega até {new Date(anchor.data_limite_entrega).toLocaleDateString('pt-PT')}
-                  </p>
-                  <div className="text-right space-y-0.5">
-                    <p className="text-gray-600 dark:text-zinc-300">Método (adiantamento): {metodoLabel(anchor.metodo_pagamento)}</p>
-                    {batch.items.some((i) => i.remanescente_metodo_pagamento) && (
-                      <p className="text-gray-600 dark:text-zinc-300">
-                        Método (remanescente): {metodoLabel(batch.items.find((i) => i.remanescente_metodo_pagamento)?.remanescente_metodo_pagamento ?? null)}
-                      </p>
-                    )}
-                  </div>
-                  {anchor.notas && <p className="text-gray-500 dark:text-zinc-400 italic w-full">"{anchor.notas}"</p>}
-                </div>
+                {anchor.notas && (
+                  <p className="text-gray-500 dark:text-zinc-400 italic">"{anchor.notas}"</p>
+                )}
 
                 <div className="space-y-2">
-                  <span className="text-xs font-bold uppercase text-gray-400 dark:text-zinc-500">Marcar estado de cada item</span>
                   <div className="rounded-lg border border-gray-100 dark:border-zinc-800 overflow-hidden divide-y divide-gray-100 dark:divide-zinc-800">
                     {batch.items.map((item, idx) => {
                       const itemMeta = itemStatusMeta(item.status)
                       return (
                         <div
                           key={item.id}
-                          className={`flex flex-wrap items-center justify-between gap-3 px-3 py-2.5 ${
+                          className={`flex flex-wrap items-center gap-3 px-3 py-2.5 ${
                             idx % 2 === 0 ? 'bg-white dark:bg-zinc-900' : 'bg-gray-50 dark:bg-zinc-800/40'
                           }`}
                         >
-                          <div className="min-w-0">
+                          <div className="min-w-0 flex-1">
                             <span className="text-gray-700 dark:text-zinc-300">
                               {item.categoria_label} — {item.produto} (x{item.quantidade})
                             </span>
@@ -385,21 +378,19 @@ function BatchCard({
                               <span className="block text-xs text-rose-600 dark:text-rose-400">Motivo: {item.rejection_reason}</span>
                             )}
                           </div>
-                          <div className="flex items-center gap-2 shrink-0">
-                            <select
-                              className={`${panelField} w-40`}
-                              value={item.status}
-                              disabled={updatingId === item.id}
-                              onChange={(e) => onUpdateStatus(item.id, e.target.value as QuotationRequest['status'])}
-                            >
-                              {STATUS_OPTIONS.map((s) => (
-                                <option key={s.value} value={s.value}>{s.label}</option>
-                              ))}
-                            </select>
-                            <span className={`w-24 shrink-0 text-center px-2 py-0.5 rounded-full text-[10px] font-bold whitespace-nowrap ${itemMeta.badge}`}>
-                              {itemMeta.label}
-                            </span>
-                          </div>
+                          <span className={`w-24 shrink-0 text-center px-2 py-1 rounded text-[10px] font-bold whitespace-nowrap ${itemMeta.badge}`}>
+                            {itemMeta.label}
+                          </span>
+                          <select
+                            className={`${panelField} w-40 shrink-0`}
+                            value={item.status}
+                            disabled={updatingId === item.id}
+                            onChange={(e) => onUpdateStatus(item.id, e.target.value as QuotationRequest['status'])}
+                          >
+                            {STATUS_OPTIONS.map((s) => (
+                              <option key={s.value} value={s.value}>{s.label}</option>
+                            ))}
+                          </select>
                         </div>
                       )
                     })}
