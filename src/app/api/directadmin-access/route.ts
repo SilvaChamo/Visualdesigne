@@ -6,7 +6,7 @@ import { resolveDirectAdminLoginUsernameFast } from '@/lib/directadmin-access-ta
 import { daOneTimeLoginUrl } from '@/lib/da-api-ssh';
 import type { DirectAdminAccessTarget } from '@/lib/server-config';
 import { buildPanelLoginUrl, getPublicSiteOrigin } from '@/lib/panel-origin';
-import { requireAdminOrReseller } from '@/lib/panel-api-auth';
+import { requireAdminResellerOrManager } from '@/lib/panel-api-auth';
 
 function readEnv(...keys: string[]): string {
   for (const key of keys) {
@@ -27,7 +27,14 @@ function directAdminLoginPageUrl(): string {
   );
 }
 
-function parseAccessTarget(request: NextRequest): DirectAdminAccessTarget {
+/**
+ * O parâmetro `?as=` vem do cliente e NUNCA deve, por si só, conseguir dar acesso admin —
+ * só um chamador cuja própria role já seja 'admin' pode obter target==='admin'. Caso
+ * contrário (revendedor/manager) fica sempre forçado a 'reseller', mesmo que peçam
+ * `?as=admin` ou omitam o parâmetro (o valor por omissão nunca pode ser 'admin').
+ */
+function parseAccessTarget(request: NextRequest, callerRole: 'admin' | 'reseller' | 'manager'): DirectAdminAccessTarget {
+  if (callerRole !== 'admin') return 'reseller';
   return request.nextUrl.searchParams.get('as') === 'reseller' ? 'reseller' : 'admin';
 }
 
@@ -49,16 +56,17 @@ function loginRedirect(_request: NextRequest): NextResponse {
 /** Abre o DirectAdmin com SSO (admin ou revenda conforme o painel). */
 export async function GET(request: NextRequest) {
   const loginUrl = directAdminLoginPageUrl();
-  const target = parseAccessTarget(request);
   const browserNav = isBrowserNavigation(request);
 
-  const auth = await requireAdminOrReseller();
+  const auth = await requireAdminResellerOrManager();
   if ('error' in auth) {
     if (browserNav) {
       return loginRedirect(request);
     }
     return auth.error;
   }
+
+  const target = parseAccessTarget(request, auth.user.role);
 
   try {
     const requestedUser = request.nextUrl.searchParams.get('user')?.trim().toLowerCase();

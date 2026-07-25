@@ -1,7 +1,7 @@
 import { getResellerDaUsername } from '@/lib/directadmin-credentials';
 import { loadResellerCredentialsByDaUsername, loadResellerCredentialsByUserId } from '@/lib/da-credential-store';
 import { resolvePanelDaContext } from '@/lib/panel-api-context';
-import type { PanelAuthSuccess } from '@/lib/panel-api-auth';
+import type { PanelStaffAuthSuccess } from '@/lib/panel-api-auth';
 import { getDaSyncAdmin } from '@/lib/da-sync-schema';
 import { OSHER_DOMAIN } from '@/lib/email-domains';
 
@@ -67,7 +67,7 @@ async function loadResellerEmail(daUsername: string, fallback?: string): Promise
 }
 
 export async function resolveResellerPanelContext(
-  auth: PanelAuthSuccess,
+  auth: PanelStaffAuthSuccess,
 ): Promise<ResellerPanelContext | null> {
   const ctx = await resolvePanelDaContext(auth);
 

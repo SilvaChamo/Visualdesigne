@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
-import { requireAdminOrReseller } from '@/lib/panel-api-auth'
+import { requireAdminResellerOrManager } from '@/lib/panel-api-auth'
 import { listMirrorWebsites } from '@/lib/panel-mirror-read'
 import { resolvePanelDaContext } from '@/lib/panel-api-context'
 import { PANEL_SLUG } from '@/lib/panel-tenant'
@@ -10,7 +10,7 @@ import type { BackupScheduleInput, BackupScheduleRow } from '@/lib/panel-backup-
 import { computeNextRunAt } from '@/lib/panel-backup-schedule-utils'
 import { runBackupScheduleRow } from '@/lib/panel-backup-schedule-run'
 import { ensureBackupSchema } from '@/lib/panel-backup-schema'
-import type { PanelAuthSuccess } from '@/lib/panel-api-auth'
+import type { PanelStaffAuthSuccess } from '@/lib/panel-api-auth'
 
 export const dynamic = 'force-dynamic'
 
@@ -44,23 +44,23 @@ function rowToClient(r: Record<string, unknown>): BackupScheduleRow {
   }
 }
 
-async function resolveOwnerForDomain(domain: string, auth?: PanelAuthSuccess): Promise<string | null> {
+async function resolveOwnerForDomain(domain: string, auth?: PanelStaffAuthSuccess): Promise<string | null> {
   if (!domain) return null
-  const session = auth ?? await requireAdminOrReseller()
+  const session = auth ?? await requireAdminResellerOrManager()
   if ('error' in session) return null
   const { mirrorScope } = await resolvePanelDaContext(session)
   const sites = await listMirrorWebsites(mirrorScope)
   return sites.find((s) => s.domain === domain)?.owner?.toLowerCase() || null
 }
 
-async function ownersInScope(auth: PanelAuthSuccess): Promise<string[]> {
+async function ownersInScope(auth: PanelStaffAuthSuccess): Promise<string[]> {
   const { mirrorScope } = await resolvePanelDaContext(auth)
   const sites = await listMirrorWebsites(mirrorScope)
   return [...new Set(sites.map((s) => s.owner?.toLowerCase()).filter(Boolean) as string[])]
 }
 
 export async function GET(req: NextRequest) {
-  const auth = await requireAdminOrReseller()
+  const auth = await requireAdminResellerOrManager()
   if ('error' in auth) return auth.error
 
   await ensureBackupSchema()
@@ -99,7 +99,7 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const auth = await requireAdminOrReseller()
+  const auth = await requireAdminResellerOrManager()
   if ('error' in auth) return auth.error
 
   await ensureBackupSchema()

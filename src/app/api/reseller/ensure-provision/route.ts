@@ -1,14 +1,15 @@
 import { NextResponse } from 'next/server';
-import { requireAdminOrReseller } from '@/lib/panel-api-auth';
+import { requireAdminResellerOrManager } from '@/lib/panel-api-auth';
 import { ensureResellerProvisioned } from '@/lib/reseller-auto-provision';
 
-/** Auto-provisiona revendedor ao aceder ao painel (idempotente). */
+/** Auto-provisiona revendedor ao aceder ao painel (idempotente). "manager" ainda não tem
+ *  provisionamento próprio aqui — fica sempre skipped, sem alteração de privilégio. */
 export async function POST() {
-  const auth = await requireAdminOrReseller();
+  const auth = await requireAdminResellerOrManager();
   if ('error' in auth) return auth.error;
 
   if (auth.user.role !== 'reseller') {
-    return NextResponse.json({ success: true, skipped: true, reason: 'admin' });
+    return NextResponse.json({ success: true, skipped: true, reason: auth.user.role });
   }
 
   try {

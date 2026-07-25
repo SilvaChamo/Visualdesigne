@@ -16,12 +16,14 @@ const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
 
 export async function resolvePanelWpScope(
   userId: string,
-  role: 'admin' | 'reseller',
+  role: 'admin' | 'reseller' | 'manager',
 ): Promise<PanelWpScope> {
   if (role === 'admin') {
     return { role: 'admin', userId, daUsername: 'admin' };
   }
 
+  // "manager" (conta profissional) usa o mesmo mecanismo escopado que um revendedor —
+  // fica sempre limitado ao seu próprio da_username, nunca a admin real.
   const admin = createServiceClient(supabaseUrl, supabaseKey);
   const profile = await getProfileForAuthUser(admin, userId);
   const daUsername = String(profile?.da_username || '').trim().toLowerCase();

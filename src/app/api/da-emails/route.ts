@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { applyBrevoMxToDomain } from '@/lib/bind-email-dns';
 import { daRequest } from '@/lib/directadmin';
-import { requireAdminOrReseller } from '@/lib/panel-api-auth';
+import { requireAdminResellerOrManager } from '@/lib/panel-api-auth';
 import { loadResellerCredentialsByUserId } from '@/lib/da-credential-store';
 import { getMirrorSiteOwner } from '@/lib/panel-mirror-read';
 
@@ -12,7 +12,7 @@ import { getMirrorSiteOwner } from '@/lib/panel-mirror-read';
  * PATCH action=password → muda password
  */
 
-async function canAccessDomain(role: 'admin' | 'reseller', userId: string, domain: string): Promise<boolean> {
+async function canAccessDomain(role: 'admin' | 'reseller' | 'manager', userId: string, domain: string): Promise<boolean> {
   if (role === 'admin') return true;
   const creds = await loadResellerCredentialsByUserId(userId);
   if (!creds?.user) return false;
@@ -20,11 +20,17 @@ async function canAccessDomain(role: 'admin' | 'reseller', userId: string, domai
   return owner === creds.user;
 }
 
+/** daRequest só conhece 'admin'|'reseller' — "manager" usa sempre o caminho escopado 'reseller'. */
+function toDaRole(role: 'admin' | 'reseller' | 'manager'): 'admin' | 'reseller' {
+  return role === 'admin' ? 'admin' : 'reseller';
+}
+
 export async function GET(req: NextRequest) {
   try {
-    const auth = await requireAdminOrReseller();
+    const auth = await requireAdminResellerOrManager();
     if ('error' in auth) return auth.error;
     const ctx = auth.user;
+    const daCtx = { id: ctx.id, email: ctx.email, role: toDaRole(ctx.role) };
 
     const { searchParams } = new URL(req.url);
     const action = searchParams.get('action') || 'list';
@@ -35,8 +41,8 @@ export async function GET(req: NextRequest) {
         return NextResponse.json({ success: false, error: 'Acção restrita a administradores.' }, { status: 403 });
       }
       // Listar todos os domínios que têm email no servidor
-      const res = await daRequest('CMD_API_SHOW_ALL_USERS', 'GET', { json: 'yes' }, ctx.role, ctx);
-      const domainsRes = await daRequest('CMD_API_ADDITIONAL_DOMAINS', 'GET', { domain: 'admin' }, ctx.role, ctx);
+      const res = await daRequest('CMD_API_SHOW_ALL_USERS', 'GET', { json: 'yes' }, daCtx.role, daCtx);
+      const domainsRes = await daRequest('CMD_API_ADDITIONAL_DOMAINS', 'GET', { domain: 'admin' }, daCtx.role, daCtx);
       return NextResponse.json({ success: true, raw: domainsRes });
     }
 
@@ -45,7 +51,7 @@ export async function GET(req: NextRequest) {
         return NextResponse.json({ success: false, error: 'Domínio fora do seu painel.' }, { status: 403 });
       }
       // CMD_API_POP lista as contas de email para um domínio
-      const res = await daRequest('CMD_API_POP', 'GET', { action: 'list', domain }, ctx.role, ctx);
+      const res = await daRequest('CMD_API_POP', 'GET', { action: 'list', domain }, daCtx.role, daCtx);
 
       if (res.error) {
         return NextResponse.json({ success: false, error: res.text || 'Erro ao listar emails' });
@@ -82,9 +88,10 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    const auth = await requireAdminOrReseller();
+    const auth = await requireAdminResellerOrManager();
     if ('error' in auth) return auth.error;
     const ctx = auth.user;
+    const daCtx = { id: ctx.id, email: ctx.email, role: toDaRole(ctx.role) };
 
     const { action, domain, username, password, quota = '250' } = await req.json();
 
@@ -101,8 +108,8 @@ export async function POST(req: NextRequest) {
         'CMD_API_POP',
         'POST',
         { action: 'create', domain, user: username, passwd: password, passwd2: password, quota: String(quota) },
-        ctx.role,
-        ctx,
+        daCtx.role,
+        daCtx,
       );
 
       if (res.error) {
@@ -126,9 +133,10 @@ export async function POST(req: NextRequest) {
 
 export async function DELETE(req: NextRequest) {
   try {
-    const auth = await requireAdminOrReseller();
+    const auth = await requireAdminResellerOrManager();
     if ('error' in auth) return auth.error;
     const ctx = auth.user;
+    const daCtx = { id: ctx.id, email: ctx.email, role: toDaRole(ctx.role) };
 
     const { domain, username } = await req.json();
 
@@ -140,7 +148,7 @@ export async function DELETE(req: NextRequest) {
       return NextResponse.json({ success: false, error: 'Domínio fora do seu painel.' }, { status: 403 });
     }
 
-    const res = await daRequest('CMD_API_POP', 'POST', { action: 'delete', domain, user: username }, ctx.role, ctx);
+    const res = await daRequest('CMD_API_POP', 'POST', { action: 'delete', domain, user: username }, daCtx.role, daCtx);
 
     if (res.error) {
       return NextResponse.json({ success: false, error: res.details || res.text || 'Erro ao apagar email' });
@@ -154,9 +162,10 @@ export async function DELETE(req: NextRequest) {
 
 export async function PATCH(req: NextRequest) {
   try {
-    const auth = await requireAdminOrReseller();
+    const auth = await requireAdminResellerOrManager();
     if ('error' in auth) return auth.error;
     const ctx = auth.user;
+    const daCtx = { id: ctx.id, email: ctx.email, role: toDaRole(ctx.role) };
 
     const { domain, username, password } = await req.json();
 
@@ -172,8 +181,8 @@ export async function PATCH(req: NextRequest) {
       'CMD_API_POP',
       'POST',
       { action: 'modify', domain, user: username, passwd: password, passwd2: password },
-      ctx.role,
-      ctx,
+      daCtx.role,
+      daCtx,
     );
 
     if (res.error) {

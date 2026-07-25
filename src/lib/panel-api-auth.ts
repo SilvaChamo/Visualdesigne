@@ -12,11 +12,24 @@ export type PanelAuthSuccess = {
   };
 };
 
+/** "manager" (conta profissional) tem scope próprio — nunca acesso admin. */
+export type PanelStaffAuthSuccess = {
+  user: {
+    id: string;
+    email?: string;
+    role: 'admin' | 'reseller' | 'manager';
+  };
+};
+
 type PanelAuthFailure = {
   error: NextResponse;
 };
 
-export async function requireAdminOrReseller(): Promise<PanelAuthSuccess | PanelAuthFailure> {
+const STAFF_ACCESS_DENIED = () => ({
+  error: NextResponse.json({ error: 'Acesso restrito a administradores ou revendedores' }, { status: 403 }),
+});
+
+async function resolvePanelStaffAuth(): Promise<PanelStaffAuthSuccess | PanelAuthFailure> {
   const supabase = await createClient();
   const {
     data: { session },
@@ -49,7 +62,7 @@ export async function requireAdminOrReseller(): Promise<PanelAuthSuccess | Panel
     }
   }
 
-  if (effectiveRole === 'admin' || effectiveRole === 'manager' || ADMIN_EMAILS.has(email)) {
+  if (effectiveRole === 'admin' || ADMIN_EMAILS.has(email)) {
     return { user: { id: user.id, email, role: 'admin' } };
   }
 
@@ -57,9 +70,30 @@ export async function requireAdminOrReseller(): Promise<PanelAuthSuccess | Panel
     return { user: { id: user.id, email, role: 'reseller' } };
   }
 
-  return {
-    error: NextResponse.json({ error: 'Acesso restrito a administradores ou revendedores' }, { status: 403 }),
-  };
+  if (effectiveRole === 'manager') {
+    return { user: { id: user.id, email, role: 'manager' } };
+  }
+
+  return STAFF_ACCESS_DENIED();
+}
+
+/**
+ * Admin ou revendedor apenas — "manager" é explicitamente rejeitado (403). Rotas que fazem
+ * sentido para uma conta "manager" com scope próprio devem usar
+ * requireAdminResellerOrManager() em vez desta, caso a caso (ver AUDITORIA_PAINEL_PLANO_CORRECAO.md).
+ */
+export async function requireAdminOrReseller(): Promise<PanelAuthSuccess | PanelAuthFailure> {
+  const result = await resolvePanelStaffAuth();
+  if ('error' in result) return result;
+  if (result.user.role === 'manager') {
+    return STAFF_ACCESS_DENIED();
+  }
+  return { user: result.user as { id: string; email?: string; role: 'admin' | 'reseller' } };
+}
+
+/** Como requireAdminOrReseller(), mas também aceita "manager" — só para rotas já escopadas ao seu próprio site. */
+export async function requireAdminResellerOrManager(): Promise<PanelStaffAuthSuccess | PanelAuthFailure> {
+  return resolvePanelStaffAuth();
 }
 
 export type PanelBootstrapAuthSuccess = {

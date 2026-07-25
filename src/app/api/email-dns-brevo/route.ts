@@ -2,11 +2,11 @@ import { NextRequest, NextResponse } from 'next/server';
 import { applyBrevoMxToAllDomains, applyBrevoMxToDomain } from '@/lib/bind-email-dns';
 import { getDefaultEmailDnsRecords } from '@/lib/email-dns-defaults';
 import { getServerHost } from '@/lib/server-config';
-import { requireAdminOrReseller } from '@/lib/panel-api-auth';
+import { requireAdminResellerOrManager } from '@/lib/panel-api-auth';
 import { loadResellerCredentialsByUserId } from '@/lib/da-credential-store';
 import { getMirrorSiteOwner } from '@/lib/panel-mirror-read';
 
-async function canAccessDomain(role: 'admin' | 'reseller', userId: string, domain: string): Promise<boolean> {
+async function canAccessDomain(role: 'admin' | 'reseller' | 'manager', userId: string, domain: string): Promise<boolean> {
   if (role === 'admin') return true;
   const creds = await loadResellerCredentialsByUserId(userId);
   if (!creds?.user) return false;
@@ -28,7 +28,7 @@ export async function GET(req: NextRequest) {
 /** POST { domain } ou { all: true } — aplica MX Brevo na zona BIND do servidor */
 export async function POST(req: NextRequest) {
   try {
-    const auth = await requireAdminOrReseller();
+    const auth = await requireAdminResellerOrManager();
     if ('error' in auth) return auth.error;
 
     const body = (await req.json().catch(() => ({}))) as {

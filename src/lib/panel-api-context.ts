@@ -10,7 +10,7 @@ import {
 } from '@/lib/directadmin-adapter';
 import { getResellerDaUsername } from '@/lib/directadmin-credentials';
 import type { MirrorScope } from '@/lib/panel-mirror-read';
-import type { PanelAuthSuccess } from '@/lib/panel-api-auth';
+import type { PanelStaffAuthSuccess } from '@/lib/panel-api-auth';
 
 export const IMPERSONATE_COOKIE = 'vd_impersonate_reseller';
 
@@ -27,7 +27,7 @@ export type PanelDaContext = {
   effectiveRole: 'admin' | 'reseller';
 };
 
-export async function resolvePanelDaContext(auth: PanelAuthSuccess): Promise<PanelDaContext> {
+export async function resolvePanelDaContext(auth: PanelStaffAuthSuccess): Promise<PanelDaContext> {
   const impersonating =
     auth.user.role === 'admin' ? await readImpersonateDaUsername() : null;
 
@@ -41,13 +41,14 @@ export async function resolvePanelDaContext(auth: PanelAuthSuccess): Promise<Pan
     };
   }
 
-  if (auth.user.role === 'reseller') {
-    const daUsername = await getResellerDaUsername({
-      id: auth.user.id,
-      email: auth.user.email,
-      role: 'reseller',
-    });
-    const daApi = await getDirectAdminAPIForAuth(auth.user);
+  if (auth.user.role === 'reseller' || auth.user.role === 'manager') {
+    // "manager" (conta profissional) usa exactamente o mesmo mecanismo de credenciais
+    // escopadas que um revendedor — resolveDirectAdminCredentials() só distingue
+    // 'admin' de "qualquer outra coisa", por isso fica sempre limitado à sua própria
+    // conta DA (loadResellerCredentialsByUserId por auth.user.id), nunca a admin real.
+    const scopedAuth = { id: auth.user.id, email: auth.user.email, role: 'reseller' as const };
+    const daUsername = await getResellerDaUsername(scopedAuth);
+    const daApi = await getDirectAdminAPIForAuth(scopedAuth);
     return {
       daApi,
       mirrorScope: {
@@ -60,7 +61,7 @@ export async function resolvePanelDaContext(auth: PanelAuthSuccess): Promise<Pan
     };
   }
 
-  const daApi = await getDirectAdminAPIForAuth(auth.user);
+  const daApi = await getDirectAdminAPIForAuth({ id: auth.user.id, email: auth.user.email, role: 'admin' });
   return {
     daApi,
     mirrorScope: { role: 'admin', userId: auth.user.id },

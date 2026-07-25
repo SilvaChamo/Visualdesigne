@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { requireAdminOrReseller } from '@/lib/panel-api-auth';
+import { requireAdminResellerOrManager } from '@/lib/panel-api-auth';
 import { listMirrorWebsites } from '@/lib/panel-mirror-read';
 import { resolvePanelDaContext } from '@/lib/panel-api-context';
 import { mirrorAfterDaMutation } from '@/lib/panel-mirror-write';
@@ -34,7 +34,7 @@ export const dynamic = 'force-dynamic';
 
 async function resolveOwner(domain: string): Promise<string | null> {
   if (!domain) return null;
-  const auth = await requireAdminOrReseller();
+  const auth = await requireAdminResellerOrManager();
   if ('error' in auth) return null;
   const { mirrorScope } = await resolvePanelDaContext(auth);
   const sites = await listMirrorWebsites(mirrorScope);
@@ -43,7 +43,7 @@ async function resolveOwner(domain: string): Promise<string | null> {
 }
 
 export async function GET(req: NextRequest) {
-  const auth = await requireAdminOrReseller();
+  const auth = await requireAdminResellerOrManager();
   if ('error' in auth) return auth.error;
 
   const sp = req.nextUrl.searchParams;
@@ -79,7 +79,7 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const auth = await requireAdminOrReseller();
+  const auth = await requireAdminResellerOrManager();
   if ('error' in auth) return auth.error;
 
   const contentType = req.headers.get('content-type') || '';

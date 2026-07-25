@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { requireAdminOrReseller } from '@/lib/panel-api-auth';
+import { requireAdminResellerOrManager } from '@/lib/panel-api-auth';
 import {
   assertPanelOwnsWpDomain,
   resolvePanelWpScope,
@@ -17,7 +17,7 @@ import {
 export const maxDuration = 120;
 
 export async function GET(req: NextRequest) {
-  const auth = await requireAdminOrReseller();
+  const auth = await requireAdminResellerOrManager();
   if ('error' in auth) return auth.error;
 
   const domain = req.nextUrl.searchParams.get('domain')?.trim().toLowerCase() || '';
@@ -38,7 +38,7 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const auth = await requireAdminOrReseller();
+  const auth = await requireAdminResellerOrManager();
   if ('error' in auth) return auth.error;
 
   let body: Record<string, any>;

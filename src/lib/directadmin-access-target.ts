@@ -8,7 +8,7 @@ import {
 } from '@/lib/directadmin-credentials';
 import { loadResellerCredentialsByUserId } from '@/lib/da-credential-store';
 import { readImpersonateDaUsername } from '@/lib/panel-api-context';
-import type { PanelAuthSuccess } from '@/lib/panel-api-auth';
+import type { PanelStaffAuthSuccess } from '@/lib/panel-api-auth';
 import { getDaSyncAdmin } from '@/lib/da-sync-schema';
 import type { DirectAdminAccessTarget } from '@/lib/server-config';
 
@@ -40,7 +40,7 @@ async function climbToResellerDaUsername(username: string): Promise<string> {
 
 /** Caminho rápido — sem `resolvePanelDaContext` nem credenciais DA completas. */
 export async function resolveDirectAdminLoginUsernameFast(
-  auth: PanelAuthSuccess,
+  auth: PanelStaffAuthSuccess,
   target: DirectAdminAccessTarget,
 ): Promise<string> {
   if (target === 'admin') {

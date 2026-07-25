@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { requireAdminOrReseller } from '@/lib/panel-api-auth';
+import { requireAdminResellerOrManager } from '@/lib/panel-api-auth';
 import { listMirrorWebsites } from '@/lib/panel-mirror-read';
 import { resolvePanelDaContext } from '@/lib/panel-api-context';
 import {
@@ -23,13 +23,13 @@ import {
 } from '@/lib/panel-backup-mirror';
 import { ensureBackupSchema } from '@/lib/panel-backup-schema';
 import type { BackupItemId, BackupTab } from '@/lib/da-backup-types';
-import type { PanelAuthSuccess } from '@/lib/panel-api-auth';
+import type { PanelStaffAuthSuccess } from '@/lib/panel-api-auth';
 
 export const dynamic = 'force-dynamic';
 
-async function resolveOwnerForDomain(domain: string, auth?: PanelAuthSuccess): Promise<string | null> {
+async function resolveOwnerForDomain(domain: string, auth?: PanelStaffAuthSuccess): Promise<string | null> {
   if (!domain) return null;
-  const session = auth ?? await requireAdminOrReseller();
+  const session = auth ?? await requireAdminResellerOrManager();
   if ('error' in session) return null;
   const { mirrorScope } = await resolvePanelDaContext(session);
   const sites = await listMirrorWebsites(mirrorScope);
@@ -72,7 +72,7 @@ async function resolveBackupDownload(
 }
 
 export async function GET(req: NextRequest) {
-  const auth = await requireAdminOrReseller();
+  const auth = await requireAdminResellerOrManager();
   if ('error' in auth) return auth.error;
 
   const sp = req.nextUrl.searchParams;
@@ -93,7 +93,7 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const auth = await requireAdminOrReseller();
+  const auth = await requireAdminResellerOrManager();
   if ('error' in auth) return auth.error;
 
   let body: Record<string, unknown>;

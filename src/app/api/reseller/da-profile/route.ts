@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { requireAdminOrReseller } from '@/lib/panel-api-auth';
+import { requireAdminResellerOrManager } from '@/lib/panel-api-auth';
 import { resolvePanelDaContext } from '@/lib/panel-api-context';
 import { getResellerDaUsername } from '@/lib/directadmin-credentials';
 import {
@@ -8,12 +8,14 @@ import {
 } from '@/lib/da-credential-store';
 
 export async function GET() {
-  const auth = await requireAdminOrReseller();
+  const auth = await requireAdminResellerOrManager();
   if ('error' in auth) return auth.error;
 
-  if (auth.user.role === 'reseller') {
+  if (auth.user.role === 'reseller' || auth.user.role === 'manager') {
     const stored = auth.user.id ? await loadResellerCredentialsByUserId(auth.user.id) : null;
-    const daUsername = stored?.user || (await getResellerDaUsername(auth.user));
+    const daUsername =
+      stored?.user ||
+      (await getResellerDaUsername({ id: auth.user.id, email: auth.user.email, role: 'reseller' }));
 
     return NextResponse.json({
       success: true,

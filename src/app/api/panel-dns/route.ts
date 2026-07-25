@@ -4,7 +4,7 @@ import { daAddDnsRecord, daDeleteDnsRecord, normalizeDnsNameForDa } from '@/lib/
 import { loadResellerCredentialsByUserId } from '@/lib/da-credential-store';
 import { scheduleDaSync } from '@/lib/da-sync-engine';
 import { getDaSyncAdmin } from '@/lib/da-sync-schema';
-import { requireAdminOrReseller } from '@/lib/panel-api-auth';
+import { requireAdminResellerOrManager } from '@/lib/panel-api-auth';
 import {
   getMirrorSiteOwner,
   isMirrorStale,
@@ -15,7 +15,7 @@ import { deleteMirrorDnsById, upsertMirrorDns } from '@/lib/panel-mirror-write';
 import { resolveDirectAdminCredentials } from '@/lib/directadmin-credentials';
 
 async function canAccessDomain(
-  role: 'admin' | 'reseller',
+  role: 'admin' | 'reseller' | 'manager',
   userId: string,
   domain: string,
 ): Promise<boolean> {
@@ -26,7 +26,7 @@ async function canAccessDomain(
   return owner === creds.user;
 }
 
-async function resolveDaCreds(role: 'admin' | 'reseller', userId: string) {
+async function resolveDaCreds(role: 'admin' | 'reseller' | 'manager', userId: string) {
   if (role === 'admin') return resolveDirectAdminCredentials('admin');
   const stored = await loadResellerCredentialsByUserId(userId);
   if (!stored) throw new Error('Credenciais de revendedor indisponíveis');
@@ -35,7 +35,7 @@ async function resolveDaCreds(role: 'admin' | 'reseller', userId: string) {
 
 export async function GET(req: NextRequest) {
   try {
-    const auth = await requireAdminOrReseller();
+    const auth = await requireAdminResellerOrManager();
     if ('error' in auth) return auth.error;
 
     const domain = new URL(req.url).searchParams.get('domain')?.trim();
@@ -47,7 +47,10 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ success: false, error: 'Sem acesso a este domínio' }, { status: 403 });
     }
 
-    const mirrorScope: MirrorScope = { role: auth.user.role, userId: auth.user.id };
+    const mirrorScope: MirrorScope = {
+      role: auth.user.role === 'admin' ? 'admin' : 'reseller',
+      userId: auth.user.id,
+    };
     const stale = await isMirrorStale(120);
     if (stale) scheduleDaSync(0);
 
@@ -95,7 +98,7 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    const auth = await requireAdminOrReseller();
+    const auth = await requireAdminResellerOrManager();
     if ('error' in auth) return auth.error;
 
     const body = await req.json();
@@ -138,7 +141,7 @@ export async function POST(req: NextRequest) {
 
 export async function DELETE(req: NextRequest) {
   try {
-    const auth = await requireAdminOrReseller();
+    const auth = await requireAdminResellerOrManager();
     if ('error' in auth) return auth.error;
 
     const body = await req.json();

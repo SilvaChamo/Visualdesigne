@@ -1,12 +1,12 @@
 import { NextResponse } from 'next/server';
-import { requireAdminOrReseller } from '@/lib/panel-api-auth';
+import { requireAdminResellerOrManager } from '@/lib/panel-api-auth';
 import { resolveResellerPanelContext } from '@/lib/panel-reseller-context';
 import { listMirrorWebsites } from '@/lib/panel-mirror-read';
 import { resolvePanelDaContext } from '@/lib/panel-api-context';
 
 export async function GET() {
   try {
-    const auth = await requireAdminOrReseller();
+    const auth = await requireAdminResellerOrManager();
     if ('error' in auth) return auth.error;
 
     const ctx = await resolveResellerPanelContext(auth);
