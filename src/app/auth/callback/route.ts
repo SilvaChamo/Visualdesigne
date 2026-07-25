@@ -7,6 +7,7 @@ import {
   PUBLIC_PANEL_ENTRY,
   resolvePostLoginUrl,
   applySharedAuthCookieOptions,
+  getPublicSiteOrigin,
 } from '@/lib/panel-origin'
 import { resolveRoleForAuthUser } from '@/lib/server-auth-role'
 import { PANEL_FROM_COOKIE, readPanelFromCookie } from '@/lib/panel-oauth-from'
@@ -19,8 +20,14 @@ export async function GET(request: NextRequest) {
   const oauthDesc = searchParams.get('error_description')
   const hostname = request.headers.get('host') ?? undefined
 
+  // Origem explícita (NEXT_PUBLIC_SITE_URL), não request.url/nextUrl.origin —
+  // atrás do proxy do Hetzner (Apache -> Node em 127.0.0.1:3003) esse origin
+  // por vezes resolve para "localhost:3003", que escapa por não bater certo
+  // com o ProxyPassReverse (configurado para 127.0.0.1, não "localhost").
+  const siteOrigin = getPublicSiteOrigin()
+
   const redirectToLogin = (error: string, description: string) => {
-    const loginUrl = buildPanelLoginUrl(request.url)
+    const loginUrl = buildPanelLoginUrl(siteOrigin)
     loginUrl.searchParams.set('error', error)
     loginUrl.searchParams.set('error_description', description)
     return NextResponse.redirect(loginUrl)
@@ -31,7 +38,7 @@ export async function GET(request: NextRequest) {
   }
 
   if (!code) {
-    return NextResponse.redirect(buildPanelLoginUrl(request.url))
+    return NextResponse.redirect(buildPanelLoginUrl(siteOrigin))
   }
 
   const cookieJar = NextResponse.next()
@@ -64,14 +71,14 @@ export async function GET(request: NextRequest) {
   const hasEncomendas = role === 'guest' ? await userHasQuotationRequests(user.id) : false
 
   const target = resolvePostLoginUrl({
-    origin: request.nextUrl.origin,
+    origin: siteOrigin,
     role,
     from: from || PUBLIC_PANEL_ENTRY,
     hasEncomendas,
   })
 
   const response = NextResponse.redirect(
-    target.startsWith('http') ? target : new URL(target, request.nextUrl.origin).toString(),
+    target.startsWith('http') ? target : new URL(target, siteOrigin).toString(),
   )
 
   copyAuthCookies(cookieJar, response, hostname)
