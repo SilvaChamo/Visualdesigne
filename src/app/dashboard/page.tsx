@@ -1564,6 +1564,7 @@ function AdminPageContent() {
   const [selectedBackupDomain, setSelectedBackupDomain] = useState('')
   const [preSelectedEmailDomain, setPreSelectedEmailDomain] = useState<string>('')
   const [sessionUser, setSessionUser] = useState<string | null>(null)
+  const [isSigningOut, setIsSigningOut] = useState(false)
   const [panelCapabilities, setPanelCapabilities] = useState<PanelCapabilities | null>(null)
   const { privileges: managerMenuPrivileges } = usePanelMenuPrivileges('manager')
   const adminSidebarMenuDefs = useMemo(() => {
@@ -2501,12 +2502,23 @@ function AdminPageContent() {
                 </a>
               ) : null}
               <button
-                onClick={async () => { await createClientInstance.auth.signOut(); const { clearAllPanelClientCaches } = await import('@/lib/panel-session-cache-clear'); clearAllPanelClientCaches(); window.location.href = '/auth/login'; }}
-                className={panelBtnSecondary}
+                onClick={async () => {
+                  setIsSigningOut(true)
+                  await createClientInstance.auth.signOut()
+                  const { clearAllPanelClientCaches } = await import('@/lib/panel-session-cache-clear')
+                  clearAllPanelClientCaches()
+                  window.location.href = '/auth/login'
+                }}
+                disabled={isSigningOut}
+                className={`${panelBtnSecondary} disabled:opacity-60 disabled:cursor-wait active:scale-[0.97] transition-transform`}
                 title={t('sidebar.logout')}
               >
-                <LogOut size={14} />
-                <span>Sair</span>
+                {isSigningOut ? (
+                  <RefreshCw size={14} className="animate-spin" />
+                ) : (
+                  <LogOut size={14} />
+                )}
+                <span>{isSigningOut ? 'A sair…' : 'Sair'}</span>
               </button>
             </>
           }

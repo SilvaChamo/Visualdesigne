@@ -48,8 +48,8 @@ const SidebarItem = ({ icon: Icon, label, href, active, onClick, subItems, isNew
             <Link
                 href={href}
                 onClick={handleClick}
-                className={`flex items-center gap-3 px-4 py-3 rounded transition-all duration-200 group ${active && !hasSubItems
-                    ? 'bg-red-50 text-red-600 border-l-4 border-red-600'
+                className={`flex items-center gap-3 px-4 py-3 rounded transition-all duration-200 group active:scale-[0.98] ${active && !hasSubItems
+                    ? 'bg-red-50 text-red-600 border-l-4 border-red-600 hover:bg-red-100'
                     : 'text-gray-500 hover:bg-gray-50 hover:text-gray-900'
                     }`}
             >
