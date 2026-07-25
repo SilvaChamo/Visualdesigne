@@ -5,7 +5,10 @@ import {
   RefreshCw, FileText, Building2, Phone, Mail, Calendar, ExternalLink,
   Inbox, Clock, Factory, PackageCheck, XCircle, CheckCircle2,
 } from 'lucide-react'
-import { panelCard, panelBtn, panelBtnPrimary, panelBtnSecondary, panelField, panelSectionPadding } from '@/lib/panel-ui'
+import {
+  panelCard, panelBtn, panelBtnPrimary, panelBtnSecondary, panelField, panelSectionPadding,
+  panelTabBar, panelTabBtn, panelTabBtnActive, panelTabBtnInactive,
+} from '@/lib/panel-ui'
 import { formatMt, BRANDS } from '@/lib/pricing-catalog'
 import { statusMeta, type StatusBucket } from '@/lib/quotation-status-labels'
 import { groupIntoBatches, groupBatchesByBrand, filterBatchesByBucket, batchNumero, type BatchItem, type QuotationBatch } from '@/lib/quotation-batch'
@@ -237,6 +240,17 @@ export function CotacoesSection() {
   )
 }
 
+type BatchTab = 'itens' | 'historico' | 'anexos' | 'layouts' | 'empresa' | 'mensagens'
+
+const BATCH_TABS: { id: BatchTab; label: string }[] = [
+  { id: 'itens', label: 'Itens da encomenda' },
+  { id: 'historico', label: 'Histórico' },
+  { id: 'anexos', label: 'Anexos' },
+  { id: 'layouts', label: 'Layouts' },
+  { id: 'empresa', label: 'Dados da empresa' },
+  { id: 'mensagens', label: 'Mensagens' },
+]
+
 function BatchCard({
   batch,
   isExpanded,
@@ -250,6 +264,7 @@ function BatchCard({
   updatingId: string | null
   onUpdateStatus: (itemId: string, status: QuotationRequest['status']) => void
 }) {
+  const [activeTab, setActiveTab] = useState<BatchTab>('itens')
   const anchor = batch.primaryItem
   const meta = statusMeta(batch.status, batch.sobConsulta)
   const resumo = batch.items.length === 1 ? `${anchor.categoria_label} — ${anchor.produto}` : `${batch.items.length} serviços`
@@ -276,85 +291,95 @@ function BatchCard({
       </button>
 
       {isExpanded && (
-        <div className="border-t border-gray-100 dark:border-zinc-800 p-4 grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-          <div className="space-y-1.5">
-            <p className="text-xs font-bold uppercase text-gray-400 dark:text-zinc-500">Responsável</p>
-            <p className="text-gray-800 dark:text-zinc-200">{anchor.responsavel}{anchor.cargo ? ` — ${anchor.cargo}` : ''}</p>
-            <p className="text-gray-500 dark:text-zinc-400 flex items-center gap-1.5"><Phone className="w-3.5 h-3.5" /> {anchor.telefone}</p>
-            <p className="text-gray-500 dark:text-zinc-400 flex items-center gap-1.5"><Mail className="w-3.5 h-3.5" /> {anchor.email}</p>
-            {anchor.nif && <p className="text-gray-500 dark:text-zinc-400">NIF: {anchor.nif}</p>}
-          </div>
-          <div className="space-y-1.5">
-            <p className="text-xs font-bold uppercase text-gray-400 dark:text-zinc-500">Entrega & Pagamento</p>
-            <p className="text-gray-500 dark:text-zinc-400 flex items-center gap-1.5">
-              <Calendar className="w-3.5 h-3.5" /> Até {new Date(anchor.data_limite_entrega).toLocaleDateString('pt-PT')}
-            </p>
-            <p className="text-gray-500 dark:text-zinc-400">Método (adiantamento): {metodoLabel(anchor.metodo_pagamento)}</p>
-            {batch.items.some((i) => i.remanescente_metodo_pagamento) && (
-              <p className="text-gray-500 dark:text-zinc-400">
-                Método (remanescente): {metodoLabel(batch.items.find((i) => i.remanescente_metodo_pagamento)?.remanescente_metodo_pagamento ?? null)}
-              </p>
-            )}
-            {anchor.notas && <p className="text-gray-500 dark:text-zinc-400 italic">"{anchor.notas}"</p>}
+        <div className="border-t border-gray-100 dark:border-zinc-800" onClick={(e) => e.stopPropagation()}>
+          <div className={`${panelTabBar} px-4 pt-2`}>
+            <div className="flex flex-wrap gap-5">
+              {BATCH_TABS.map((t) => (
+                <button
+                  key={t.id}
+                  type="button"
+                  onClick={() => setActiveTab(t.id)}
+                  className={`${panelTabBtn} ${activeTab === t.id ? panelTabBtnActive : panelTabBtnInactive}`}
+                >
+                  {t.label}
+                </button>
+              ))}
+            </div>
           </div>
 
-          <div className="md:col-span-2 space-y-2 pt-2 border-t border-gray-100 dark:border-zinc-800">
-            <span className="text-xs font-bold uppercase text-gray-400 dark:text-zinc-500">Itens da encomenda — marcar estado de cada um</span>
-            {batch.items.map((item) => {
-              const itemMeta = itemStatusMeta(item.status)
-              return (
-                <div key={item.id} className="flex flex-wrap items-center gap-2 py-1.5" onClick={(e) => e.stopPropagation()}>
-                  <span className="flex-1 min-w-[160px] text-gray-700 dark:text-zinc-300">
-                    {item.categoria_label} — {item.produto} (x{item.quantidade})
-                  </span>
-                  {item.rejection_reason && (
-                    <span className="text-xs text-rose-600 dark:text-rose-400">Motivo: {item.rejection_reason}</span>
+          <div className="p-4 text-sm">
+            {activeTab === 'itens' && (
+              <div className="space-y-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pb-3 border-b border-gray-100 dark:border-zinc-800">
+                  <p className="text-gray-500 dark:text-zinc-400 flex items-center gap-1.5">
+                    <Calendar className="w-3.5 h-3.5" /> Entrega até {new Date(anchor.data_limite_entrega).toLocaleDateString('pt-PT')}
+                  </p>
+                  <p className="text-gray-500 dark:text-zinc-400">Método (adiantamento): {metodoLabel(anchor.metodo_pagamento)}</p>
+                  {batch.items.some((i) => i.remanescente_metodo_pagamento) && (
+                    <p className="text-gray-500 dark:text-zinc-400">
+                      Método (remanescente): {metodoLabel(batch.items.find((i) => i.remanescente_metodo_pagamento)?.remanescente_metodo_pagamento ?? null)}
+                    </p>
                   )}
-                  <select
-                    className={panelField}
-                    value={item.status}
-                    disabled={updatingId === item.id}
-                    onChange={(e) => onUpdateStatus(item.id, e.target.value as QuotationRequest['status'])}
-                  >
-                    {STATUS_OPTIONS.map((s) => (
-                      <option key={s.value} value={s.value}>{s.label}</option>
-                    ))}
-                  </select>
-                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold whitespace-nowrap ${itemMeta.badge}`}>
-                    {itemMeta.label}
-                  </span>
+                  {anchor.notas && <p className="text-gray-500 dark:text-zinc-400 italic sm:col-span-2">"{anchor.notas}"</p>}
                 </div>
-              )
-            })}
-            <a
-              href={`/cotacao/${anchor.id}`}
-              target="_blank"
-              rel="noreferrer"
-              className={panelBtnPrimary + ' mt-1'}
-              onClick={(e) => e.stopPropagation()}
-            >
-              <ExternalLink className="w-3.5 h-3.5" />
-              <span>Ver documento</span>
-            </a>
-          </div>
 
-          <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 pt-3 border-t border-gray-100 dark:border-zinc-800" onClick={(e) => e.stopPropagation()}>
-            <div>
-              <p className="text-xs font-bold uppercase text-gray-400 dark:text-zinc-500 mb-2">Histórico</p>
-              <QuotationHistoryTimeline quotationId={anchor.id} />
-            </div>
-            <div>
-              <p className="text-xs font-bold uppercase text-gray-400 dark:text-zinc-500 mb-2">Layouts</p>
-              <QuotationLayoutsList quotationId={anchor.id} viewerRole="admin" />
-            </div>
-            <div>
-              <p className="text-xs font-bold uppercase text-gray-400 dark:text-zinc-500 mb-2">Anexos</p>
-              <QuotationAttachmentsList quotationId={anchor.id} viewerRole="admin" />
-            </div>
-            <div>
-              <p className="text-xs font-bold uppercase text-gray-400 dark:text-zinc-500 mb-2">Mensagens</p>
-              <QuotationMessagesThread quotationId={anchor.id} viewerRole="admin" />
-            </div>
+                <div className="space-y-2">
+                  <span className="text-xs font-bold uppercase text-gray-400 dark:text-zinc-500">Marcar estado de cada item</span>
+                  {batch.items.map((item) => {
+                    const itemMeta = itemStatusMeta(item.status)
+                    return (
+                      <div key={item.id} className="flex flex-wrap items-center gap-2 py-1.5">
+                        <span className="flex-1 min-w-[160px] text-gray-700 dark:text-zinc-300">
+                          {item.categoria_label} — {item.produto} (x{item.quantidade})
+                        </span>
+                        {item.rejection_reason && (
+                          <span className="text-xs text-rose-600 dark:text-rose-400">Motivo: {item.rejection_reason}</span>
+                        )}
+                        <select
+                          className={panelField}
+                          value={item.status}
+                          disabled={updatingId === item.id}
+                          onChange={(e) => onUpdateStatus(item.id, e.target.value as QuotationRequest['status'])}
+                        >
+                          {STATUS_OPTIONS.map((s) => (
+                            <option key={s.value} value={s.value}>{s.label}</option>
+                          ))}
+                        </select>
+                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold whitespace-nowrap ${itemMeta.badge}`}>
+                          {itemMeta.label}
+                        </span>
+                      </div>
+                    )
+                  })}
+                  <a
+                    href={`/cotacao/${anchor.id}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className={panelBtnPrimary + ' mt-1'}
+                  >
+                    <ExternalLink className="w-3.5 h-3.5" />
+                    <span>Ver documento</span>
+                  </a>
+                </div>
+              </div>
+            )}
+
+            {activeTab === 'historico' && <QuotationHistoryTimeline quotationId={anchor.id} />}
+            {activeTab === 'anexos' && <QuotationAttachmentsList quotationId={anchor.id} viewerRole="admin" />}
+            {activeTab === 'layouts' && <QuotationLayoutsList quotationId={anchor.id} viewerRole="admin" />}
+
+            {activeTab === 'empresa' && (
+              <div className="space-y-1.5">
+                <p className="text-gray-800 dark:text-zinc-200 font-medium">
+                  {anchor.responsavel}{anchor.cargo ? ` — ${anchor.cargo}` : ''}
+                </p>
+                <p className="text-gray-500 dark:text-zinc-400 flex items-center gap-1.5"><Phone className="w-3.5 h-3.5" /> {anchor.telefone}</p>
+                <p className="text-gray-500 dark:text-zinc-400 flex items-center gap-1.5"><Mail className="w-3.5 h-3.5" /> {anchor.email}</p>
+                {anchor.nif && <p className="text-gray-500 dark:text-zinc-400">NIF: {anchor.nif}</p>}
+              </div>
+            )}
+
+            {activeTab === 'mensagens' && <QuotationMessagesThread quotationId={anchor.id} viewerRole="admin" />}
           </div>
         </div>
       )}
