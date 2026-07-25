@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import {
-  RefreshCw, FileText, Building2, Phone, Mail, Calendar, ExternalLink,
+  RefreshCw, FileText, Building2, Phone, Mail, Calendar,
   Inbox, Clock, Factory, PackageCheck, XCircle, CheckCircle2, MessageCircle, X,
 } from 'lucide-react'
 import {
@@ -129,7 +129,17 @@ export function CotacoesSection() {
     fetchCotacoes({ background: readCotacoesCache() !== null })
   }, [fetchCotacoes])
 
-  const batches = useMemo(() => groupIntoBatches(cotacoes), [cotacoes])
+  // Pagos (qualquer estado além de "pending" = aguarda pagamento) sobem para o
+  // topo da lista — sort estável, mantém a ordem por data dentro de cada grupo.
+  const batches = useMemo(() => {
+    const grouped = groupIntoBatches(cotacoes)
+    return [...grouped].sort((a, b) => {
+      const aPaid = a.status !== 'pending'
+      const bPaid = b.status !== 'pending'
+      if (aPaid === bPaid) return 0
+      return aPaid ? -1 : 1
+    })
+  }, [cotacoes])
   const categoryGroups = useMemo(() => groupBatchesByBrand(batches), [batches])
   const bucketCounts = useMemo(() => {
     const counts: Record<StatusBucket, number> = { pending: 0, approved: 0, delivered: 0, cancelled: 0, done: 0 }
@@ -171,6 +181,22 @@ export function CotacoesSection() {
       console.error('Erro ao actualizar cotação:', error)
     } finally {
       setUpdatingId(null)
+    }
+  }
+
+  const updateDeliveryDate = async (batchId: string, dataLimiteEntrega: string) => {
+    try {
+      const res = await fetch('/api/admin/cotacoes', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ batchId, dataLimiteEntrega }),
+      })
+      const data = await res.json()
+      if (data.success) {
+        setCotacoes((prev) => prev.map((c) => (c.batch_id === batchId ? { ...c, data_limite_entrega: dataLimiteEntrega } : c)))
+      }
+    } catch (error) {
+      console.error('Erro ao actualizar prazo de entrega:', error)
     }
   }
 
@@ -272,6 +298,7 @@ export function CotacoesSection() {
                             onToggle={() => setExpandedBatchId(expandedBatchId === batch.batchId ? null : batch.batchId)}
                             updatingId={updatingId}
                             onUpdateStatus={updateStatus}
+                            onUpdateDeliveryDate={updateDeliveryDate}
                           />
                         )
                       })}
@@ -287,7 +314,7 @@ export function CotacoesSection() {
   )
 }
 
-type BatchTab = 'itens' | 'historico' | 'anexos' | 'layouts' | 'empresa'
+type BatchTab = 'itens' | 'historico' | 'anexos' | 'layouts' | 'empresa' | 'cotacao'
 
 const BATCH_TABS: { id: BatchTab; label: string }[] = [
   { id: 'itens', label: 'Itens da encomenda' },
@@ -295,6 +322,7 @@ const BATCH_TABS: { id: BatchTab; label: string }[] = [
   { id: 'anexos', label: 'Anexos' },
   { id: 'layouts', label: 'Layouts' },
   { id: 'empresa', label: 'Dados da empresa' },
+  { id: 'cotacao', label: 'Cotação' },
 ]
 
 /** Mesma heurística usada no resto do painel para normalizar números moçambicanos para wa.me. */
@@ -311,6 +339,7 @@ function BatchCard({
   onToggle,
   updatingId,
   onUpdateStatus,
+  onUpdateDeliveryDate,
 }: {
   number: number
   batch: QuotationBatch<QuotationRequest>
@@ -318,44 +347,51 @@ function BatchCard({
   onToggle: () => void
   updatingId: string | null
   onUpdateStatus: (itemId: string, status: QuotationRequest['status']) => void
+  onUpdateDeliveryDate: (batchId: string, dataLimiteEntrega: string) => void
 }) {
   const [activeTab, setActiveTab] = useState<BatchTab>('itens')
   const [showMessages, setShowMessages] = useState(false)
   const [chatMenuOpen, setChatMenuOpen] = useState(false)
+  const [editingDate, setEditingDate] = useState(false)
   const anchor = batch.primaryItem
   const whatsappDigits = phoneToWhatsAppDigits(anchor.telefone || '')
   const whatsappHref = whatsappDigits
     ? `https://wa.me/${whatsappDigits}?text=${encodeURIComponent(`Olá ${anchor.responsavel || ''}, sobre a sua encomenda Nº ${batchNumero(batch.batchId)} (${anchor.empresa}):`)}`
     : null
   const meta = statusMeta(batch.status, batch.sobConsulta)
-  const resumo = batch.items.length === 1 ? `${anchor.categoria_label} — ${anchor.produto}` : `${batch.items.length} serviços`
+  const resumo = batch.sobConsulta
+    ? 'Pedido personalizado — aguarda contacto'
+    : batch.items.length === 1
+      ? `${anchor.categoria_label} — ${anchor.produto}`
+      : `${batch.items.length} serviços`
 
   return (
     <div className={panelSectionCard}>
-      <button type="button" onClick={onToggle} className="w-full flex flex-wrap items-center gap-4 p-4 text-left">
-        <span className="shrink-0 text-xs font-bold text-gray-300 dark:text-zinc-600 tabular-nums">
-          #{number}
-        </span>
-        <div className="flex-1 min-w-[200px]">
-          <p className="font-bold text-gray-900 dark:text-white flex items-center gap-2">
-            <Building2 className="w-4 h-4 text-gray-400 shrink-0" />
-            {anchor.empresa} <span className="font-normal text-gray-400 dark:text-zinc-500">— Encomenda Nº {batchNumero(batch.batchId)}</span>
-          </p>
-          {!batch.sobConsulta && <p className="text-xs text-gray-500 dark:text-zinc-400 mt-0.5">{resumo}</p>}
+      <button type="button" onClick={onToggle} className="w-full flex flex-col gap-1 p-4 text-left">
+        <div className="flex items-center gap-3">
+          <span className="shrink-0 text-xs font-bold text-gray-300 dark:text-zinc-600 tabular-nums">
+            #{number}
+          </span>
+          <Building2 className="w-4 h-4 text-gray-400 shrink-0" />
+          <span className="min-w-0 truncate font-bold text-gray-900 dark:text-white">{anchor.empresa}</span>
+          <span className="shrink-0 rounded border border-gray-200 px-1.5 py-0.5 font-mono text-xs text-gray-500 dark:border-zinc-700 dark:text-zinc-400">
+            Nº {batchNumero(batch.batchId)}
+          </span>
+          <span className="shrink-0 text-sm font-semibold">
+            {batch.sobConsulta ? (
+              <span className="text-red-600 dark:text-red-500 font-extrabold">Sob Consulta</span>
+            ) : (
+              <span className="text-gray-700 dark:text-zinc-300">{formatMt(batch.totalMt)} MT</span>
+            )}
+          </span>
+          <span className={`shrink-0 px-2.5 py-1 rounded text-xs font-bold whitespace-nowrap border ${meta.color}`}>
+            {meta.label}
+          </span>
+          <span className="shrink-0 text-xs text-gray-400 dark:text-zinc-500 whitespace-nowrap ml-auto pl-2">
+            {new Date(anchor.created_at).toLocaleDateString('pt-PT')}
+          </span>
         </div>
-        <div className="text-sm font-semibold whitespace-nowrap">
-          {batch.sobConsulta ? (
-            <span className="text-red-600 dark:text-red-500 font-extrabold">Sob Consulta</span>
-          ) : (
-            <span className="text-gray-700 dark:text-zinc-300">{formatMt(batch.totalMt)} MT</span>
-          )}
-        </div>
-        <span className={`px-2.5 py-1 rounded-full text-xs font-bold whitespace-nowrap border ${meta.color}`}>
-          {meta.label}
-        </span>
-        <span className="text-xs text-gray-400 dark:text-zinc-500 whitespace-nowrap">
-          {new Date(anchor.created_at).toLocaleDateString('pt-PT')}
-        </span>
+        <p className="text-xs text-gray-500 dark:text-zinc-400 truncate">{resumo}</p>
       </button>
 
       {isExpanded && (
@@ -376,9 +412,28 @@ function BatchCard({
               </div>
               <div className="pb-2.5 shrink-0 flex items-center gap-2 text-sm">
                 <Calendar className="w-4 h-4 text-gray-400 shrink-0" />
-                <span className="font-bold text-gray-900 dark:text-white">
-                  Entrega até {new Date(anchor.data_limite_entrega).toLocaleDateString('pt-PT')}
-                </span>
+                {editingDate ? (
+                  <input
+                    type="date"
+                    autoFocus
+                    defaultValue={anchor.data_limite_entrega.slice(0, 10)}
+                    className={`${panelField} py-1 text-sm`}
+                    onBlur={(e) => { onUpdateDeliveryDate(batch.batchId, e.target.value); setEditingDate(false) }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') { onUpdateDeliveryDate(batch.batchId, e.currentTarget.value); setEditingDate(false) }
+                      if (e.key === 'Escape') setEditingDate(false)
+                    }}
+                  />
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setEditingDate(true)}
+                    className="font-bold text-gray-900 dark:text-white hover:underline decoration-dotted underline-offset-2"
+                    title="Clique para alterar o prazo"
+                  >
+                    Entrega até {new Date(anchor.data_limite_entrega).toLocaleDateString('pt-PT')}
+                  </button>
+                )}
                 {(() => {
                   const countdown = deliveryCountdown(anchor.data_limite_entrega)
                   return (
@@ -410,7 +465,7 @@ function BatchCard({
                           }`}
                         >
                           <div className="min-w-0 flex-1">
-                            <span className="block truncate text-gray-700 dark:text-zinc-300">
+                            <span className={`text-gray-700 dark:text-zinc-300 ${item.sob_consulta ? 'block whitespace-pre-wrap' : 'block truncate'}`}>
                               {item.categoria_label} — {item.produto} (x{item.quantidade})
                             </span>
                             {item.rejection_reason && (
@@ -434,15 +489,10 @@ function BatchCard({
                       )
                     })}
                   </div>
-                  <a
-                    href={`/cotacao/${anchor.id}`}
-                    target="_blank"
-                    rel="noreferrer"
-                    className={panelBtnPrimary + ' mt-1'}
-                  >
-                    <ExternalLink className="w-3.5 h-3.5" />
-                    <span>Ver documento</span>
-                  </a>
+                  <button type="button" onClick={() => setActiveTab('cotacao')} className={panelBtnPrimary + ' mt-1'}>
+                    <FileText className="w-3.5 h-3.5" />
+                    <span>Ver cotação</span>
+                  </button>
                 </div>
               </div>
             )}
@@ -460,6 +510,15 @@ function BatchCard({
                 <p className="text-gray-500 dark:text-zinc-400 flex items-center gap-1.5"><Mail className="w-3.5 h-3.5" /> {anchor.email}</p>
                 {anchor.nif && <p className="text-gray-500 dark:text-zinc-400">NIF: {anchor.nif}</p>}
               </div>
+            )}
+
+            {activeTab === 'cotacao' && (
+              <iframe
+                key={anchor.id}
+                src={`/cotacao/${anchor.id}?embed=1`}
+                className="w-full h-[70vh] border-0 rounded-lg"
+                title="Cotação"
+              />
             )}
           </div>
 

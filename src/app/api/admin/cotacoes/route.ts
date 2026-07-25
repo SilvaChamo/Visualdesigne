@@ -57,7 +57,21 @@ export async function PATCH(request: Request) {
 
   try {
     const body = await request.json();
-    const { id, status, rejectionReason } = body || {};
+    const { id, status, rejectionReason, batchId, dataLimiteEntrega } = body || {};
+
+    // Alterar a data limite de entrega prevista — aplica-se a todos os itens da mesma
+    // encomenda (batch), já que foram todos submetidos com o mesmo prazo original.
+    if (batchId && dataLimiteEntrega) {
+      const supabase = getSupabaseAdmin();
+      const { data, error } = await supabase
+        .from('quotation_requests')
+        .update({ data_limite_entrega: dataLimiteEntrega, updated_at: new Date().toISOString() })
+        .eq('batch_id', batchId)
+        .select();
+
+      if (error) throw error;
+      return NextResponse.json({ success: true, cotacoes: data });
+    }
 
     if (!id || !status) {
       return NextResponse.json({ success: false, error: 'id e status são obrigatórios.' }, { status: 400 });
