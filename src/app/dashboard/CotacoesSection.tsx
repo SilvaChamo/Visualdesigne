@@ -3,11 +3,11 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import {
   RefreshCw, FileText, Building2, Phone, Mail, Calendar, ExternalLink,
-  Inbox, Clock, Factory, PackageCheck, XCircle, CheckCircle2,
+  Inbox, Clock, Factory, PackageCheck, XCircle, CheckCircle2, MessageCircle, X,
 } from 'lucide-react'
 import {
   panelCard, panelBtn, panelBtnPrimary, panelBtnSecondary, panelField, panelSectionPadding,
-  panelTabBar, panelTabBtn, panelTabBtnActive, panelTabBtnInactive,
+  panelTabBar, panelTabBtn, panelTabBtnActive, panelTabBtnInactive, panelSectionCard,
 } from '@/lib/panel-ui'
 import { formatMt, BRANDS } from '@/lib/pricing-catalog'
 import { statusMeta, type StatusBucket } from '@/lib/quotation-status-labels'
@@ -160,7 +160,7 @@ export function CotacoesSection() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-[220px_1fr] gap-4 lg:gap-6 items-start">
-        <nav className="space-y-5 lg:sticky lg:top-4">
+        <nav className={`${panelSectionCard} space-y-5 p-3 lg:sticky lg:top-4`}>
           <div>
             <button
               type="button"
@@ -240,7 +240,7 @@ export function CotacoesSection() {
   )
 }
 
-type BatchTab = 'itens' | 'historico' | 'anexos' | 'layouts' | 'empresa' | 'mensagens'
+type BatchTab = 'itens' | 'historico' | 'anexos' | 'layouts' | 'empresa'
 
 const BATCH_TABS: { id: BatchTab; label: string }[] = [
   { id: 'itens', label: 'Itens da encomenda' },
@@ -248,8 +248,14 @@ const BATCH_TABS: { id: BatchTab; label: string }[] = [
   { id: 'anexos', label: 'Anexos' },
   { id: 'layouts', label: 'Layouts' },
   { id: 'empresa', label: 'Dados da empresa' },
-  { id: 'mensagens', label: 'Mensagens' },
 ]
+
+/** Mesma heurística usada no resto do painel para normalizar números moçambicanos para wa.me. */
+function phoneToWhatsAppDigits(raw: string): string {
+  const digits = raw.replace(/\D/g, '').replace(/^0+/, '')
+  if (digits.length === 9) return `258${digits}`
+  return digits
+}
 
 function BatchCard({
   batch,
@@ -265,7 +271,12 @@ function BatchCard({
   onUpdateStatus: (itemId: string, status: QuotationRequest['status']) => void
 }) {
   const [activeTab, setActiveTab] = useState<BatchTab>('itens')
+  const [showMessages, setShowMessages] = useState(false)
   const anchor = batch.primaryItem
+  const whatsappDigits = phoneToWhatsAppDigits(anchor.telefone || '')
+  const whatsappHref = whatsappDigits
+    ? `https://wa.me/${whatsappDigits}?text=${encodeURIComponent(`Olá ${anchor.responsavel || ''}, sobre a sua encomenda Nº ${batchNumero(batch.batchId)} (${anchor.empresa}):`)}`
+    : null
   const meta = statusMeta(batch.status, batch.sobConsulta)
   const resumo = batch.items.length === 1 ? `${anchor.categoria_label} — ${anchor.produto}` : `${batch.items.length} serviços`
 
@@ -378,8 +389,46 @@ function BatchCard({
                 {anchor.nif && <p className="text-gray-500 dark:text-zinc-400">NIF: {anchor.nif}</p>}
               </div>
             )}
+          </div>
 
-            {activeTab === 'mensagens' && <QuotationMessagesThread quotationId={anchor.id} viewerRole="admin" />}
+          {/* Mensagens: ícone flutuante (histórico continua guardado no site) + atalho directo para WhatsApp do cliente. */}
+          <div className="fixed bottom-6 right-6 z-40 flex flex-col items-end gap-3">
+            {showMessages && (
+              <div className="w-[min(360px,calc(100vw-3rem))] max-h-[min(480px,calc(100vh-8rem))] flex flex-col rounded-lg border border-gray-200 bg-white shadow-xl dark:border-zinc-700 dark:bg-zinc-900">
+                <div className="flex items-center justify-between gap-2 border-b border-gray-100 px-4 py-3 dark:border-zinc-800">
+                  <p className="text-sm font-bold text-gray-900 dark:text-white">
+                    Mensagens — {anchor.empresa}
+                  </p>
+                  <button type="button" onClick={() => setShowMessages(false)} className="text-gray-400 hover:text-gray-700 dark:hover:text-zinc-200">
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+                <div className="flex-1 overflow-y-auto p-3">
+                  <QuotationMessagesThread quotationId={anchor.id} viewerRole="admin" />
+                </div>
+              </div>
+            )}
+            <div className="flex items-center gap-3">
+              {whatsappHref && (
+                <a
+                  href={whatsappHref}
+                  target="_blank"
+                  rel="noreferrer"
+                  title="Abrir no WhatsApp"
+                  className="flex h-12 w-12 items-center justify-center rounded-full bg-green-500 text-white shadow-lg transition-transform hover:scale-105 hover:bg-green-600"
+                >
+                  <span className="text-xl leading-none">📱</span>
+                </a>
+              )}
+              <button
+                type="button"
+                title="Mensagens desta encomenda"
+                onClick={() => setShowMessages((v) => !v)}
+                className="flex h-12 w-12 items-center justify-center rounded-full bg-red-600 text-white shadow-lg transition-transform hover:scale-105 hover:bg-red-700"
+              >
+                <MessageCircle className="w-5 h-5" />
+              </button>
+            </div>
           </div>
         </div>
       )}
