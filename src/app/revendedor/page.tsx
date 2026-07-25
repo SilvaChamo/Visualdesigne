@@ -2247,7 +2247,7 @@ function ResellerPageContent() {
         />
       case 'emails-new':
       case 'cp-email-mgmt':
-        return <EmailManagementSection sites={filteredSites} preSelectedDomain={preSelectedEmailDomain} isActive={isActive} />
+        return <EmailManagementSection sites={filteredSites} preSelectedDomain={preSelectedEmailDomain} isActive={isActive} ownerScopeToSites />
       case 'cp-email-delete':
         return <EmailDeleteSection sites={filteredSites} />
       case 'cp-email-limits':

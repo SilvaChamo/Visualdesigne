@@ -1518,10 +1518,14 @@ export function EmailManagementSection({
   sites,
   preSelectedDomain,
   isActive = true,
+  ownerScopeToSites = false,
 }: {
   sites: DirectAdminWebsite[]
   preSelectedDomain?: string
   isActive?: boolean
+  /** Revendedor: restringe o dropdown de "proprietário" aos clientes dos seus próprios sites
+   *  (a tabela `clientes` não tem coluna de posse). Admin deixa como false para ver todos. */
+  ownerScopeToSites?: boolean
 }) {
   const [selectedDomain, setSelectedDomain] = useState(preSelectedDomain || '__ALL__')
   const [emails, setEmails] = useState<DirectAdminEmail[]>([])
@@ -1552,18 +1556,40 @@ export function EmailManagementSection({
     show: false, title: '', message: '', onConfirm: () => { }
   })
 
-  // Carregar clientes para o dropdown de proprietário
+  // Carregar clientes para o dropdown de proprietário — a tabela `clientes` não tem
+  // coluna de posse por revendedor, por isso não confiamos só na RLS: filtramos aqui
+  // pelos emails/domínios já presentes em `sites` (essa prop já vem correctamente
+  // escopada por role — admin recebe todos os sites, revendedor só os seus).
   useEffect(() => {
     const fetchClientes = async () => {
       setLoadingClientes(true)
       try {
         const { data, error } = await supabase.from('clientes').select('id, nome, email')
-        if (!error) setClientes(data || [])
+        if (error) { setLoadingClientes(false); return }
+        if (!ownerScopeToSites) {
+          setClientes(data || [])
+          setLoadingClientes(false)
+          return
+        }
+        const ownedEmails = new Set(
+          sites.map((s) => (s.adminEmail || '').toLowerCase()).filter(Boolean)
+        )
+        const ownedDomains = new Set(
+          sites.map((s) => (s.domain || '').toLowerCase()).filter(Boolean)
+        )
+        const scoped = (data || []).filter((c: any) => {
+          const email = String(c.email || '').toLowerCase()
+          if (!email) return false
+          if (ownedEmails.has(email)) return true
+          const domain = email.split('@')[1] || ''
+          return domain ? ownedDomains.has(domain) : false
+        })
+        setClientes(scoped)
       } catch (e) { console.error(e) }
       setLoadingClientes(false)
     }
     fetchClientes()
-  }, [])
+  }, [sites, ownerScopeToSites])
 
   const openEmailConfigModal = async (emailAddress: string, passwordHint?: string) => {
     try {

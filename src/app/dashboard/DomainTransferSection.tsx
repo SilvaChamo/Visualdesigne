@@ -30,10 +30,8 @@ export function DomainTransferSection() {
       }
       setMsgOk(true);
       setMsg(
-        `Pedido registado para ${domain.trim()}. A equipa concluirá a transferência com o código EPP indicado. Pode acompanhar em Notificações → Cadastrar.`,
+        `Domínio ${domain.trim()} validado. Este formulário ainda não submete o pedido de transferência automaticamente — contacte o suporte com o domínio e o código EPP indicados para a equipa iniciar a transferência manualmente.`,
       );
-      setDomain('');
-      setAuthCode('');
     } catch (e: unknown) {
       setMsgOk(false);
       setMsg(e instanceof Error ? e.message : 'Erro ao enviar pedido.');
@@ -103,7 +101,7 @@ export function DomainTransferSection() {
           <div className="flex flex-wrap gap-2 pt-2">
             <button type="submit" disabled={loading || !domain.trim() || !authCode.trim()} className={panelBtnPrimary}>
               {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowRightLeft className="h-4 w-4" />}
-              Iniciar transferência
+              Validar domínio
             </button>
             <button
               type="button"

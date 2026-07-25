@@ -33,7 +33,7 @@ import {
   listMirrorWebsites,
 } from '@/lib/panel-mirror-read';
 
-import { enrichPanelAccounts } from '@/lib/panel-contas-enrich';
+import { enrichPanelAccounts, belongsToResellerAccount } from '@/lib/panel-contas-enrich';
 import {
   schedulePanelServerProvision,
 } from '@/lib/panel-server-provision';
@@ -734,6 +734,16 @@ export async function PATCH(req: NextRequest) {
         }
         if (fromReseller === toReseller) {
           return NextResponse.json({ success: false, error: 'Origem e destino devem ser diferentes.' }, { status: 400 });
+        }
+        // Confirmar que a conta pertence de facto ao revendedor de origem indicado —
+        // evita mover a conta errada se a UI estiver desactualizada (dados em cache).
+        const currentUsers = await listMirrorUsers({ role: 'admin', userId: auth.user.id });
+        const currentUser = currentUsers.find((u) => u.userName === userName);
+        if (!currentUser || !belongsToResellerAccount(currentUser, fromReseller)) {
+          return NextResponse.json(
+            { success: false, error: 'A conta não pertence ao revendedor de origem indicado.' },
+            { status: 409 },
+          );
         }
         const r = await daPostViaSsh('CMD_API_MOVE_USERS', {
           action: 'move',

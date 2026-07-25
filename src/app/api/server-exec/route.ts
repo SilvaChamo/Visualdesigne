@@ -23,6 +23,7 @@ import {
   listMirrorWebsites,
   getMirrorLastSyncAt,
   getMirrorPackageForm,
+  isMirrorStale,
 } from '@/lib/panel-mirror-read';
 import { mergePackageListByName, resolveMirrorOrLive } from '@/lib/panel-list-resolve';
 import type { PanelPackage } from '@/lib/directadmin-hosting-api';
@@ -220,12 +221,18 @@ export async function POST(req: NextRequest) {
       const mirrorRows = (await readFromMirror(action, mirrorScope, params)) as PanelPackage[];
       const mirrorList = Array.isArray(mirrorRows) ? mirrorRows : [];
 
+      // Só ir ao DirectAdmin ao vivo quando o espelho está desactualizado ou vazio —
+      // evita esperar por uma chamada DA em toda a visita (mesmo padrão de /api/admin/clientes).
       let liveList: PanelPackage[] = [];
-      try {
-        liveList = (await fallback(api, params)) as PanelPackage[];
-        if (Array.isArray(liveList) && liveList.length > 0) scheduleDaSync(500);
-      } catch {
-        /* espelho apenas */
+      const stale = await isMirrorStale(120);
+      if (stale) scheduleDaSync(0);
+      if (stale || mirrorList.length === 0) {
+        try {
+          liveList = (await fallback(api, params)) as PanelPackage[];
+          if (Array.isArray(liveList) && liveList.length > 0) scheduleDaSync(500);
+        } catch {
+          /* espelho apenas */
+        }
       }
 
       const data =
