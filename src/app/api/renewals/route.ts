@@ -25,7 +25,7 @@ export async function GET(request: NextRequest) {
     const userIsAdmin = await checkIsAdmin(supabase)
     const isAdminView = userIsAdmin && searchParams.get('admin') === 'true'
     const requestedUserId = searchParams.get('userId')
-    const userId = requestedUserId || user.id
+    const userId = (userIsAdmin && requestedUserId) ? requestedUserId : user.id
 
     const type = searchParams.get('type') // 'domain' ou 'hosting'
     const status = searchParams.get('status')

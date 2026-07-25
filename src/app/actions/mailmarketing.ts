@@ -11,17 +11,17 @@ const PANEL_SCOPE_CLIENT = 'client'
 // com as politicas limitadas para admin.
 const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey)
 
+const normalizeDomain = (value?: string | null) =>
+    (value || '')
+        .toLowerCase()
+        .trim()
+        .replace(/^https?:\/\//, '')
+        .replace(/^www\./, '')
+        .replace(/^mail\./, '')
+        .replace(/\/.*$/, '');
+
 export async function adminListarSubscritores(dominio?: string) {
     try {
-        const normalizeDomain = (value?: string | null) =>
-            (value || '')
-                .toLowerCase()
-                .trim()
-                .replace(/^https?:\/\//, '')
-                .replace(/^www\./, '')
-                .replace(/^mail\./, '')
-                .replace(/\/.*$/, '');
-
         const query = supabaseAdmin
             .from('newsletter_subscribers')
             .select('*')
@@ -113,8 +113,21 @@ export async function adminSalvarCampanha(dados: { subject: string, content_html
     }
 }
 
-export async function adminRemoverCampanha(id: string) {
+export async function adminRemoverCampanha(id: string, ownerEmail: string) {
     try {
+        const owner = (ownerEmail || '').toLowerCase().trim()
+        if (!owner) throw new Error('Não autorizado.')
+
+        const { data: existing, error: fetchError } = await supabaseAdmin
+            .from('email_campaigns')
+            .select('sender_email')
+            .eq('id', id)
+            .maybeSingle()
+        if (fetchError) throw fetchError
+        if (!existing || (existing.sender_email || '').toLowerCase().trim() !== owner) {
+            throw new Error('Campanha não encontrada ou fora do seu acesso.')
+        }
+
         const { error } = await supabaseAdmin
             .from('email_campaigns')
             .delete()
@@ -327,8 +340,22 @@ export async function adminAdicionarSubscritor(dados: { email: string, full_name
     }
 }
 
-export async function adminRemoverSubscritor(id: string) {
+export async function adminRemoverSubscritor(id: string, dominio: string) {
     try {
+        const requestedDomain = normalizeDomain(dominio)
+        if (!requestedDomain) throw new Error('Não autorizado.')
+
+        const { data: existing, error: fetchError } = await supabaseAdmin
+            .from('newsletter_subscribers')
+            .select('metadata')
+            .eq('id', id)
+            .maybeSingle()
+        if (fetchError) throw fetchError
+        const rowDomain = normalizeDomain((existing?.metadata as any)?.domain)
+        if (!existing || rowDomain !== requestedDomain) {
+            throw new Error('Contacto não encontrado ou fora do seu acesso.')
+        }
+
         const { error } = await supabaseAdmin
             .from('newsletter_subscribers')
             .delete()

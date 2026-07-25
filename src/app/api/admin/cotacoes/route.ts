@@ -20,6 +20,9 @@ const VALID_STATUS = ['pending', 'payment_selected', 'approved', 'delivered', 'r
 export async function GET(request: Request) {
   const auth = await requireAdminOrReseller();
   if ('error' in auth) return auth.error;
+  if (auth.user.role !== 'admin') {
+    return NextResponse.json({ success: false, error: 'Acção restrita a administradores.' }, { status: 403 });
+  }
 
   try {
     const { searchParams } = new URL(request.url);
@@ -48,6 +51,9 @@ export async function GET(request: Request) {
 export async function PATCH(request: Request) {
   const auth = await requireAdminOrReseller();
   if ('error' in auth) return auth.error;
+  if (auth.user.role !== 'admin') {
+    return NextResponse.json({ success: false, error: 'Acção restrita a administradores.' }, { status: 403 });
+  }
 
   try {
     const body = await request.json();

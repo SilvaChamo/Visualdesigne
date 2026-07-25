@@ -354,20 +354,15 @@ function MailMarketingComposer({ selectedSite, setSelectedSite, sites, onGoToCon
       let allRecipients: { id?: string, email: string }[] = [];
 
       if (selectedPlans.length > 0) {
-        let data = await listarSubscritores(selectedSite);
-        if ((!data || data.length === 0) && selectedSite) {
-          data = await listarSubscritores();
-        }
-        
+        const data = await listarSubscritores(selectedSite);
+
         if (data) {
           const filteredData = data.filter((s: any) => {
             const contactDomain = normalizeDomain(s?.metadata?.domain);
             const listName = s.metadata?.list || 'Contactos';
             if (!selectedPlans.includes(listName)) return false;
             if (!contactDomain || isPlatformDomain(contactDomain)) return true;
-            if (allowedDomains.size > 0 && allowedDomains.has(contactDomain)) return true;
-            if (allowedDomains.size === 0) return true;
-            return false;
+            return allowedDomains.size > 0 && allowedDomains.has(contactDomain);
           });
           allRecipients = [...allRecipients, ...filteredData.map((s: any) => ({ email: s.email }))];
         }
@@ -685,10 +680,7 @@ function MailMarketingContacts({ selectedSite, setSelectedSite, sites, listas, s
   const fetchSubs = async () => {
     try {
       setLoading(true);
-      let data = await listarSubscritores(selectedSite);
-      if ((!data || data.length === 0) && selectedSite) {
-        data = await listarSubscritores();
-      }
+      const data = await listarSubscritores(selectedSite);
       setSubscribers(data || []);
       
       if (data && data.length > 0 && setListas) {
@@ -747,7 +739,7 @@ function MailMarketingContacts({ selectedSite, setSelectedSite, sites, listas, s
 
   const handleDelete = async (id: string) => {
     if (!confirm("Remover contacto?")) return;
-    try { await removerSubscritor(id); fetchSubs(); } catch (e) { toast.error("Erro ao remover"); }
+    try { await removerSubscritor(id, selectedSite); fetchSubs(); } catch (e) { toast.error("Erro ao remover"); }
   };
 
   return (
@@ -883,7 +875,7 @@ function MailMarketingCampaigns({ selectedSite, currentUserEmail, onResend }: { 
               <div className="flex items-center gap-4">
                 <div className="text-right"><p className="text-sm font-black">{camp.recipient_count || 0}</p></div>
                 <button onClick={() => onResend && onResend(camp)} className="p-2 hover:bg-orange-50 text-slate-400 hover:text-orange-600 rounded-lg"><RefreshCw size={14} /></button>
-                <button onClick={async () => { if (confirm("Remover campanha?")) { await removerCampanha(camp.id); fetchCampaigns(); } }} className="p-2 hover:bg-red-50 text-slate-400 hover:text-red-600 rounded-lg"><Trash2 size={14} /></button>
+                <button onClick={async () => { if (confirm("Remover campanha?")) { await removerCampanha(camp.id, currentUserEmail || ''); fetchCampaigns(); } }} className="p-2 hover:bg-red-50 text-slate-400 hover:text-red-600 rounded-lg"><Trash2 size={14} /></button>
               </div>
             </div>
           ))}

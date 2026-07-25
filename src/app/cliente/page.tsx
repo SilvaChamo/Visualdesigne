@@ -988,11 +988,7 @@ function MailMarketingComposer({ selectedSite, setSelectedSite, sites, onGoToCon
         console.log("BUSCANDO SUBSCRITORES PARA:", selectedSite);
         console.log("PLANOS SELECCIONADOS:", selectedPlans);
 
-        let data = await listarSubscritores(selectedSite);
-        // Fallback: se o domínio activo não tiver contactos, usa todas as listas do cliente.
-        if ((!data || data.length === 0) && selectedSite) {
-          data = await listarSubscritores();
-        }
+        const data = await listarSubscritores(selectedSite);
         console.log("DADOS RECEBIDOS:", data);
 
         if (data) {
@@ -1006,13 +1002,10 @@ function MailMarketingComposer({ selectedSite, setSelectedSite, sites, onGoToCon
             // 2. Se não tem domínio ou é domínio da plataforma, permitir (são contactos genéricos do cliente)
             if (!contactDomain || isPlatformDomain(contactDomain)) return true;
 
-            // 3. Se tem domínio, verificar se pertence aos domínios do cliente
-            if (allowedDomains.size > 0 && allowedDomains.has(contactDomain)) return true;
-
-            // 4. Se chegou aqui e não temos domínios permitidos carregados, permitir por segurança
-            if (allowedDomains.size === 0) return true;
-
-            return false;
+            // 3. Só permitir se pertence a um dos domínios do próprio cliente — nunca
+            // "permitir tudo" quando allowedDomains ainda não carregou, para não enviar
+            // a contactos de outras contas.
+            return allowedDomains.size > 0 && allowedDomains.has(contactDomain);
           });
           console.log("DADOS FILTRADOS:", filteredData);
           allRecipients = [...allRecipients, ...filteredData.map((s: any) => ({ email: s.email }))];
@@ -1790,10 +1783,10 @@ function MailMarketingContacts({ selectedSite, setSelectedSite, sites, listas, s
     }
   };
 
-  const handleDelete = async (id: string, email: string) => {
+  const handleDelete = async (id: string, email: string, domain?: string) => {
     if (!confirm(`Remover subscritor ${email}?`)) return;
     try {
-      await removerSubscritor(id);
+      await removerSubscritor(id, domain || selectedSite);
       toast.success("Subscritor removido");
       fetchSubs();
     } catch (error) {
@@ -1823,7 +1816,7 @@ function MailMarketingContacts({ selectedSite, setSelectedSite, sites, listas, s
     try {
       const selectedMap = new Set(selectedSubscriberIds);
       const selectedRows = subscribers.filter((s: any) => selectedMap.has(s.id));
-      await Promise.all(selectedRows.map((sub: any) => removerSubscritor(sub.id)));
+      await Promise.all(selectedRows.map((sub: any) => removerSubscritor(sub.id, sub.metadata?.domain || selectedSite)));
       toast.success(`${selectedRows.length} contacto(s) removido(s).`);
       setSelectedSubscriberIds([]);
       fetchSubs();
@@ -2109,7 +2102,7 @@ function MailMarketingContacts({ selectedSite, setSelectedSite, sites, listas, s
                       >
                         <Pencil size={14} />
                       </button>
-                      <button onClick={() => handleDelete(sub.id, sub.email)} className="p-2 text-slate-500 hover:text-red-600 hover:bg-red-50 rounded-lg border border-slate-100 hover:border-red-200 transition-all bg-white shadow-sm">
+                      <button onClick={() => handleDelete(sub.id, sub.email, sub.metadata?.domain)} className="p-2 text-slate-500 hover:text-red-600 hover:bg-red-50 rounded-lg border border-slate-100 hover:border-red-200 transition-all bg-white shadow-sm">
                         <Trash2 size={16} />
                       </button>
                     </div>
@@ -2386,7 +2379,7 @@ function MailMarketingCampaigns({ selectedSite, currentUserEmail, onResend }: { 
                 onClick={async () => {
                   if (confirm(`Tem a certeza que deseja eliminar ${selectedCampaignIds.length} campanhas?`)) {
                     for (const id of selectedCampaignIds) {
-                      await removerCampanha(id);
+                      await removerCampanha(id, currentUserEmail || '');
                     }
                     setSelectedCampaignIds([]);
                     fetchCampaigns();
@@ -2487,7 +2480,7 @@ function MailMarketingCampaigns({ selectedSite, currentUserEmail, onResend }: { 
                       <button
                         onClick={async () => {
                           if (confirm(`Tem a certeza que deseja eliminar a campanha "${camp.subject}"?`)) {
-                            await removerCampanha(camp.id);
+                            await removerCampanha(camp.id, currentUserEmail || '');
                             fetchCampaigns();
                           }
                         }}
