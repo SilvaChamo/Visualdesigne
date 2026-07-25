@@ -209,16 +209,7 @@ export function CotacoesSection() {
 
   return (
     <div>
-      <div className="flex flex-wrap items-center justify-between gap-3 mb-5">
-        <div>
-          <h2 className="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2">
-            <FileText className="w-5 h-5 text-red-600" />
-            Encomendas
-          </h2>
-          <p className="text-sm text-gray-500 dark:text-zinc-400 mt-0.5">
-            Pedidos de cotação submetidos a partir de /precos, agrupados como foram enviados.
-          </p>
-        </div>
+      <div className="flex flex-wrap items-center justify-end gap-3 mb-5">
         <button className={panelBtnSecondary} onClick={() => fetchCotacoes()} disabled={loading}>
           <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
           <span>Actualizar</span>

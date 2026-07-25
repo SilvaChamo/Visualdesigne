@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { Layers, Download, Loader2, Paperclip, Send } from 'lucide-react';
+import { Layers, Download, Loader2, Paperclip, Send, Check, X } from 'lucide-react';
 import { panelBtnPrimary, panelBtnSecondary, panelField } from '@/lib/panel-ui';
 
 type Layout = {
@@ -11,7 +11,15 @@ type Layout = {
   file_name: string;
   file_url: string;
   file_size_bytes: number | null;
+  status: 'pending' | 'approved' | 'rejected';
+  client_feedback: string | null;
   created_at: string;
+};
+
+const LAYOUT_STATUS_LABELS: Record<Layout['status'], { label: string; color: string }> = {
+  pending: { label: 'Aguarda a sua aprovação', color: 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/30 dark:text-amber-400 dark:border-amber-900/30' },
+  approved: { label: 'Aprovado', color: 'bg-teal-50 text-teal-700 border-teal-200 dark:bg-teal-950/30 dark:text-teal-400 dark:border-teal-900/30' },
+  rejected: { label: 'Rejeitado — a corrigir', color: 'bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/30 dark:text-rose-400 dark:border-rose-900/30' },
 };
 
 function formatBytes(bytes: number | null): string {
@@ -41,6 +49,13 @@ export function QuotationLayoutsList({
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Decisão do cliente (aprovar/rejeitar) por fase — rejectingId marca qual
+  // layout tem a caixa de comentário aberta; deciding evita duplo-clique.
+  const [rejectingId, setRejectingId] = useState<string | null>(null);
+  const [rejectFeedback, setRejectFeedback] = useState('');
+  const [decidingId, setDecidingId] = useState<string | null>(null);
+  const [decisionError, setDecisionError] = useState('');
 
   const fetchLayouts = () => {
     setLoading(true);
@@ -82,8 +97,34 @@ export function QuotationLayoutsList({
     }
   };
 
-  return (
-    <div className="space-y-3">
+  const handleDecision = async (layoutId: string, status: 'approved' | 'rejected', feedback?: string) => {
+    if (decidingId) return;
+    if (status === 'rejected' && !feedback?.trim()) {
+      setDecisionError('Descreva o que precisa de ser corrigido.');
+      return;
+    }
+    setDecidingId(layoutId);
+    setDecisionError('');
+    try {
+      const res = await fetch(`/api/cotacoes/${quotationId}/layouts/${layoutId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status, feedback: feedback?.trim() }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) throw new Error(data.error || 'Não foi possível registar a sua decisão.');
+      setLayouts((prev) => prev.map((l) => (l.id === layoutId ? data.layout : l)));
+      setRejectingId(null);
+      setRejectFeedback('');
+    } catch (err: any) {
+      setDecisionError(err.message || 'Não foi possível registar a sua decisão.');
+    } finally {
+      setDecidingId(null);
+    }
+  };
+
+  const listBlock = (
+    <>
       {loading ? (
         <p className="text-sm text-gray-400 dark:text-zinc-500">A carregar layouts...</p>
       ) : layouts.length === 0 ? (
@@ -123,66 +164,148 @@ export function QuotationLayoutsList({
                     <Download className="w-4 h-4" />
                   </a>
                 </div>
+
+                <div className="mt-2 flex items-center gap-2">
+                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${LAYOUT_STATUS_LABELS[l.status].color}`}>
+                    {LAYOUT_STATUS_LABELS[l.status].label}
+                  </span>
+                </div>
+
+                {l.status === 'rejected' && l.client_feedback && (
+                  <p className="mt-2 text-xs text-rose-700 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/20 border border-rose-200 dark:border-rose-900/30 rounded-md p-2">
+                    <span className="font-bold">Correcções pedidas:</span> {l.client_feedback}
+                  </p>
+                )}
+
+                {viewerRole === 'client' && l.status === 'pending' && (
+                  <div className="mt-2 space-y-2">
+                    {rejectingId === l.id ? (
+                      <div className="space-y-2">
+                        <textarea
+                          value={rejectFeedback}
+                          onChange={(e) => setRejectFeedback(e.target.value)}
+                          placeholder="Descreva o que precisa de ser corrigido neste layout..."
+                          rows={2}
+                          className={`${panelField} w-full h-auto py-2`}
+                          disabled={decidingId === l.id}
+                        />
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            className={panelBtnSecondary}
+                            onClick={() => { setRejectingId(null); setRejectFeedback(''); setDecisionError(''); }}
+                            disabled={decidingId === l.id}
+                          >
+                            Cancelar
+                          </button>
+                          <button
+                            type="button"
+                            className="inline-flex items-center gap-2 bg-rose-600 hover:bg-rose-700 text-white font-bold px-4 py-2 rounded-md text-sm transition-colors disabled:opacity-60"
+                            onClick={() => handleDecision(l.id, 'rejected', rejectFeedback)}
+                            disabled={decidingId === l.id || !rejectFeedback.trim()}
+                          >
+                            {decidingId === l.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <X className="w-4 h-4" />}
+                            Confirmar rejeição
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          className="inline-flex items-center gap-2 bg-teal-600 hover:bg-teal-700 text-white font-bold px-4 py-2 rounded-md text-sm transition-colors disabled:opacity-60"
+                          onClick={() => handleDecision(l.id, 'approved')}
+                          disabled={decidingId === l.id}
+                        >
+                          {decidingId === l.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
+                          Aprovar
+                        </button>
+                        <button
+                          type="button"
+                          className={panelBtnSecondary}
+                          onClick={() => { setRejectingId(l.id); setDecisionError(''); }}
+                          disabled={decidingId === l.id}
+                        >
+                          <X className="w-4 h-4" />
+                          Rejeitar
+                        </button>
+                      </div>
+                    )}
+                    {decisionError && rejectingId === l.id && (
+                      <p className="text-xs text-rose-600 dark:text-rose-400">{decisionError}</p>
+                    )}
+                  </div>
+                )}
               </div>
             </li>
           ))}
         </ol>
       )}
+    </>
+  );
 
-      {viewerRole === 'admin' && (
-        <div className="border border-gray-200 dark:border-zinc-800 rounded-lg p-3 space-y-2 bg-gray-50/50 dark:bg-zinc-900/50">
-          <p className="text-xs font-bold uppercase text-gray-500 dark:text-zinc-400">Enviar layout para aprovação</p>
+  if (viewerRole !== 'admin') {
+    return <div className="space-y-3">{listBlock}</div>;
+  }
 
-          <input
-            type="text"
-            value={descricao}
-            onChange={(e) => setDescricao(e.target.value)}
-            placeholder="Descrição da fase (ex: Rascunho inicial)"
-            className={`${panelField} w-full`}
+  return (
+    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 lg:items-start">
+      <div className="lg:aspect-square overflow-y-auto rounded-lg border border-gray-200 dark:border-zinc-800 p-3 space-y-3">
+        {listBlock}
+      </div>
+
+      <div className="rounded-lg border border-gray-200 dark:border-zinc-800 p-3 space-y-2 bg-gray-50/50 dark:bg-zinc-900/50">
+        <p className="text-xs font-bold uppercase text-gray-500 dark:text-zinc-400">Enviar layout para aprovação</p>
+
+        <input
+          type="text"
+          value={descricao}
+          onChange={(e) => setDescricao(e.target.value)}
+          placeholder="Descrição da fase (ex: Rascunho inicial)"
+          className={`${panelField} w-full`}
+          disabled={uploading}
+        />
+
+        <textarea
+          value={mensagem}
+          onChange={(e) => setMensagem(e.target.value)}
+          placeholder="Mensagem para o cliente (opcional) — aparece na conversa desta encomenda"
+          rows={2}
+          className={`${panelField} w-full h-auto py-2`}
+          disabled={uploading}
+        />
+
+        <input
+          type="file"
+          ref={fileInputRef}
+          onChange={(e) => setFile(e.target.files?.[0] || null)}
+          className="hidden"
+          disabled={uploading}
+        />
+
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            className={`${panelBtnSecondary} justify-start truncate`}
+            onClick={() => fileInputRef.current?.click()}
             disabled={uploading}
-          />
-
-          <textarea
-            value={mensagem}
-            onChange={(e) => setMensagem(e.target.value)}
-            placeholder="Mensagem para o cliente (opcional) — aparece na conversa desta encomenda"
-            rows={2}
-            className={`${panelField} w-full h-auto py-2`}
-            disabled={uploading}
-          />
-
-          <input
-            type="file"
-            ref={fileInputRef}
-            onChange={(e) => setFile(e.target.files?.[0] || null)}
-            className="hidden"
-            disabled={uploading}
-          />
-
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              className={`${panelBtnSecondary} flex-1 justify-start truncate`}
-              onClick={() => fileInputRef.current?.click()}
-              disabled={uploading}
-            >
-              <Paperclip className="w-4 h-4 shrink-0" />
-              <span className="truncate">{file ? file.name : 'Escolher ficheiro'}</span>
-            </button>
-            <button
-              type="button"
-              className={panelBtnPrimary}
-              onClick={handleEnviar}
-              disabled={uploading || !file || !descricao.trim()}
-            >
-              {uploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-              Enviar
-            </button>
-          </div>
-
-          {error && <p className="text-xs text-red-600 dark:text-red-400">{error}</p>}
+          >
+            <Paperclip className="w-4 h-4 shrink-0" />
+            <span className="truncate">{file ? file.name : 'Escolher ficheiro'}</span>
+          </button>
+          <button
+            type="button"
+            className={panelBtnPrimary}
+            onClick={handleEnviar}
+            disabled={uploading || !file || !descricao.trim()}
+          >
+            {uploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+            Enviar
+          </button>
         </div>
-      )}
+
+        {error && <p className="text-xs text-red-600 dark:text-red-400">{error}</p>}
+      </div>
     </div>
   );
 }

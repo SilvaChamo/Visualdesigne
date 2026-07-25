@@ -41,7 +41,7 @@ export const panelDashboardToolCard =
 
 /** Cartão compacto de ferramenta (dashboard cPanel). */
 export const panelDashboardToolCardCompact =
-  'dashboard-tool flex flex-col items-center gap-2 p-3 rounded-lg border border-gray-200 bg-white transition-all group text-center hover:bg-gray-50 hover:border-gray-300 dark:border-zinc-700 dark:bg-zinc-900 dark:hover:border-zinc-600 dark:hover:bg-zinc-800/50';
+  'dashboard-tool flex flex-col items-center gap-2 p-3 rounded-lg border border-gray-200 bg-white transition-all group text-center hover:bg-gray-100 hover:border-gray-300 dark:border-zinc-700 dark:bg-zinc-900 dark:hover:border-zinc-600 dark:hover:bg-zinc-800/50';
 
 /** Lista de tabs — sem padding horizontal; espaçamento 20px; cada tab com sublinhado próprio. */
 export const panelTabList = 'flex flex-wrap items-end gap-5';

@@ -205,7 +205,7 @@ export function AdminSidebar({
                         } rounded-lg ${
                           isActive
                             ? 'text-red-600 font-bold'
-                            : 'text-gray-600 hover:text-red-600 dark:text-zinc-400 dark:hover:text-red-400'
+                            : 'text-gray-600 hover:bg-gray-100 hover:text-red-600 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-red-400'
                         }`}
                         title={isCollapsed ? item.label : ''}
                       >
@@ -282,10 +282,10 @@ export function AdminSidebar({
                             <button
                               type="button"
                               onClick={() => handleSubClick(sub.id)}
-                              className={`flex min-w-0 flex-1 items-center px-3 text-left text-[15px] transition-colors duration-200 focus:outline-none ${
+                              className={`flex min-w-0 flex-1 items-center rounded px-3 text-left text-[15px] transition-colors duration-200 focus:outline-none ${
                                 isSubActive
                                   ? 'font-bold text-red-600'
-                                  : 'text-gray-600 hover:text-red-600 dark:text-zinc-500 dark:hover:text-red-400'
+                                  : 'text-gray-600 hover:bg-gray-100 hover:text-red-600 dark:text-zinc-500 dark:hover:bg-zinc-800 dark:hover:text-red-400'
                               }`}
                             >
                               {sub.label}

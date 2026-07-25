@@ -127,6 +127,21 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     }
   }
 
+  // Regista no histórico da encomenda (mesma tabela usada pelas mudanças de
+  // estado e pela decisão de aprovação em [layoutId]/route.ts) — para o
+  // envio da fase e a decisão do cliente aparecerem juntos no mesmo
+  // QuotationHistoryTimeline, não espalhados por secções diferentes.
+  try {
+    await admin.from('quotation_status_history').insert({
+      quotation_id: id,
+      status: access.quotation.status,
+      note: `Layout Fase ${fase} ("${descricao}") enviado pela equipa.`,
+      changed_by: 'admin',
+    });
+  } catch (historyError) {
+    console.error('[cotacoes/[id]/layouts] falha ao registar histórico:', historyError);
+  }
+
   const quotation = access.quotation;
   notifyQuoteClientNewLayout({
     to: quotation.email,
