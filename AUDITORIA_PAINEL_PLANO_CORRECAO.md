@@ -6,9 +6,19 @@ motivada por um bug real: a página de DNS Central mostrava registos da conta Vi
 dentro do painel de um cliente.
 
 **Estado actual (actualizado nesta sessão):** todos os itens P0 (P0-1..P0-5) e quase todos os
-P1 (P1-1..P1-4, P1-6) estão corrigidos, verificados (`tsc --noEmit` limpo) e **commitados
-localmente** (4 commits, sem `push`, sem autorização para tal ainda pedida). **P1-5 ficou
-deliberadamente por fazer** — ver secção 2. P2/P3 não foram tocados (não urgentes).
+P1 (P1-1..P1-4, P1-6) estão corrigidos, verificados (`tsc --noEmit` limpo) e **commitados e
+publicados em `main`** (push feito, commits `96d1753`..`36b06f9`). **P1-5 ficou deliberadamente
+por fazer** — ver secção 2. P2/P3 não foram tocados (não urgentes).
+
+**P0-6 (novo, encontrado depois do push inicial) — fuga de cache na impersonação de
+revendedor.** O utilizador reportou que ao impersonar a conta "Osher" no painel admin, os dados
+apresentados apareciam misturados com os da própria conta admin. Causa: nenhum dos 6 pontos de
+entrar/sair de "impersonar revendedor" (`ClientesDaSection.tsx`, `HostingSections.tsx`,
+`revendedor/page.tsx`) chamava `clearAllPanelClientCaches()` antes de navegar — a mesma
+causa-raiz do bug original de DNS (commit `3bc1d23`), mas nunca aplicada à impersonação
+(`window.location.href`/`<a href>` não limpam sessionStorage/localStorage). Corrigido: os 6
+pontos passaram a limpar as caches antes de navegar. Commit `21ac2dc`, **commitado localmente,
+push ainda NÃO pedido/feito** — confirmar com o utilizador antes de publicar.
 
 **Aviso:** durante esta sessão confirmou-se, por diffs inesperados em `AdminSidebar.tsx` e
 `panel-ui.ts` (ajustes cosméticos de hover, não feitos por esta sessão), que **outra sessão
