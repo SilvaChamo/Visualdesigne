@@ -2,6 +2,12 @@ import { NextRequest, NextResponse } from 'next/server'
 import { exec } from 'child_process'
 import { promisify } from 'util'
 import { getServerHost, getHestiaUrl } from '@/lib/server-config'
+import { requireAdminOrReseller } from '@/lib/panel-api-auth'
+
+/** Domínio tem de bater certo com um nome de host válido — evita injecção no comando SSH. */
+function isSafeDomain(domain: string): boolean {
+  return /^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?(\.[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)+$/i.test(domain)
+}
 
 const execAsync = promisify(exec)
 
@@ -73,6 +79,12 @@ const ghHeaders = (): Record<string, string> => ({
 })
 
 export async function GET() {
+  const auth = await requireAdminOrReseller()
+  if ('error' in auth) return auth.error
+  if (auth.user.role !== 'admin') {
+    return NextResponse.json({ success: false, error: 'Acção restrita a administradores.' }, { status: 403 })
+  }
+
   try {
     // When running locally, also get git status
     let localGit: any = null
@@ -128,6 +140,12 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
+  const auth = await requireAdminOrReseller()
+  if ('error' in auth) return auth.error
+  if (auth.user.role !== 'admin') {
+    return NextResponse.json({ success: false, error: 'Acção restrita a administradores.' }, { status: 403 })
+  }
+
   try {
     const body = await req.json()
     const { action, message } = body
@@ -265,7 +283,10 @@ export async function POST(req: NextRequest) {
     // ── DEPLOY DO SITE NO SERVIDOR ──
     if (action === 'deploySite') {
       const domain = body.params?.domain || body.domain || 'your-domain.com'
-      
+      if (domain !== getSelfDomain() && !isSafeDomain(domain)) {
+        return NextResponse.json({ success: false, error: 'Domínio inválido.' }, { status: 400 })
+      }
+
       if (domain === getSelfDomain()) {
         if (VERCEL_DEPLOY_HOOK) {
           try {
@@ -355,6 +376,9 @@ export async function POST(req: NextRequest) {
 
     if (action === 'getDeployStatus') {
       const domain = body.params?.domain || body.domain || 'your-domain.com'
+      if (domain !== getSelfDomain() && !isSafeDomain(domain)) {
+        return NextResponse.json({ success: false, error: 'Domínio inválido.' }, { status: 400 })
+      }
       if (domain === getSelfDomain()) {
         const { stdout: raw } = await execAsync('git log --oneline -5', { cwd: process.cwd() })
         return NextResponse.json({
@@ -383,6 +407,9 @@ export async function POST(req: NextRequest) {
 
     if (action === 'getGitLog') {
       const domain = body.params?.domain || body.domain || 'your-domain.com'
+      if (domain !== getSelfDomain() && !isSafeDomain(domain)) {
+        return NextResponse.json({ success: false, error: 'Domínio inválido.' }, { status: 400 })
+      }
       if (domain === getSelfDomain()) {
         const { stdout: raw } = await execAsync('git log --oneline -10', { cwd: process.cwd() })
         return NextResponse.json({

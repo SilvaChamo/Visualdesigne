@@ -45,6 +45,20 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: false, error: 'Domínio e acção obrigatórios' }, { status: 400 });
   }
 
+  if (action === 'unlock' || action === 'auth-code') {
+    // A conta de registador (Spaceship) é única e partilhada por toda a empresa — sem um
+    // registo de "este domínio pertence a este revendedor" não há forma segura de deixar um
+    // revendedor desbloquear transferência ou obter o código EPP de um domínio que pode nem
+    // ser seu. Estas duas acções permitem sequestrar um domínio, por isso ficam admin-only
+    // até existir rastreio de posse por domínio.
+    if (auth.user.role !== 'admin') {
+      return NextResponse.json(
+        { success: false, error: 'Acção restrita a administradores.' },
+        { status: 403 },
+      );
+    }
+  }
+
   if (action === 'unlock') {
     const result = await spaceshipAPI.setTransferLock(domain, false);
     if (!result.success) {

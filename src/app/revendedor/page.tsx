@@ -1552,7 +1552,6 @@ function ManageWebsiteSection({
         bgColor="bg-violet-50"
       >
         <MenuItem icon="wordpress" label="WordPress" onClick={() => setActiveSection('wordpress-install')} badge="1-CLICK" />
-        <MenuItem icon="git-version" label="Git Integration" onClick={() => setActiveSection('git-deploy')} />
         <MenuItem icon={Globe} label="PrestaShop" color="text-pink-600" external href={`${getCPUrl()}/websites/installApp?domain=${domain}&app=prestashop`} badge="E-COMMERCE" />
         <MenuItem icon={Mail} label="Mautic" color="text-purple-600" external href={`${getCPUrl()}/websites/installApp?domain=${domain}&app=mautic`} />
       </SectionCard>
