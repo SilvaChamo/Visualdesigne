@@ -51,6 +51,17 @@ function itemStatusMeta(status: string) {
 
 const metodoLabel = (m: string | null) => (m === 'mpesa' ? 'M-Pesa' : m === 'transferencia' ? 'Transferência' : '—')
 
+/** Contador decrescente até à data limite de entrega, com cor de alerta consoante a urgência. */
+function deliveryCountdown(dateStr: string): { label: string; className: string } {
+  const deadline = new Date(dateStr)
+  deadline.setHours(23, 59, 59, 999)
+  const diffDays = Math.ceil((deadline.getTime() - Date.now()) / 86_400_000)
+  if (diffDays < 0) return { label: `${Math.abs(diffDays)}d em atraso`, className: 'bg-red-100 text-red-700 dark:bg-red-950/30 dark:text-red-400' }
+  if (diffDays === 0) return { label: 'Entrega hoje', className: 'bg-red-100 text-red-700 dark:bg-red-950/30 dark:text-red-400' }
+  if (diffDays <= 3) return { label: `Faltam ${diffDays}d`, className: 'bg-amber-100 text-amber-700 dark:bg-amber-950/30 dark:text-amber-400' }
+  return { label: `Faltam ${diffDays}d`, className: 'bg-gray-100 text-gray-600 dark:bg-zinc-800 dark:text-zinc-400' }
+}
+
 const BUCKET_ITEMS: { value: StatusBucket; label: string; icon: React.ElementType }[] = [
   { value: 'pending', label: 'Pendentes', icon: Clock },
   { value: 'approved', label: 'Em produção', icon: Factory },
@@ -189,7 +200,7 @@ export function CotacoesSection() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-[220px_1fr] gap-4 lg:gap-6 items-start">
-        <nav className={`${panelSectionCard} space-y-5 p-3 lg:sticky lg:top-4 lg:min-h-[calc(100vh-8rem)]`}>
+        <nav className={`${panelSectionCard} space-y-5 overflow-y-auto p-3 lg:sticky lg:top-4 lg:h-[calc(100vh-116px)]`}>
           <div>
             <button
               type="button"
@@ -240,27 +251,34 @@ export function CotacoesSection() {
             </div>
           ) : (
             <div className="space-y-6">
-              {visibleGroups.filter((g) => g.batches.length > 0).map((group) => (
-                <div key={group.label ?? '__bucket'}>
-                  {group.label && (
-                    <p className="text-xs font-bold uppercase tracking-wide text-gray-400 dark:text-zinc-500 mb-2">
-                      {group.label}
-                    </p>
-                  )}
-                  <div className="space-y-3">
-                    {group.batches.map((batch) => (
-                      <BatchCard
-                        key={batch.batchId}
-                        batch={batch}
-                        isExpanded={expandedBatchId === batch.batchId}
-                        onToggle={() => setExpandedBatchId(expandedBatchId === batch.batchId ? null : batch.batchId)}
-                        updatingId={updatingId}
-                        onUpdateStatus={updateStatus}
-                      />
-                    ))}
+              {(() => {
+                let cardNumber = 0
+                return visibleGroups.filter((g) => g.batches.length > 0).map((group) => (
+                  <div key={group.label ?? '__bucket'}>
+                    {group.label && (
+                      <p className="text-xs font-bold uppercase tracking-wide text-gray-400 dark:text-zinc-500 mb-2">
+                        {group.label}
+                      </p>
+                    )}
+                    <div className="space-y-3">
+                      {group.batches.map((batch) => {
+                        cardNumber += 1
+                        return (
+                          <BatchCard
+                            key={batch.batchId}
+                            number={cardNumber}
+                            batch={batch}
+                            isExpanded={expandedBatchId === batch.batchId}
+                            onToggle={() => setExpandedBatchId(expandedBatchId === batch.batchId ? null : batch.batchId)}
+                            updatingId={updatingId}
+                            onUpdateStatus={updateStatus}
+                          />
+                        )
+                      })}
+                    </div>
                   </div>
-                </div>
-              ))}
+                ))
+              })()}
             </div>
           )}
         </div>
@@ -287,12 +305,14 @@ function phoneToWhatsAppDigits(raw: string): string {
 }
 
 function BatchCard({
+  number,
   batch,
   isExpanded,
   onToggle,
   updatingId,
   onUpdateStatus,
 }: {
+  number: number
   batch: QuotationBatch<QuotationRequest>
   isExpanded: boolean
   onToggle: () => void
@@ -301,6 +321,7 @@ function BatchCard({
 }) {
   const [activeTab, setActiveTab] = useState<BatchTab>('itens')
   const [showMessages, setShowMessages] = useState(false)
+  const [chatMenuOpen, setChatMenuOpen] = useState(false)
   const anchor = batch.primaryItem
   const whatsappDigits = phoneToWhatsAppDigits(anchor.telefone || '')
   const whatsappHref = whatsappDigits
@@ -312,15 +333,22 @@ function BatchCard({
   return (
     <div className={panelSectionCard}>
       <button type="button" onClick={onToggle} className="w-full flex flex-wrap items-center gap-4 p-4 text-left">
+        <span className="shrink-0 text-xs font-bold text-gray-300 dark:text-zinc-600 tabular-nums">
+          #{number}
+        </span>
         <div className="flex-1 min-w-[200px]">
           <p className="font-bold text-gray-900 dark:text-white flex items-center gap-2">
             <Building2 className="w-4 h-4 text-gray-400 shrink-0" />
             {anchor.empresa} <span className="font-normal text-gray-400 dark:text-zinc-500">— Encomenda Nº {batchNumero(batch.batchId)}</span>
           </p>
-          <p className="text-xs text-gray-500 dark:text-zinc-400 mt-0.5">{resumo}</p>
+          {!batch.sobConsulta && <p className="text-xs text-gray-500 dark:text-zinc-400 mt-0.5">{resumo}</p>}
         </div>
-        <div className="text-sm text-gray-700 dark:text-zinc-300 font-semibold whitespace-nowrap">
-          {batch.sobConsulta ? 'Sob Consulta' : `${formatMt(batch.totalMt)} MT`}
+        <div className="text-sm font-semibold whitespace-nowrap">
+          {batch.sobConsulta ? (
+            <span className="text-red-600 dark:text-red-500 font-extrabold">Sob Consulta</span>
+          ) : (
+            <span className="text-gray-700 dark:text-zinc-300">{formatMt(batch.totalMt)} MT</span>
+          )}
         </div>
         <span className={`px-2.5 py-1 rounded-full text-xs font-bold whitespace-nowrap border ${meta.color}`}>
           {meta.label}
@@ -346,9 +374,20 @@ function BatchCard({
                   </button>
                 ))}
               </div>
-              <p className="pb-2.5 shrink-0 text-xs text-gray-500 dark:text-zinc-400 flex items-center gap-1.5">
-                <Calendar className="w-3.5 h-3.5" /> Entrega até {new Date(anchor.data_limite_entrega).toLocaleDateString('pt-PT')}
-              </p>
+              <div className="pb-2.5 shrink-0 flex items-center gap-2 text-sm">
+                <Calendar className="w-4 h-4 text-gray-400 shrink-0" />
+                <span className="font-bold text-gray-900 dark:text-white">
+                  Entrega até {new Date(anchor.data_limite_entrega).toLocaleDateString('pt-PT')}
+                </span>
+                {(() => {
+                  const countdown = deliveryCountdown(anchor.data_limite_entrega)
+                  return (
+                    <span className={`px-2 py-0.5 rounded text-xs font-bold whitespace-nowrap ${countdown.className}`}>
+                      {countdown.label}
+                    </span>
+                  )
+                })()}
+              </div>
             </div>
           </div>
 
@@ -366,16 +405,16 @@ function BatchCard({
                       return (
                         <div
                           key={item.id}
-                          className={`flex flex-wrap items-center gap-3 px-3 py-2.5 ${
+                          className={`flex items-center gap-3 px-3 py-2.5 ${
                             idx % 2 === 0 ? 'bg-white dark:bg-zinc-900' : 'bg-gray-50 dark:bg-zinc-800/40'
                           }`}
                         >
                           <div className="min-w-0 flex-1">
-                            <span className="text-gray-700 dark:text-zinc-300">
+                            <span className="block truncate text-gray-700 dark:text-zinc-300">
                               {item.categoria_label} — {item.produto} (x{item.quantidade})
                             </span>
                             {item.rejection_reason && (
-                              <span className="block text-xs text-rose-600 dark:text-rose-400">Motivo: {item.rejection_reason}</span>
+                              <span className="block truncate text-xs text-rose-600 dark:text-rose-400">Motivo: {item.rejection_reason}</span>
                             )}
                           </div>
                           <span className={`w-24 shrink-0 text-center px-2 py-1 rounded text-[10px] font-bold whitespace-nowrap ${itemMeta.badge}`}>
@@ -424,7 +463,10 @@ function BatchCard({
             )}
           </div>
 
-          {/* Mensagens: ícone flutuante (histórico continua guardado no site) + atalho directo para WhatsApp do cliente. */}
+          {/* Chat: um único ícone flutuante que abre a escolha entre Mensagens (guardadas no
+              site) e WhatsApp. O WhatsApp continua a abrir numa aba/app à parte — não há forma
+              de incorporar o WhatsApp Web dentro do painel sem uma integração à parte (API
+              oficial do WhatsApp Business), isto é só um atalho rápido. */}
           <div className="fixed bottom-6 right-6 z-40 flex flex-col items-end gap-3">
             {showMessages && (
               <div className="w-[min(360px,calc(100vw-3rem))] max-h-[min(480px,calc(100vh-8rem))] flex flex-col rounded-lg border border-gray-200 bg-white shadow-xl dark:border-zinc-700 dark:bg-zinc-900">
@@ -441,27 +483,41 @@ function BatchCard({
                 </div>
               </div>
             )}
-            <div className="flex items-center gap-3">
-              {whatsappHref && (
-                <a
-                  href={whatsappHref}
-                  target="_blank"
-                  rel="noreferrer"
-                  title="Abrir no WhatsApp"
-                  className="flex h-12 w-12 items-center justify-center rounded-full bg-green-500 text-white shadow-lg transition-transform hover:scale-105 hover:bg-green-600"
+
+            {chatMenuOpen && !showMessages && (
+              <div className="w-48 rounded-lg border border-gray-200 bg-white shadow-xl overflow-hidden dark:border-zinc-700 dark:bg-zinc-900">
+                <button
+                  type="button"
+                  onClick={() => { setShowMessages(true); setChatMenuOpen(false) }}
+                  className="flex w-full items-center gap-2 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 dark:text-zinc-300 dark:hover:bg-zinc-800"
                 >
-                  <span className="text-xl leading-none">📱</span>
-                </a>
-              )}
-              <button
-                type="button"
-                title="Mensagens desta encomenda"
-                onClick={() => setShowMessages((v) => !v)}
-                className="flex h-12 w-12 items-center justify-center rounded-full bg-red-600 text-white shadow-lg transition-transform hover:scale-105 hover:bg-red-700"
-              >
-                <MessageCircle className="w-5 h-5" />
-              </button>
-            </div>
+                  <MessageCircle className="w-4 h-4 text-red-600" /> Mensagens
+                </button>
+                {whatsappHref && (
+                  <a
+                    href={whatsappHref}
+                    target="_blank"
+                    rel="noreferrer"
+                    onClick={() => setChatMenuOpen(false)}
+                    className="flex w-full items-center gap-2 border-t border-gray-100 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 dark:border-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-800"
+                  >
+                    <span className="text-base leading-none">📱</span> WhatsApp
+                  </a>
+                )}
+              </div>
+            )}
+
+            <button
+              type="button"
+              title="Chat"
+              onClick={() => {
+                if (showMessages) { setShowMessages(false); return }
+                setChatMenuOpen((v) => !v)
+              }}
+              className="flex h-12 w-12 items-center justify-center rounded-full bg-red-600 text-white shadow-lg transition-transform hover:scale-105 hover:bg-red-700"
+            >
+              {showMessages ? <X className="w-5 h-5" /> : <MessageCircle className="w-5 h-5" />}
+            </button>
           </div>
         </div>
       )}
