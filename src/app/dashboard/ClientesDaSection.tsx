@@ -11,6 +11,7 @@ import type { DirectAdminPackage } from '@/lib/directadmin-api';
 import { panelBtnPrimary, panelBtnSecondary, panelField, panelTabList, panelTabBtn } from '@/lib/panel-ui';
 import { PRIMARY_RESELLER_DA_USER } from '@/lib/panel-contas-enrich';
 import { clearAllPanelClientCaches } from '@/lib/panel-session-cache-clear';
+import { Spinner } from '@/components/ui/spinner';
 
 const ADMIN_CLIENTES_CACHE_KEY = 'vd-admin-clientes-v4';
 const RESELLER_CLIENTES_CACHE_KEY = 'vd-reseller-contas-v1';
@@ -577,7 +578,7 @@ export function ClientesDaSection({
             title="Actualizar"
             className={panelBtnSecondary}
           >
-            <RefreshCw className={`h-4 w-4 ${syncing ? 'animate-spin' : ''}`} />
+            {syncing ? <Spinner className="h-4 w-4" /> : <RefreshCw className="h-4 w-4" />}
           </button>
         </div>
       </div>
@@ -630,7 +631,7 @@ export function ClientesDaSection({
           </thead>
           <tbody>
             {loading && users.length === 0 ? (
-              <tr><td colSpan={10} className="px-4 py-8 text-center text-gray-400"><Loader2 className="w-6 h-6 animate-spin mx-auto" /></td></tr>
+              <tr><td colSpan={10} className="px-4 py-8 text-center text-gray-400"><Spinner className="w-6 h-6 mx-auto" /></td></tr>
             ) : filtered.length === 0 ? (
               <tr><td colSpan={10} className="px-4 py-8 text-center text-gray-400">Nenhuma conta</td></tr>
             ) : filtered.map((u) => {

@@ -11,6 +11,7 @@ import { MultiFileUpload } from "@/components/admin/MultiFileUpload";
 import { SenderEmailSelector } from "@/components/admin/SenderEmailSelector";
 import { EmailTemplates } from "@/components/admin/EmailTemplates";
 import { toast } from "sonner";
+import { Spinner } from "@/components/ui/spinner";
 
 const PLANS = [
     "Gratuito",
@@ -174,7 +175,7 @@ export default function AdminMessagesPage() {
                                     disabled={isSending}
                                     className="bg-emerald-500 hover:bg-emerald-600 text-white shadow-sm shadow-emerald-500/20 px-8 py-2.5 rounded-lg font-bold text-xs flex items-center gap-2 transition-all disabled:opacity-50 tracking-wider uppercase"
                                 >
-                                    {isSending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                                    {isSending ? <Spinner className="w-4 h-4" /> : <Send className="w-4 h-4" />}
                                     ENVIAR
                                 </button>
 

@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { Loader2, Eye, EyeOff } from 'lucide-react';
+import { Spinner } from '@/components/ui/spinner';
 import './admin-wp.css';
 
 interface WpUserRow {
@@ -146,7 +147,7 @@ export function WpUserForm({ domain, user, onSave, onCancel }: WpUserFormProps) 
   if (loading) {
     return (
       <div className="wp-admin-page text-center py-12">
-        <Loader2 className="animate-spin h-8 w-8 mx-auto text-zinc-400" />
+        <Spinner className="h-8 w-8 mx-auto" />
         <p className="mt-2 text-zinc-500">A carregar dados do utilizador...</p>
       </div>
     );
@@ -388,7 +389,7 @@ export function WpUserForm({ domain, user, onSave, onCancel }: WpUserFormProps) 
 
         <div className="wp-form-actions pt-6">
           <button type="submit" className="wp-btn wp-btn-primary !bg-emerald-600 !border-emerald-600 hover:!bg-emerald-700 hover:!border-emerald-700" disabled={saving}>
-            {saving && <Loader2 size={16} className="spin mr-2 animate-spin" />}
+            {saving && <Spinner className="w-4 h-4 spin mr-2" />}
             {isEditing ? 'Actualizar utilizador' : 'Adicionar novo utilizador'}
           </button>
           <button type="button" onClick={onCancel} className="wp-btn dark:!bg-zinc-800 dark:!border-zinc-700 dark:!text-zinc-300 hover:dark:!bg-zinc-700">

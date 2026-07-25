@@ -7,6 +7,7 @@ import { supabase } from '@/lib/supabase-client';
 import { formatMt } from '@/lib/pricing-catalog';
 import { NotchSection } from '@/components/home/NotchSection';
 import { Loader2, AlertCircle, Printer, ArrowRight } from 'lucide-react';
+import { Spinner } from '@/components/ui/spinner';
 
 type QuotationRow = {
   id: string;
@@ -90,7 +91,7 @@ function CotacaoDocumentContent() {
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-zinc-50 dark:bg-black">
-        <Loader2 className="w-10 h-10 animate-spin text-red-600" />
+        <Spinner className="w-10 h-10" />
       </div>
     );
   }
@@ -311,7 +312,7 @@ export default function CotacaoDocumentPage() {
     <Suspense
       fallback={
         <div className="min-h-screen flex items-center justify-center bg-zinc-50 dark:bg-black">
-          <Loader2 className="w-10 h-10 animate-spin text-red-600" />
+          <Spinner className="w-10 h-10" />
         </div>
       }
     >

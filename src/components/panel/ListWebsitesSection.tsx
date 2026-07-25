@@ -11,6 +11,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { Spinner } from '@/components/ui/spinner';
 import { getServerHost } from '@/lib/server-config';
 import { loadScreenshot, prefetchScreenshot, getCachedScreenshot } from '@/lib/site-screenshot-cache';
 import { readSiteSslCache, writeSiteSslCache } from '@/lib/site-ssl-cache';
@@ -496,7 +497,7 @@ function ListWebsitesSection({ sites, onRefresh, packages, setActiveSection, set
   if (wordpressOnly && !wordpressOwner?.trim()) {
     return (
       <div className="flex items-center justify-center h-48 text-sm text-gray-500 dark:text-zinc-400">
-        <RefreshCw className="w-5 h-5 animate-spin text-red-600 mr-2" />
+        <Spinner className="w-5 h-5 mr-2" />
         A sincronizar conta activa…
       </div>
     )
@@ -886,7 +887,7 @@ function ListWebsitesSection({ sites, onRefresh, packages, setActiveSection, set
                 setCreating(false)
               }} disabled={creating || !createForm.domain || !createForm.email}
                 className="flex-1 bg-black hover:bg-red-600  py-2.5 rounded text-sm font-bold transition-colors disabled:opacity-50 flex items-center justify-center gap-2">
-                {creating ? <><RefreshCw className="w-4 h-4 animate-spin" /> A criar...</> : '+ Criar Website'}
+                {creating ? <><Spinner className="w-4 h-4" /> A criar...</> : '+ Criar Website'}
               </button>
               <button onClick={() => { setShowCreateModal(false); setCreateMsg('') }}
                 className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 py-2.5 rounded text-sm font-bold">

@@ -6,6 +6,7 @@ import { ArrowRight, ChevronDown, ShoppingCart, Sparkles } from 'lucide-react'
 import { BRANDS, CATEGORIES, categoriesForBrand, findCategory, formatMt, SELECAO_STORAGE_KEY, CUSTOM_CATEGORIA_ID, type SelectedCatalogItem } from '@/lib/pricing-catalog'
 import { Loader2 } from 'lucide-react'
 import { NotchSection } from '@/components/home/NotchSection'
+import { Spinner } from '@/components/ui/spinner'
 
 // Marcas cujas categorias são todas serviços "Sob Consulta" de item único —
 // em vez de várias subcategorias na barra lateral (cada uma com 1 opção),
@@ -304,7 +305,7 @@ export default function PrecosPage() {
     <Suspense
       fallback={
         <div className="min-h-screen flex items-center justify-center bg-zinc-100 dark:bg-zinc-950">
-          <Loader2 className="w-10 h-10 animate-spin text-red-600" />
+          <Spinner className="w-10 h-10" />
         </div>
       }
     >

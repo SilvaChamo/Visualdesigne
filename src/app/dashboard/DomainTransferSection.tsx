@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { ArrowRightLeft, Loader2 } from 'lucide-react';
 import { panelBtnPrimary, panelBtnSecondary, panelField } from '@/lib/panel-ui';
+import { Spinner } from '@/components/ui/spinner';
 
 export function DomainTransferSection() {
   const [domain, setDomain] = useState('');
@@ -100,7 +101,7 @@ export function DomainTransferSection() {
 
           <div className="flex flex-wrap gap-2 pt-2">
             <button type="submit" disabled={loading || !domain.trim() || !authCode.trim()} className={panelBtnPrimary}>
-              {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowRightLeft className="h-4 w-4" />}
+              {loading ? <Spinner className="h-4 w-4" /> : <ArrowRightLeft className="h-4 w-4" />}
               Validar domínio
             </button>
             <button

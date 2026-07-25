@@ -6,6 +6,7 @@ import {
 } from 'lucide-react'
 import type { DirectAdminWebsite } from '@/lib/directadmin-api'
 import { cn } from '@/lib/utils'
+import { Spinner } from '@/components/ui/spinner'
 import { panelBtnSecondary, panelCard, panelInnerDetailCard, panelTabList, panelTabBtn } from '@/lib/panel-ui'
 import { BACKUP_ITEMS, BACKUP_TABS } from '@/lib/da-backup-types'
 import type { BackupScheduleRow } from '@/lib/panel-backup-schedule-types'
@@ -133,7 +134,7 @@ export function BackupReportSection({
             </button>
           ) : null}
           <button type="button" onClick={() => void load()} disabled={loading} className={panelBtnSecondary}>
-            {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Archive className="h-4 w-4" />}
+            {loading ? <Spinner className="h-4 w-4" /> : <Archive className="h-4 w-4" />}
             Actualizar
           </button>
         </div>
@@ -192,7 +193,7 @@ export function BackupReportSection({
 
       {loading ? (
         <div className="flex justify-center py-16">
-          <Loader2 className="h-8 w-8 animate-spin text-red-500" />
+          <Spinner className="h-8 w-8" />
         </div>
       ) : rows.length === 0 ? (
         <div className={`${panelCard} px-6 py-12 text-center`}>
@@ -240,7 +241,7 @@ export function BackupReportSection({
                         className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-gray-200 text-zinc-500 transition-colors hover:bg-gray-50 dark:border-zinc-700 dark:hover:bg-zinc-800"
                         aria-label="Acções do agendamento"
                       >
-                        {busyId === row.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <MoreVertical className="h-4 w-4" />}
+                        {busyId === row.id ? <Spinner className="h-4 w-4" /> : <MoreVertical className="h-4 w-4" />}
                       </button>
                       {menuId === row.id ? (
                         <>

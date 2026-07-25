@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { CreditCard, Smartphone, Wallet, X, Loader2, Check } from 'lucide-react'
+import { Spinner } from '@/components/ui/spinner'
 
 interface PaymentMethodFormProps {
   onClose: () => void
@@ -236,7 +237,7 @@ export default function PaymentMethodForm({ onClose, onSuccess }: PaymentMethodF
             >
               {loading ? (
                 <>
-                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <Spinner className="w-4 h-4" />
                   Salvando...
                 </>
               ) : (

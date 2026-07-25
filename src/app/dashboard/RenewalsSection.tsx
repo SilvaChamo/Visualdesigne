@@ -21,6 +21,7 @@ import {
   Search
 } from 'lucide-react'
 import { panelTabList, panelTabBtn } from '@/lib/panel-ui'
+import { Spinner } from '@/components/ui/spinner'
 
 interface Renewal {
   id: string
@@ -355,7 +356,7 @@ export function RenewalsSection({ initialTab = 'overview', hideTabs = false }: R
                     disabled={runningCheck}
                     className="px-6 py-3 bg-blue-50 border border-blue-200 text-blue-600 rounded font-medium hover:bg-blue-100 hover:text-blue-700 disabled:opacity-50 flex items-center gap-2 transition-colors"
                   >
-                    <RefreshCw className={`w-5 h-5 ${runningCheck ? 'animate-spin' : ''}`} />
+                    {runningCheck ? <Spinner className="w-5 h-5" /> : <RefreshCw className="w-5 h-5" />}
                     {runningCheck ? 'A verificar...' : 'Executar Verificação'}
                   </button>
                 </div>

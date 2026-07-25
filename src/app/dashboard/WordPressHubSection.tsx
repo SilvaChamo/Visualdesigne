@@ -16,6 +16,7 @@ import {
 import type { DirectAdminWebsite } from '@/lib/directadmin-api';
 import type { WpPluginAction } from '@/lib/wp-update-handlers';
 import { supabase } from '@/lib/supabase-client';
+import { Spinner } from '@/components/ui/spinner';
 import {
   invalidateWpPluginsCache,
   readWpInstallsCache,
@@ -429,7 +430,7 @@ export function WordPressHubSection({
                 disabled={!selectedDomain || loadingPlugins}
                 className="inline-flex shrink-0 items-center gap-2 rounded border border-gray-300 px-4 py-2.5 text-xs font-bold text-gray-700 hover:bg-gray-50 disabled:opacity-50 dark:border-zinc-700 dark:text-zinc-300"
               >
-                <RefreshCw className={`h-3.5 w-3.5 ${loadingPlugins ? 'animate-spin' : ''}`} />
+                {loadingPlugins ? <Spinner className="h-3.5 w-3.5" /> : <RefreshCw className="h-3.5 w-3.5" />}
                 Actualizar lista
               </button>
             </div>
@@ -473,7 +474,7 @@ export function WordPressHubSection({
                 className="inline-flex items-center gap-2 rounded border border-indigo-300 bg-indigo-50 px-4 py-2 text-xs font-bold text-indigo-700 hover:bg-indigo-100 disabled:opacity-50"
               >
                 {busy === 'upload' ? (
-                  <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                  <Spinner className="h-3.5 w-3.5" />
                 ) : (
                   <Upload className="h-3.5 w-3.5" />
                 )}
@@ -510,7 +511,7 @@ export function WordPressHubSection({
                 >
                   {busy === 'updateAll' ? (
                     <span className="inline-flex items-center gap-2">
-                      <RefreshCw className="h-3.5 w-3.5 animate-spin" /> A actualizar…
+                      <Spinner className="h-3.5 w-3.5" /> A actualizar…
                     </span>
                   ) : (
                     `Actualizar todos (${pendingCount})`
@@ -521,7 +522,7 @@ export function WordPressHubSection({
 
             {loadingPlugins ? (
               <div className="py-12 text-center">
-                <RefreshCw className="mx-auto h-8 w-8 animate-spin text-gray-400" />
+                <Spinner className="mx-auto h-8 w-8" />
               </div>
             ) : plugins.length > 0 ? (
               <div className="space-y-2">
@@ -566,7 +567,7 @@ export function WordPressHubSection({
                           }`}
                         >
                           {isBusy ? (
-                            <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                            <Spinner className="h-3.5 w-3.5" />
                           ) : isActive ? (
                             'Desactivar'
                           ) : (

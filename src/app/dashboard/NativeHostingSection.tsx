@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { Server, Loader2, CheckCircle2, XCircle, Trash2, PauseCircle, PlayCircle } from 'lucide-react'
+import { Spinner } from '@/components/ui/spinner'
 
 type NativeSite = {
   domain: string
@@ -167,7 +168,7 @@ export function NativeHostingSection() {
             disabled={creating || !domain.trim()}
             className="bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white px-5 py-2 rounded text-sm font-bold flex items-center justify-center gap-2 whitespace-nowrap"
           >
-            {creating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Server className="w-4 h-4" />}
+            {creating ? <Spinner className="w-4 h-4" /> : <Server className="w-4 h-4" />}
             Criar conta
           </button>
         </div>

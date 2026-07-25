@@ -10,6 +10,7 @@ import {
 } from '@stripe/react-stripe-js'
 import { CreditCard, CheckCircle, AlertTriangle, Loader2, Star } from 'lucide-react'
 import Link from 'next/link'
+import { Spinner } from '@/components/ui/spinner'
 
 type SavedMethod = {
   id: string
@@ -86,7 +87,7 @@ function AddCardForm({ onSaved }: { onSaved: () => void }) {
       >
         {submitting ? (
           <>
-            <Loader2 className="w-5 h-5 animate-spin" /> A guardar cartão...
+            <Spinner className="w-5 h-5" /> A guardar cartão...
           </>
         ) : (
           <>
@@ -154,7 +155,7 @@ export default function MetodosPagamentoPage() {
 
         {loading ? (
           <div className="flex justify-center py-10">
-            <Loader2 className="w-8 h-8 animate-spin text-red-600" />
+            <Spinner className="w-8 h-8" />
           </div>
         ) : (
           <>

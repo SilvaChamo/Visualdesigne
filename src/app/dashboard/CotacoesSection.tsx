@@ -16,6 +16,8 @@ import { QuotationHistoryTimeline } from '@/components/quotations/QuotationHisto
 import { QuotationAttachmentsList } from '@/components/quotations/QuotationAttachmentsList'
 import { QuotationMessagesThread } from '@/components/quotations/QuotationMessagesThread'
 import { QuotationLayoutsList } from '@/components/quotations/QuotationLayoutsList'
+import { useAdminSectionChrome } from '@/components/admin/AdminSectionChrome'
+import { Spinner } from '@/components/ui/spinner'
 
 interface QuotationRequest extends BatchItem {
   empresa: string
@@ -129,6 +131,19 @@ export function CotacoesSection() {
     fetchCotacoes({ background: readCotacoesCache() !== null })
   }, [fetchCotacoes])
 
+  const { setChrome } = useAdminSectionChrome()
+  useEffect(() => {
+    setChrome({
+      toolbar: (
+        <button className={panelBtnSecondary} onClick={() => fetchCotacoes()} disabled={loading}>
+          {loading ? <Spinner className="w-4 h-4" /> : <RefreshCw className="w-4 h-4" />}
+          <span>Actualizar</span>
+        </button>
+      ),
+    })
+    return () => setChrome(null)
+  }, [loading, fetchCotacoes, setChrome])
+
   // Pagos (qualquer estado além de "pending" = aguarda pagamento) sobem para o
   // topo da lista — sort estável, mantém a ordem por data dentro de cada grupo.
   const batches = useMemo(() => {
@@ -201,7 +216,7 @@ export function CotacoesSection() {
   }
 
   const navBtnClass = (active: boolean) =>
-    `w-full flex items-center gap-2 px-2.5 py-2 rounded-lg text-sm font-medium transition-colors text-left ${
+    `w-full flex items-center gap-2 px-2.5 py-2 rounded text-sm font-medium transition-colors text-left ${
       active
         ? 'bg-red-50 text-red-600 dark:bg-red-950/20 dark:text-red-400'
         : 'text-gray-600 hover:bg-gray-50 dark:text-zinc-400 dark:hover:bg-zinc-800/50'
@@ -209,15 +224,8 @@ export function CotacoesSection() {
 
   return (
     <div>
-      <div className="flex flex-wrap items-center justify-end gap-3 mb-5">
-        <button className={panelBtnSecondary} onClick={() => fetchCotacoes()} disabled={loading}>
-          <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-          <span>Actualizar</span>
-        </button>
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-[220px_1fr] gap-4 lg:gap-6 items-start">
-        <nav className={`${panelSectionCard} space-y-5 overflow-y-auto p-3 lg:sticky lg:top-4 lg:h-[calc(100vh-116px)]`}>
+      <div className="grid grid-cols-1 lg:grid-cols-[220px_1fr] gap-4 lg:gap-5 items-start">
+        <nav className={`${panelSectionCard} sticky top-4 h-[calc(100vh-116px)] space-y-5 overflow-y-auto p-3`}>
           <div>
             <button
               type="button"
@@ -358,31 +366,35 @@ function BatchCard({
 
   return (
     <div className={panelSectionCard}>
-      <button type="button" onClick={onToggle} className="w-full flex flex-col gap-1 p-4 text-left">
-        <div className="flex items-center gap-3">
-          <span className="shrink-0 text-xs font-bold text-gray-300 dark:text-zinc-600 tabular-nums">
-            #{number}
-          </span>
-          <Building2 className="w-4 h-4 text-gray-400 shrink-0" />
-          <span className="min-w-0 truncate font-bold text-gray-900 dark:text-white">{anchor.empresa}</span>
-          <span className="shrink-0 rounded border border-gray-200 px-1.5 py-0.5 font-mono text-xs text-gray-500 dark:border-zinc-700 dark:text-zinc-400">
-            Nº {batchNumero(batch.batchId)}
-          </span>
-          <span className="shrink-0 text-sm font-semibold">
-            {batch.sobConsulta ? (
-              <span className="text-red-600 dark:text-red-500 font-extrabold">Sob Consulta</span>
-            ) : (
-              <span className="text-gray-700 dark:text-zinc-300">{formatMt(batch.totalMt)} MT</span>
-            )}
-          </span>
-          <span className={`shrink-0 px-2.5 py-1 rounded text-xs font-bold whitespace-nowrap border ${meta.color}`}>
-            {meta.label}
-          </span>
-          <span className="shrink-0 text-xs text-gray-400 dark:text-zinc-500 whitespace-nowrap ml-auto pl-2">
-            {new Date(anchor.created_at).toLocaleDateString('pt-PT')}
-          </span>
+      <button type="button" onClick={onToggle} className="w-full flex items-start gap-3 p-4 text-left">
+        <span className="shrink-0 rounded border border-red-200 bg-red-50 px-1.5 py-0.5 font-mono text-xs font-bold text-red-600 dark:border-red-900/40 dark:bg-red-950/20 dark:text-red-400 tabular-nums">
+          #{number}
+        </span>
+        <div className="min-w-0 flex-1 flex flex-col gap-1">
+          <div className="flex items-center gap-3">
+            <Building2 className="w-4 h-4 text-gray-400 shrink-0" />
+            <span className="min-w-0 truncate font-bold text-gray-900 dark:text-white">{anchor.empresa}</span>
+            <span className="shrink-0 rounded border border-gray-200 px-1.5 py-0.5 font-mono text-xs text-gray-500 dark:border-zinc-700 dark:text-zinc-400">
+              Nº {batchNumero(batch.batchId)}
+            </span>
+            <div className="ml-auto shrink-0 flex items-center gap-2 pl-2">
+              <span className="shrink-0 w-28 text-right text-sm font-semibold whitespace-nowrap">
+                {batch.sobConsulta ? (
+                  <span className="text-red-600 dark:text-red-500 font-extrabold">Sob Consulta</span>
+                ) : (
+                  <span className="text-gray-700 dark:text-zinc-300">{formatMt(batch.totalMt)} MT</span>
+                )}
+              </span>
+              <span className={`shrink-0 w-36 text-center px-2.5 py-1 rounded text-xs font-bold whitespace-nowrap border ${meta.color}`}>
+                {meta.label}
+              </span>
+              <span className="shrink-0 w-20 text-right text-xs text-gray-400 dark:text-zinc-500 whitespace-nowrap">
+                {new Date(anchor.created_at).toLocaleDateString('pt-PT')}
+              </span>
+            </div>
+          </div>
+          <p className="text-xs text-gray-500 dark:text-zinc-400 truncate">{resumo}</p>
         </div>
-        <p className="text-xs text-gray-500 dark:text-zinc-400 truncate">{resumo}</p>
       </button>
 
       {isExpanded && (

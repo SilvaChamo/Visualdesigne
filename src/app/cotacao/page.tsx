@@ -8,6 +8,7 @@ import { supabase } from '@/lib/supabase-client';
 import { BRANDS, CATEGORIES, findItem, formatMt, SELECAO_STORAGE_KEY, CUSTOM_CATEGORIA_ID, type SelectedCatalogItem } from '@/lib/pricing-catalog';
 import { NotchSection } from '@/components/home/NotchSection';
 import { Loader2, AlertCircle, ArrowRight, ArrowLeft, Building2, User, Lock, Package, ChevronDown, Trash2, Plus, Sparkles } from 'lucide-react';
+import { Spinner } from '@/components/ui/spinner';
 
 interface OrderLineItem {
   id: string;
@@ -221,7 +222,7 @@ function CotacaoContent() {
   if (isAuthenticated === null) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-zinc-50 dark:bg-zinc-950">
-        <Loader2 className="w-10 h-10 animate-spin text-red-600" />
+        <Spinner className="w-10 h-10" />
       </div>
     );
   }
@@ -924,7 +925,7 @@ function CotacaoContent() {
                     >
                       {isSubmitting ? (
                         <>
-                          <Loader2 className="w-4 h-4 animate-spin" />
+                          <Spinner className="w-4 h-4" />
                           <span>{status === 'registering' ? 'A criar a sua conta...' : 'A gerar a cotação...'}</span>
                         </>
                       ) : (
@@ -954,7 +955,7 @@ export default function CotacaoPage() {
     <Suspense
       fallback={
         <div className="min-h-screen flex items-center justify-center bg-zinc-50 dark:bg-zinc-950">
-          <Loader2 className="w-10 h-10 animate-spin text-red-600" />
+          <Spinner className="w-10 h-10" />
         </div>
       }
     >

@@ -9,6 +9,7 @@ import {
 } from 'lucide-react'
 import { getDirectAdminAccessUrl, getSnappyMailUrl, getServerHost, getCPUrl } from '@/lib/server-config';
 import { ResellerSidebar } from '@/components/revendedor/ResellerSidebar'
+import { Spinner } from '@/components/ui/spinner'
 import { panelDashboardGrid, panelDashboardToolCard, panelDashboardToolLabel, panelSectionPadding, panelBtnSecondary } from '@/lib/panel-ui'
 import { usePanelSidebarCollapsed } from '@/hooks/usePanelSidebarCollapsed'
 import { ResellerDirectAccessSection } from '@/components/revendedor/ResellerDirectAccessSection'
@@ -127,7 +128,7 @@ function CreateWebsiteSection({ packages, onRefresh }: { packages: DirectAdminPa
         </div>
         {msg && <div className={`mb-4 px-4 py-2.5 rounded text-sm font-medium ${msg.includes('sucesso') ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-700 border border-red-200'}`}>{msg}</div>}
         <button onClick={handleCreate} disabled={creating || !form.domain || !form.email} className="bg-black hover:bg-red-600  px-5 py-2.5 rounded text-sm font-bold transition-all disabled:opacity-50 flex items-center gap-2">
-          {creating ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Globe className="w-4 h-4" />} {creating ? t('admin.sites.newDesc').split(' ')[0] + '...' : t('admin.sites.new')}
+          {creating ? <Spinner className="w-4 h-4" /> : <Globe className="w-4 h-4" />} {creating ? t('admin.sites.newDesc').split(' ')[0] + '...' : t('admin.sites.new')}
         </button>
       </div>
     </div>
@@ -492,14 +493,14 @@ function ListWordPressSection({ sites, onRefresh, setActiveSection, setFileManag
                         onClick={() => handleSuspend(s.domain, parseState(s.state) || 'Active')}
                         disabled={loading === s.domain}
                         className="flex items-center gap-1.5 bg-orange-50 border border-orange-300 text-orange-600 hover:bg-orange-100 px-4 py-2 rounded text-xs font-bold transition-colors disabled:opacity-50">
-                        {loading === s.domain ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <PauseCircle className="w-3.5 h-3.5" />}
+                        {loading === s.domain ? <Spinner className="w-3.5 h-3.5" /> : <PauseCircle className="w-3.5 h-3.5" />}
                         {parseState(s.state) === 'Active' ? 'Suspender' : 'Reactivar'}
                       </button>
                       <button
                         onClick={() => handleDelete(s.domain)}
                         disabled={loading === s.domain}
                         className="flex items-center gap-1.5 bg-red-50 border border-red-300 text-red-600 hover:bg-red-100 px-4 py-2 rounded text-xs font-bold transition-colors disabled:opacity-50">
-                        {loading === s.domain ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
+                        {loading === s.domain ? <Spinner className="w-3.5 h-3.5" /> : <Trash2 className="w-3.5 h-3.5" />}
                         Apagar
                       </button>
                     </div>
@@ -896,7 +897,7 @@ function ListWebsitesSection({ sites, onRefresh, packages, setActiveSection, set
                     disabled={loading === s.domain + '-backup'}
                     className="flex items-center gap-1.5 bg-gray-50 border border-gray-300 text-gray-600 hover:bg-gray-100 hover:text-gray-700 px-4 py-2 rounded text-xs font-bold transition-colors disabled:opacity-50">
                     {loading === s.domain + '-backup'
-                      ? <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                      ? <Spinner className="w-3.5 h-3.5" />
                       : <Archive className="w-3.5 h-3.5" />
                     }
                     {loading === s.domain + '-backup' ? 'A criar...' : 'Backup'}
@@ -1026,7 +1027,7 @@ function ListWebsitesSection({ sites, onRefresh, packages, setActiveSection, set
                 setCreating(false)
               }} disabled={creating || !createForm.domain || !createForm.email}
                 className="flex-1 bg-black hover:bg-red-600  py-2.5 rounded text-sm font-bold transition-colors disabled:opacity-50 flex items-center justify-center gap-2">
-                {creating ? <><RefreshCw className="w-4 h-4 animate-spin" /> A criar...</> : '+ Criar Website'}
+                {creating ? <><Spinner className="w-4 h-4" /> A criar...</> : '+ Criar Website'}
               </button>
               <button onClick={() => { setShowCreateModal(false); setCreateMsg('') }}
                 className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 py-2.5 rounded text-sm font-bold">
@@ -1162,7 +1163,7 @@ function ClientesSection() {
             {t('admin.clientSection.cancel')}
           </button>
           <button onClick={handleSubmit} disabled={salvando} className="flex-1 bg-blue-600 hover:bg-blue-500 disabled:opacity-50  font-medium py-2.5 rounded transition-colors flex items-center justify-center gap-2">
-            {salvando ? <><svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>{t('admin.clientSection.saving')}</> : t('admin.clientSection.create')}
+            {salvando ? <><Spinner className="w-4 h-4" />{t('admin.clientSection.saving')}</> : t('admin.clientSection.create')}
           </button>
         </div>
       </div>
@@ -1193,7 +1194,7 @@ function ClientesSection() {
 
       {loading ? (
         <div className="flex items-center justify-center py-16">
-          <svg className="w-6 h-6 animate-spin text-blue-500" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>
+          <Spinner className="w-6 h-6" />
         </div>
       ) : clientesFiltrados.length === 0 ? (
         <div className="text-center py-16 text-gray-500">
@@ -1799,7 +1800,7 @@ function ManageWebsiteSection({
                 disabled={creatingDomain || !domainForm.domain || !domainForm.email}
                 className="bg-blue-50 border border-blue-300 text-blue-600 hover:bg-blue-100  px-4 py-2 rounded text-xs font-bold transition-all disabled:opacity-50 flex items-center gap-2"
               >
-                {creatingDomain ? <><RefreshCw className="w-4 h-4 animate-spin" /> Criando...</> : '+ Criar Domínio'}
+                {creatingDomain ? <><Spinner className="w-4 h-4" /> Criando...</> : '+ Criar Domínio'}
               </button>
             </div>
           </div>
@@ -1880,7 +1881,7 @@ function ManageWebsiteSection({
                 disabled={creatingDomainEmail || !domainEmailForm.user || !domainEmailForm.password}
                 className="bg-rose-600 hover:bg-rose-700  px-4 py-2 rounded text-xs font-bold transition-all disabled:opacity-50 flex items-center gap-2"
               >
-                {creatingDomainEmail ? <><RefreshCw className="w-4 h-4 animate-spin" /> Criando...</> : '+ Criar Email'}
+                {creatingDomainEmail ? <><Spinner className="w-4 h-4" /> Criando...</> : '+ Criar Email'}
               </button>
             </div>
           </div>
@@ -2851,7 +2852,7 @@ function ResellerPageContent() {
                   disabled={creatingEmail || !emailForm.user || !emailForm.password}
                   className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded text-xs font-bold transition-all disabled:opacity-50 flex items-center gap-2"
                 >
-                  {creatingEmail ? <><RefreshCw className="w-4 h-4 animate-spin" /> Criando...</> : '+ Criar Email'}
+                  {creatingEmail ? <><Spinner className="w-4 h-4" /> Criando...</> : '+ Criar Email'}
                 </button>
               </div>
             </div>
@@ -2975,7 +2976,7 @@ function ResellerPageContent() {
                   disabled={submittingCadastro || !cadastroForm.userEmail || !cadastroForm.domain || !cadastroForm.expiration}
                   className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded text-xs font-bold transition-all disabled:opacity-50 flex items-center gap-2"
                 >
-                  {submittingCadastro ? <><RefreshCw className="w-4 h-4 animate-spin" /> Cadastrando...</> : '+ Cadastrar'}
+                  {submittingCadastro ? <><Spinner className="w-4 h-4" /> Cadastrando...</> : '+ Cadastrar'}
                 </button>
               </div>
             </div>

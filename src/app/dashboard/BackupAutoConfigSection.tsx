@@ -4,6 +4,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import { Loader2, Save } from 'lucide-react'
 import type { DirectAdminWebsite } from '@/lib/directadmin-api'
 import { cn } from '@/lib/utils'
+import { Spinner } from '@/components/ui/spinner'
 import {
   panelBtnPrimary, panelBtnSecondary, panelCard, panelField, panelInnerDetailCard,
 } from '@/lib/panel-ui'
@@ -207,7 +208,7 @@ export function BackupAutoConfigSection({
   if (loading) {
     return (
       <div className="flex justify-center py-16">
-        <Loader2 className="h-8 w-8 animate-spin text-red-500" />
+        <Spinner className="h-8 w-8" />
       </div>
     )
   }
@@ -398,7 +399,7 @@ export function BackupAutoConfigSection({
 
         <div className="flex justify-end border-t border-gray-200 pt-4 dark:border-zinc-800">
           <button type="button" onClick={() => void handleSave()} disabled={saving} className={btnGreen}>
-            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+            {saving ? <Spinner className="h-4 w-4" /> : <Save className="h-4 w-4" />}
             Guardar configuração
           </button>
         </div>

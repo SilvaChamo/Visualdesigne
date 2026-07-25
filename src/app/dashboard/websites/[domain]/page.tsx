@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { cn } from '@/lib/utils'
+import { Spinner } from '@/components/ui/spinner'
 import {
   Mail, FileText, Globe, Server, Lock, Settings, Database, FolderOpen,
   Upload, Download, Code, Shield, ExternalLink, ArrowLeft, RefreshCw,
@@ -252,7 +253,7 @@ function QuickStats({ domain, data }: { domain: string; data: WebsiteData | null
             disabled={loading}
             className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-colors disabled:opacity-50"
           >
-            {loading ? <RefreshCw className="w-3 h-3 animate-spin" /> : <Lock className="w-3 h-3" />}
+            {loading ? <Spinner className="w-3 h-3" /> : <Lock className="w-3 h-3" />}
             {loading ? 'A emitir...' : 'Emitir SSL'}
           </button>
         )}
@@ -470,7 +471,7 @@ export default function ManageWebsitePage() {
                 disabled={refreshing}
                 className="flex items-center gap-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-2 rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
               >
-                <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
+                {refreshing ? <Spinner className="w-4 h-4" /> : <RefreshCw className="w-4 h-4" />}
                 Actualizar
               </button>
               <a

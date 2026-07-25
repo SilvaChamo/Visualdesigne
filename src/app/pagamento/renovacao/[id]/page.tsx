@@ -15,6 +15,7 @@ import {
   ArrowLeft
 } from 'lucide-react'
 import Link from 'next/link'
+import { Spinner } from '@/components/ui/spinner'
 
 interface Renewal {
   id: string
@@ -137,7 +138,7 @@ export default function PagamentoRenovacaoPage() {
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <Loader2 className="w-8 h-8 animate-spin text-red-600" />
+        <Spinner className="w-8 h-8" />
       </div>
     )
   }
@@ -307,7 +308,7 @@ export default function PagamentoRenovacaoPage() {
         >
           {processing ? (
             <>
-              <Loader2 className="w-5 h-5 animate-spin" />
+              <Spinner className="w-5 h-5" />
               Processando...
             </>
           ) : (

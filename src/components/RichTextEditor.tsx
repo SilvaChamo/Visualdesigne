@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils";
 
 import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
+import { Spinner } from "@/components/ui/spinner";
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -584,7 +585,7 @@ export function RichTextEditor({ value, onChange, placeholder, className, style,
                 {/* Image Upload Button */}
                 <ToolbarButton
                     onClick={() => { saveSelection(); fileInputRef.current?.click(); }}
-                    icon={isUploading ? <Loader2 className="w-5 h-5 animate-spin" /> : <ImageIcon className="w-5 h-5" />}
+                    icon={isUploading ? <Spinner className="w-5 h-5" /> : <ImageIcon className="w-5 h-5" />}
                     title="Inserir Imagem"
                     disabled={isUploading}
                 />
@@ -689,7 +690,7 @@ export function RichTextEditor({ value, onChange, placeholder, className, style,
             {isUploading && (
                 <div className="absolute inset-0 bg-white/80 flex items-center justify-center z-20">
                     <div className="flex items-center gap-3 bg-emerald-50 px-6 py-3 rounded-lg border border-emerald-200 shadow-lg">
-                        <Loader2 className="w-5 h-5 animate-spin text-emerald-600" />
+                        <Spinner className="w-5 h-5" />
                         <span className="text-sm font-bold text-emerald-700">A carregar imagem...</span>
                     </div>
                 </div>

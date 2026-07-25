@@ -2,6 +2,7 @@
 
 import React, { useCallback, useEffect, useState } from 'react';
 import { Bell, CheckCircle, AlertTriangle, Info, RefreshCw, XCircle } from 'lucide-react';
+import { Spinner } from '@/components/ui/spinner';
 
 type NotificationItem = {
   id: string;
@@ -122,7 +123,7 @@ export function ResellerNotificationsInbox({
             className="p-2 text-gray-400 hover:text-red-600 dark:hover:text-red-400 transition-colors"
             title="Actualizar"
           >
-            <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+            {loading ? <Spinner className="w-4 h-4" /> : <RefreshCw className="w-4 h-4" />}
           </button>
         </div>
       </div>
@@ -135,7 +136,7 @@ export function ResellerNotificationsInbox({
 
       {loading && items.length === 0 ? (
         <div className="flex justify-center py-16">
-          <RefreshCw className="w-8 h-8 animate-spin text-red-600" />
+          <Spinner className="w-8 h-8" />
         </div>
       ) : items.length === 0 ? (
         <div className="rounded border border-gray-200 bg-white p-10 text-center dark:border-zinc-800 dark:bg-zinc-950">

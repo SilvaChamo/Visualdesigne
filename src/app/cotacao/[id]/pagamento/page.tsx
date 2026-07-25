@@ -8,6 +8,7 @@ import { NotchSection } from '@/components/home/NotchSection';
 import { Loader2, AlertCircle, CheckCircle2, Smartphone, Landmark } from 'lucide-react';
 import { MPESA_NUMBER, BANK_NAME, BANK_ACCOUNT, BANK_NIB } from '@/lib/quotation-payment-info';
 import { formatMt } from '@/lib/pricing-catalog';
+import { Spinner } from '@/components/ui/spinner';
 import { computeBatchStatus } from '@/lib/quotation-status-labels';
 
 type Mode = 'advance' | 'remainder' | 'unavailable';
@@ -105,7 +106,7 @@ export default function CotacaoPagamentoPage() {
 
         {mode === null ? (
           <div className="flex justify-center py-12">
-            <Loader2 className="w-8 h-8 animate-spin text-red-600" />
+            <Spinner className="w-8 h-8" />
           </div>
         ) : mode === 'unavailable' ? (
           <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg p-8 text-center space-y-4">
@@ -223,7 +224,7 @@ export default function CotacaoPagamentoPage() {
             >
               {status === 'submitting' ? (
                 <>
-                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <Spinner className="w-4 h-4" />
                   <span>A confirmar...</span>
                 </>
               ) : (

@@ -28,6 +28,7 @@ import {
   adminRemoverCampanha as removerCampanha,
   adminLimparDadosCampanhas as limparDadosCampanhas
 } from '@/app/actions/mailmarketing';
+import { Spinner } from '@/components/ui/spinner';
 
 const CORES_PALETA = [
   '#000000', '#434343', '#666666', '#999999', '#b7b7b7', '#cccccc', '#d9d9d9', '#ffffff',
@@ -488,7 +489,7 @@ function MailMarketingComposer({ selectedSite, setSelectedSite, sites, onGoToCon
                 Limpar
               </Button>
               <Button onClick={handleSend} disabled={isSending || !senderEmail} className="!bg-emerald-600 hover:!bg-red-600 text-white gap-2 font-black uppercase text-[10px] tracking-widest h-8 px-4 rounded-md shadow-xl transition-all border-none">
-                {isSending ? <Loader2 className="w-3 h-3 animate-spin" /> : <Send className="w-3 h-3" />} Enviar
+                {isSending ? <Spinner className="w-3 h-3" /> : <Send className="w-3 h-3" />} Enviar
               </Button>
             </div>
           </div>

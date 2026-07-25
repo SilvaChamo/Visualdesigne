@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import type { ClientProductTier, UserProductsSummary } from '@/lib/user-products';
 import { useCart } from '@/contexts/CartContext';
+import { Spinner } from '@/components/ui/spinner';
 
 type Props = {
   onNavigate?: (section: string) => void;
@@ -52,7 +53,7 @@ export function ClientProductsHub({ onNavigate }: Props) {
   if (loading) {
     return (
       <div className="flex justify-center py-16">
-        <RefreshCw className="w-8 h-8 animate-spin text-red-600" />
+        <Spinner className="w-8 h-8" />
       </div>
     );
   }

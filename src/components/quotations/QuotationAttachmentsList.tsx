@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Paperclip, FileText, FileArchive, File as FileIcon, Loader2 } from 'lucide-react';
 import { panelBtnSecondary } from '@/lib/panel-ui';
+import { Spinner } from '@/components/ui/spinner';
 
 type Attachment = {
   id: string;
@@ -127,7 +128,7 @@ export function QuotationAttachmentsList({
         onClick={() => !uploading && fileInputRef.current?.click()}
         disabled={uploading}
       >
-        {uploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Paperclip className="w-4 h-4" />}
+        {uploading ? <Spinner className="w-4 h-4" /> : <Paperclip className="w-4 h-4" />}
         {uploading ? 'A enviar...' : 'Anexar ficheiro'}
       </button>
     </div>

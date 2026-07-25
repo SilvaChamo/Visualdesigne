@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { useI18n } from '@/lib/i18n'
 import { Button } from '@/components/ui/button'
+import { Spinner } from '@/components/ui/spinner'
 import { X, Save, Trash2, Globe, Mail, Shield, Code } from 'lucide-react'
 
 interface Site {
@@ -195,7 +196,7 @@ export function EditSiteModal({ site, packages, isOpen, onClose, onSave, onDelet
             >
               {isDeleting ? (
                 <>
-                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
+                  <Spinner className="w-4 h-4 mr-2 border-white border-t-transparent" />
                   A apagar...
                 </>
               ) : (
@@ -221,7 +222,7 @@ export function EditSiteModal({ site, packages, isOpen, onClose, onSave, onDelet
               >
                 {isSaving ? (
                   <>
-                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
+                    <Spinner className="w-4 h-4 mr-2 border-white border-t-transparent" />
                     A salvar...
                   </>
                 ) : (

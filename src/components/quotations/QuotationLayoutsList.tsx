@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Layers, Download, Loader2, Paperclip, Send, Check, X } from 'lucide-react';
 import { panelBtnPrimary, panelBtnSecondary, panelField } from '@/lib/panel-ui';
+import { Spinner } from '@/components/ui/spinner';
 
 type Layout = {
   id: string;
@@ -204,7 +205,7 @@ export function QuotationLayoutsList({
                             onClick={() => handleDecision(l.id, 'rejected', rejectFeedback)}
                             disabled={decidingId === l.id || !rejectFeedback.trim()}
                           >
-                            {decidingId === l.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <X className="w-4 h-4" />}
+                            {decidingId === l.id ? <Spinner className="w-4 h-4" /> : <X className="w-4 h-4" />}
                             Confirmar rejeição
                           </button>
                         </div>
@@ -217,7 +218,7 @@ export function QuotationLayoutsList({
                           onClick={() => handleDecision(l.id, 'approved')}
                           disabled={decidingId === l.id}
                         >
-                          {decidingId === l.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
+                          {decidingId === l.id ? <Spinner className="w-4 h-4" /> : <Check className="w-4 h-4" />}
                           Aprovar
                         </button>
                         <button
@@ -249,12 +250,12 @@ export function QuotationLayoutsList({
   }
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 lg:items-start">
-      <div className="lg:aspect-square overflow-y-auto rounded-lg border border-gray-200 dark:border-zinc-800 p-3 space-y-3">
+    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 lg:items-stretch">
+      <div className="lg:h-full overflow-y-auto rounded-lg border border-gray-200 dark:border-zinc-800 p-3 space-y-3">
         {listBlock}
       </div>
 
-      <div className="rounded-lg border border-gray-200 dark:border-zinc-800 p-3 space-y-2 bg-gray-50/50 dark:bg-zinc-900/50">
+      <div className="lg:h-full flex flex-col gap-2 rounded-lg border border-gray-200 dark:border-zinc-800 p-3 bg-gray-50/50 dark:bg-zinc-900/50">
         <p className="text-xs font-bold uppercase text-gray-500 dark:text-zinc-400">Enviar layout para aprovação</p>
 
         <input
@@ -266,15 +267,6 @@ export function QuotationLayoutsList({
           disabled={uploading}
         />
 
-        <textarea
-          value={mensagem}
-          onChange={(e) => setMensagem(e.target.value)}
-          placeholder="Mensagem para o cliente (opcional) — aparece na conversa desta encomenda"
-          rows={2}
-          className={`${panelField} w-full h-auto py-2`}
-          disabled={uploading}
-        />
-
         <input
           type="file"
           ref={fileInputRef}
@@ -283,23 +275,36 @@ export function QuotationLayoutsList({
           disabled={uploading}
         />
 
-        <div className="flex items-center gap-2">
+        <div className="flex-1 flex items-stretch gap-2 min-h-[7rem]">
           <button
             type="button"
-            className={`${panelBtnSecondary} justify-start truncate`}
+            title={file ? file.name : 'Anexar ficheiro'}
+            className="shrink-0 w-11 flex flex-col items-center justify-center gap-1 rounded border border-gray-300 bg-white text-gray-500 hover:bg-gray-100 hover:text-red-600 transition-colors disabled:opacity-50 dark:border-zinc-700 dark:bg-transparent dark:text-zinc-400 dark:hover:text-red-400"
             onClick={() => fileInputRef.current?.click()}
             disabled={uploading}
           >
-            <Paperclip className="w-4 h-4 shrink-0" />
-            <span className="truncate">{file ? file.name : 'Escolher ficheiro'}</span>
+            <Paperclip className="w-4 h-4" />
           </button>
+          <textarea
+            value={mensagem}
+            onChange={(e) => setMensagem(e.target.value)}
+            placeholder="Mensagem para o cliente (opcional) — aparece na conversa desta encomenda"
+            className={`${panelField} flex-1 h-full py-2 resize-none`}
+            disabled={uploading}
+          />
+        </div>
+
+        <div className="flex items-center justify-between gap-2">
+          <span className="text-xs text-gray-500 dark:text-zinc-400 truncate">
+            {file ? file.name : 'Nenhum ficheiro seleccionado'}
+          </span>
           <button
             type="button"
             className={panelBtnPrimary}
             onClick={handleEnviar}
             disabled={uploading || !file || !descricao.trim()}
           >
-            {uploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+            {uploading ? <Spinner className="w-4 h-4" /> : <Send className="w-4 h-4" />}
             Enviar
           </button>
         </div>

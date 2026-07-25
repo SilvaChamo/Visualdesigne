@@ -20,6 +20,7 @@ import {
   Eye,
   EyeOff
 } from 'lucide-react';
+import { Spinner } from '@/components/ui/spinner';
 
 function CheckoutContent() {
   const { items, total, clearCart } = useCart();
@@ -138,7 +139,7 @@ function CheckoutContent() {
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-zinc-950">
         <div className="text-center space-y-4">
-          <Loader2 className="w-10 h-10 animate-spin text-red-600 mx-auto" />
+          <Spinner className="w-10 h-10 mx-auto" />
           <p className="text-sm font-semibold text-slate-500 dark:text-zinc-400">A validar sessão segura...</p>
         </div>
       </div>
@@ -180,7 +181,7 @@ function CheckoutContent() {
               {/* PROCESSING STEPS */}
               {(status === 'registering' || status === 'redirecting') && (
                 <div className="bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-lg p-10 text-center space-y-4 shadow-sm">
-                  <Loader2 className="w-12 h-12 text-red-600 animate-spin mx-auto" />
+                  <Spinner className="w-12 h-12 mx-auto" />
                   <h3 className="text-lg font-bold text-slate-800 dark:text-zinc-100 font-panel">
                     {status === 'registering' ? 'A criar a sua conta...' : 'A abrir o pagamento seguro da Stripe...'}
                   </h3>
@@ -413,7 +414,7 @@ export default function CheckoutPage() {
   return (
     <Suspense fallback={
       <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-zinc-950">
-        <Loader2 className="w-10 h-10 animate-spin text-red-600" />
+        <Spinner className="w-10 h-10" />
       </div>
     }>
       <CheckoutContent />

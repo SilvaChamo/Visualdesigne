@@ -6,6 +6,7 @@ import { formatMt } from '@/lib/pricing-catalog';
 import { statusMeta } from '@/lib/quotation-status-labels';
 import { groupIntoBatches, batchNumero, type BatchItem } from '@/lib/quotation-batch';
 import { EncomendaDetalhe } from '@/components/quotations/EncomendaDetalhe';
+import { Spinner } from '@/components/ui/spinner';
 
 type Quotation = BatchItem & {
   categoria_label: string;
@@ -121,7 +122,7 @@ export function EncomendasListSection() {
                   className="shrink-0 text-gray-300 hover:text-red-600 dark:text-zinc-600 dark:hover:text-red-500 transition-colors p-1"
                   title="Eliminar encomenda"
                 >
-                  {deletingBatchId === batch.batchId ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+                  {deletingBatchId === batch.batchId ? <Spinner className="w-4 h-4" /> : <Trash2 className="w-4 h-4" />}
                 </button>
               )}
             </button>

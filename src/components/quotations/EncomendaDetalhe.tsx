@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { Download, XCircle, Pencil, CreditCard, AlertCircle, Loader2, Trash2 } from 'lucide-react';
 import { supabase } from '@/lib/supabase-client';
+import { Spinner } from '@/components/ui/spinner';
 import { formatMt } from '@/lib/pricing-catalog';
 import { statusMeta, computeBatchStatus } from '@/lib/quotation-status-labels';
 import { batchNumero } from '@/lib/quotation-batch';
@@ -122,7 +123,7 @@ export function EncomendaDetalhe({
   if (loading) {
     return (
       <div className="flex items-center justify-center h-full min-h-[400px]">
-        <Loader2 className="w-6 h-6 animate-spin text-red-600" />
+        <Spinner className="w-6 h-6" />
       </div>
     );
   }
@@ -177,7 +178,7 @@ export function EncomendaDetalhe({
               )}
               {(canEditOrCancel || canCancelOnly) && (
                 <button type="button" className={panelBtnSecondary} onClick={handleCancelar} disabled={cancelling}>
-                  {cancelling ? <Loader2 className="w-4 h-4 animate-spin" /> : <XCircle className="w-4 h-4" />}
+                  {cancelling ? <Spinner className="w-4 h-4" /> : <XCircle className="w-4 h-4" />}
                   Cancelar
                 </button>
               )}
@@ -204,7 +205,7 @@ export function EncomendaDetalhe({
         {canDelete && (
           <div className="mt-3">
             <button type="button" className={panelBtnSecondary} onClick={handleEliminar} disabled={deleting}>
-              {deleting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+              {deleting ? <Spinner className="w-4 h-4" /> : <Trash2 className="w-4 h-4" />}
               Eliminar
             </button>
           </div>

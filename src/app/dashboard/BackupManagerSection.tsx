@@ -6,6 +6,7 @@ import {
 } from 'lucide-react'
 import type { DirectAdminWebsite } from '@/lib/directadmin-api'
 import { cn } from '@/lib/utils'
+import { Spinner } from '@/components/ui/spinner'
 import {
   panelBtnPrimary, panelBtnSecondary, panelCard, panelInnerDetailCard,
   panelTabBtn, panelTabList,
@@ -321,7 +322,7 @@ export function BackupManagerSection({
           className={panelBtnSecondary}
           title="Actualizar lista"
         >
-          <RefreshCw className={cn('h-4 w-4', loading && 'animate-spin')} />
+          {loading ? <Spinner className="h-4 w-4" /> : <RefreshCw className="h-4 w-4" />}
           Actualizar
         </button>
       ),
@@ -401,7 +402,7 @@ export function BackupManagerSection({
                     disabled={!targetDomains.length || creating}
                     className={btnGreen}
                   >
-                    {creating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+                    {creating ? <Spinner className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
                     {creating ? 'A criar…' : 'Criar backup'}
                   </button>
                   {setActiveSection ? (
@@ -455,7 +456,7 @@ export function BackupManagerSection({
                 disabled={!targetDomains.length || creating}
                 className={btnGreen}
               >
-                {creating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+                {creating ? <Spinner className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
                 {creating ? 'A criar…' : 'Criar backup'}
               </button>
             </div>
@@ -559,7 +560,7 @@ export function BackupManagerSection({
                         }}
                       >
                         {downloading === b.filename
-                          ? <Loader2 className="h-4 w-4 animate-spin" />
+                          ? <Spinner className="h-4 w-4" />
                           : <Download className="h-4 w-4" />}
                         Transferir
                       </button>
@@ -660,7 +661,7 @@ export function BackupManagerSection({
                 className={panelBtnPrimary}
                 onClick={() => void confirmRestore()}
               >
-                {restoreBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                {restoreBusy ? <Spinner className="h-4 w-4" /> : null}
                 Restaurar
               </button>
             </div>

@@ -5,6 +5,7 @@ import { Loader2, RefreshCw, Save, Trash2 } from 'lucide-react';
 import { useAdminSectionChrome } from '@/components/admin/AdminSectionChrome';
 import { panelBtnPrimary, panelBtnSecondary, panelField } from '@/lib/panel-ui';
 import { PRIMARY_RESELLER_DA_USER } from '@/lib/panel-contas-enrich';
+import { Spinner } from '@/components/ui/spinner';
 
 type DaUserRow = {
   userName: string;
@@ -233,7 +234,7 @@ export function MoveUsersBetweenResellersSection({ isActive = true }: { isActive
       <div className={MOVE_FORM_CARD_CLS}>
         {showInitialLoader ? (
           <div className="mt-6 flex items-center justify-center gap-2 py-10 text-sm text-zinc-500">
-            <Loader2 className="h-4 w-4 animate-spin" />
+            <Spinner className="h-4 w-4" />
             A carregar contas…
           </div>
         ) : (
@@ -307,7 +308,7 @@ export function MoveUsersBetweenResellersSection({ isActive = true }: { isActive
                 disabled={busy || syncing || showInitialLoader}
                 className={panelBtnPrimary}
               >
-                {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                {busy ? <Spinner className="h-4 w-4" /> : null}
                 Mover conta
               </button>
               <button
@@ -316,7 +317,7 @@ export function MoveUsersBetweenResellersSection({ isActive = true }: { isActive
                 disabled={syncing || busy}
                 className={panelBtnSecondary}
               >
-                <RefreshCw className={`h-4 w-4 ${syncing ? 'animate-spin' : ''}`} />
+                {syncing ? <Spinner className="h-4 w-4" /> : <RefreshCw className="h-4 w-4" />}
                 Actualizar
               </button>
             </div>
@@ -506,7 +507,7 @@ export function BulkChangePasswordsSection({ isActive = true }: { isActive?: boo
           className={`${panelField} w-full sm:max-w-xs`}
         />
         <button type="button" onClick={() => void load()} className={panelBtnSecondary} disabled={loading}>
-          <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+          {loading ? <Spinner className="h-4 w-4" /> : <RefreshCw className="h-4 w-4" />}
           Actualizar
         </button>
       </div>
@@ -521,7 +522,7 @@ export function BulkChangePasswordsSection({ isActive = true }: { isActive?: boo
         </div>
         {loading ? (
           <div className="flex items-center justify-center gap-2 py-12 text-sm text-gray-400">
-            <Loader2 className="h-4 w-4 animate-spin" />
+            <Spinner className="h-4 w-4" />
             A carregar…
           </div>
         ) : filtered.length === 0 ? (
@@ -550,7 +551,7 @@ export function BulkChangePasswordsSection({ isActive = true }: { isActive?: boo
                     disabled={busyUser === u.userName}
                     className={panelBtnPrimary}
                   >
-                    {busyUser === u.userName ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Guardar'}
+                    {busyUser === u.userName ? <Spinner className="h-4 w-4" /> : 'Guardar'}
                   </button>
                 </div>
               </div>

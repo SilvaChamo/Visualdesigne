@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { Loader2, AlertCircle } from 'lucide-react';
 import { formatMt, CUSTOM_CATEGORIA_ID } from '@/lib/pricing-catalog';
 import { panelBtnPrimary, panelBtnSecondary } from '@/lib/panel-ui';
+import { Spinner } from '@/components/ui/spinner';
 
 type Quotation = {
   id: string;
@@ -120,7 +121,7 @@ export function EncomendaEditForm({
 
       <div className="flex items-center gap-2 pt-2">
         <button type="button" className={panelBtnPrimary} onClick={handleSave} disabled={saving}>
-          {saving && <Loader2 className="w-4 h-4 animate-spin" />}
+          {saving && <Spinner className="w-4 h-4" />}
           Guardar alterações
         </button>
         <button type="button" className={panelBtnSecondary} onClick={onCancel} disabled={saving}>

@@ -7,6 +7,7 @@ import {
 } from 'lucide-react'
 import { getDirectAdminAccessUrl } from '@/lib/server-config'
 import { DIRECTADMIN_EMAIL_DOMAINS } from '@/lib/email-domains'
+import { Spinner } from '@/components/ui/spinner'
 
 const DA_DOMAINS = [...DIRECTADMIN_EMAIL_DOMAINS]
 
@@ -158,7 +159,7 @@ export function DirectAdminEmailsSection() {
             onClick={() => loadEmails(selectedDomain)}
             className="flex items-center gap-1.5 px-3 py-2 bg-gray-100 border border-gray-200 text-gray-600 rounded-[10px] text-xs font-bold hover:bg-gray-200 transition-all"
           >
-            <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
+            {loading ? <Spinner className="w-3.5 h-3.5" /> : <RefreshCw className="w-3.5 h-3.5" />}
             Actualizar
           </button>
           <button
@@ -276,7 +277,7 @@ export function DirectAdminEmailsSection() {
               disabled={creating || !newUser || !newPass}
               className="flex items-center gap-2 px-5 py-2.5 bg-green-600 text-white rounded-[10px] text-sm font-bold hover:bg-green-700 disabled:opacity-50 transition-all"
             >
-              {creating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Mail className="w-4 h-4" />}
+              {creating ? <Spinner className="w-4 h-4" /> : <Mail className="w-4 h-4" />}
               Criar Email
             </button>
             <button onClick={() => setShowCreate(false)} className="px-5 py-2.5 text-sm font-bold text-gray-500 hover:text-gray-700 transition-all">
@@ -397,7 +398,7 @@ export function DirectAdminEmailsSection() {
                             disabled={changingPass || !changePass}
                             className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white rounded-[8px] text-xs font-bold hover:bg-blue-700 disabled:opacity-50 transition-all"
                           >
-                            {changingPass ? <Loader2 className="w-3 h-3 animate-spin" /> : <CheckCircle className="w-3 h-3" />}
+                            {changingPass ? <Spinner className="w-3 h-3" /> : <CheckCircle className="w-3 h-3" />}
                             Guardar
                           </button>
                           <button onClick={() => setChangingPassFor(null)} className="text-xs text-gray-400 hover:text-gray-600">

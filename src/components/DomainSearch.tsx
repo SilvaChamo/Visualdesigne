@@ -6,6 +6,7 @@ import { useI18n } from '@/lib/i18n'
 import { useCart } from '@/contexts/CartContext'
 import { DomainPricingCarousel } from '@/components/DomainPricingCarousel'
 import { DOMAIN_TLD_PRICES, formatMtPrice } from '@/lib/domain-tld-prices'
+import { Spinner } from '@/components/ui/spinner'
 import { panelTabBtn, panelTabList } from '@/lib/panel-ui'
 import { getHostingPlan, getHostingCyclePrice, getHostingMonthlyEquivalent, formatHostingPrice } from '@/lib/hosting-plans'
 
@@ -265,7 +266,7 @@ export default function DomainSearch({
               >
                 {actionLoading === result.domain ? (
                   <>
-                    <Loader2 className="h-4 w-4 animate-spin" /> …
+                    <Spinner className="h-4 w-4" /> …
                   </>
                 ) : isAdmin ? (
                   'Registar'
@@ -480,7 +481,7 @@ export default function DomainSearch({
         />
         {loading ? (
           <div className="absolute right-4 top-1/2 -translate-y-1/2">
-            <Loader2 className="h-5 w-5 animate-spin text-red-600" />
+            <Spinner className="h-5 w-5" />
           </div>
         ) : (
           <div className="absolute right-4 top-1/2 -translate-y-1/2">

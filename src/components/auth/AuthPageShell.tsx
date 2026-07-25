@@ -2,6 +2,7 @@
 
 import { ThemeToggle } from '@/components/theme/ThemeToggle';
 import { authShellClass } from '@/components/auth/auth-styles';
+import { Spinner } from '@/components/ui/spinner';
 
 /** URL da home page — em localhost vai para '/', em produção para o site principal. */
 function getLogoHomeUrl(): string {
@@ -68,7 +69,7 @@ export function AuthPageShell({ children, wide }: AuthPageShellProps) {
 export function AuthLoadingShell() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-zinc-50 dark:bg-zinc-950">
-      <div className="h-8 w-8 animate-spin rounded-full border-2 border-red-600 border-t-transparent" />
+      <Spinner className="h-8 w-8" />
     </div>
   );
 }

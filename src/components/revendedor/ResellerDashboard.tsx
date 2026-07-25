@@ -6,6 +6,7 @@ import {
 } from 'lucide-react'
 import type { DirectAdminWebsite } from '@/lib/directadmin-api'
 import { directAdminAPI } from '@/lib/directadmin-api'
+import { Spinner } from '@/components/ui/spinner'
 
 interface Props {
   sites: DirectAdminWebsite[]
@@ -178,7 +179,7 @@ export function ResellerDashboard({
   if (isFetching || loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <RefreshCw className="w-8 h-8 animate-spin text-red-600" />
+        <Spinner className="w-8 h-8" />
       </div>
     )
   }
@@ -239,7 +240,7 @@ export function ResellerDashboard({
         <div className="space-y-3">
           {renewalsLoading ? (
             <div className="bg-white rounded border border-gray-200 shadow-sm p-10 text-center dark:border-zinc-700 dark:bg-zinc-900">
-              <RefreshCw className="w-6 h-6 animate-spin text-red-600 mx-auto" />
+              <Spinner className="w-6 h-6 mx-auto" />
             </div>
           ) : expiringSites.length === 0 ? (
             <div className="bg-white rounded border border-gray-200 shadow-sm p-10 text-center dark:border-zinc-700 dark:bg-zinc-900">
@@ -354,12 +355,12 @@ export function ResellerDashboard({
               className="p-1.5 text-gray-500 hover:text-red-600 transition-colors disabled:opacity-50 dark:text-zinc-400 dark:hover:text-red-400"
               title="Actualizar"
             >
-              <RefreshCw className={`w-4 h-4 ${loadingStatus ? 'animate-spin' : ''}`} />
+              {loadingStatus ? <Spinner className="w-4 h-4" /> : <RefreshCw className="w-4 h-4" />}
             </button>
           </div>
           {loadingStatus && !serverStatus ? (
             <div className="py-4 text-center">
-              <RefreshCw className="w-5 h-5 animate-spin text-gray-400 mx-auto dark:text-zinc-500" />
+              <Spinner className="w-5 h-5 mx-auto" />
             </div>
           ) : serverStatusRows.length > 0 ? (
             <div className="space-y-2">

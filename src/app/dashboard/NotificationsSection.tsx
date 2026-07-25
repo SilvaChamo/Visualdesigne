@@ -17,6 +17,7 @@ import {
   ArrowRight
 } from 'lucide-react'
 import { panelTabList, panelTabBtn } from '@/lib/panel-ui'
+import { Spinner } from '@/components/ui/spinner'
 
 interface Notification {
   id: string
@@ -394,7 +395,7 @@ export function NotificationsSection() {
             >
               {sending ? (
                 <>
-                  <RefreshCw className="w-5 h-5 animate-spin" />
+                  <Spinner className="w-5 h-5" />
                   Enviando...
                 </>
               ) : (
@@ -515,7 +516,7 @@ export function NotificationsSection() {
               disabled={loading}
               className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
             >
-              <RefreshCw className={`w-5 h-5 ${loading ? 'animate-spin' : ''}`} />
+              {loading ? <Spinner className="w-5 h-5" /> : <RefreshCw className="w-5 h-5" />}
             </button>
           </div>
 

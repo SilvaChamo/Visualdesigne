@@ -15,6 +15,7 @@ import {
   Wallet
 } from 'lucide-react'
 import PaymentMethodForm from './PaymentMethodForm'
+import { Spinner } from '@/components/ui/spinner'
 
 interface Renewal {
   id: string
@@ -385,7 +386,7 @@ export default function ClientRenewalsSection({ sites }: { sites: any[] }) {
                       >
                         {processingPayment === renewal.id ? (
                           <>
-                            <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                            <Spinner className="w-3.5 h-3.5" />
                             Processando...
                           </>
                         ) : (

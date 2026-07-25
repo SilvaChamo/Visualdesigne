@@ -5,6 +5,7 @@ import { CheckCircle, Eye, EyeOff, Globe, Loader2, Package, RefreshCw, Shield, U
 import type { DirectAdminPackage } from '@/lib/directadmin-api';
 import { readPackagesCache, writePackagesCache } from '@/lib/panel-packages-cache';
 import { panelBtnPrimary, panelBtnSecondary } from '@/lib/panel-ui';
+import { Spinner } from '@/components/ui/spinner';
 
 type AccountType = 'client' | 'reseller' | 'professional';
 
@@ -668,7 +669,7 @@ export function ProvisionClienteSection({
               disabled={busy || !canSubmit}
               className={panelBtnPrimary}
             >
-              {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle className="w-4 h-4" />}
+              {busy ? <Spinner className="w-4 h-4" /> : <CheckCircle className="w-4 h-4" />}
               {isEdit ? 'Guardar alterações' : 'Criar conta'}
             </button>
           </div>

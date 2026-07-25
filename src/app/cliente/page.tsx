@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, Suspense, lazy, useMemo } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/utils/supabase/server'
 import { supabase } from '@/lib/supabase-client'
+import { Spinner } from '@/components/ui/spinner'
 
 // 🚀 Componente de carregamento direto para seções principais
 import { WebmailSection } from '@/components/dashboard/WebmailSection'
@@ -1224,7 +1225,7 @@ function MailMarketingComposer({ selectedSite, setSelectedSite, sites, onGoToCon
                 disabled={isSending || !senderEmail}
                 className="!bg-emerald-600 hover:!bg-red-600 text-white gap-2 font-black uppercase text-[10px] tracking-widest h-8 px-4 rounded-md shadow-xl shadow-emerald-500/20 transition-all border-none !opacity-100 cursor-pointer"
               >
-                {isSending ? <Loader2 className="w-3 h-3 animate-spin" /> : <Send className="w-3 h-3" />}
+                {isSending ? <Spinner className="w-3 h-3" /> : <Send className="w-3 h-3" />}
                 Enviar
               </Button>
             </div>
@@ -1301,7 +1302,7 @@ function MailMarketingComposer({ selectedSite, setSelectedSite, sites, onGoToCon
               <div className="mt-4 p-4 rounded-lg border border-slate-200/70 shadow-sm transition-all duration-300">
                 {loadingReputation ? (
                   <div className="flex items-center gap-2 text-slate-400">
-                    <div className="w-4 h-4 border-2 border-slate-300 border-t-orange-500 rounded-full animate-spin" />
+                    <Spinner className="w-4 h-4" />
                     <span className="text-[10px] font-medium">A carregar...</span>
                   </div>
                 ) : domainReputation ? (
@@ -3076,7 +3077,7 @@ function CreateWebsiteSection({ packages, onRefresh }: { packages: DirectAdminPa
         </div>
         {msg && <div className={`mb-4 px-4 py-2.5 rounded-lg text-sm font-medium ${msg.includes('sucesso') ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-700 border border-red-200'}`}>{msg}</div>}
         <button onClick={handleCreate} disabled={creating || !form.domain || !form.email} className="bg-black hover:bg-red-600 text-white px-5 py-2.5 rounded-lg text-sm font-bold transition-all disabled:opacity-50 flex items-center gap-2">
-          {creating ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Globe className="w-4 h-4" />} Criar Website
+          {creating ? <Spinner className="w-4 h-4" /> : <Globe className="w-4 h-4" />} Criar Website
         </button>
       </div>
     </div>
@@ -3377,7 +3378,7 @@ function ListWebsitesSection({ sites, onRefresh, packages, setActiveSection, set
                 setCreating(false)
               }} disabled={creating || !createForm.domain || !createForm.email}
                 className="flex-1 bg-black hover:bg-red-600 text-white py-2.5 rounded-lg text-sm font-bold transition-colors disabled:opacity-50 flex items-center justify-center gap-2">
-                {creating ? <><RefreshCw className="w-4 h-4 animate-spin" /> A criar...</> : '+ Criar Website'}
+                {creating ? <><Spinner className="w-4 h-4" /> A criar...</> : '+ Criar Website'}
               </button>
               <button onClick={() => { setShowCreateModal(false); setCreateMsg('') }}
                 className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 py-2.5 rounded-lg text-sm font-bold">
@@ -3396,7 +3397,7 @@ export default function ClientPage() {
     <AdminSectionChromeProvider>
       <Suspense fallback={
         <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-zinc-950">
-          <Loader2 className="w-10 h-10 animate-spin text-red-600 mx-auto" />
+          <Spinner className="w-10 h-10 mx-auto" />
         </div>
       }>
         <ClientPageContent />

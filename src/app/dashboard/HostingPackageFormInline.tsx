@@ -15,6 +15,7 @@ import {
 } from '@/lib/reseller-package-form';
 import { panelBtnPrimary, panelBtnSecondary, panelField } from '@/lib/panel-ui';
 import { HostingDaPackageFields } from '@/app/dashboard/HostingDaPackageFields';
+import { Spinner } from '@/components/ui/spinner';
 
 /** Mesmo arredondamento da lista de contas (`rounded`, não `rounded-xl`). */
 const formCardCls =
@@ -235,7 +236,7 @@ export function HostingPackageFormInline({ form, onChange, onCancel, onSubmit, b
             disabled={busy || !canSubmit}
             className={panelBtnPrimary}
           >
-            {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Package className="h-4 w-4" />}
+            {busy ? <Spinner className="h-4 w-4" /> : <Package className="h-4 w-4" />}
             {busy ? 'A guardar…' : isEdit ? 'Guardar alterações' : 'Criar pacote'}
           </button>
         </div>

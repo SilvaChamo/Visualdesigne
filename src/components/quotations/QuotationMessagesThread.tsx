@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Send, Loader2, MessageSquare } from 'lucide-react';
 import { panelField, panelBtnPrimary } from '@/lib/panel-ui';
+import { Spinner } from '@/components/ui/spinner';
 
 type Message = {
   id: string;
@@ -119,7 +120,7 @@ export function QuotationMessagesThread({
           disabled={sending}
         />
         <button type="button" className={panelBtnPrimary} onClick={handleSend} disabled={sending || !draft.trim()}>
-          {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+          {sending ? <Spinner className="w-4 h-4" /> : <Send className="w-4 h-4" />}
         </button>
       </div>
     </div>

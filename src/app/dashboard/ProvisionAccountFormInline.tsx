@@ -12,6 +12,7 @@ import {
 import { ResellerProvisionForm } from '@/app/dashboard/ResellerProvisionForm';
 import { DaFormRow } from '@/lib/panel-da-form-rows';
 import { panelBtnPrimary, panelBtnSecondary, panelField } from '@/lib/panel-ui';
+import { Spinner } from '@/components/ui/spinner';
 
 type AccountType = 'client' | 'reseller' | 'admin';
 
@@ -413,7 +414,7 @@ export function ProvisionAccountFormInline({
           Cancelar
         </button>
         <button type="button" onClick={() => void handleProvision()} disabled={busy || !canSubmit} className={panelBtnPrimary}>
-          {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <UserPlus className="h-4 w-4" />}
+          {busy ? <Spinner className="h-4 w-4" /> : <UserPlus className="h-4 w-4" />}
           Criar conta
         </button>
       </div>

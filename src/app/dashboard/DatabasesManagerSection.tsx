@@ -7,6 +7,7 @@ import {
 } from 'lucide-react'
 import type { DirectAdminWebsite } from '@/lib/directadmin-api'
 import { cn } from '@/lib/utils'
+import { Spinner } from '@/components/ui/spinner'
 import {
   panelBtnPrimary, panelBtnSecondary, panelCard, panelControlHeight, panelField,
   panelInnerDetailCard,
@@ -617,7 +618,7 @@ export function DatabasesManagerSection({
             ) : null}
             <div className="flex justify-end">
               <button type="button" disabled={busy || !createDbName.trim()} className={panelBtnPrimary} onClick={() => void handleCreateDatabase()}>
-                {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />} Criar
+                {busy ? <Spinner className="h-4 w-4" /> : <Plus className="h-4 w-4" />} Criar
               </button>
             </div>
           </div>
@@ -645,7 +646,7 @@ export function DatabasesManagerSection({
                 </thead>
                 <tbody className="divide-y divide-gray-100 dark:divide-zinc-800">
                   {loading && !users.length ? (
-                    <tr><td colSpan={3} className="py-10 text-center"><Loader2 className="mx-auto h-6 w-6 animate-spin text-zinc-400" /></td></tr>
+                    <tr><td colSpan={3} className="py-10 text-center"><Spinner className="mx-auto h-6 w-6" /></td></tr>
                   ) : users.map((u) => (
                     <tr key={u.dbuser}>
                       <td className="px-3 py-2 font-mono">{u.dbuser}</td>
@@ -708,7 +709,7 @@ export function DatabasesManagerSection({
             </div>
             <div className="flex justify-end">
               <button type="button" disabled={busy || !createUserName.trim() || !createUserPass} className={panelBtnPrimary} onClick={() => void handleCreateUser()}>
-                {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />} Criar
+                {busy ? <Spinner className="h-4 w-4" /> : <Plus className="h-4 w-4" />} Criar
               </button>
             </div>
           </div>
@@ -1013,7 +1014,7 @@ export function DatabasesManagerSection({
                   } finally { setBusy(false) }
                 }}
               >
-                {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                {busy ? <Spinner className="h-4 w-4" /> : null}
                 {confirm.confirmLabel}
               </button>
             </div>

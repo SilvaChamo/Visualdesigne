@@ -7,6 +7,7 @@ import {
 import type { DirectAdminWebsite } from '@/lib/directadmin-api';
 import { readWpInstallsCache } from '@/lib/panel-wp-cache';
 import { WpUserForm } from './WpUserForm';
+import { Spinner } from '@/components/ui/spinner';
 
 interface WpUser {
   ID: string;
@@ -305,7 +306,7 @@ export function WordPressUsersSection({ sites, isActive, setActiveSection }: Wor
         <div className="overflow-x-auto rounded border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950">
         {loadingUsers ? (
           <div className="py-12 text-center">
-            <RefreshCw className="mx-auto h-8 w-8 animate-spin text-zinc-400" />
+            <Spinner className="mx-auto h-8 w-8" />
             <p className="mt-2 text-xs text-zinc-500">A obter utilizadores WordPress do servidor...</p>
           </div>
         ) : users.length > 0 ? (
@@ -371,7 +372,7 @@ export function WordPressUsersSection({ sites, isActive, setActiveSection }: Wor
                           className="px-3 py-1 text-xs font-medium rounded border border-zinc-300 dark:border-zinc-700 bg-transparent text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800/50 transition-all disabled:opacity-50 inline-flex items-center gap-1"
                         >
                           {isLoggingIn ? (
-                            <RefreshCw className="h-3 w-3 animate-spin" />
+                            <Spinner className="h-3 w-3" />
                           ) : (
                             <ExternalLink size={12} />
                           )}
@@ -385,7 +386,7 @@ export function WordPressUsersSection({ sites, isActive, setActiveSection }: Wor
                           title="Eliminar utilizador"
                         >
                           {isDeleting ? (
-                            <RefreshCw className="h-3 w-3 animate-spin" />
+                            <Spinner className="h-3 w-3" />
                           ) : (
                             <Trash2 size={13} />
                           )}

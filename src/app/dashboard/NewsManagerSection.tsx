@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { CheckCircle, Edit2, Globe, Image as ImageIcon, Languages, Loader2, Newspaper, Plus, Save, Trash2, X } from 'lucide-react'
 import { MultiFileUpload } from '@/components/admin/MultiFileUpload'
+import { Spinner } from '@/components/ui/spinner'
 
 type NewsItem = {
   id: string
@@ -244,14 +245,14 @@ export function NewsManagerSection() {
               disabled={saving}
               className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-3 rounded-xl font-bold flex items-center gap-3 transition-all shadow-lg disabled:opacity-60"
             >
-              {saving ? <Loader2 className="w-5 h-5 animate-spin" /> : <Save className="w-5 h-5" />}
+              {saving ? <Spinner className="w-5 h-5" /> : <Save className="w-5 h-5" />}
               Salvar e Publicar
             </button>
           </div>
         </div>
       ) : (
         <div className="space-y-4">
-          {loading && <div className="text-sm text-gray-500 flex items-center gap-2"><Loader2 className="w-4 h-4 animate-spin" />A carregar notícias...</div>}
+          {loading && <div className="text-sm text-gray-500 flex items-center gap-2"><Spinner className="w-4 h-4" />A carregar notícias...</div>}
           {!loading && news.length === 0 && (
             <div className="bg-white border border-dashed border-gray-200 rounded-2xl p-10 text-center text-gray-500">
               Nenhuma notícia criada ainda para AAMIHE.

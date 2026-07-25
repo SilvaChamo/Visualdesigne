@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useI18n } from '@/lib/i18n'
 import { Button } from '@/components/ui/button'
 import { X, Plus, Trash2, Globe, Server } from 'lucide-react'
+import { Spinner } from '@/components/ui/spinner'
 
 interface DNSRecord {
   id?: string
@@ -160,7 +161,7 @@ export function DNSModal({ domain, isOpen, onClose, onAddRecord, onDeleteRecord,
                 >
                   {isAdding ? (
                     <>
-                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
+                      <Spinner className="w-4 h-4 mr-2 border-white border-t-transparent" />
                       A adicionar...
                     </>
                   ) : (

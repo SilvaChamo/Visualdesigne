@@ -6,6 +6,7 @@ import { createPortal } from 'react-dom'
 import { cn } from '@/lib/utils'
 import { panelBtnPrimary, panelBtnSecondary, panelCard, panelField, panelInnerDetailCard, panelMobileActions, panelMobileCardGrid, panelMobileStack, panelMobileStackCard } from '@/lib/panel-ui'
 import { PanelIconTip } from '@/components/panel/PanelIconTip'
+import { Spinner } from '@/components/ui/spinner'
 import { clearAllPanelClientCaches } from '@/lib/panel-session-cache-clear'
 import { directAdminAPI } from '@/lib/directadmin-api'
 import type {
@@ -283,7 +284,7 @@ export function SubdomainsSection({ sites }: { sites: DirectAdminWebsite[] }) {
                 className="flex-1 px-3 py-2.5 border border-gray-300 rounded-[10px] text-sm focus:ring-2 focus:ring-red-500/20 focus:border-red-500" />
               <button onClick={handleCreate} disabled={creating || !selectedDomain || !newSub.trim()}
                 className="bg-green-50 border border-green-300 text-green-600 hover:bg-green-100 hover:text-green-700 px-4 py-2.5 rounded-[10px] text-sm font-bold transition-all disabled:opacity-50 flex items-center gap-2">
-                {creating ? <RefreshCw className="w-4 h-4 animate-spin" /> : <PlusCircle className="w-4 h-4" />}
+                {creating ? <Spinner className="w-4 h-4" /> : <PlusCircle className="w-4 h-4" />}
                 Criar
               </button>
             </div>
@@ -395,7 +396,7 @@ export function WebsitePreviewSection({ sites }: { sites: DirectAdminWebsite[] }
               disabled={!selectedDomain || screenshotLoading}
               className="w-full mt-4 flex items-center justify-center gap-2 px-4 py-2 bg-red-50 border border-red-300 text-red-600 rounded-[10px] hover:bg-red-100 hover:text-red-700 disabled:bg-gray-100 disabled:text-gray-400 transition-all text-sm font-bold shadow-sm"
             >
-              <RefreshCw size={16} className={screenshotLoading ? 'animate-spin' : ''} />
+              {screenshotLoading ? <Spinner className="w-4 h-4" /> : <RefreshCw size={16} />}
               Actualizar
             </button>
           </div>
@@ -422,7 +423,7 @@ export function WebsitePreviewSection({ sites }: { sites: DirectAdminWebsite[] }
           <div className="bg-white border border-gray-200 rounded-lg shadow-sm overflow-hidden min-h-[500px] flex flex-col">
             {screenshotLoading && (
               <div className="flex-1 flex flex-col items-center justify-center bg-gray-50/50">
-                <RefreshCw size={40} className="text-red-600 animate-spin mb-4" />
+                <Spinner className="w-10 h-10 mb-4" />
                 <p className="text-gray-500 font-medium">Capturando imagem do site...</p>
                 <p className="text-xs text-gray-400 mt-1">Isso pode levar alguns segundos</p>
               </div>
@@ -633,7 +634,7 @@ export function DNSZoneEditorSection({
           disabled={!selectedDomain || syncing}
           className="px-4 py-2 flex items-center justify-center gap-1.5 bg-transparent border border-green-500 text-green-600 dark:text-green-500 hover:bg-green-50 dark:hover:bg-zinc-800 rounded text-sm font-bold transition-all disabled:opacity-50"
         >
-          <RefreshCw className={`h-4 w-4 ${syncing || refreshing ? 'animate-spin' : ''}`} />
+          {(syncing || refreshing) ? <Spinner className="h-4 w-4" /> : <RefreshCw className="h-4 w-4" />}
           Sincronizar
         </button>
       ),
@@ -923,7 +924,7 @@ export function DNSZoneEditorSection({
                 disabled={!selectedDomain || syncing}
                 className={panelBtnPrimary}
               >
-                <RefreshCw className={`w-4 h-4 ${syncing || refreshing ? 'animate-spin' : ''}`} />
+                {(syncing || refreshing) ? <Spinner className="w-4 h-4" /> : <RefreshCw className="w-4 h-4" />}
                 Sincronizar
               </button>
             </>
@@ -1139,7 +1140,7 @@ export function DNSZoneEditorSection({
       <div className={`rounded border border-gray-200 bg-white overflow-hidden dark:border-zinc-700 dark:bg-zinc-900 ${refreshing ? 'opacity-80' : ''}`}>
         {loading && records.length === 0 ? (
           <div className="py-12 text-center">
-            <RefreshCw className="w-8 h-8 animate-spin text-gray-400 mx-auto" />
+            <Spinner className="w-8 h-8 mx-auto" />
           </div>
         ) : !selectedDomain ? (
           <div className="py-12 text-center text-gray-400 text-sm">Selecione um domínio para ver os registos.</div>
@@ -1486,7 +1487,7 @@ export function FTPSection({ sites }: { sites: DirectAdminWebsite[] }) {
         </div>
         <button onClick={handleCreate} disabled={creating || !selectedDomain || !ftpUser || !ftpPass}
           className="bg-green-50 border border-green-300 text-green-600 hover:bg-green-100 px-5 py-2.5 rounded text-sm font-bold transition-all disabled:opacity-50 flex items-center gap-2">
-          {creating ? <RefreshCw className="w-4 h-4 animate-spin" /> : <HardDrive className="w-4 h-4" />} Criar Conta FTP
+          {creating ? <Spinner className="w-4 h-4" /> : <HardDrive className="w-4 h-4" />} Criar Conta FTP
         </button>
 
         {msg && <div className={`mt-4 px-4 py-2.5 rounded text-sm font-medium ${msg.includes('criada') ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-700 border border-red-200'}`}>{msg}</div>}
@@ -2307,7 +2308,7 @@ export function EmailManagementSection({
             )}
             <div className="px-6 py-4 bg-gray-50 dark:bg-zinc-900/50 border-t border-gray-100 dark:border-zinc-800 flex items-center justify-end gap-3">
               <button onClick={() => setEmailModal({ ...emailModal, show: false })} className="px-4 py-2 bg-transparent border border-gray-300 dark:border-zinc-750 hover:bg-gray-150 dark:hover:bg-zinc-800 text-gray-500 dark:text-zinc-400 rounded-xl text-xs font-bold transition-all">Cancelar</button>
-              <button onClick={() => { if (emailModal.mode === 'create') handleCreateEmail(emailModal.data); else handleUpdateEmail(emailModal.data) }} disabled={loading || creating} className="px-6 py-2 bg-transparent border border-red-500 hover:bg-red-500/10 text-red-500 rounded-xl text-xs font-bold transition-all flex items-center gap-2">{(loading || creating) ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />} {emailModal.mode === 'create' ? 'Criar E-mail' : 'Guardar Alterações'}</button>
+              <button onClick={() => { if (emailModal.mode === 'create') handleCreateEmail(emailModal.data); else handleUpdateEmail(emailModal.data) }} disabled={loading || creating} className="px-6 py-2 bg-transparent border border-red-500 hover:bg-red-500/10 text-red-500 rounded-xl text-xs font-bold transition-all flex items-center gap-2">{(loading || creating) ? <Spinner className="w-3.5 h-3.5" /> : <Check className="w-3.5 h-3.5" />} {emailModal.mode === 'create' ? 'Criar E-mail' : 'Guardar Alterações'}</button>
             </div>
           </div>
         </div>
@@ -3454,7 +3455,7 @@ export function CPUsersSection({
           )}
           {!isPanelsMode && (
             <>
-              <button onClick={loadUsers} className="font-semibold px-4 py-2 flex items-center justify-center gap-1.5 bg-transparent border border-gray-300 dark:border-zinc-700 text-gray-700 dark:text-zinc-300 hover:text-black dark:hover:text-white rounded text-sm transition-all disabled:opacity-50"><RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} /> Actualizar</button>
+              <button onClick={loadUsers} className="font-semibold px-4 py-2 flex items-center justify-center gap-1.5 bg-transparent border border-gray-300 dark:border-zinc-700 text-gray-700 dark:text-zinc-300 hover:text-black dark:hover:text-white rounded text-sm transition-all disabled:opacity-50">{loading ? <Spinner className="w-4 h-4" /> : <RefreshCw className="w-4 h-4" />} Actualizar</button>
               <button
                 onClick={() => setUserModal({ show: true, mode: 'create', data: { firstName: '', lastName: '', email: '', userName: '', password: '', confirmPassword: '', websitesLimit: 0, acl: 'user', securityLevel: 'HIGH' } })}
                 className="px-4 py-2 flex items-center justify-center gap-1.5 bg-transparent border border-gray-300 dark:border-zinc-700 text-gray-700 dark:text-zinc-300 hover:text-black dark:hover:text-white rounded text-sm font-bold transition-all disabled:opacity-50"
@@ -3478,7 +3479,7 @@ export function CPUsersSection({
                 title="Actualizar"
                 className="px-4 py-2 flex items-center justify-center gap-1.5 bg-transparent border border-gray-300 dark:border-zinc-700 text-gray-700 dark:text-zinc-300 hover:text-black dark:hover:text-white rounded text-sm transition-all disabled:opacity-50"
               >
-                <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
+                {refreshing ? <Spinner className="w-4 h-4" /> : <RefreshCw className="w-4 h-4" />}
               </button>
             </div>
           )}
@@ -3878,7 +3879,7 @@ export function CPUsersSection({
                   disabled={loading || creating}
                   className={panelBtnPrimary}
                 >
-                  {(loading || creating) ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
+                  {(loading || creating) ? <Spinner className="w-3.5 h-3.5" /> : <Check className="w-3.5 h-3.5" />}
                   {isPanelAuthForm
                     ? (userModal.mode === 'create' ? 'Criar conta' : 'Guardar alterações')
                     : userModal.mode === 'create'
@@ -3987,7 +3988,7 @@ export function ResellerSection() {
       )}
 
       <div className="bg-white rounded shadow-sm border border-gray-200 overflow-hidden">
-        {loading ? <div className="py-12 text-center"><RefreshCw className="w-8 h-8 animate-spin text-gray-400 mx-auto" /></div> : (
+        {loading ? <div className="py-12 text-center"><Spinner className="w-8 h-8 mx-auto" /></div> : (
           <div className="p-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
             {(Array.isArray(acls) ? acls : []).map((acl, i) => (
               <div key={i} className="border border-gray-200 rounded p-4 flex items-center justify-between hover:bg-gray-50">
@@ -4074,7 +4075,7 @@ export function PHPConfigSection({ sites }: { sites: DirectAdminWebsite[] }) {
 
         {msg && <div className={`mb-4 px-4 py-2.5 rounded text-sm font-medium ${msg.includes('!') && !msg.includes('Erro') ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-700 border border-red-200'}`}>{msg}</div>}
 
-        {loading ? <div className="py-12 text-center"><RefreshCw className="w-8 h-8 animate-spin text-gray-400 mx-auto" /></div> : config && (
+        {loading ? <div className="py-12 text-center"><Spinner className="w-8 h-8 mx-auto" /></div> : config && (
           <>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
               {[
@@ -4093,7 +4094,7 @@ export function PHPConfigSection({ sites }: { sites: DirectAdminWebsite[] }) {
               ))}
             </div>
             <button onClick={handleSave} disabled={saving} className="bg-green-50 border border-green-300 text-green-600 hover:bg-green-100 px-5 py-2.5 rounded text-sm font-bold transition-all disabled:opacity-50 flex items-center gap-2">
-              {saving ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Settings className="w-4 h-4" />} Guardar Configurações PHP
+              {saving ? <Spinner className="w-4 h-4" /> : <Settings className="w-4 h-4" />} Guardar Configurações PHP
             </button>
           </>
         )}
@@ -4486,7 +4487,7 @@ export function SecuritySection({ sites }: { sites: DirectAdminWebsite[] }) {
               disabled={refreshing || loading}
               className="flex items-center gap-1.5 text-xs font-medium text-gray-500 hover:text-gray-700 px-3 py-2 rounded hover:bg-gray-50 disabled:opacity-50"
             >
-              <RefreshCw className={`w-3.5 h-3.5 ${refreshing ? 'animate-spin' : ''}`} /> Actualizar
+              {refreshing ? <Spinner className="w-3.5 h-3.5" /> : <RefreshCw className="w-3.5 h-3.5" />} Actualizar
             </button>
           </div>
         </div>
@@ -4494,7 +4495,7 @@ export function SecuritySection({ sites }: { sites: DirectAdminWebsite[] }) {
         <div className="p-6">
           {loading ? (
             <div className="py-12 text-center">
-              <RefreshCw className="w-7 h-7 animate-spin text-gray-400 mx-auto mb-2" />
+              <Spinner className="w-7 h-7 mx-auto mb-2" />
               <p className="text-sm text-gray-400">A carregar dados de segurança...</p>
             </div>
           ) : (
@@ -4569,7 +4570,7 @@ export function SecuritySection({ sites }: { sites: DirectAdminWebsite[] }) {
                           firewallOn ? 'bg-red-100 text-red-700 hover:bg-red-200' : 'bg-green-100 text-green-700 hover:bg-green-200'
                         }`}
                       >
-                        {toggling ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Shield className="w-4 h-4" />}
+                        {toggling ? <Spinner className="w-4 h-4" /> : <Shield className="w-4 h-4" />}
                         {firewallOn ? 'Desactivar' : 'Activar'}
                       </button>
                     </div>
@@ -4633,7 +4634,7 @@ export function SecuritySection({ sites }: { sites: DirectAdminWebsite[] }) {
                         disabled={!newIP.trim() || actionIP !== null}
                         className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded text-sm font-bold flex items-center gap-2 disabled:opacity-50"
                       >
-                        {actionIP === newIP.trim() ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Lock className="w-4 h-4" />}
+                        {actionIP === newIP.trim() ? <Spinner className="w-4 h-4" /> : <Lock className="w-4 h-4" />}
                         Bloquear
                       </button>
                     </div>
@@ -4678,7 +4679,7 @@ export function SecuritySection({ sites }: { sites: DirectAdminWebsite[] }) {
                                   disabled={actionIP === entry.ip}
                                   className="text-xs font-bold text-red-600 hover:underline disabled:opacity-50 flex items-center gap-1 ml-auto"
                                 >
-                                  {actionIP === entry.ip ? <RefreshCw className="w-3 h-3 animate-spin" /> : <Trash2 className="w-3 h-3" />}
+                                  {actionIP === entry.ip ? <Spinner className="w-3 h-3" /> : <Trash2 className="w-3 h-3" />}
                                   Desbloquear
                                 </button>
                               </td>
@@ -4775,7 +4776,7 @@ export function SecuritySection({ sites }: { sites: DirectAdminWebsite[] }) {
                             modsecOn ? 'bg-red-100 text-red-700 hover:bg-red-200' : 'bg-green-100 text-green-700 hover:bg-green-200'
                           }`}
                         >
-                          {modsecLoading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Shield className="w-4 h-4" />}
+                          {modsecLoading ? <Spinner className="w-4 h-4" /> : <Shield className="w-4 h-4" />}
                           {modsecOn ? 'Desactivar' : 'Activar'}
                         </button>
                       )}
@@ -4800,7 +4801,7 @@ export function SecuritySection({ sites }: { sites: DirectAdminWebsite[] }) {
                     <form onSubmit={handleSaveBfConfig} className="space-y-4">
                       {bfLoading ? (
                         <div className="py-4 text-center">
-                          <RefreshCw className="w-5 h-5 animate-spin text-gray-400 mx-auto mb-1" />
+                          <Spinner className="w-5 h-5 mx-auto mb-1" />
                           <p className="text-xs text-gray-400">A carregar configurações...</p>
                         </div>
                       ) : (
@@ -4876,7 +4877,7 @@ export function SecuritySection({ sites }: { sites: DirectAdminWebsite[] }) {
                               disabled={bfSaving}
                               className="bg-red-600 hover:bg-red-700 text-white px-5 py-2.5 rounded text-sm font-bold flex items-center gap-2 disabled:opacity-50 transition-colors"
                             >
-                              {bfSaving ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Settings className="w-4 h-4" />}
+                              {bfSaving ? <Spinner className="w-4 h-4" /> : <Settings className="w-4 h-4" />}
                               Guardar Configurações
                             </button>
                           </div>
@@ -5303,7 +5304,7 @@ export function SSLSection({
               className="px-3 py-2.5 border border-gray-300 dark:border-zinc-600 rounded text-sm font-medium hover:bg-gray-50 dark:hover:bg-zinc-800 disabled:opacity-50 inline-flex items-center justify-center"
               aria-label="Sincronizar"
             >
-              <RefreshCw className={`w-4 h-4 ${loadingHosts ? 'animate-spin' : ''}`} />
+              {loadingHosts ? <Spinner className="w-4 h-4" /> : <RefreshCw className="w-4 h-4" />}
             </button>
           </div>
           <div className="flex flex-wrap items-center justify-end gap-3 ml-auto">
@@ -5326,7 +5327,7 @@ export function SSLSection({
                 disabled={issuing === `issueSSL-${filterDomain}`}
                 className="bg-green-50 border border-green-300 text-green-600 hover:bg-green-100 px-4 py-2 rounded text-sm font-bold disabled:opacity-50 inline-flex items-center gap-2"
               >
-                {issuing === `issueSSL-${filterDomain}` ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Lock className="w-4 h-4" />}
+                {issuing === `issueSSL-${filterDomain}` ? <Spinner className="w-4 h-4" /> : <Lock className="w-4 h-4" />}
                 Emitir SSL
               </button>
             ) : null}
@@ -5361,7 +5362,7 @@ export function SSLSection({
               disabled={bulkIssuing || !hosts.length}
               className="bg-green-50 border border-green-300 text-green-600 hover:bg-green-100 px-4 py-2 rounded text-sm font-bold disabled:opacity-50 inline-flex items-center gap-2"
             >
-              {bulkIssuing ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Lock className="w-4 h-4" />}
+              {bulkIssuing ? <Spinner className="w-4 h-4" /> : <Lock className="w-4 h-4" />}
               Emitir em massa
             </button>
           </div>
@@ -5395,7 +5396,7 @@ export function SSLSection({
               {loadingHosts && !hosts.length && (
                 <tr>
                   <td colSpan={5} className="px-4 py-8 text-center text-gray-500">
-                    <RefreshCw className="w-4 h-4 animate-spin inline mr-2" />
+                    <Spinner className="w-4 h-4 inline mr-2" />
                     A carregar domínios e subdomínios...
                   </td>
                 </tr>
@@ -5630,7 +5631,7 @@ export function SSLViewSection({
 
         {loading && (
           <div className="py-12 text-center text-gray-500">
-            <RefreshCw className="w-6 h-6 animate-spin inline mr-2" />
+            <Spinner className="w-6 h-6 inline mr-2" />
             A carregar certificado...
           </div>
         )}
@@ -5737,7 +5738,7 @@ export function APIConfigSection() {
           <p className="text-sm text-gray-500 mb-4">Gere um token para aceder à API do DirectAdmin externamente.</p>
           <button onClick={handleGenerate} disabled={generating}
             className="bg-green-50 border border-green-300 text-green-600 hover:bg-green-100 px-5 py-2.5 rounded text-sm font-bold transition-all disabled:opacity-50 flex items-center gap-2 mb-4">
-            {generating ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Key className="w-4 h-4" />} Gerar Token
+            {generating ? <Spinner className="w-4 h-4" /> : <Key className="w-4 h-4" />} Gerar Token
           </button>
           {token && (
             <div className="bg-gray-50 border border-gray-200 rounded p-3 flex items-center gap-2">
@@ -5762,10 +5763,10 @@ export function APIConfigSection() {
               <h3 className="font-bold text-gray-900">Estado do Servidor</h3>
             </div>
             <button onClick={loadStatus} disabled={loadingStatus} className="text-gray-500 hover:text-gray-700">
-              <RefreshCw className={`w-4 h-4 ${loadingStatus ? 'animate-spin' : ''}`} />
+              {loadingStatus ? <Spinner className="w-4 h-4" /> : <RefreshCw className="w-4 h-4" />}
             </button>
           </div>
-          {loadingStatus ? <div className="py-8 text-center"><RefreshCw className="w-6 h-6 animate-spin text-gray-400 mx-auto" /></div> : serverStatus ? (
+          {loadingStatus ? <div className="py-8 text-center"><Spinner className="w-6 h-6 mx-auto" /></div> : serverStatus ? (
             <div className="space-y-3">
               {Object.entries(serverStatus).filter(([k]) => !['status', 'error_message', 'source'].includes(k)).slice(0, 8).map(([key, val]) => (
                 <div key={key} className="flex justify-between items-center py-2 border-b border-gray-50">
@@ -5810,7 +5811,7 @@ export function ListSubdomainsSection({ sites }: { sites: DirectAdminWebsite[] }
             {sites.map(s => <option key={s.domain} value={s.domain}>{s.domain}</option>)}
           </select>
         </div>
-        {loading ? <div className="py-12 text-center"><RefreshCw className="w-8 h-8 animate-spin text-gray-400 mx-auto" /></div> : subdomains.length > 0 ? (
+        {loading ? <div className="py-12 text-center"><Spinner className="w-8 h-8 mx-auto" /></div> : subdomains.length > 0 ? (
           <table className="w-full text-sm">
             <thead><tr className="text-left text-xs font-bold text-gray-500 uppercase border-b"><th className="px-4 py-3">Subdomain</th><th className="px-4 py-3">Domain</th><th className="px-4 py-3">Path</th></tr></thead>
             <tbody>{subdomains.map((s, i) => (
@@ -5879,7 +5880,7 @@ export function ModifyWebsiteSection({ sites, packages }: { sites: DirectAdminWe
         </div>
         {msg && <div className={`mb-4 px-4 py-2.5 rounded text-sm font-medium ${msg.includes('success') ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-700 border border-red-200'}`}>{msg}</div>}
         <button onClick={handleModify} disabled={saving || !selectedDomain} className="bg-green-50 border border-green-300 text-green-600 hover:bg-green-100 px-5 py-2.5 rounded text-sm font-bold transition-all disabled:opacity-50 flex items-center gap-2">
-          {saving ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Edit className="w-4 h-4" />} Modify Website
+          {saving ? <Spinner className="w-4 h-4" /> : <Edit className="w-4 h-4" />} Modify Website
         </button>
       </div>
     </div>
@@ -6004,7 +6005,7 @@ export function DeleteWebsiteSection({ sites, onRefresh }: { sites: DirectAdminW
               <td className="px-4 py-3 text-gray-600">{s.owner}</td>
               <td className="px-4 py-3">
                 <button onClick={() => handleDelete(s.domain)} disabled={deleting === s.domain} className="bg-red-50 border border-red-300 text-red-600 hover:bg-red-100 px-3 py-1.5 rounded text-xs font-bold transition-all disabled:opacity-50 flex items-center gap-1">
-                  {deleting === s.domain ? <RefreshCw className="w-3 h-3 animate-spin" /> : <Trash2 className="w-3 h-3" />} Delete
+                  {deleting === s.domain ? <Spinner className="w-3 h-3" /> : <Trash2 className="w-3 h-3" />} Delete
                 </button>
               </td>
             </tr>
@@ -6052,7 +6053,7 @@ export function WPPluginsSection({ sites }: { sites: DirectAdminWebsite[] }) {
           </select>
         </div>
         {msg && <div className={`mb-4 px-4 py-2.5 rounded text-sm font-medium ${msg.includes('!') && !msg.includes('Error') ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-700 border border-red-200'}`}>{msg}</div>}
-        {loading ? <div className="py-12 text-center"><RefreshCw className="w-8 h-8 animate-spin text-gray-400 mx-auto" /></div> : plugins.length > 0 ? (
+        {loading ? <div className="py-12 text-center"><Spinner className="w-8 h-8 mx-auto" /></div> : plugins.length > 0 ? (
           <div className="space-y-2">{plugins.map((p, i) => (
             <div key={i} className="flex items-center justify-between p-3 border border-gray-200 rounded hover:bg-gray-50">
               <div className="flex items-center gap-3">
@@ -6061,7 +6062,7 @@ export function WPPluginsSection({ sites }: { sites: DirectAdminWebsite[] }) {
               </div>
               <button onClick={() => handleToggle(p.name || p.pluginName, !p.active)} disabled={toggling === (p.name || p.pluginName)}
                 className={`px-3 py-1.5 rounded text-xs font-bold transition-all ${p.active ? 'bg-red-100 text-red-700 hover:bg-red-200' : 'bg-green-100 text-green-700 hover:bg-green-200'}`}>
-                {toggling === (p.name || p.pluginName) ? <RefreshCw className="w-3 h-3 animate-spin" /> : p.active ? 'Deactivate' : 'Activate'}
+                {toggling === (p.name || p.pluginName) ? <Spinner className="w-3 h-3" /> : p.active ? 'Deactivate' : 'Activate'}
               </button>
             </div>
           ))}</div>
@@ -6108,12 +6109,12 @@ export function WPRestoreBackupSection({ sites }: { sites: DirectAdminWebsite[] 
           </select>
         </div>
         {msg && <div className={`mb-4 px-4 py-2.5 rounded text-sm font-medium ${msg.includes('success') ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-700 border border-red-200'}`}>{msg}</div>}
-        {loading ? <div className="py-12 text-center"><RefreshCw className="w-8 h-8 animate-spin text-gray-400 mx-auto" /></div> : backups.length > 0 ? (
+        {loading ? <div className="py-12 text-center"><Spinner className="w-8 h-8 mx-auto" /></div> : backups.length > 0 ? (
           <div className="space-y-2">{backups.map((b, i) => (
             <div key={i} className="flex items-center justify-between p-3 border border-gray-200 rounded hover:bg-gray-50">
               <div className="flex items-center gap-3"><Download className="w-5 h-5 text-gray-400" /><span className="font-mono text-sm">{b}</span></div>
               <button onClick={() => handleRestore(b)} disabled={restoring === b} className="bg-green-50 border border-green-300 text-green-600 hover:bg-green-100 px-3 py-1.5 rounded text-xs font-bold transition-all disabled:opacity-50 flex items-center gap-1">
-                {restoring === b ? <RefreshCw className="w-3 h-3 animate-spin" /> : <RotateCcw className="w-3 h-3" />} Restore
+                {restoring === b ? <Spinner className="w-3 h-3" /> : <RotateCcw className="w-3 h-3" />} Restore
               </button>
             </div>
           ))}</div>
@@ -6158,7 +6159,7 @@ export function WPRemoteBackupSection({ sites }: { sites: DirectAdminWebsite[] }
         </div>
         {msg && <div className={`mb-4 px-4 py-2.5 rounded text-sm font-medium ${msg.includes('initiated') ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-700 border border-red-200'}`}>{msg}</div>}
         <button onClick={handleCreate} disabled={creating || !selectedDomain} className="bg-green-50 border border-green-300 text-green-600 hover:bg-green-100 px-5 py-2.5 rounded text-sm font-bold transition-all disabled:opacity-50 flex items-center gap-2">
-          {creating ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />} Create Remote Backup
+          {creating ? <Spinner className="w-4 h-4" /> : <Upload className="w-4 h-4" />} Create Remote Backup
         </button>
       </div>
     </div>
@@ -6204,7 +6205,7 @@ export function DNSNameserverSection({ sites }: { sites: DirectAdminWebsite[] })
         </div>
         {msg && <div className={`mb-4 px-4 py-2.5 rounded text-sm font-medium ${msg.includes('created') ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-700 border border-red-200'}`}>{msg}</div>}
         <button onClick={handleCreate} disabled={saving || !selectedDomain} className="bg-green-50 border border-green-300 text-green-600 hover:bg-green-100 px-5 py-2.5 rounded text-sm font-bold transition-all disabled:opacity-50 flex items-center gap-2">
-          {saving ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Server className="w-4 h-4" />} Create Nameservers
+          {saving ? <Spinner className="w-4 h-4" /> : <Server className="w-4 h-4" />} Create Nameservers
         </button>
       </div>
     </div>
@@ -6381,7 +6382,7 @@ export function NameserverManagementSection({
           disabled={saving || (mode === 'custom' && (!selectedDomain || !ns1IP || !ns2IP))}
           className={panelBtnPrimary}
         >
-          {saving ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Settings className="h-4 w-4" />}
+          {saving ? <Spinner className="h-4 w-4" /> : <Settings className="h-4 w-4" />}
           {mode === 'default' ? 'Activar DNS Visual Design' : 'Criar nameservers'}
         </button>
       </div>
@@ -6415,7 +6416,7 @@ export function DNSDefaultNSSection() {
         </div>
         {msg && <div className={`mb-4 px-4 py-2.5 rounded text-sm font-medium ${msg.includes('configured') ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-700 border border-red-200'}`}>{msg}</div>}
         <button onClick={handleSave} disabled={saving || !ns1 || !ns2} className="bg-green-50 border border-green-300 text-green-600 hover:bg-green-100 px-5 py-2.5 rounded text-sm font-bold transition-all disabled:opacity-50 flex items-center gap-2">
-          {saving ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Settings className="w-4 h-4" />} Save Configuration
+          {saving ? <Spinner className="w-4 h-4" /> : <Settings className="w-4 h-4" />} Save Configuration
         </button>
       </div>
     </div>
@@ -6449,7 +6450,7 @@ export function DNSCreateZoneSection({ sites }: { sites: DirectAdminWebsite[] })
             </select>
           </div>
           <button onClick={handleCreate} disabled={saving || !domain} className="bg-green-50 border border-green-300 text-green-600 hover:bg-green-100 px-5 py-2.5 rounded text-sm font-bold transition-all disabled:opacity-50 flex items-center gap-2">
-            {saving ? <RefreshCw className="w-4 h-4 animate-spin" /> : <PlusCircle className="w-4 h-4" />} Create Zone
+            {saving ? <Spinner className="w-4 h-4" /> : <PlusCircle className="w-4 h-4" />} Create Zone
           </button>
         </div>
         {msg && <div className={`px-4 py-2.5 rounded text-sm font-medium ${msg.includes('created') ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-700 border border-red-200'}`}>{msg}</div>}
@@ -6482,7 +6483,7 @@ export function DNSDeleteZoneSection({ sites }: { sites: DirectAdminWebsite[] })
             </select>
           </div>
           <button onClick={handleDelete} disabled={deleting || !domain} className="bg-red-50 border border-red-300 text-red-600 hover:bg-red-100 px-5 py-2.5 rounded text-sm font-bold transition-all disabled:opacity-50 flex items-center gap-2">
-            {deleting ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />} Delete Zone
+            {deleting ? <Spinner className="w-4 h-4" /> : <Trash2 className="w-4 h-4" />} Delete Zone
           </button>
         </div>
         {msg && <div className={`px-4 py-2.5 rounded text-sm font-medium ${msg.includes('deleted') ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-700 border border-red-200'}`}>{msg}</div>}
@@ -6523,7 +6524,7 @@ export function CloudFlareSection({ sites }: { sites: DirectAdminWebsite[] }) {
         </div>
         {msg && <div className={`mb-4 px-4 py-2.5 rounded text-sm font-medium ${msg.includes('configured') ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-700 border border-red-200'}`}>{msg}</div>}
         <button onClick={handleSave} disabled={saving || !selectedDomain || !email || !apiKey} className="bg-green-50 border border-green-300 text-green-600 hover:bg-green-100 px-5 py-2.5 rounded text-sm font-bold transition-all disabled:opacity-50 flex items-center gap-2">
-          {saving ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Cloud className="w-4 h-4" />} Configure CloudFlare
+          {saving ? <Spinner className="w-4 h-4" /> : <Cloud className="w-4 h-4" />} Configure CloudFlare
         </button>
       </div>
     </div>
@@ -6557,7 +6558,7 @@ export function DNSResetSection({ sites }: { sites: DirectAdminWebsite[] }) {
             </select>
           </div>
           <button onClick={handleReset} disabled={resetting || !domain} className="bg-red-50 border border-red-300 text-red-600 hover:bg-red-100 px-5 py-2.5 rounded text-sm font-bold transition-all disabled:opacity-50 flex items-center gap-2">
-            {resetting ? <RefreshCw className="w-4 h-4 animate-spin" /> : <RotateCcw className="w-4 h-4" />} Reset DNS
+            {resetting ? <Spinner className="w-4 h-4" /> : <RotateCcw className="w-4 h-4" />} Reset DNS
           </button>
         </div>
         {msg && <div className={`px-4 py-2.5 rounded text-sm font-medium ${msg.includes('reset') ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-700 border border-red-200'}`}>{msg}</div>}
@@ -6596,12 +6597,12 @@ export function EmailDeleteSection({ sites }: { sites: DirectAdminWebsite[] }) {
           </select>
         </div>
         {msg && <div className={`mb-4 px-4 py-2.5 rounded text-sm font-medium ${msg.includes('deleted') ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-700 border border-red-200'}`}>{msg}</div>}
-        {loading ? <div className="py-8 text-center"><RefreshCw className="w-6 h-6 animate-spin text-gray-400 mx-auto" /></div> : emails.length > 0 ? (
+        {loading ? <div className="py-8 text-center"><Spinner className="w-6 h-6 mx-auto" /></div> : emails.length > 0 ? (
           <div className="space-y-2">{emails.map((em, i) => (
             <div key={i} className="flex items-center justify-between p-3 border border-gray-200 rounded hover:bg-gray-50">
               <div className="flex items-center gap-3"><Mail className="w-5 h-5 text-red-500" /><span className="font-bold text-sm">{em.email}</span></div>
               <button onClick={() => handleDelete(em.email)} disabled={deleting === em.email} className="bg-red-50 border border-red-300 text-red-600 hover:bg-red-100 px-3 py-1.5 rounded text-xs font-bold transition-all disabled:opacity-50 flex items-center gap-1">
-                {deleting === em.email ? <RefreshCw className="w-3 h-3 animate-spin" /> : <Trash2 className="w-3 h-3" />} Delete
+                {deleting === em.email ? <Spinner className="w-3 h-3" /> : <Trash2 className="w-3 h-3" />} Delete
               </button>
             </div>
           ))}</div>
@@ -6641,7 +6642,7 @@ export function EmailLimitsSection({ sites }: { sites: DirectAdminWebsite[] }) {
           </select>
         </div>
         {msg && <div className={`mb-4 px-4 py-2.5 rounded text-sm font-medium ${msg.includes('updated') ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-700 border border-red-200'}`}>{msg}</div>}
-        {loading ? <div className="py-8 text-center"><RefreshCw className="w-6 h-6 animate-spin text-gray-400 mx-auto" /></div> : emails.length > 0 ? (
+        {loading ? <div className="py-8 text-center"><Spinner className="w-6 h-6 mx-auto" /></div> : emails.length > 0 ? (
           <div className="space-y-2">{emails.map((em, i) => (
             <div key={i} className="flex items-center justify-between p-3 border border-gray-200 rounded hover:bg-gray-50">
               <div className="flex items-center gap-3"><Mail className="w-5 h-5 text-gray-400" /><span className="font-bold text-sm">{em.email}</span></div>
@@ -6697,7 +6698,7 @@ export function EmailForwardingSection({ sites }: { sites: DirectAdminWebsite[] 
           </select>
         </div>
         {msg && <div className="mb-4 px-4 py-2.5 rounded text-sm font-medium bg-red-50 text-red-700 border border-red-200">{msg}</div>}
-        {loading ? <div className="py-8 text-center"><RefreshCw className="w-6 h-6 animate-spin text-gray-400 mx-auto" /></div> : emails.length > 0 ? (
+        {loading ? <div className="py-8 text-center"><Spinner className="w-6 h-6 mx-auto" /></div> : emails.length > 0 ? (
           <div className="space-y-2">{emails.map((em, i) => (
             <div key={i} className="border border-gray-200 rounded p-3 hover:bg-gray-50">
               <div className="flex items-center justify-between cursor-pointer" onClick={() => loadForwards(em.email)}>
@@ -6751,7 +6752,7 @@ export function CatchAllEmailSection({ sites }: { sites: DirectAdminWebsite[] })
             </select>
           </div>
           <div><label className="text-xs font-bold text-gray-600 uppercase block mb-1.5">Catch-All Email</label>
-            {loading ? <div className="py-2"><RefreshCw className="w-4 h-4 animate-spin text-gray-400" /></div> :
+            {loading ? <div className="py-2"><Spinner className="w-4 h-4" /></div> :
               <input value={catchAll} onChange={(e) => setCatchAll(e.target.value)} placeholder="admin@domain.com" className="w-full px-3 py-2.5 border border-gray-300 rounded text-sm" />}
           </div>
         </div>
@@ -6798,7 +6799,7 @@ export function PatternForwardingSection({ sites }: { sites: DirectAdminWebsite[
         </div>
         {msg && <div className="mb-4 px-4 py-2.5 rounded text-sm font-medium bg-red-50 text-red-700 border border-red-200">{msg}</div>}
         <button onClick={handleAdd} disabled={!selectedDomain || !pattern || !destination} className="bg-green-50 border border-green-300 text-green-600 hover:bg-green-100 px-5 py-2.5 rounded text-sm font-bold transition-all disabled:opacity-50 mb-4">Add Pattern</button>
-        {loading ? <div className="py-4 text-center"><RefreshCw className="w-6 h-6 animate-spin text-gray-400 mx-auto" /></div> : patterns.length > 0 && (
+        {loading ? <div className="py-4 text-center"><Spinner className="w-6 h-6 mx-auto" /></div> : patterns.length > 0 && (
           <div className="space-y-2">{patterns.map((p, i) => <div key={i} className="flex items-center gap-3 p-2 bg-gray-50 rounded text-sm"><span className="font-mono">{p.pattern || p.source}</span><ArrowRight className="w-4 h-4 text-gray-400" /><span>{p.destination || p.target}</span></div>)}</div>
         )}
       </div>
@@ -6838,11 +6839,11 @@ export function PlusAddressingSection({ sites }: { sites: DirectAdminWebsite[] }
           </div>
           {selectedDomain && !loading && (
             <button onClick={handleToggle} disabled={toggling} className={`px-4 py-2.5 rounded text-sm font-bold transition-all ${enabled ? 'bg-red-100 text-red-700 hover:bg-red-200' : 'bg-green-100 text-green-700 hover:bg-green-200'}`}>
-              {toggling ? <RefreshCw className="w-4 h-4 animate-spin" /> : enabled ? 'Disable' : 'Enable'}
+              {toggling ? <Spinner className="w-4 h-4" /> : enabled ? 'Disable' : 'Enable'}
             </button>
           )}
         </div>
-        {loading && <div className="py-4"><RefreshCw className="w-6 h-6 animate-spin text-gray-400 mx-auto" /></div>}
+        {loading && <div className="py-4"><Spinner className="w-6 h-6 mx-auto" /></div>}
         {msg && <div className="px-4 py-2.5 rounded text-sm font-medium bg-red-50 text-red-700 border border-red-200">{msg}</div>}
         {selectedDomain && !loading && <p className="text-sm text-gray-600">Plus-addressing is currently <span className={`font-bold ${enabled ? 'text-green-600' : 'text-red-600'}`}>{enabled ? 'enabled' : 'disabled'}</span> for {selectedDomain}.</p>}
       </div>
@@ -6893,7 +6894,7 @@ export function EmailChangePasswordSection({ sites }: { sites: DirectAdminWebsit
             </select>
           </div>
           <div><label className="text-xs font-bold text-gray-600 uppercase block mb-1.5">Email Account</label>
-            {loading ? <div className="py-2"><RefreshCw className="w-4 h-4 animate-spin text-gray-400" /></div> :
+            {loading ? <div className="py-2"><Spinner className="w-4 h-4" /></div> :
               <select value={selectedEmail} onChange={(e) => setSelectedEmail(e.target.value)} className="w-full px-3 py-2.5 border border-gray-300 rounded text-sm">
                 <option value="">Select...</option>{emails.map(em => <option key={em.email} value={em.email}>{em.email}</option>)}
               </select>}
@@ -6902,7 +6903,7 @@ export function EmailChangePasswordSection({ sites }: { sites: DirectAdminWebsit
         </div>
         {msg && <div className={`mb-4 px-4 py-2.5 rounded text-sm font-medium ${msg.includes('changed') ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-700 border border-red-200'}`}>{msg}</div>}
         <button onClick={handleChange} disabled={saving || !selectedEmail || !newPass} className="bg-green-50 border border-green-300 text-green-600 hover:bg-green-100 px-5 py-2.5 rounded text-sm font-bold transition-all disabled:opacity-50 flex items-center gap-2">
-          {saving ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Key className="w-4 h-4" />} Change Password
+          {saving ? <Spinner className="w-4 h-4" /> : <Key className="w-4 h-4" />} Change Password
         </button>
       </div>
     </div>
@@ -7077,7 +7078,7 @@ export function DKIMManagerSection({ sites }: { sites: DirectAdminWebsite[] }) {
 
       {loading && selectedDomain && (
         <div className="bg-white rounded-lg border border-gray-200 p-8 text-center shadow-sm">
-          <RefreshCw className="w-8 h-8 animate-spin text-gray-400 mx-auto" />
+          <Spinner className="w-8 h-8 mx-auto" />
           <p className="text-sm text-gray-500 mt-3">A carregar chaves DKIM...</p>
         </div>
       )}
@@ -7104,7 +7105,7 @@ export function DKIMManagerSection({ sites }: { sites: DirectAdminWebsite[] }) {
                 disabled={enabling}
                 className="bg-green-50 border border-green-300 text-green-600 hover:bg-green-100 px-4 py-2 rounded text-sm font-bold transition-colors disabled:opacity-50 flex items-center gap-2"
               >
-                {enabling ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Key className="w-4 h-4" />}
+                {enabling ? <Spinner className="w-4 h-4" /> : <Key className="w-4 h-4" />}
                 {dkim?.enabled ? 'Regenerar Chaves' : 'Gerar Chaves'}
               </button>
               {dkim?.enabled && (
@@ -7223,7 +7224,7 @@ export function DKIMManagerSection({ sites }: { sites: DirectAdminWebsite[] }) {
             disabled={enabling}
             className="bg-green-50 border border-green-300 text-green-600 hover:bg-green-100 px-6 py-3 rounded text-sm font-bold transition-colors disabled:opacity-50 flex items-center gap-2 mx-auto"
           >
-            {enabling ? <RefreshCw className="w-5 h-5 animate-spin" /> : <Key className="w-5 h-5" />}
+            {enabling ? <Spinner className="w-5 h-5" /> : <Key className="w-5 h-5" />}
             Gerar Chaves DKIM
           </button>
         </div>
@@ -7394,7 +7395,7 @@ export function GitDeploySection() {
               onClick={() => loadStatus()}
               className="flex items-center gap-2 rounded bg-gray-100 px-3 py-1.5 text-xs font-bold text-gray-700 transition-all hover:bg-gray-200"
             >
-              <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} /> Actualizar
+              {loading ? <Spinner className="h-3.5 w-3.5" /> : <RefreshCw className="h-3.5 w-3.5" />} Actualizar
             </button>
             <span className={`text-[10px] font-bold px-2 py-1 rounded-full border ${isLocal ? 'bg-blue-50 text-blue-700 border-blue-200' : 'bg-green-50 text-green-700 border-green-200'}`}>
               {isLocal ? '⚡ Local Dev' : '☁ Produção'}
@@ -7434,11 +7435,11 @@ export function GitDeploySection() {
             <div className="flex gap-3 justify-start">
               <button onClick={handleDeploy} disabled={deploying || !commitMsg.trim()}
                 className="bg-transparent border border-gray-300 text-gray-700 hover:bg-gray-50 hover:text-gray-900 py-2 px-6 rounded text-sm font-bold transition-all disabled:opacity-50 flex items-center gap-2">
-                {deploying ? <><RefreshCw className="w-4 h-4 animate-spin" /> Push...</> : <><Upload className="w-4 h-4" /> Git Push</>}
+                {deploying ? <><Spinner className="w-4 h-4" /> Push...</> : <><Upload className="w-4 h-4" /> Git Push</>}
               </button>
               <button onClick={handleDeployAll} disabled={deploying || !commitMsg.trim()}
                 className="bg-red-50 border border-red-300 text-red-600 hover:bg-red-100 py-2 px-6 rounded text-sm font-bold transition-all disabled:opacity-50 flex items-center gap-2">
-                {deploying ? <><RefreshCw className="w-4 h-4 animate-spin" /> Deploy...</> : <><Rocket className="w-4 h-4" /> Deploy Simultâneo</>}
+                {deploying ? <><Spinner className="w-4 h-4" /> Deploy...</> : <><Rocket className="w-4 h-4" /> Deploy Simultâneo</>}
               </button>
             </div>
             <p className="text-xs text-gray-500 text-left">
@@ -7450,11 +7451,11 @@ export function GitDeploySection() {
             <div className="flex gap-3 justify-start">
               <button onClick={handleDeploy} disabled={deploying}
                 className="bg-transparent border border-gray-300 text-gray-700 hover:bg-gray-50 hover:text-gray-900 py-2 px-6 rounded text-sm font-bold transition-all disabled:opacity-50 flex items-center gap-2">
-                {deploying ? <><RefreshCw className="w-4 h-4 animate-spin" /> Deploy...</> : <><Upload className="w-4 h-4" /> Vercel Deploy</>}
+                {deploying ? <><Spinner className="w-4 h-4" /> Deploy...</> : <><Upload className="w-4 h-4" /> Vercel Deploy</>}
               </button>
               <button onClick={handleDeployAll} disabled={deploying}
                 className="bg-red-50 border border-red-300 text-red-600 hover:bg-red-100 py-2 px-6 rounded text-sm font-bold transition-all disabled:opacity-50 flex items-center gap-2">
-                {deploying ? <><RefreshCw className="w-4 h-4 animate-spin" /> Deploy...</> : <><Rocket className="w-4 h-4" /> Deploy Simultâneo</>}
+                {deploying ? <><Spinner className="w-4 h-4" /> Deploy...</> : <><Rocket className="w-4 h-4" /> Deploy Simultâneo</>}
               </button>
             </div>
             <p className="text-xs text-gray-500 text-left">
@@ -7827,7 +7828,7 @@ export function PackagesSection({
                 title="Actualizar"
                 className={panelBtnSecondary}
               >
-                <RefreshCw className={`h-4 w-4 ${loadingLive ? 'animate-spin' : ''}`} />
+                {loadingLive ? <Spinner className="h-4 w-4" /> : <RefreshCw className="h-4 w-4" />}
               </button>
             </>
           ) : null}
@@ -8520,7 +8521,7 @@ export function FileManagerSection({ domain, sites, isActive = false }: {
             disabled={editing.saving}
             className={fmToolbarBtnGreen}
           >
-            {editing.saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
+            {editing.saving ? <Spinner className="w-4 h-4" /> : <Check className="w-4 h-4" />}
             Guardar
           </button>
         </div>
@@ -8762,7 +8763,7 @@ export function FileManagerSection({ domain, sites, isActive = false }: {
                         <div className="text-sm font-semibold text-gray-900 dark:text-zinc-100 flex items-center gap-2">
                           {uploadProgress.processing ? (
                             <>
-                              <Loader2 className="w-4 h-4 text-green-500 animate-spin" />
+                              <Spinner className="w-4 h-4" />
                               A processar no servidor... ({uploadProgress.current} de {uploadProgress.total})
                             </>
                           ) : (
@@ -8788,7 +8789,7 @@ export function FileManagerSection({ domain, sites, isActive = false }: {
                 </td></tr>
               ) : loading ? (
                 <tr><td colSpan={5} className="px-6 py-12 text-center text-gray-400">
-                  <Loader2 className="w-8 h-8 animate-spin mx-auto text-red-500 mb-3" />
+                  <Spinner className="w-8 h-8 mx-auto mb-3" />
                   <span className="font-medium text-sm text-gray-500 dark:text-zinc-400">A carregar directório...</span>
                 </td></tr>
               ) : sortedFiles.length === 0 ? (
@@ -8913,7 +8914,7 @@ export function FileManagerSection({ domain, sites, isActive = false }: {
                 <div className="flex justify-end gap-2">
                   <button type="button" disabled={fmDialogBusy} onClick={() => setFmDialog(null)} className={panelBtnSecondary}>Cancelar</button>
                   <button type="button" disabled={fmDialogBusy} onClick={() => void confirmDelete()} className={panelBtnPrimary}>
-                    {fmDialogBusy ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+                    {fmDialogBusy ? <Spinner className="w-4 h-4" /> : null}
                     {fmDialog.inTrash ? 'Eliminar' : 'Mover para lixeira'}
                   </button>
                 </div>
@@ -8959,7 +8960,7 @@ export function FileManagerSection({ domain, sites, isActive = false }: {
                 <div className="flex justify-end gap-2">
                   <button type="button" disabled={fmDialogBusy} onClick={() => setFmDialog(null)} className={panelBtnSecondary}>Cancelar</button>
                   <button type="button" disabled={fmDialogBusy || !fmDialogInput.trim()} onClick={() => void confirmFmDialog()} className={fmToolbarBtnGreen}>
-                    {fmDialogBusy ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+                    {fmDialogBusy ? <Spinner className="w-4 h-4" /> : null}
                     Confirmar
                   </button>
                 </div>
@@ -9485,7 +9486,7 @@ export function WordPressInstallSection({ sites, onRefresh }: { sites: DirectAdm
               >
                 {installing ? (
                   <>
-                    <RefreshCw className="w-5 h-5 animate-spin" />
+                    <Spinner className="w-5 h-5" />
                     Instalando WordPress...
                   </>
                 ) : (
@@ -9718,7 +9719,7 @@ export function WPBackupSection({ sites }: { sites: DirectAdminWebsite[] }) {
             >
               {backingUp ? (
                 <>
-                  <RefreshCw className="w-5 h-5 animate-spin" />
+                  <Spinner className="w-5 h-5" />
                   Fazendo Backup...
                 </>
               ) : (
@@ -10373,7 +10374,7 @@ export function DomainManagerSection({
               <Plus className="h-4 w-4" /> Adicionar domínio
             </button>
             <button type="button" onClick={() => void onRefresh?.()} disabled={loading} className={panelBtnSecondary}>
-              <RefreshCw className={cn('h-4 w-4', loading && 'animate-spin')} /> Actualizar
+              {loading ? <Spinner className="h-4 w-4" /> : <RefreshCw className="h-4 w-4" />} Actualizar
             </button>
           </div>
         </div>
@@ -10388,7 +10389,7 @@ export function DomainManagerSection({
 
       {((domainListMode === 'registrar' ? registrarListLoading : loading) && filteredDomains.length === 0) ? (
         <div className="flex justify-center py-16">
-          <RefreshCw className="h-6 w-6 animate-spin text-gray-400 dark:text-zinc-500" />
+          <Spinner className="h-6 w-6" />
         </div>
       ) : filteredDomains.length === 0 ? (
         <div className="rounded-lg border border-gray-200 bg-white py-16 text-center text-gray-500 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-500">
@@ -10585,7 +10586,7 @@ export function DomainManagerSection({
           <div className="flex items-center justify-between pt-4">
             <button onClick={handleCreate} disabled={!newDomain || !adminEmail || loading}
               className="border border-red-300 bg-red-600/10 text-red-600 hover:bg-red-600/15 px-6 py-3 rounded text-sm font-bold flex items-center gap-2 disabled:opacity-50 transition-colors shadow-sm">
-              {loading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
+              {loading ? <Spinner className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
               Criar domínio
             </button>
             <button onClick={() => setView('list')}
@@ -10647,7 +10648,7 @@ export function DomainManagerSection({
                       disabled={registrarLoading}
                       className={panelBtnPrimary}
                     >
-                      {registrarLoading ? <RefreshCw className="h-4 w-4 animate-spin" /> : <LockOpen className="h-4 w-4" />}
+                      {registrarLoading ? <Spinner className="h-4 w-4" /> : <LockOpen className="h-4 w-4" />}
                       Desbloquear
                     </button>
                   )}
@@ -10666,7 +10667,7 @@ export function DomainManagerSection({
                     disabled={registrarLoading}
                     className={panelBtnPrimary}
                   >
-                    {registrarLoading ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Key className="h-4 w-4" />}
+                    {registrarLoading ? <Spinner className="h-4 w-4" /> : <Key className="h-4 w-4" />}
                     Obter código
                   </button>
                   {authCode && (
@@ -10759,7 +10760,7 @@ export function DomainManagerSection({
                     </span>
                   )}
                 </span>
-                <RefreshCw className={`h-4 w-4 shrink-0 ${registrarLoading ? 'animate-spin' : ''}`} />
+                {registrarLoading ? <Spinner className="h-4 w-4 shrink-0" /> : <RefreshCw className="h-4 w-4 shrink-0" />}
               </button>
               <button
                 type="button"
@@ -10962,7 +10963,7 @@ function EmailCreateModal({ show, domain, onClose, onSuccess }: { show: boolean,
             disabled={loading}
             className="px-6 py-2 bg-indigo-50 border border-indigo-300 text-indigo-600 hover:bg-indigo-100 hover:text-indigo-700  rounded text-xs font-bold  transition-all flex items-center gap-2"
           >
-            {loading ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
+            {loading ? <Spinner className="w-3.5 h-3.5" /> : <Check className="w-3.5 h-3.5" />}
             Criar E-mail
           </button>
         </div>
@@ -11144,7 +11145,7 @@ function DomainCreateModal({
           {loading && (
             <div className="absolute inset-0 bg-white/80 flex items-center justify-center z-10">
               <div className="flex flex-col items-center gap-3">
-                <RefreshCw className="w-8 h-8 animate-spin text-red-600" />
+                <Spinner className="w-8 h-8" />
                 <span className="text-sm text-zinc-600 font-medium dark:text-zinc-300">
                   A criar domínio…
                 </span>
@@ -11254,7 +11255,7 @@ function DomainCreateModal({
             disabled={loading || !newDomain || !adminEmail}
             className={panelBtnPrimary}
           >
-            {loading ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+            {loading ? <Spinner className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
             Adicionar domínio
           </button>
         </div>
@@ -11326,7 +11327,7 @@ export function DeploySection({ sites }: { sites: DirectAdminWebsite[] }) {
         <button onClick={handleDeploy} disabled={deploying}
           className="bg-indigo-50 border border-indigo-300 text-indigo-600 hover:bg-indigo-100 hover:text-indigo-700  px-6 py-2.5 rounded text-sm font-bold flex items-center gap-2 disabled:opacity-50 transition-colors">
           {deploying
-            ? <><RefreshCw className="w-4 h-4 animate-spin" /> A fazer deploy...</>
+            ? <><Spinner className="w-4 h-4" /> A fazer deploy...</>
             : <><Upload className="w-4 h-4" /> Deploy</>
           }
         </button>
@@ -11550,7 +11551,7 @@ export function EmailImportSection({ sites }: { sites: DirectAdminWebsite[] }) {
           >
             {importing ? (
               <>
-                <RefreshCw className="w-4 h-4 animate-spin" />
+                <Spinner className="w-4 h-4" />
                 Importando...
               </>
             ) : (
@@ -11725,7 +11726,7 @@ export function SMTPConfigSection() {
           disabled={statusLoading}
           className={`${panelBtnSecondary} text-xs`}
         >
-          <RefreshCw className={cn('h-4 w-4', statusLoading && 'animate-spin')} />
+          {statusLoading ? <Spinner className="h-4 w-4" /> : <RefreshCw className="h-4 w-4" />}
           Actualizar
         </button>
       </div>
@@ -11956,7 +11957,7 @@ export function WatchdogSection() {
           disabled={status.loading}
           className="flex items-center gap-2 px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded font-medium transition-colors"
         >
-          <RefreshCw className={`w-4 h-4 ${status.loading ? 'animate-spin' : ''}`} />
+          {status.loading ? <Spinner className="w-4 h-4" /> : <RefreshCw className="w-4 h-4" />}
           Actualizar
         </button>
       </div>
@@ -12017,7 +12018,7 @@ export function WatchdogSection() {
           className="flex items-center gap-2 px-4 py-2 bg-red-50 border border-red-300 text-red-600 hover:bg-red-100 hover:text-red-700 disabled:bg-red-400  rounded font-medium transition-colors"
         >
           {actionLoading === 'restart' ? (
-            <Loader2 className="w-4 h-4 animate-spin" />
+            <Spinner className="w-4 h-4" />
           ) : (
             <RefreshCw className="w-4 h-4" />
           )}
@@ -12031,7 +12032,7 @@ export function WatchdogSection() {
             className="flex items-center gap-2 px-4 py-2 bg-blue-50 border border-blue-300 text-blue-600 hover:bg-blue-100 hover:text-blue-700 disabled:bg-blue-400  rounded font-medium transition-colors"
           >
             {actionLoading === 'install' ? (
-              <Loader2 className="w-4 h-4 animate-spin" />
+              <Spinner className="w-4 h-4" />
             ) : (
               <Shield className="w-4 h-4" />
             )}
@@ -12044,7 +12045,7 @@ export function WatchdogSection() {
             className="flex items-center gap-2 px-4 py-2 bg-gray-600 hover:bg-gray-700 disabled:bg-gray-400  rounded font-medium transition-colors"
           >
             {actionLoading === 'remove' ? (
-              <Loader2 className="w-4 h-4 animate-spin" />
+              <Spinner className="w-4 h-4" />
             ) : (
               <X className="w-4 h-4" />
             )}
@@ -12058,7 +12059,7 @@ export function WatchdogSection() {
           className="flex items-center gap-2 px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded font-medium transition-colors"
         >
           {actionLoading === 'logs' ? (
-            <Loader2 className="w-4 h-4 animate-spin" />
+            <Spinner className="w-4 h-4" />
           ) : (
             <FileText className="w-4 h-4" />
           )}
@@ -12139,7 +12140,7 @@ export function AuditSyncSection({ onRefresh }: { onRefresh: () => void }) {
           disabled={syncing}
           className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-xl font-semibold transition-all shadow-lg shadow-blue-200 disabled:opacity-50"
         >
-          {syncing ? <RefreshCw className="w-5 h-5 animate-spin" /> : <ShieldCheck className="w-5 h-5" />}
+          {syncing ? <Spinner className="w-5 h-5" /> : <ShieldCheck className="w-5 h-5" />}
           {syncing ? 'A Sincronizar...' : 'Executar Auditoria Completa'}
         </button>
       </div>

@@ -10,6 +10,7 @@ import {
 } from 'lucide-react'
 import Link from 'next/link'
 import { panelBtnPrimary, panelBtnSecondary, panelField } from '@/lib/panel-ui'
+import { Spinner } from '@/components/ui/spinner'
 import { EmailWebmailSection } from './EmailWebmailSection'
 import { AddEmailAccountModal } from '@/components/AddEmailAccountModal'
 import {
@@ -1266,17 +1267,17 @@ export function WebmailSection({
               </select>
 
               {loading && allAccounts.length === 0 && (
-                <Loader2 className="w-4 h-4 animate-spin text-red-600" />
+                <Spinner className="w-4 h-4" />
               )}
 
               {isAdmin && (
                 <button
                   onClick={handleSyncDirectAdmin}
                   disabled={syncing}
-                  className={`${panelBtnSecondary} px-2.5 ${syncing ? '[&_svg]:animate-spin' : ''}`}
+                  className={`${panelBtnSecondary} px-2.5`}
                   title="Sincronizar contas"
                 >
-                  <RefreshCw size={14} />
+                  {syncing ? <Spinner className="w-3.5 h-3.5" /> : <RefreshCw size={14} />}
                 </button>
               )}
 
@@ -1421,7 +1422,7 @@ export function WebmailSection({
               {iframeLoading && (
                 <div className="absolute inset-0 flex items-center justify-center bg-gray-50 z-10">
                   <div className="text-center">
-                    <Loader2 className="w-8 h-8 animate-spin text-red-600 mx-auto mb-3" />
+                    <Spinner className="w-8 h-8 mx-auto mb-3" />
                     <p className="text-gray-500 text-sm">A carregar Webmail...</p>
                   </div>
                 </div>
@@ -1460,7 +1461,7 @@ export function WebmailSection({
                   {syncingEmails && (
                     <span className="text-[10px] text-zinc-400">A actualizar…</span>
                   )}
-                  {loadingEmails && <Loader2 className="w-3.5 h-3.5 animate-spin text-red-600" />}
+                  {loadingEmails && <Spinner className="w-3.5 h-3.5" />}
                 </div>
 
                 {(selectedEmail || selectedEmails.size > 0) && (
@@ -1775,7 +1776,7 @@ export function WebmailSection({
                         />
                       ) : loadingEmailBody ? (
                         <div className="flex items-center justify-center h-full text-gray-400">
-                          <Loader2 className="w-6 h-6 animate-spin mr-2" />
+                          <Spinner className="w-6 h-6 mr-2" />
                           <span className="text-sm">A carregar conteúdo…</span>
                         </div>
                       ) : emailBodyError ? (
@@ -2005,7 +2006,7 @@ export function WebmailSection({
                 disabled={creatingEmail || !createEmailForm.user || !createEmailForm.password || !createEmailForm.domain}
                 className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded text-xs font-bold transition-all shadow-sm disabled:opacity-50 flex items-center gap-2"
               >
-                {creatingEmail ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
+                {creatingEmail ? <Spinner className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
                 {creatingEmail ? 'A criar...' : 'Criar E-mail'}
               </button>
             </div>
@@ -2639,7 +2640,7 @@ export function WebmailSection({
             <div className="p-6 space-y-4">
               {diagnosticoLoading && (
                 <div className="flex items-center justify-center gap-2 py-8">
-                  <Loader2 className="w-6 h-6 animate-spin text-cyan-600" />
+                  <Spinner className="w-6 h-6" />
                   <span className="text-gray-600">Verificando pastas IMAP...</span>
                 </div>
               )}
@@ -2740,7 +2741,7 @@ export function WebmailSection({
                   disabled={diagnosticoLoading}
                   className="px-4 py-2 bg-cyan-600 hover:bg-cyan-700 disabled:bg-gray-400 text-white rounded font-medium transition-colors flex items-center gap-2"
                 >
-                  {diagnosticoLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+                  {diagnosticoLoading ? <Spinner className="w-4 h-4" /> : <RefreshCw className="w-4 h-4" />}
                   {diagnosticoLoading ? 'Verificando...' : 'Verificar Novamente'}
                 </button>
               </div>
