@@ -49,8 +49,8 @@ const SidebarItem = ({ icon: Icon, label, href, active, onClick, subItems, isNew
                 href={href}
                 onClick={handleClick}
                 className={`flex items-center gap-3 px-4 py-3 rounded transition-all duration-200 group active:scale-[0.98] ${active && !hasSubItems
-                    ? 'bg-red-50 text-red-600 border-l-4 border-red-600 hover:bg-red-100'
-                    : 'text-gray-500 hover:bg-gray-50 hover:text-gray-900'
+                    ? 'bg-red-50 text-red-600 border-l-4 border-red-600 hover:bg-red-100 active:bg-red-200'
+                    : 'text-gray-500 hover:bg-gray-100 hover:text-gray-900 active:bg-gray-200'
                     }`}
             >
                 <div className={`w-8 h-8 flex items-center justify-center rounded ${isNew ? 'bg-indigo-50 text-indigo-600 border border-indigo-100' : ''}`}>

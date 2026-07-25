@@ -15,10 +15,10 @@ const panelBtnDark =
 
 /** Tema claro: fundo transparente com a cor. */
 export const panelBtnPrimary =
-  `${panelBtn} border border-red-300 bg-red-600/10 text-red-600 hover:bg-red-600/15 ${panelBtnDark}`;
+  `${panelBtn} border border-red-300 bg-red-600/10 text-red-600 hover:bg-red-600/25 active:bg-red-600/30 ${panelBtnDark}`;
 
 export const panelBtnSecondary =
-  `${panelBtn} border border-gray-200 bg-white text-gray-700 hover:bg-gray-50 ${panelBtnDark}`;
+  `${panelBtn} border border-gray-200 bg-white text-gray-700 hover:bg-gray-100 active:bg-gray-200 ${panelBtnDark}`;
 
 export const panelField =
   `${panelControlHeight} px-3 rounded border border-gray-300 text-sm bg-white text-gray-900 focus:outline-none focus:border-red-500 dark:border-zinc-700 dark:bg-transparent dark:text-zinc-100`;
@@ -37,7 +37,7 @@ export const panelDashboardGridCompact =
 
 /** Cartão de ferramenta do dashboard — contorno suave visível em fundo branco. */
 export const panelDashboardToolCard =
-  'relative group flex flex-col items-center justify-center p-3 md:p-5 bg-white rounded-xl border border-gray-200 shadow-sm hover:shadow-md hover:border-gray-300 transition-all cursor-pointer h-full min-h-[96px] md:min-h-[130px] dark:border-zinc-700 dark:bg-zinc-900 dark:hover:border-zinc-600';
+  'relative group flex flex-col items-center justify-center p-3 md:p-5 bg-white rounded-xl border border-gray-200 shadow-sm hover:bg-gray-100 hover:shadow-md hover:border-gray-300 active:bg-gray-200 transition-all cursor-pointer h-full min-h-[96px] md:min-h-[130px] dark:border-zinc-700 dark:bg-zinc-900 dark:hover:border-zinc-600 dark:hover:bg-zinc-800/60';
 
 /** Cartão compacto de ferramenta (dashboard cPanel). */
 export const panelDashboardToolCardCompact =
