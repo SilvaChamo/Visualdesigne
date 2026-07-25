@@ -1,8 +1,9 @@
-import { headers } from 'next/headers'
 import { redirect } from 'next/navigation'
-import { buildPanelLoginUrl } from '@/lib/panel-origin'
+import { buildPanelLoginUrl, getPublicSiteOrigin } from '@/lib/panel-origin'
 
-/** Legado — tudo passa por /login */
+/** Legado — tudo passa por /login. Só o path/query do destino importa
+ * (o redirect abaixo é sempre relativo), por isso a origem usada aqui é só
+ * um valor válido para construir a URL — não depende de cabeçalhos de proxy. */
 export default async function AuthLoginRedirect({
   searchParams,
 }: {
@@ -14,9 +15,6 @@ export default async function AuthLoginRedirect({
     const value = params[key]
     if (typeof value === 'string') qs.set(key, value)
   }
-  const headerStore = await headers()
-  const host = headerStore.get('x-forwarded-host') || headerStore.get('host') || 'localhost:3002'
-  const proto = headerStore.get('x-forwarded-proto') || 'http'
-  const dest = buildPanelLoginUrl(`${proto}://${host}`, qs)
+  const dest = buildPanelLoginUrl(getPublicSiteOrigin(), qs)
   redirect(`${dest.pathname}${dest.search}`)
 }

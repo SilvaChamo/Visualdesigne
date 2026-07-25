@@ -1,4 +1,3 @@
-import { headers } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/utils/supabase/server'
 import {
@@ -7,6 +6,7 @@ import {
   panelRouteFromPublicEntry,
   resolveInnerPanelPath,
   resolvePanelInnerRedirect,
+  getPublicSiteOrigin,
 } from '@/lib/panel-origin'
 import { profileAuthOrFilter } from '@/lib/profile-db'
 import { resolveUserRole } from '@/lib/user-roles'
@@ -28,10 +28,10 @@ export default async function PainelEntryPage({ params }: Props) {
     data: { user },
   } = await supabase.auth.getUser()
 
-  const headerStore = await headers()
-  const host = headerStore.get('x-forwarded-host') || headerStore.get('host') || 'localhost:3002'
-  const proto = headerStore.get('x-forwarded-proto') || 'http'
-  const requestUrl = `${proto}://${host}/`
+  // Origem explícita (NEXT_PUBLIC_SITE_URL), não cabeçalhos de proxy — atrás
+  // do Cloudflare + Apache, x-forwarded-host pode chegar duplicado
+  // ("visualdesignmoz.com, visualdesignmoz.com"), o que rebenta o new URL().
+  const requestUrl = `${getPublicSiteOrigin()}/`
 
   if (!user) {
     const login = buildPanelLoginUrl(requestUrl)

@@ -5,7 +5,7 @@ import { getAdminDaUsername } from '@/lib/directadmin-credentials';
 import { resolveDirectAdminLoginUsernameFast } from '@/lib/directadmin-access-target';
 import { daOneTimeLoginUrl } from '@/lib/da-api-ssh';
 import type { DirectAdminAccessTarget } from '@/lib/server-config';
-import { buildPanelLoginUrl } from '@/lib/panel-origin';
+import { buildPanelLoginUrl, getPublicSiteOrigin } from '@/lib/panel-origin';
 import { requireAdminOrReseller } from '@/lib/panel-api-auth';
 
 function readEnv(...keys: string[]): string {
@@ -39,8 +39,8 @@ function isBrowserNavigation(request: NextRequest): boolean {
   return dest === 'document' || dest === 'iframe';
 }
 
-function loginRedirect(request: NextRequest): NextResponse {
-  return NextResponse.redirect(buildPanelLoginUrl(request.nextUrl.origin), {
+function loginRedirect(_request: NextRequest): NextResponse {
+  return NextResponse.redirect(buildPanelLoginUrl(getPublicSiteOrigin()), {
     status: 307,
     headers: { 'Cache-Control': 'no-store' },
   });
@@ -75,7 +75,7 @@ export async function GET(request: NextRequest) {
       );
       if (browserNav) {
         return NextResponse.redirect(
-          new URL('/dashboard', request.nextUrl.origin),
+          new URL('/dashboard', getPublicSiteOrigin()),
           { status: 307 },
         );
       }
