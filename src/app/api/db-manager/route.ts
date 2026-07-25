@@ -32,8 +32,7 @@ import {
 
 export const dynamic = 'force-dynamic';
 
-async function resolveOwner(domain: string, explicitOwner?: string): Promise<string | null> {
-  if (explicitOwner?.trim()) return explicitOwner.trim().toLowerCase();
+async function resolveOwner(domain: string): Promise<string | null> {
   if (!domain) return null;
   const auth = await requireAdminOrReseller();
   if ('error' in auth) return null;
@@ -51,7 +50,7 @@ export async function GET(req: NextRequest) {
   const action = sp.get('action');
   const domain = sp.get('domain') || '';
   const database = sp.get('database') || '';
-  const owner = await resolveOwner(domain, sp.get('owner') || undefined);
+  const owner = await resolveOwner(domain);
   if (!owner) {
     return NextResponse.json({ success: false, error: 'Conta de hospedagem não encontrada.' }, { status: 400 });
   }
@@ -89,7 +88,7 @@ export async function POST(req: NextRequest) {
     const form = await req.formData();
     const domain = String(form.get('domain') || '');
     const database = String(form.get('database') || '');
-    const owner = await resolveOwner(domain, String(form.get('owner') || '') || undefined);
+    const owner = await resolveOwner(domain);
     const file = form.get('sqlfile');
     const clean = form.get('clean') === 'yes' || form.get('clean') === 'true';
     if (!owner || !database || !(file instanceof Blob)) {
@@ -112,7 +111,7 @@ export async function POST(req: NextRequest) {
 
   const action = String(body.action || '');
   const domain = String(body.domain || '');
-  const owner = await resolveOwner(domain, String(body.owner || '') || undefined);
+  const owner = await resolveOwner(domain);
   if (!owner) {
     return NextResponse.json({ success: false, error: 'Conta de hospedagem não encontrada.' }, { status: 400 });
   }

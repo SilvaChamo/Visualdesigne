@@ -331,7 +331,17 @@ export async function listMirrorPackages(
     }
   }
 
-  return all;
+  // `panel_packages` não tem coluna de dono — restringir aos pacotes já
+  // atribuídos a algum site do próprio revendedor, para não expor os
+  // pacotes de outros revendedores (que não teriam nome "reseller"/"revenda").
+  const sites = prefetchedSites ?? (await listMirrorWebsites(scope));
+  const ownPackageNames = new Set(
+    sites
+      .filter((s) => (s.owner || '').toLowerCase() === (daUsername || '').toLowerCase())
+      .map((s) => s.package)
+      .filter(Boolean),
+  );
+  return all.filter((pkg) => ownPackageNames.has(pkg.packageName));
 }
 
 /** Formulário completo guardado no painel (limites, recursos, funcionalidades). */

@@ -124,11 +124,11 @@ export async function GET(req: NextRequest) {
     }
 
     const daUsername = ctx.daUsername;
-    const [rawUsers, sites, packages] = await Promise.all([
+    const [rawUsers, sites] = await Promise.all([
       listMirrorUsers(mirrorScope),
       listMirrorWebsites(mirrorScope),
-      listMirrorPackages(mirrorScope),
     ]);
+    const packages = await listMirrorPackages(mirrorScope, sites);
 
     const users = filterResellerUsers(rawUsers, daUsername);
     const visiblePackages = excludeResellerSelfPackages(packages, sites, daUsername);
