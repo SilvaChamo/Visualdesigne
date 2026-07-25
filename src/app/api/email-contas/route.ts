@@ -31,14 +31,13 @@ const supabaseAdmin = createAdminClient(supabaseUrl, supabaseKey)
 const encrypt = (text: string) => Buffer.from(text).toString('base64')
 const decrypt = (text: string) => Buffer.from(text, 'base64').toString('utf8')
 
-function userCanAccessMailboxPassword(
+async function userCanAccessMailboxPassword(
   sessionUser: { id: string; email?: string | null },
   account: { email?: string | null; cliente_id?: string | null },
   isAdmin: boolean,
   effectiveRole: string,
-): boolean {
-  if (isAdmin || effectiveRole === 'manager') return true
-  if (effectiveRole === 'reseller') return true
+): Promise<boolean> {
+  if (isAdmin) return true
   if (account.cliente_id && account.cliente_id === sessionUser.id) return true
   const sessionEmail = (sessionUser.email || '').toLowerCase()
   const accountEmail = (account.email || '').toLowerCase()
@@ -46,6 +45,17 @@ function userCanAccessMailboxPassword(
   const sessionDomain = sessionEmail.split('@')[1]
   const accountDomain = accountEmail.split('@')[1]
   if (sessionDomain && accountDomain && sessionDomain === accountDomain) return true
+  // Revendedor: só se o domínio da conta pertencer de facto à sua conta DA — nunca um
+  // bypass total (evita que qualquer revendedor veja a password de qualquer cliente).
+  if (effectiveRole === 'reseller' && accountDomain) {
+    const { loadResellerCredentialsByUserId } = await import('@/lib/da-credential-store')
+    const { getMirrorSiteOwner } = await import('@/lib/panel-mirror-read')
+    const creds = await loadResellerCredentialsByUserId(sessionUser.id)
+    if (creds?.user) {
+      const owner = await getMirrorSiteOwner(accountDomain)
+      if (owner === creds.user) return true
+    }
+  }
   return false
 }
 
@@ -136,7 +146,7 @@ export async function GET(req: NextRequest) {
     const effectiveRole = session.user
       ? await resolveRoleForAuthUser(roleDb, session.user)
       : 'guest';
-    const isAdmin = isBootstrap || effectiveRole === 'admin' || effectiveRole === 'manager';
+    const isAdmin = isBootstrap || effectiveRole === 'admin';
     
     console.log(`� [API] Usuário: ${session.user?.email}, isAdmin: ${isAdmin}`);
     
@@ -201,13 +211,13 @@ export async function GET(req: NextRequest) {
     console.log(`📧 API email-contas: ${allEmails.length} emails`);
     console.log('📧 Emails:', allEmails.map((e: any) => e.email));
 
-    const contas = allEmails.map(c => ({
+    const contas = await Promise.all(allEmails.map(async c => ({
       ...c,
       password_smtp:
-        c.senha_servidor && userCanAccessMailboxPassword(session.user, c, isAdmin, effectiveRole)
+        c.senha_servidor && (await userCanAccessMailboxPassword(session.user, c, isAdmin, effectiveRole))
           ? decrypt(c.senha_servidor)
           : '',
-    }))
+    })))
 
     return NextResponse.json({ success: true, contas, debug: { totalReturned: allEmails.length } })
   } catch (error: any) {

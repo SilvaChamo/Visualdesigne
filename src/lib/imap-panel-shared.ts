@@ -131,19 +131,30 @@ export async function resolveMailboxPassword(
   const effectiveRole = await resolveRoleForAuthUser(supabaseAdmin, session.user)
   const isAdmin =
     ADMIN_EMAILS.includes(session.user.email || '') ||
-    effectiveRole === 'admin' ||
-    effectiveRole === 'manager'
+    effectiveRole === 'admin'
   const sessionEmail = session.user.email.toLowerCase()
   const accountEmail = (conta.email || '').toLowerCase()
+  const accountDomain = accountEmail.split('@')[1] || ''
   const sameDomain =
     sessionEmail.split('@')[1] && accountEmail.endsWith(`@${sessionEmail.split('@')[1]}`)
 
-  const canAccess =
+  let canAccess =
     isAdmin ||
-    effectiveRole === 'reseller' ||
     conta.cliente_id === session.user.id ||
     accountEmail === sessionEmail ||
     Boolean(sameDomain)
+
+  // Revendedor: só se o domínio da conta pertencer de facto à sua conta DA — nunca um
+  // bypass total (evita que qualquer revendedor veja a password de qualquer cliente).
+  if (!canAccess && effectiveRole === 'reseller' && accountDomain) {
+    const { loadResellerCredentialsByUserId } = await import('@/lib/da-credential-store')
+    const { getMirrorSiteOwner } = await import('@/lib/panel-mirror-read')
+    const creds = await loadResellerCredentialsByUserId(session.user.id)
+    if (creds?.user) {
+      const owner = await getMirrorSiteOwner(accountDomain)
+      canAccess = owner === creds.user
+    }
+  }
 
   if (!canAccess) return null
   return decryptStoredPassword(conta.senha_servidor)

@@ -46,21 +46,32 @@ export async function POST(req: NextRequest) {
 
     const isExplicitAdmin = adminEmails.includes(session.user?.email || '');
     const effectiveRole = await resolveRoleForAuthUser(supabaseAdmin, session.user);
-    const isAdmin = isExplicitAdmin || effectiveRole === 'admin' || effectiveRole === 'manager';
-    const isReseller = effectiveRole === 'reseller';
+    const isAdmin = isExplicitAdmin || effectiveRole === 'admin';
 
     const sessionEmail = (session.user.email || '').toLowerCase();
     const accountEmail = (conta.email || '').toLowerCase();
+    const accountDomain = accountEmail.split('@')[1] || '';
     const sameDomain =
       sessionEmail.split('@')[1] &&
       accountEmail.endsWith(`@${sessionEmail.split('@')[1]}`);
 
-    const canAccess =
+    let canAccess =
       isAdmin ||
-      isReseller ||
       conta.cliente_id === session.user.id ||
       accountEmail === sessionEmail ||
       Boolean(sameDomain);
+
+    // Revendedor: só se o domínio da conta pertencer de facto à sua conta DA — nunca um
+    // bypass total (evita que qualquer revendedor veja a password de qualquer cliente).
+    if (!canAccess && effectiveRole === 'reseller' && accountDomain) {
+      const { loadResellerCredentialsByUserId } = await import('@/lib/da-credential-store');
+      const { getMirrorSiteOwner } = await import('@/lib/panel-mirror-read');
+      const creds = await loadResellerCredentialsByUserId(session.user.id);
+      if (creds?.user) {
+        const owner = await getMirrorSiteOwner(accountDomain);
+        canAccess = owner === creds.user;
+      }
+    }
 
     if (!canAccess) {
       return NextResponse.json({ error: 'Acesso negado' }, { status: 403 });
