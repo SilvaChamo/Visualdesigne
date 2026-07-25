@@ -6,6 +6,7 @@ import { createPortal } from 'react-dom'
 import { cn } from '@/lib/utils'
 import { panelBtnPrimary, panelBtnSecondary, panelCard, panelField, panelInnerDetailCard, panelMobileActions, panelMobileCardGrid, panelMobileStack, panelMobileStackCard } from '@/lib/panel-ui'
 import { PanelIconTip } from '@/components/panel/PanelIconTip'
+import { clearAllPanelClientCaches } from '@/lib/panel-session-cache-clear'
 import { directAdminAPI } from '@/lib/directadmin-api'
 import type {
   DirectAdminWebsite, DirectAdminSubdomain, DirectAdminUser, DirectAdminDatabase,
@@ -2823,6 +2824,7 @@ export function CPUsersSection({
   }
 
   const handlePanelLoginAs = (account: PanelAccount) => {
+    clearAllPanelClientCaches()
     const daUser = account.daUsername?.trim()
     if (daUser) {
       window.location.href = `/api/admin/impersonate?user=${encodeURIComponent(daUser)}`
@@ -3542,6 +3544,7 @@ export function CPUsersSection({
                         account.daUsername ? (
                           <a
                             href={`/api/admin/impersonate?user=${encodeURIComponent(account.daUsername)}`}
+                            onClick={() => clearAllPanelClientCaches()}
                             className="hidden sm:inline-flex h-8 items-center rounded border border-gray-300 dark:border-zinc-700 bg-transparent px-2.5 text-xs font-semibold text-gray-700 dark:text-zinc-300 hover:bg-gray-50 dark:hover:bg-zinc-800 hover:text-black dark:hover:text-white"
                           >
                             Entrar

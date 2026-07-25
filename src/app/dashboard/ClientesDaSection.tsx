@@ -10,6 +10,7 @@ import { consumeHostingAccountEdit } from '@/lib/panel-hosting-edit-nav';
 import type { DirectAdminPackage } from '@/lib/directadmin-api';
 import { panelBtnPrimary, panelBtnSecondary, panelField, panelTabList, panelTabBtn } from '@/lib/panel-ui';
 import { PRIMARY_RESELLER_DA_USER } from '@/lib/panel-contas-enrich';
+import { clearAllPanelClientCaches } from '@/lib/panel-session-cache-clear';
 
 const ADMIN_CLIENTES_CACHE_KEY = 'vd-admin-clientes-v4';
 const RESELLER_CLIENTES_CACHE_KEY = 'vd-reseller-contas-v1';
@@ -344,6 +345,7 @@ export function ClientesDaSection({
       return;
     }
     if (action === 'loginAs') {
+      clearAllPanelClientCaches();
       window.location.href = `/api/admin/impersonate?user=${encodeURIComponent(userName)}`;
       return;
     }
@@ -684,6 +686,7 @@ export function ClientesDaSection({
                   <td className={accountsCellBorder}>
                     <a
                       href={`/api/admin/impersonate?user=${encodeURIComponent(u.userName)}`}
+                      onClick={() => clearAllPanelClientCaches()}
                       className="inline-flex h-7 items-center gap-1 rounded bg-rose-50 px-2.5 text-xs font-bold text-rose-600 hover:bg-rose-100 transition-colors dark:bg-rose-950/30 dark:text-rose-400 dark:hover:bg-rose-950/60"
                     >
                       <ExternalLink className="h-3.5 w-3.5" />

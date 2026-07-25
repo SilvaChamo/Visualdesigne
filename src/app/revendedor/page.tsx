@@ -2746,7 +2746,16 @@ function ResellerPageContent() {
                 <span>Sair da Conta</span>
               </button>
               {isAdminImpersonating ? (
-                <a href="/api/admin/impersonate?exit=1" className={panelBtnSecondary}>
+                <a
+                  href="/api/admin/impersonate?exit=1"
+                  onClick={async (e) => {
+                    e.preventDefault()
+                    const { clearAllPanelClientCaches } = await import('@/lib/panel-session-cache-clear')
+                    clearAllPanelClientCaches()
+                    window.location.href = '/api/admin/impersonate?exit=1'
+                  }}
+                  className={panelBtnSecondary}
+                >
                   <ArrowLeft size={14} />
                   <span>Voltar ao painel</span>
                 </a>
