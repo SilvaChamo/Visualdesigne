@@ -6,7 +6,7 @@ import {
   Inbox, Clock, Factory, PackageCheck, XCircle, CheckCircle2, MessageCircle, X,
 } from 'lucide-react'
 import {
-  panelCard, panelBtn, panelBtnPrimary, panelBtnSecondary, panelField, panelSectionPadding,
+  panelBtn, panelBtnPrimary, panelBtnSecondary, panelField, panelSectionPadding,
   panelTabBar, panelTabBtn, panelTabBtnActive, panelTabBtnInactive, panelSectionCard,
 } from '@/lib/panel-ui'
 import { formatMt, BRANDS } from '@/lib/pricing-catalog'
@@ -63,21 +63,50 @@ const CATEGORY_LABELS = [...BRANDS.map((b) => b.label), 'Outros']
 
 type NavMode = 'categoria' | 'bucket'
 
+// Cache rápida (sessionStorage) para a lista aparecer junto com a barra lateral em vez de
+// esperar pela ida ao servidor a cada visita — a mesma abordagem já usada noutras secções do
+// painel (Pacotes, Contas). Limpa automaticamente no logout (prefixo vd_panel_).
+const COTACOES_CACHE_KEY = 'vd_panel_cotacoes_v1'
+
+function readCotacoesCache(): QuotationRequest[] | null {
+  if (typeof window === 'undefined') return null
+  try {
+    const raw = sessionStorage.getItem(COTACOES_CACHE_KEY)
+    if (!raw) return null
+    const parsed = JSON.parse(raw)
+    return Array.isArray(parsed) ? parsed : null
+  } catch {
+    return null
+  }
+}
+
+function writeCotacoesCache(data: QuotationRequest[]) {
+  if (typeof window === 'undefined') return
+  try {
+    sessionStorage.setItem(COTACOES_CACHE_KEY, JSON.stringify(data))
+  } catch {
+    /* quota */
+  }
+}
+
 export function CotacoesSection() {
-  const [cotacoes, setCotacoes] = useState<QuotationRequest[]>([])
-  const [loading, setLoading] = useState(true)
+  const [cotacoes, setCotacoes] = useState<QuotationRequest[]>(() => readCotacoesCache() ?? [])
+  const [loading, setLoading] = useState(() => readCotacoesCache() === null)
   const [navMode, setNavMode] = useState<NavMode>('categoria')
   const [activeCategory, setActiveCategory] = useState<string | null>(null)
   const [activeBucket, setActiveBucket] = useState<StatusBucket>('pending')
   const [updatingId, setUpdatingId] = useState<string | null>(null)
   const [expandedBatchId, setExpandedBatchId] = useState<string | null>(null)
 
-  const fetchCotacoes = useCallback(async () => {
-    setLoading(true)
+  const fetchCotacoes = useCallback(async (opts?: { background?: boolean }) => {
+    if (!opts?.background) setLoading(true)
     try {
       const res = await fetch('/api/admin/cotacoes')
       const data = await res.json()
-      if (data.success) setCotacoes(data.cotacoes)
+      if (data.success) {
+        setCotacoes(data.cotacoes)
+        writeCotacoesCache(data.cotacoes)
+      }
     } catch (error) {
       console.error('Erro ao carregar cotações:', error)
     } finally {
@@ -86,7 +115,7 @@ export function CotacoesSection() {
   }, [])
 
   useEffect(() => {
-    fetchCotacoes()
+    fetchCotacoes({ background: readCotacoesCache() !== null })
   }, [fetchCotacoes])
 
   const batches = useMemo(() => groupIntoBatches(cotacoes), [cotacoes])
@@ -153,14 +182,14 @@ export function CotacoesSection() {
             Pedidos de cotação submetidos a partir de /precos, agrupados como foram enviados.
           </p>
         </div>
-        <button className={panelBtnSecondary} onClick={fetchCotacoes} disabled={loading}>
+        <button className={panelBtnSecondary} onClick={() => fetchCotacoes()} disabled={loading}>
           <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
           <span>Actualizar</span>
         </button>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-[220px_1fr] gap-4 lg:gap-6 items-start">
-        <nav className={`${panelSectionCard} space-y-5 p-3 lg:sticky lg:top-4`}>
+        <nav className={`${panelSectionCard} space-y-5 p-3 lg:sticky lg:top-4 lg:min-h-[calc(100vh-8rem)]`}>
           <div>
             <button
               type="button"
@@ -206,7 +235,7 @@ export function CotacoesSection() {
           {loading ? (
             <div className="text-center py-12 text-sm text-gray-400 dark:text-zinc-500">A carregar encomendas...</div>
           ) : visibleGroups.every((g) => g.batches.length === 0) ? (
-            <div className={`${panelCard} p-8 text-center text-sm text-gray-500 dark:text-zinc-400`}>
+            <div className={`${panelSectionCard} p-8 text-center text-sm text-gray-500 dark:text-zinc-400`}>
               Nenhuma encomenda encontrada aqui.
             </div>
           ) : (
@@ -281,7 +310,7 @@ function BatchCard({
   const resumo = batch.items.length === 1 ? `${anchor.categoria_label} — ${anchor.produto}` : `${batch.items.length} serviços`
 
   return (
-    <div className={panelCard}>
+    <div className={panelSectionCard}>
       <button type="button" onClick={onToggle} className="w-full flex flex-wrap items-center gap-4 p-4 text-left">
         <div className="flex-1 min-w-[200px]">
           <p className="font-bold text-gray-900 dark:text-white flex items-center gap-2">
