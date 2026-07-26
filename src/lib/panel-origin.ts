@@ -114,17 +114,14 @@ export function resolvePanelInnerRedirect(
 }
 
 /**
- * Redirecções de rotas API do painel.
+ * Redirecções de rotas API do painel — usa sempre a origem pública
+ * (NEXT_PUBLIC_SITE_URL), nunca a do pedido recebido. Atrás do proxy do
+ * Hetzner (Apache -> Node em 127.0.0.1:3003), `request.url` por vezes
+ * resolve para "localhost:3003", o que mandava o browser para localhost em
+ * vez de ficar em visualdesignmoz.com (ex.: ao entrar em impersonate).
  */
-export function resolvePanelApiRedirect(pathAndQuery: string, requestUrl?: string): string {
+export function resolvePanelApiRedirect(pathAndQuery: string): string {
   const path = pathAndQuery.startsWith('/') ? pathAndQuery : `/${pathAndQuery}`
-  if (requestUrl) {
-    try {
-      return new URL(path, requestUrl).toString()
-    } catch {
-      /* usar origem pública */
-    }
-  }
   return `${getPublicSiteOrigin()}${path}`
 }
 

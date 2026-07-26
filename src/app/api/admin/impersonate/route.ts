@@ -115,11 +115,11 @@ async function startImpersonate(
   return { ok: true, userName: normalized };
 }
 
-function adminListRedirect(req: NextRequest, error?: string): NextResponse {
+function adminListRedirect(error?: string): NextResponse {
   const query = error
     ? `?section=hospedagem-contas&impersonate_error=${encodeURIComponent(error)}`
     : '?section=hospedagem-contas';
-  return NextResponse.redirect(resolvePanelApiRedirect(`/dashboard${query}`, req.url), { status: 307 });
+  return NextResponse.redirect(resolvePanelApiRedirect(`/dashboard${query}`), { status: 307 });
 }
 
 export async function GET(req: NextRequest) {
@@ -129,16 +129,16 @@ export async function GET(req: NextRequest) {
   if (req.nextUrl.searchParams.get('exit') === '1') {
     const store = await cookies();
     store.delete(IMPERSONATE_COOKIE);
-    return adminListRedirect(req);
+    return adminListRedirect();
   }
 
   const userParam = req.nextUrl.searchParams.get('user')?.trim().toLowerCase();
   if (userParam) {
     const result = await startImpersonate(userParam);
     if (!result.ok) {
-      return adminListRedirect(req, result.error);
+      return adminListRedirect(result.error);
     }
-    const target = resolvePanelApiRedirect('/revendedor?impersonate=1', req.url);
+    const target = resolvePanelApiRedirect('/revendedor?impersonate=1');
     return NextResponse.redirect(target, { status: 307 });
   }
 
@@ -174,7 +174,7 @@ export async function POST(req: NextRequest) {
   return NextResponse.json({
     success: true,
     daUsername: result.userName,
-    redirect: resolvePanelApiRedirect('/revendedor?impersonate=1', req.url),
+    redirect: resolvePanelApiRedirect('/revendedor?impersonate=1'),
   });
 }
 
@@ -187,6 +187,6 @@ export async function DELETE(req: NextRequest) {
 
   return NextResponse.json({
     success: true,
-    redirect: resolvePanelApiRedirect('/dashboard?section=hospedagem-contas', req.url),
+    redirect: resolvePanelApiRedirect('/dashboard?section=hospedagem-contas'),
   });
 }
