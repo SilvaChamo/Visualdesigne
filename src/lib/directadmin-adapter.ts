@@ -1526,17 +1526,20 @@ export async function getDirectAdminAPIForAuth(auth: DirectAdminAuthContext) {
   return createDirectAdminAPI(creds);
 }
 
-/** API DirectAdmin autenticada como revendedor DA (ex.: oshercollective). */
+/**
+ * API DirectAdmin autenticada como revendedor DA (ex.: oshercollective) — usa
+ * sempre o proxy SSH (`directadmin api-url --user=X`, gerado localmente no
+ * servidor) em vez de uma password guardada à parte. Funciona para qualquer
+ * revendedor automaticamente, sem sincronizar/guardar a password de cada um
+ * (essa password fica facilmente desactualizada e passou a devolver 401 do
+ * DirectAdmin — foi por isso que o impersonate mostrava os dados errados).
+ */
 export async function getDirectAdminAPIForDaUsername(daUsername: string) {
-  const { loadResellerCredentialsByDaUsername } = await import('@/lib/da-credential-store');
-  const stored = await loadResellerCredentialsByDaUsername(daUsername);
-  if (!stored) {
-    throw new Error(`Credenciais DirectAdmin não encontradas para "${daUsername}".`);
-  }
   return createDirectAdminAPI({
     role: 'reseller',
-    user: stored.user,
-    password: stored.password,
+    user: daUsername,
+    password: '',
+    forceSshProxy: true,
   });
 }
 

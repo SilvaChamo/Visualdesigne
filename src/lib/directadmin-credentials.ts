@@ -13,6 +13,15 @@ export interface DirectAdminCredentials {
   role: DirectAdminRole;
   user: string;
   password: string;
+  /**
+   * Ignora a password e usa sempre o proxy SSH (`directadmin api-url --user=X`),
+   * que o DirectAdmin gera localmente no servidor sem precisar de conhecer a
+   * password real de X. Usado para impersonar um revendedor sem depender de
+   * uma password guardada à parte, que fica facilmente desactualizada
+   * (foi a causa de o impersonate mostrar os dados do admin em vez do
+   * revendedor — a password guardada já não batia certo com o servidor).
+   */
+  forceSshProxy?: boolean;
 }
 
 export type DirectAdminAuthContext = {

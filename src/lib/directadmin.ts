@@ -154,7 +154,7 @@ async function requestDirectAdmin(
   params: Record<string, string>,
   credentials: DirectAdminCredentials,
 ): Promise<string> {
-  if (process.env.DA_USE_SSH_PROXY === 'true') {
+  if (process.env.DA_USE_SSH_PROXY === 'true' || credentials.forceSshProxy) {
     const { requestDirectAdminViaSsh } = await import('@/lib/da-ssh-proxy');
     return requestDirectAdminViaSsh(endpoint, method, params, credentials);
   }
