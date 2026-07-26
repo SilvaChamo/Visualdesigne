@@ -223,3 +223,54 @@ export async function sendSmtpMail(input: SendSmtpMailInput) {
   transport.on('error', (err) => console.error('[smtp] erro tardio no transporte:', err));
   return transport.sendMail(input);
 }
+
+/** Host local do servidor de email (DirectAdmin/Exim) — porta 25, já desbloqueada. */
+export function getWebmailSmtpHost(): string {
+  return (
+    process.env.DIRECTADMIN_HOST?.trim() ||
+    process.env.NEXT_PUBLIC_DIRECTADMIN_HOST?.trim() ||
+    'host.visualdesignmoz.com'
+  );
+}
+
+export function getWebmailSmtpPort(): number {
+  const raw = process.env.WEBMAIL_SMTP_PORT?.trim();
+  const parsed = raw ? Number.parseInt(raw, 10) : 25;
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 25;
+}
+
+// A ligação de dentro do próprio servidor ao Exim local não anuncia AUTH
+// (confirmado directamente: EHLO à porta 25 não lista "AUTH") — o Exim
+// confia com base no IP de origem (o próprio servidor), como já faz para o
+// mail() do PHP e outros processos locais. Passar `auth` aqui faria o
+// nodemailer falhar logo ("server doesn't support authentication"), por
+// isso a identidade da conta vai só nos cabeçalhos From/Reply-To, não em
+// SMTP AUTH.
+function createWebmailSmtpTransport(): Mail {
+  const host = getWebmailSmtpHost();
+  return nodemailer.createTransport({
+    host,
+    port: getWebmailSmtpPort(),
+    secure: false,
+    requireTLS: false,
+    tls: smtpTlsOptions(host),
+    connectionTimeout: 15_000,
+    greetingTimeout: 12_000,
+    socketTimeout: 20_000,
+  });
+}
+
+/**
+ * Envio de webmail — liga directamente ao servidor local (porta 25) em vez
+ * do relay central da Brevo, que enviava todo o webmail com a mesma
+ * identidade partilhada. `fromPassword` não é usada para SMTP AUTH (o
+ * servidor não a pede nesta ligação local/confiada) — fica reservada para a
+ * gravação IMAP na pasta Enviados, feita à parte por quem chama esta função.
+ */
+export async function sendWebmailSmtpMail(
+  input: SendSmtpMailInput,
+): Promise<ReturnType<Mail['sendMail']>> {
+  const transport = createWebmailSmtpTransport();
+  transport.on('error', (err) => console.error('[smtp] erro tardio no transporte (webmail):', err));
+  return transport.sendMail(input);
+}

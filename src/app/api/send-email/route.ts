@@ -90,8 +90,7 @@ export async function POST(req: NextRequest) {
         }
 
         try {
-            console.log('📧 Enviando via SMTP centralizado...');
-            const result = await sendSmtpMail({
+            const mailInput = {
                 to,
                 from: `"VisualDesigne" <${from}>`,
                 subject,
@@ -99,7 +98,16 @@ export async function POST(req: NextRequest) {
                 replyTo: replyTo || from,
                 cc,
                 bcc
-            });
+            };
+
+            // Envio via SMTP centralizado (Brevo) — mantido como estava.
+            // (Ver sendWebmailSmtpMail em @/lib/smtp-mail para um envio
+            // directo pelo servidor local na porta 25, já pronto mas não
+            // activado: alguns domínios têm o SPF apontado só para outro
+            // servidor ou só para a Brevo — activar por omissão arriscava
+            // problemas de entrega/spam sem aviso. Ver histórico da conversa.)
+            console.log('📧 Enviando via SMTP centralizado...');
+            const result = await sendSmtpMail(mailInput);
 
             console.log('✅ Email enviado com sucesso via SMTP, ID:', result.messageId);
 
