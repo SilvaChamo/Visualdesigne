@@ -40,10 +40,18 @@ function CotacaoDocumentContent() {
   const params = useParams();
   const searchParams = useSearchParams();
   const id = params?.id as string;
-  const autoPrint = searchParams.get('print') === '1';
-  // Modo embutido — usado dentro de /encomendas (iframe): esconde o cabeçalho
-  // do site e a navegação, mostra só o documento e o botão de transferir.
+  // Modo embutido — usado dentro de /encomendas e do painel admin (iframe ou
+  // popup): esconde o cabeçalho do site e a navegação, mostra só a barra de
+  // acções e o documento.
   const embed = searchParams.get('embed') === '1';
+  // "Continuar para Pagamento" só faz sentido para o cliente pagar a sua
+  // própria encomenda — no painel admin não deve aparecer (o admin só quer
+  // ver/descarregar o documento).
+  const showPaymentCta = searchParams.get('payment') === '1';
+  // Depois do adiantamento confirmado, o mesmo documento passa a chamar-se
+  // Factura em vez de Cotação — mesmo layout, só muda o rótulo.
+  const isFactura = searchParams.get('tipo') === 'factura';
+  const documentLabel = isFactura ? 'Factura' : 'Cotação';
 
   const [items, setItems] = useState<QuotationRow[] | null>(null);
   const [loading, setLoading] = useState(true);
@@ -69,13 +77,6 @@ function CotacaoDocumentContent() {
       }
     })();
   }, [id]);
-
-  useEffect(() => {
-    if (autoPrint && items) {
-      const t = setTimeout(() => window.print(), 400);
-      return () => clearTimeout(t);
-    }
-  }, [autoPrint, items]);
 
   if (loading) {
     return (
@@ -115,7 +116,7 @@ function CotacaoDocumentContent() {
   const numeroCotacao = numeros[quotation.batch_id] ?? quotation.batch_id.split('-')[0].toUpperCase();
 
   const documentCard = (
-        <div id="quote-print-area" className="bg-white dark:bg-white text-zinc-900 rounded-lg shadow-sm border border-zinc-200 p-8 sm:p-12">
+        <div id="quote-print-area" className={`bg-white dark:bg-white text-zinc-900 shadow-sm border border-zinc-200 p-8 sm:p-12 ${embed ? 'rounded-lg rounded-tr-none' : 'rounded-lg'}`}>
 
           {/* Cabeçalho */}
           <div className="flex flex-col sm:flex-row items-start justify-between gap-6 border-b border-zinc-200 pb-6 mb-6">
@@ -126,32 +127,33 @@ function CotacaoDocumentContent() {
             <div className="text-xs text-zinc-500 text-left sm:text-right leading-relaxed">
               <p className="font-bold text-zinc-800">VisualDESIGN Services, Lda.</p>
               <p>Maputo, Moçambique</p>
-              <p>+258 82 52 88 318 · +258 84 123 4567</p>
+              <p>NUIT: 400597243</p>
+              <p>+258 82 52 88 318 / +258 84 73 96 739</p>
               <p>info@visualdesignmoz.com</p>
               <p>visualdesignmoz.com</p>
             </div>
           </div>
 
           <div className="flex flex-col sm:flex-row items-start justify-between gap-4 mb-8">
-            <div>
-              <h1 className="text-xl font-bold text-black">Cotação Nº {numeroCotacao}</h1>
-              <p className="text-xs text-zinc-500 mt-1">Data de emissão: {dataEmissao}</p>
-            </div>
-            <div className="text-xs text-zinc-600 sm:text-right leading-relaxed">
-              <p className="font-bold text-zinc-800">{quotation.empresa}</p>
-              {quotation.nif && <p>NIF: {quotation.nif}</p>}
-              {quotation.endereco && <p>{quotation.endereco}</p>}
-              {(quotation.telefone_institucional || quotation.email_institucional) && (
-                <p>{quotation.telefone_institucional}{quotation.telefone_institucional && quotation.email_institucional ? ' · ' : ''}{quotation.email_institucional}</p>
-              )}
-              {quotation.website && <p>{quotation.website}</p>}
+            <div className="text-xs text-zinc-600 leading-relaxed">
+              <p className="font-bold text-zinc-800">Empresa: {quotation.empresa}</p>
+              {quotation.nif && <p>NUIT: {quotation.nif}</p>}
+              {quotation.endereco && <p>Província: {quotation.endereco}</p>}
+              {quotation.telefone_institucional && <p>Tele: {quotation.telefone_institucional}</p>}
+              {quotation.email_institucional && <p>Email: {quotation.email_institucional}</p>}
+              {quotation.website && <p>Website: {quotation.website}</p>}
               {quotation.responsavel !== quotation.empresa && (
                 <>
-                  <p className="mt-1">{quotation.responsavel}{quotation.cargo ? ` — ${quotation.cargo}` : ''}</p>
-                  <p>{quotation.telefone}</p>
-                  <p>{quotation.email}</p>
+                  <div className="border-t border-zinc-200 my-2 w-full" />
+                  <p>Responsável: {quotation.responsavel}{quotation.cargo ? ` — ${quotation.cargo}` : ''}</p>
+                  <p>Contacto: {quotation.telefone}</p>
+                  <p>Email: {quotation.email}</p>
                 </>
               )}
+            </div>
+            <div className="sm:text-right shrink-0">
+              <h1 className="text-xl font-bold text-black">{documentLabel} Nº {numeroCotacao}</h1>
+              <p className="text-xs text-zinc-500 mt-1">Data de emissão: {dataEmissao}</p>
             </div>
           </div>
 
@@ -227,14 +229,33 @@ function CotacaoDocumentContent() {
         </div>
   );
 
-  // Embutido dentro de /encomendas (iframe) — só o documento, sem o
-  // cabeçalho do site nem a navegação. O botão de transferir vive fora do
-  // iframe (painel), que abre esta mesma página numa nova aba com
-  // ?print=1 para disparar o window.print() automaticamente.
+  // Embutido dentro de /encomendas e do painel admin (iframe ou popup) — sem
+  // o cabeçalho do site nem a navegação, só a barra de acções e o documento.
   if (embed) {
     return (
       <div className="min-h-screen bg-white">
-        <div className="max-w-3xl mx-auto px-4 py-4">{documentCard}</div>
+        <div className="max-w-3xl mx-auto px-4 py-4">
+          <div className="flex justify-end gap-3 no-print">
+            <button
+              type="button"
+              onClick={() => window.print()}
+              className="inline-flex items-center gap-2 bg-zinc-900 text-white font-bold px-5 py-2.5 rounded-md text-sm hover:opacity-90 transition-opacity"
+            >
+              <Printer className="w-4 h-4" />
+              <span>Descarregar PDF</span>
+            </button>
+            {showPaymentCta && (
+              <Link
+                href={`/cotacao/${quotation.id}/pagamento?embed=1&payment=1`}
+                className="inline-flex items-center gap-2 bg-red-600 hover:bg-red-700 text-white font-bold px-5 py-2.5 rounded-md text-sm transition-colors"
+              >
+                <span>Continuar para Pagamento</span>
+                <ArrowRight className="w-4 h-4" />
+              </Link>
+            )}
+          </div>
+          {documentCard}
+        </div>
       </div>
     );
   }
@@ -253,7 +274,7 @@ function CotacaoDocumentContent() {
             <span className="mx-2">/</span>
             <Link href="/precos" className="hover:text-white transition-colors">Preços</Link>
             <span className="mx-2">/</span>
-            <span className="text-zinc-300">Cotação Nº {numeroCotacao}</span>
+            <span className="text-zinc-300">{documentLabel} Nº {numeroCotacao}</span>
           </nav>
         </div>
         <div className="absolute bottom-0 left-0 right-0">
@@ -265,7 +286,7 @@ function CotacaoDocumentContent() {
       <div className="no-print -mt-[16px] relative z-20 bg-zinc-200 dark:bg-black pt-12 pb-2">
         <div className="max-w-3xl mx-auto px-4">
           <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
-            <p className="text-sm font-bold text-black dark:text-white">Cotação Nº {numeroCotacao}</p>
+            <p className="text-sm font-bold text-black dark:text-white">{documentLabel} Nº {numeroCotacao}</p>
             <div className="flex gap-3">
               <button
                 type="button"

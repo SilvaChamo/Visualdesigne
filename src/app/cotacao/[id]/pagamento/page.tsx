@@ -1,64 +1,99 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, useRef, Suspense } from 'react';
 import Link from 'next/link';
-import { useParams, useRouter } from 'next/navigation';
-import { supabase } from '@/lib/supabase-client';
+import { useParams, useSearchParams } from 'next/navigation';
 import { NotchSection } from '@/components/home/NotchSection';
-import { Loader2, AlertCircle, CheckCircle2, Smartphone, Landmark } from 'lucide-react';
+import { AlertCircle, CheckCircle2, Smartphone, Landmark, Paperclip, Clock } from 'lucide-react';
 import { MPESA_NUMBER, BANK_NAME, BANK_ACCOUNT, BANK_NIB } from '@/lib/quotation-payment-info';
 import { formatMt } from '@/lib/pricing-catalog';
 import { Spinner } from '@/components/ui/spinner';
-import { computeBatchStatus } from '@/lib/quotation-status-labels';
+import { groupIntoBatches, batchNumero, type BatchItem, type QuotationBatch } from '@/lib/quotation-batch';
+import { useBatchNumeros } from '@/lib/use-batch-numeros';
 
-type Mode = 'advance' | 'remainder' | 'unavailable';
+const IVA_RATE = 0.16;
 
-export default function CotacaoPagamentoPage() {
+type Quotation = BatchItem & {
+  categoria_label: string;
+  produto: string;
+  quantidade: number;
+};
+
+type Mode = 'advance' | 'remainder';
+
+type PendingEntry = {
+  batch: QuotationBatch<Quotation>;
+  mode: Mode;
+  valor: number;
+};
+
+function CotacaoPagamentoContent() {
   const params = useParams();
-  const router = useRouter();
+  const searchParams = useSearchParams();
   const id = params?.id as string;
+  // Modo embutido — usado dentro de /encomendas (iframe): esconde o
+  // cabeçalho do site e a navegação.
+  const embed = searchParams.get('embed') === '1';
 
+  const [quotations, setQuotations] = useState<Quotation[] | null>(null);
+  const [selectedBatchId, setSelectedBatchId] = useState<string | null>(null);
   const [metodo, setMetodo] = useState<'mpesa' | 'transferencia' | null>(null);
-  const [status, setStatus] = useState<'idle' | 'submitting' | 'done' | 'error'>('idle');
+  const [confirming, setConfirming] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
-  const [mode, setMode] = useState<Mode | null>(null);
-  const [sobConsulta, setSobConsulta] = useState(false);
-  const [totalMt, setTotalMt] = useState(0);
-  const [someSobConsulta, setSomeSobConsulta] = useState(false);
+  const numeros = useBatchNumeros();
+
+  const fetchQuotations = async () => {
+    try {
+      const res = await fetch('/api/cotacoes');
+      const data = await res.json();
+      setQuotations(data.success ? data.quotations : []);
+    } catch {
+      setQuotations([]);
+    }
+  };
 
   useEffect(() => {
-    if (!id) return;
-    (async () => {
-      const { data: row } = await supabase.from('quotation_requests').select('batch_id, sob_consulta, status').eq('id', id).single();
-      if (!row) {
-        setMode('unavailable');
-        return;
+    fetchQuotations();
+  }, []);
+
+  const pendentes = useMemo<PendingEntry[]>(() => {
+    if (!quotations) return [];
+    const batches = groupIntoBatches(quotations);
+    const entries: PendingEntry[] = [];
+    for (const batch of batches) {
+      if (batch.sobConsulta) continue; // sem valor fixo — nada para pagar ainda
+      if (batch.status === 'pending' || batch.status === 'payment_selected') {
+        entries.push({ batch, mode: 'advance', valor: Math.round(batch.totalMt * 0.7 * 100) / 100 });
+      } else if (batch.status === 'delivered') {
+        entries.push({ batch, mode: 'remainder', valor: Math.round(batch.totalMt * 0.3 * 100) / 100 });
       }
-      const { data: siblings } = await supabase
-        .from('quotation_requests')
-        .select('sob_consulta, total_mt, status')
-        .eq('batch_id', row.batch_id);
-      const items: { sob_consulta: boolean; total_mt: number | null; status: string }[] =
-        siblings && siblings.length > 0 ? siblings : [{ sob_consulta: row.sob_consulta, total_mt: null, status: row.status }];
+    }
+    return entries;
+  }, [quotations]);
 
-      const aggregate = computeBatchStatus(items);
-      setMode(aggregate === 'pending' ? 'advance' : aggregate === 'delivered' ? 'remainder' : 'unavailable');
-      setSobConsulta(items.every((i) => i.sob_consulta));
-      setSomeSobConsulta(items.some((i) => i.sob_consulta));
-      setTotalMt(items.reduce((sum, i) => sum + (i.sob_consulta ? 0 : (i.total_mt || 0)), 0));
-    })();
-  }, [id]);
+  // Selecciona por omissão a encomenda a partir da qual se chegou aqui
+  // (o `id` do URL), senão a primeira da lista.
+  useEffect(() => {
+    if (selectedBatchId || pendentes.length === 0) return;
+    const fromUrl = pendentes.find((p) => p.batch.items.some((i) => i.id === id));
+    setSelectedBatchId((fromUrl ?? pendentes[0]).batch.batchId);
+  }, [pendentes, id, selectedBatchId]);
 
-  const isRemainder = mode === 'remainder';
-  const valorAPagar = Math.round(totalMt * (isRemainder ? 0.3 : 0.7) * 100) / 100;
+  const selected = pendentes.find((p) => p.batch.batchId === selectedBatchId) ?? null;
+  // Ligado ao estado real da encomenda (não a um estado local que se perdia
+  // ao sair da página) — enquanto o método já foi escolhido mas a equipa
+  // ainda não avançou o estado, mostra sempre o passo de anexar comprovativo,
+  // independentemente de quanto tempo o cliente demore a voltar.
+  const awaitingProof = selected?.batch.status === 'payment_selected';
 
   const handleConfirm = async () => {
-    if (!metodo) return;
-    setStatus('submitting');
+    if (!metodo || !selected) return;
+    setConfirming(true);
     setErrorMessage('');
     try {
-      const endpoint = isRemainder ? 'pagamento-remanescente' : 'pagamento';
-      const res = await fetch(`/api/cotacoes/${id}/${endpoint}`, {
+      const anchorId = selected.batch.primaryItem.id;
+      const endpoint = selected.mode === 'remainder' ? 'pagamento-remanescente' : 'pagamento';
+      const res = await fetch(`/api/cotacoes/${anchorId}/${endpoint}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ metodoPagamento: metodo }),
@@ -67,12 +102,150 @@ export default function CotacaoPagamentoPage() {
       if (!res.ok || !data.success) {
         throw new Error(data.error || 'Não foi possível confirmar o método de pagamento.');
       }
-      setStatus('done');
+      await fetchQuotations();
     } catch (err: any) {
       setErrorMessage(err.message || 'Falha ao comunicar com o servidor.');
-      setStatus('error');
+    } finally {
+      setConfirming(false);
     }
   };
+
+  const content = (
+    <>
+      {quotations === null ? (
+        <div className="flex items-center justify-center min-h-[60vh] py-12">
+          <Spinner className="w-8 h-8" />
+        </div>
+      ) : pendentes.length === 0 ? (
+        <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg p-8 text-center space-y-4">
+          <AlertCircle className="w-12 h-12 text-amber-500 mx-auto" />
+          <h2 className="text-lg font-bold text-zinc-900 dark:text-white">Nada para pagar neste momento</h2>
+          <p className="text-sm text-zinc-500 dark:text-zinc-400">
+            Não tem encomendas com pagamento pendente agora. Consulte o estado actual no seu painel.
+          </p>
+          <Link
+            href="/encomendas"
+            className="inline-block mt-2 bg-red-600 hover:bg-red-700 text-white font-bold px-6 py-2.5 rounded-md text-sm transition-colors"
+          >
+            Ir para as Minhas Encomendas
+          </Link>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 lg:grid-cols-[240px_1fr] gap-4 lg:gap-6 items-start w-full">
+          {/* Coluna esquerda — lista de encomendas com pagamento pendente */}
+          <div className="space-y-2">
+            {pendentes.map((p) => {
+              const isSelected = p.batch.batchId === selectedBatchId;
+              const numero = numeros[p.batch.batchId] ?? batchNumero(p.batch.batchId);
+              return (
+                <button
+                  key={p.batch.batchId}
+                  type="button"
+                  onClick={() => {
+                    setSelectedBatchId(p.batch.batchId);
+                    setMetodo(null);
+                    setErrorMessage('');
+                  }}
+                  className={`w-full text-left p-3 rounded-lg border transition-colors ${
+                    isSelected
+                      ? 'border-red-400 bg-red-50/50 dark:bg-red-950/10 dark:border-red-900/50'
+                      : 'border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 hover:border-red-300'
+                  }`}
+                >
+                  <p className="text-xs font-bold text-black dark:text-white">Nº {numero}</p>
+                  <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">
+                    {p.mode === 'remainder' ? 'Remanescente (30%)' : 'Adiantamento (70%)'}
+                  </p>
+                  <p className="text-lg font-bold text-zinc-900 dark:text-white mt-1">{formatMt(p.valor)} MT</p>
+                  {p.batch.status === 'payment_selected' && (
+                    <span className="inline-flex items-center gap-1 mt-1.5 text-[10px] font-bold text-blue-700 dark:text-blue-400">
+                      <Clock className="w-3 h-3" /> Aguarda confirmação
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Coluna direita — itens da encomenda seleccionada + acção de pagamento */}
+          <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg p-5 w-full">
+            {!selected ? (
+              <p className="text-sm text-zinc-400">Seleccione uma encomenda à esquerda.</p>
+            ) : (
+              <FaturaResumo selected={selected}>
+                {awaitingProof ? (
+                  <ComprovativoInline quotationId={selected.batch.primaryItem.id} />
+                ) : (
+                  <div className="space-y-4">
+                    <div className="flex flex-wrap items-center gap-2 justify-end">
+                      <button
+                        type="button"
+                        onClick={() => setMetodo('mpesa')}
+                        className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-md border text-sm font-bold transition-colors ${
+                          metodo === 'mpesa'
+                            ? 'border-red-600 bg-red-50 text-red-700 dark:bg-red-950/20 dark:text-red-400'
+                            : 'border-zinc-200 dark:border-zinc-800 text-zinc-700 dark:text-zinc-300 hover:border-red-300'
+                        }`}
+                      >
+                        <Smartphone className="w-4 h-4" /> M-Pesa
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setMetodo('transferencia')}
+                        className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-md border text-sm font-bold transition-colors ${
+                          metodo === 'transferencia'
+                            ? 'border-red-600 bg-red-50 text-red-700 dark:bg-red-950/20 dark:text-red-400'
+                            : 'border-zinc-200 dark:border-zinc-800 text-zinc-700 dark:text-zinc-300 hover:border-red-300'
+                        }`}
+                      >
+                        <Landmark className="w-4 h-4" /> Transferência
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleConfirm}
+                        disabled={!metodo || confirming}
+                        className="inline-flex items-center justify-center gap-2 bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white font-bold px-5 py-2 rounded-md text-sm transition-colors"
+                      >
+                        {confirming ? <Spinner className="w-4 h-4" /> : 'Confirmar'}
+                      </button>
+                    </div>
+
+                    {errorMessage && (
+                      <div className="bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-900/50 rounded-lg p-3 flex items-start gap-2">
+                        <AlertCircle className="w-4 h-4 text-red-600 dark:text-red-500 mt-0.5 shrink-0" />
+                        <p className="text-sm text-red-800 dark:text-red-300">{errorMessage}</p>
+                      </div>
+                    )}
+
+                    {metodo === 'mpesa' && (
+                      <div className="bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200 dark:border-zinc-800 rounded-lg p-4 text-sm text-zinc-700 dark:text-zinc-300">
+                        Envie o valor para <span className="font-bold">{MPESA_NUMBER}</span>.
+                      </div>
+                    )}
+                    {metodo === 'transferencia' && (
+                      <div className="bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200 dark:border-zinc-800 rounded-lg p-4 text-sm text-zinc-700 dark:text-zinc-300 space-y-0.5">
+                        <p>{BANK_NAME}</p>
+                        <p>Conta BCI: <span className="font-bold">{BANK_ACCOUNT}</span></p>
+                        <p>NIB: <span className="font-bold">{BANK_NIB}</span></p>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </FaturaResumo>
+            )}
+          </div>
+        </div>
+      )}
+    </>
+  );
+
+  if (embed) {
+    return (
+      <div className="min-h-screen bg-white">
+        <div className="w-full px-4 py-4">{content}</div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-zinc-200 dark:bg-black">
@@ -81,16 +254,12 @@ export default function CotacaoPagamentoPage() {
         <div className="container mx-auto max-w-7xl px-6 pt-[170px] pb-[70px] relative z-10 text-center">
           <h1 className="text-3xl sm:text-4xl font-bold text-white mb-2">Método de Pagamento</h1>
           <p className="text-base text-zinc-300 max-w-2xl mx-auto leading-relaxed mb-4">
-            {isRemainder
-              ? 'Escolha como pretende pagar o remanescente (30%) para levantar a encomenda.'
-              : 'Escolha como pretende fazer o adiantamento de 70% da cotação.'}
+            Escolha a encomenda e o método para fazer o pagamento.
           </p>
           <nav className="text-xs text-zinc-400">
             <Link href="/" className="hover:text-white transition-colors">Início</Link>
             <span className="mx-2">/</span>
             <Link href="/precos" className="hover:text-white transition-colors">Preços</Link>
-            <span className="mx-2">/</span>
-            <Link href={`/cotacao/${id}`} className="hover:text-white transition-colors">Cotação</Link>
             <span className="mx-2">/</span>
             <span className="text-zinc-300">Pagamento</span>
           </nav>
@@ -102,139 +271,207 @@ export default function CotacaoPagamentoPage() {
       </NotchSection>
 
       <NotchSection shape="mid" bg="bg-zinc-200 dark:bg-black" className="py-12">
-      <div className="max-w-lg mx-auto px-4">
-
-        {mode === null ? (
-          <div className="flex justify-center py-12">
-            <Spinner className="w-8 h-8" />
-          </div>
-        ) : mode === 'unavailable' ? (
-          <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg p-8 text-center space-y-4">
-            <AlertCircle className="w-12 h-12 text-amber-500 mx-auto" />
-            <h2 className="text-lg font-bold text-zinc-900 dark:text-white">Nada para pagar neste momento</h2>
-            <p className="text-sm text-zinc-500 dark:text-zinc-400">
-              Esta encomenda não tem um pagamento pendente agora. Consulte o estado actual no seu painel.
-            </p>
-            <Link
-              href="/encomendas"
-              className="inline-block mt-2 bg-red-600 hover:bg-red-700 text-white font-bold px-6 py-2.5 rounded-md text-sm transition-colors"
-            >
-              Ir para as Minhas Encomendas
-            </Link>
-          </div>
-        ) : mode === 'advance' && sobConsulta ? (
-          <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg p-8 text-center space-y-4">
-            <AlertCircle className="w-12 h-12 text-amber-500 mx-auto" />
-            <h2 className="text-lg font-bold text-zinc-900 dark:text-white">Este serviço é Sob Consulta</h2>
-            <p className="text-sm text-zinc-500 dark:text-zinc-400">
-              Ainda não há um valor fixo para pagar. A nossa equipa vai contactá-lo para confirmar o valor antes de avançar para o pagamento.
-            </p>
-            <Link
-              href={`/cotacao/${id}`}
-              className="inline-block mt-2 bg-red-600 hover:bg-red-700 text-white font-bold px-6 py-2.5 rounded-md text-sm transition-colors"
-            >
-              Voltar à Cotação
-            </Link>
-          </div>
-        ) : status === 'done' ? (
-          <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg p-8 text-center space-y-4">
-            <CheckCircle2 className="w-12 h-12 text-green-600 mx-auto" />
-            <h2 className="text-lg font-bold text-zinc-900 dark:text-white">Método registado!</h2>
-            <p className="text-sm text-zinc-500 dark:text-zinc-400">
-              {isRemainder
-                ? 'A nossa equipa vai confirmar o pagamento e preparar a entrega/levantamento.'
-                : 'A nossa equipa vai confirmar o pagamento assim que o depósito for recebido.'}
-            </p>
-            <button
-              type="button"
-              onClick={() => router.push('/encomendas')}
-              className="mt-2 bg-red-600 hover:bg-red-700 text-white font-bold px-6 py-2.5 rounded-md text-sm transition-colors"
-            >
-              Ir para as Minhas Encomendas
-            </button>
-          </div>
-        ) : (
-          <div className="space-y-4">
-            <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg p-4">
-              <p className="text-sm text-zinc-500 dark:text-zinc-400">
-                {isRemainder ? 'Remanescente a pagar (30%)' : 'Adiantamento a pagar (70%)'}
-              </p>
-              <p className="text-2xl font-bold text-zinc-900 dark:text-white">{formatMt(valorAPagar)} MT</p>
-              {someSobConsulta && (
-                <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1">
-                  Não inclui os itens Sob Consulta desta encomenda — o valor desses é confirmado à parte.
-                </p>
-              )}
-            </div>
-
-            {status === 'error' && errorMessage && (
-              <div className="bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-900/50 rounded-lg p-4 flex items-start gap-3">
-                <AlertCircle className="w-5 h-5 text-red-600 dark:text-red-500 mt-0.5 shrink-0" />
-                <p className="text-sm text-red-800 dark:text-red-300">{errorMessage}</p>
-              </div>
-            )}
-
-            <button
-              type="button"
-              onClick={() => setMetodo('mpesa')}
-              className={`w-full text-left flex items-start gap-4 p-5 rounded-lg border transition-colors ${
-                metodo === 'mpesa'
-                  ? 'border-red-600 bg-red-50 dark:bg-red-950/20'
-                  : 'border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 hover:border-red-300'
-              }`}
-            >
-              <Smartphone className="w-6 h-6 text-red-600 shrink-0 mt-0.5" />
-              <div>
-                <p className="font-bold text-zinc-900 dark:text-white">M-Pesa</p>
-                {metodo === 'mpesa' && (
-                  <p className="text-sm text-zinc-600 dark:text-zinc-400 mt-1">
-                    Envie o valor para <span className="font-bold">{MPESA_NUMBER}</span>.
-                  </p>
-                )}
-              </div>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setMetodo('transferencia')}
-              className={`w-full text-left flex items-start gap-4 p-5 rounded-lg border transition-colors ${
-                metodo === 'transferencia'
-                  ? 'border-red-600 bg-red-50 dark:bg-red-950/20'
-                  : 'border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 hover:border-red-300'
-              }`}
-            >
-              <Landmark className="w-6 h-6 text-red-600 shrink-0 mt-0.5" />
-              <div>
-                <p className="font-bold text-zinc-900 dark:text-white">Transferência Bancária</p>
-                {metodo === 'transferencia' && (
-                  <div className="text-sm text-zinc-600 dark:text-zinc-400 mt-1 space-y-0.5">
-                    <p>{BANK_NAME}</p>
-                    <p>Conta BCI: <span className="font-bold">{BANK_ACCOUNT}</span></p>
-                    <p>NIB: <span className="font-bold">{BANK_NIB}</span></p>
-                  </div>
-                )}
-              </div>
-            </button>
-
-            <button
-              type="button"
-              onClick={handleConfirm}
-              disabled={!metodo || status === 'submitting'}
-              className="w-full inline-flex items-center justify-center gap-2 bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white font-bold px-8 py-3.5 rounded-md transition-all shadow-lg shadow-red-600/20"
-            >
-              {status === 'submitting' ? (
-                <>
-                  <Spinner className="w-4 h-4" />
-                  <span>A confirmar...</span>
-                </>
-              ) : (
-                <span>Confirmar Método de Pagamento</span>
-              )}
-            </button>
-          </div>
-        )}
-      </div>
+        <div className="max-w-5xl mx-auto px-4">{content}</div>
       </NotchSection>
     </div>
+  );
+}
+
+/** Itens da encomenda (formato de factura) + resumo com IVA, seguido da acção de pagamento passada como children. */
+function FaturaResumo({ selected, children }: { selected: PendingEntry; children: React.ReactNode }) {
+  const { batch, valor, mode } = selected;
+  const base = Math.round((valor / (1 + IVA_RATE)) * 100) / 100;
+  const iva = Math.round((valor - base) * 100) / 100;
+
+  return (
+    <div className="space-y-5">
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b border-zinc-300 dark:border-zinc-700 text-left text-xs uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+              <th className="pb-2 font-bold w-10">Nº</th>
+              <th className="pb-2 font-bold">Descrição</th>
+              <th className="pb-2 font-bold text-right">Qtd.</th>
+              <th className="pb-2 font-bold text-right">Total</th>
+            </tr>
+          </thead>
+          <tbody>
+            {batch.items.map((item, idx) => (
+              <tr key={item.id} className="border-b border-zinc-100 dark:border-zinc-800">
+                <td className="py-3 text-zinc-500 dark:text-zinc-400">{idx + 1}</td>
+                <td className="py-3">
+                  <span className="font-semibold text-zinc-800 dark:text-zinc-200">{item.categoria_label}</span>
+                  <br />
+                  <span className="text-zinc-500 dark:text-zinc-400">{item.produto}</span>
+                </td>
+                <td className="py-3 text-right text-zinc-700 dark:text-zinc-300">{item.quantidade}</td>
+                <td className="py-3 text-right font-bold text-zinc-900 dark:text-white">
+                  {item.sob_consulta ? 'Sob Consulta' : `${formatMt(item.total_mt)} MT`}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      <div className="flex flex-col items-end gap-1 text-sm border-t border-zinc-200 dark:border-zinc-800 pt-4">
+        <div className="flex justify-between w-full max-w-xs text-zinc-500 dark:text-zinc-400">
+          <span>Valor total da factura</span>
+          <span>{formatMt(batch.totalMt)} MT</span>
+        </div>
+        <div className="flex justify-between w-full max-w-xs text-zinc-500 dark:text-zinc-400">
+          <span>{mode === 'remainder' ? 'Remanescente 30% (sem IVA)' : 'Adiantamento 70% (sem IVA)'}</span>
+          <span>{formatMt(base)} MT</span>
+        </div>
+        <div className="flex justify-between w-full max-w-xs text-zinc-500 dark:text-zinc-400">
+          <span>IVA (16%)</span>
+          <span>{formatMt(iva)} MT</span>
+        </div>
+        <div className="flex justify-between w-full max-w-xs font-bold text-zinc-900 dark:text-white text-base pt-1 border-t border-zinc-200 dark:border-zinc-800">
+          <span>{mode === 'remainder' ? 'Valor total do remanescente' : 'Valor total do adiantamento'}</span>
+          <span>{formatMt(valor)} MT</span>
+        </div>
+      </div>
+
+      {children}
+    </div>
+  );
+}
+
+/** Anexar comprovativo — embutido na página (sem popup), para não se perder ao sair/voltar. */
+function ComprovativoInline({ quotationId }: { quotationId: string }) {
+  const [checking, setChecking] = useState(true);
+  const [alreadySent, setAlreadySent] = useState(false);
+  const [collapsed, setCollapsed] = useState(false);
+  const [file, setFile] = useState<File | null>(null);
+  const [sending, setSending] = useState(false);
+  const [sent, setSent] = useState(false);
+  const [error, setError] = useState('');
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    setChecking(true);
+    fetch(`/api/cotacoes/${quotationId}/anexos`)
+      .then((r) => r.json())
+      .then((data) => setAlreadySent(data.success && Array.isArray(data.anexos) && data.anexos.length > 0))
+      .catch(() => {})
+      .finally(() => setChecking(false));
+  }, [quotationId]);
+
+  const handleSend = async () => {
+    if (!file) return;
+    setSending(true);
+    setError('');
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      const res = await fetch(`/api/cotacoes/${quotationId}/anexos`, { method: 'POST', body: formData });
+      const data = await res.json();
+      if (!res.ok || !data.success) throw new Error(data.error || 'Não foi possível enviar o comprovativo.');
+      setSent(true);
+    } catch (err: any) {
+      setError(err.message || 'Não foi possível enviar o comprovativo.');
+    } finally {
+      setSending(false);
+    }
+  };
+
+  if (checking) {
+    return (
+      <div className="flex justify-center py-6">
+        <Spinner className="w-6 h-6" />
+      </div>
+    );
+  }
+
+  if (alreadySent || sent) {
+    return (
+      <div className="border border-zinc-200 dark:border-zinc-800 rounded-lg p-5 text-center space-y-2">
+        <CheckCircle2 className="w-10 h-10 text-green-600 mx-auto" />
+        <p className="font-bold text-zinc-900 dark:text-white">Comprovativo enviado</p>
+        <p className="text-sm text-zinc-500 dark:text-zinc-400">
+          A nossa equipa vai confirmar o recebimento e actualizar o estado da sua encomenda.
+        </p>
+      </div>
+    );
+  }
+
+  if (collapsed) {
+    return (
+      <div className="flex justify-end">
+        <button
+          type="button"
+          onClick={() => setCollapsed(false)}
+          className="inline-flex items-center gap-2 bg-red-600 hover:bg-red-700 text-white font-bold px-5 py-2.5 rounded-md text-sm transition-colors"
+        >
+          <Paperclip className="w-4 h-4" />
+          Anexar comprovativo
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="border border-zinc-200 dark:border-zinc-800 rounded-lg p-5 space-y-3">
+      <div className="flex items-center gap-2 text-blue-700 dark:text-blue-400">
+        <Clock className="w-4 h-4" />
+        <p className="font-bold text-sm">Método registado — falta anexar o comprovativo</p>
+      </div>
+      <p className="text-sm text-zinc-500 dark:text-zinc-400">
+        Envie uma foto ou PDF do comprovativo do pagamento (M-Pesa ou transferência). A nossa equipa confirma o
+        recebimento e actualiza o estado da sua encomenda.
+      </p>
+
+      <input
+        type="file"
+        ref={fileInputRef}
+        onChange={(e) => setFile(e.target.files?.[0] || null)}
+        className="hidden"
+        disabled={sending}
+      />
+      <button
+        type="button"
+        onClick={() => fileInputRef.current?.click()}
+        disabled={sending}
+        className="w-full inline-flex items-center gap-2 justify-start border border-zinc-200 dark:border-zinc-800 rounded-md px-3 py-2.5 text-sm text-zinc-700 dark:text-zinc-300 hover:border-red-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/10 dark:hover:text-red-400 transition-colors truncate"
+      >
+        <Paperclip className="w-4 h-4 shrink-0" />
+        <span className="truncate">{file ? file.name : 'Escolher ficheiro'}</span>
+      </button>
+
+      {error && <p className="text-xs text-red-600 dark:text-red-400">{error}</p>}
+
+      <div className="flex gap-2">
+        <button
+          type="button"
+          onClick={() => setCollapsed(true)}
+          className="flex-1 border border-zinc-200 dark:border-zinc-800 rounded-md px-4 py-2 text-sm font-bold text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-colors"
+        >
+          Mais tarde
+        </button>
+        <button
+          type="button"
+          onClick={handleSend}
+          disabled={!file || sending}
+          className="flex-1 inline-flex items-center justify-center gap-2 bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white font-bold px-4 py-2 rounded-md text-sm transition-colors"
+        >
+          {sending ? <Spinner className="w-4 h-4" /> : 'Enviar'}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+export default function CotacaoPagamentoPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen flex items-center justify-center bg-zinc-50 dark:bg-black">
+          <Spinner className="w-10 h-10" />
+        </div>
+      }
+    >
+      <CotacaoPagamentoContent />
+    </Suspense>
   );
 }

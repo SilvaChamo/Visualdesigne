@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import {
   RefreshCw, FileText, Building2, Phone, Mail, Calendar,
-  Inbox, Clock, Factory, PackageCheck, XCircle, CheckCircle2, MessageCircle, X,
+  Inbox, Clock, Factory, PackageCheck, XCircle, CheckCircle2, MessageCircle, X, Trash2,
 } from 'lucide-react'
 import {
   panelBtnPrimary, panelBtnSecondary, panelField,
@@ -40,7 +40,7 @@ interface QuotationRequest extends BatchItem {
 
 const STATUS_OPTIONS: { value: QuotationRequest['status']; label: string; badge: string }[] = [
   { value: 'pending', label: 'Pendente', badge: 'bg-amber-100 text-amber-700 dark:bg-amber-950/30 dark:text-amber-400' },
-  { value: 'payment_selected', label: 'Pago', badge: 'bg-blue-100 text-blue-700 dark:bg-blue-950/30 dark:text-blue-400' },
+  { value: 'payment_selected', label: 'Pagamento em confirmação', badge: 'bg-blue-100 text-blue-700 dark:bg-blue-950/30 dark:text-blue-400' },
   { value: 'approved', label: 'Em Produção', badge: 'bg-teal-100 text-teal-700 dark:bg-teal-950/30 dark:text-teal-400' },
   { value: 'delivered', label: 'Entregue', badge: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-950/30 dark:text-indigo-400' },
   { value: 'rejected', label: 'Rejeitada', badge: 'bg-rose-100 text-rose-700 dark:bg-rose-950/30 dark:text-rose-400' },
@@ -111,6 +111,7 @@ export function CotacoesSection() {
   const [activeBucket, setActiveBucket] = useState<StatusBucket>('pending')
   const [updatingId, setUpdatingId] = useState<string | null>(null)
   const [expandedBatchId, setExpandedBatchId] = useState<string | null>(null)
+  const [deletingBatchId, setDeletingBatchId] = useState<string | null>(null)
   const numeros = useBatchNumeros()
 
   const fetchCotacoes = useCallback(async (opts?: { background?: boolean }) => {
@@ -217,6 +218,28 @@ export function CotacoesSection() {
     }
   }
 
+  const deleteBatch = async (batchId: string) => {
+    if (!window.confirm('Eliminar esta encomenda concluída? Esta ação não pode ser desfeita.')) return
+    setDeletingBatchId(batchId)
+    try {
+      const res = await fetch('/api/admin/cotacoes', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ batchId }),
+      })
+      const data = await res.json()
+      if (data.success) {
+        setCotacoes((prev) => prev.filter((c) => c.batch_id !== batchId))
+      } else {
+        window.alert(data.error || 'Não foi possível eliminar a encomenda.')
+      }
+    } catch (error) {
+      console.error('Erro ao eliminar encomenda:', error)
+    } finally {
+      setDeletingBatchId(null)
+    }
+  }
+
   const navBtnClass = (active: boolean) =>
     `w-full flex items-center gap-2 px-2.5 py-2 rounded text-sm font-medium transition-colors text-left ${
       active
@@ -301,6 +324,8 @@ export function CotacoesSection() {
                             updatingId={updatingId}
                             onUpdateStatus={updateStatus}
                             onUpdateDeliveryDate={updateDeliveryDate}
+                            deletingBatchId={deletingBatchId}
+                            onDeleteBatch={deleteBatch}
                           />
                         )
                       })}
@@ -316,7 +341,7 @@ export function CotacoesSection() {
   )
 }
 
-type BatchTab = 'itens' | 'historico' | 'anexos' | 'layouts' | 'empresa' | 'cotacao'
+type BatchTab = 'itens' | 'historico' | 'anexos' | 'layouts' | 'empresa'
 
 const BATCH_TABS: { id: BatchTab; label: string }[] = [
   { id: 'itens', label: 'Itens da encomenda' },
@@ -324,7 +349,6 @@ const BATCH_TABS: { id: BatchTab; label: string }[] = [
   { id: 'anexos', label: 'Anexos' },
   { id: 'layouts', label: 'Layouts' },
   { id: 'empresa', label: 'Dados da empresa' },
-  { id: 'cotacao', label: 'Cotação' },
 ]
 
 /** Mesma heurística usada no resto do painel para normalizar números moçambicanos para wa.me. */
@@ -343,6 +367,8 @@ function BatchCard({
   updatingId,
   onUpdateStatus,
   onUpdateDeliveryDate,
+  deletingBatchId,
+  onDeleteBatch,
 }: {
   number: number
   batch: QuotationBatch<QuotationRequest>
@@ -352,6 +378,8 @@ function BatchCard({
   updatingId: string | null
   onUpdateStatus: (itemId: string, status: QuotationRequest['status']) => void
   onUpdateDeliveryDate: (batchId: string, dataLimiteEntrega: string) => void
+  deletingBatchId: string | null
+  onDeleteBatch: (batchId: string) => void
 }) {
   const [activeTab, setActiveTab] = useState<BatchTab>('itens')
   const [showMessages, setShowMessages] = useState(false)
@@ -362,6 +390,17 @@ function BatchCard({
   const whatsappHref = whatsappDigits
     ? `https://wa.me/${whatsappDigits}?text=${encodeURIComponent(`Olá ${anchor.responsavel || ''}, sobre a sua encomenda Nº ${numero} (${anchor.empresa}):`)}`
     : null
+  const openCotacaoPopup = (anchorId: string) => {
+    const w = 900
+    const h = 1000
+    const left = window.screenX + Math.max(0, (window.outerWidth - w) / 2)
+    const top = window.screenY + Math.max(0, (window.outerHeight - h) / 2)
+    window.open(
+      `/cotacao/${anchorId}?embed=1`,
+      `cotacao-${anchorId}`,
+      `width=${w},height=${h},left=${left},top=${top},resizable=yes,scrollbars=yes`,
+    )
+  }
   const meta = statusMeta(batch.status, batch.sobConsulta)
   const resumo = batch.sobConsulta
     ? 'Pedido personalizado — aguarda contacto'
@@ -371,7 +410,13 @@ function BatchCard({
 
   return (
     <div className={panelSectionCard}>
-      <button type="button" onClick={onToggle} className="w-full flex items-start gap-3 p-4 text-left">
+      <div
+        role="button"
+        tabIndex={0}
+        onClick={onToggle}
+        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onToggle() } }}
+        className="w-full flex items-start gap-3 p-4 text-left cursor-pointer"
+      >
         <span className="shrink-0 rounded border border-red-200 bg-red-50 px-1.5 py-0.5 font-mono text-xs font-bold text-red-600 dark:border-red-900/40 dark:bg-red-950/20 dark:text-red-400 tabular-nums">
           #{number}
         </span>
@@ -396,11 +441,22 @@ function BatchCard({
               <span className="shrink-0 w-20 text-right text-xs text-gray-400 dark:text-zinc-500 whitespace-nowrap">
                 {new Date(anchor.created_at).toLocaleDateString('pt-PT')}
               </span>
+              {batch.status === 'done' && (
+                <button
+                  type="button"
+                  onClick={(e) => { e.stopPropagation(); onDeleteBatch(batch.batchId) }}
+                  disabled={deletingBatchId === batch.batchId}
+                  className="shrink-0 text-gray-300 hover:text-red-600 dark:text-zinc-600 dark:hover:text-red-500 transition-colors p-1"
+                  title="Eliminar encomenda"
+                >
+                  {deletingBatchId === batch.batchId ? <Spinner className="w-4 h-4" /> : <Trash2 className="w-4 h-4" />}
+                </button>
+              )}
             </div>
           </div>
           <p className="text-xs text-gray-500 dark:text-zinc-400 truncate">{resumo}</p>
         </div>
-      </button>
+      </div>
 
       {isExpanded && (
         <div className="border-t border-gray-100 dark:border-zinc-800" onClick={(e) => e.stopPropagation()}>
@@ -497,7 +553,7 @@ function BatchCard({
                       )
                     })}
                   </div>
-                  <button type="button" onClick={() => setActiveTab('cotacao')} className={panelBtnPrimary + ' mt-1'}>
+                  <button type="button" onClick={() => openCotacaoPopup(anchor.id)} className={panelBtnPrimary + ' mt-1'}>
                     <FileText className="w-3.5 h-3.5" />
                     <span>Ver cotação</span>
                   </button>
@@ -520,14 +576,6 @@ function BatchCard({
               </div>
             )}
 
-            {activeTab === 'cotacao' && (
-              <iframe
-                key={anchor.id}
-                src={`/cotacao/${anchor.id}?embed=1`}
-                className="w-full h-[70vh] border-0 rounded-lg"
-                title="Cotação"
-              />
-            )}
           </div>
 
           {/* Chat: um único ícone flutuante que abre a escolha entre Mensagens (guardadas no

@@ -2,6 +2,9 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { requireAdminOrReseller } from '@/lib/panel-api-auth';
 import { notifyQuoteClientStatusChange } from '@/lib/notify-quote-client';
+import { computeBatchStatus } from '@/lib/quotation-status-labels';
+import { QUOTATION_ATTACHMENTS_BUCKET } from '@/lib/quotation-attachments-bucket';
+import { QUOTATION_LAYOUTS_BUCKET } from '@/lib/quotation-layouts-bucket';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
@@ -120,6 +123,81 @@ export async function PATCH(request: Request) {
 
     return NextResponse.json({ success: true, cotacao: data });
   } catch (error: any) {
+    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+  }
+}
+
+// Elimina definitivamente uma encomenda (todas as linhas do batch) — só
+// depois de concluída, mesma regra usada do lado do cliente (ver
+// /api/cotacoes/[id] DELETE). Mensagens/anexos/histórico saem juntos via ON
+// DELETE CASCADE; os ficheiros no bucket têm de ser removidos à parte.
+export async function DELETE(request: Request) {
+  const auth = await requireAdminOrReseller();
+  if ('error' in auth) return auth.error;
+  if (auth.user.role !== 'admin') {
+    return NextResponse.json({ success: false, error: 'Acção restrita a administradores.' }, { status: 403 });
+  }
+
+  try {
+    const { batchId } = (await request.json()) || {};
+    if (!batchId) {
+      return NextResponse.json({ success: false, error: 'batchId é obrigatório.' }, { status: 400 });
+    }
+
+    const supabase = getSupabaseAdmin();
+
+    const { data: batchItems, error: batchError } = await supabase
+      .from('quotation_requests')
+      .select('id, status')
+      .eq('batch_id', batchId);
+
+    if (batchError || !batchItems || batchItems.length === 0) {
+      return NextResponse.json({ success: false, error: 'Encomenda não encontrada.' }, { status: 404 });
+    }
+
+    if (computeBatchStatus(batchItems) !== 'done') {
+      return NextResponse.json(
+        { success: false, error: 'Só é possível eliminar encomendas já concluídas.' },
+        { status: 409 },
+      );
+    }
+
+    const ids = batchItems.map((i) => i.id);
+
+    const { data: attachments } = await supabase
+      .from('quotation_attachments')
+      .select('file_url')
+      .in('quotation_id', ids);
+
+    if (attachments && attachments.length > 0) {
+      const paths = attachments
+        .map((a) => a.file_url.split(`${QUOTATION_ATTACHMENTS_BUCKET}/`)[1])
+        .filter((p): p is string => Boolean(p));
+      if (paths.length > 0) {
+        await supabase.storage.from(QUOTATION_ATTACHMENTS_BUCKET).remove(paths);
+      }
+    }
+
+    const { data: layouts } = await supabase
+      .from('quotation_layouts')
+      .select('file_url')
+      .in('quotation_id', ids);
+
+    if (layouts && layouts.length > 0) {
+      const paths = layouts
+        .map((l) => l.file_url.split(`${QUOTATION_LAYOUTS_BUCKET}/`)[1])
+        .filter((p): p is string => Boolean(p));
+      if (paths.length > 0) {
+        await supabase.storage.from(QUOTATION_LAYOUTS_BUCKET).remove(paths);
+      }
+    }
+
+    const { error: deleteError } = await supabase.from('quotation_requests').delete().in('id', ids);
+    if (deleteError) throw deleteError;
+
+    return NextResponse.json({ success: true });
+  } catch (error: any) {
+    console.error('[admin/cotacoes DELETE] error:', error);
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });
   }
 }

@@ -33,6 +33,14 @@
   --panel-accent: #f87171;
 }
 
+/* Spinner "a processar" (componente Spinner) — tamanho normal fora de botões;
+   dentro de um <button>, reduz automaticamente (não precisa de passar props). */
+button .panel-spinner {
+  width: 1rem;
+  height: 1rem;
+  border-width: 2px;
+}
+
 html,
 body {
   background: var(--background);

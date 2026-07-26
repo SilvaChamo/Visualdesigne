@@ -1,12 +1,26 @@
 'use client';
 
 import { useEffect, useState, useMemo } from 'react';
-import { Smartphone, Landmark, CheckCircle2, Wallet } from 'lucide-react';
+import { Smartphone, Landmark, CheckCircle2, Wallet, FileText } from 'lucide-react';
 import { formatMt } from '@/lib/pricing-catalog';
 import { MPESA_NUMBER, BANK_NAME, BANK_ACCOUNT, BANK_NIB, metodoPagamentoLabel } from '@/lib/quotation-payment-info';
-import { panelCard, panelBtnPrimary } from '@/lib/panel-ui';
+import { panelCard, panelBtnPrimary, panelBtnSecondary } from '@/lib/panel-ui';
 import { groupIntoBatches, batchNumero, type BatchItem } from '@/lib/quotation-batch';
 import { useBatchNumeros } from '@/lib/use-batch-numeros';
+
+const FACTURA_STATUSES = ['approved', 'delivered', 'done'];
+
+function openFactura(quotationId: string) {
+  const w = 900;
+  const h = 1000;
+  const left = window.screenX + Math.max(0, (window.outerWidth - w) / 2);
+  const top = window.screenY + Math.max(0, (window.outerHeight - h) / 2);
+  window.open(
+    `/cotacao/${quotationId}?embed=1&tipo=factura`,
+    `factura-${quotationId}`,
+    `width=${w},height=${h},left=${left},top=${top},resizable=yes,scrollbars=yes`,
+  );
+}
 
 type Quotation = BatchItem & {
   categoria_label: string;
@@ -75,59 +89,70 @@ export function EncomendasPagamentosSection() {
           batch.items.length === 1
             ? `${anchor.categoria_label} — ${anchor.produto}`
             : `${batch.items.length} serviços`;
+        const facturaDisponivel = FACTURA_STATUSES.includes(batch.status);
         return (
-          <div key={batch.batchId} className={`${panelCard} p-4`}>
-            <div className="flex items-center justify-between gap-3 mb-2">
-              <div>
-                <p className="font-bold text-black dark:text-white">Encomenda Nº {numeros[batch.batchId] ?? batchNumero(batch.batchId)}</p>
-                <p className="text-sm text-gray-500 dark:text-zinc-400">{resumo}</p>
-                <p className="text-sm text-gray-500 dark:text-zinc-400">
-                  {batch.sobConsulta ? 'Sob Consulta' : `${formatMt(batch.totalMt)} MT`}
-                </p>
+          <div key={batch.batchId} className={`${panelCard} p-4 flex items-start gap-4`}>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center justify-between gap-3 mb-2">
+                <div>
+                  <p className="font-bold text-black dark:text-white">Encomenda Nº {numeros[batch.batchId] ?? batchNumero(batch.batchId)}</p>
+                  <p className="text-sm text-gray-500 dark:text-zinc-400">{resumo}</p>
+                  <p className="text-sm text-gray-500 dark:text-zinc-400">
+                    {batch.sobConsulta ? 'Sob Consulta' : `${formatMt(batch.totalMt)} MT`}
+                  </p>
+                </div>
+                {batch.status === 'approved' && (
+                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-teal-50 text-teal-700 dark:bg-teal-950/30 dark:text-teal-400">
+                    <CheckCircle2 className="w-3.5 h-3.5" /> Adiantamento confirmado — em produção
+                  </span>
+                )}
+                {isRemainder && (
+                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-indigo-50 text-indigo-700 dark:bg-indigo-950/30 dark:text-indigo-400">
+                    <CheckCircle2 className="w-3.5 h-3.5" /> Pronta para levantamento
+                  </span>
+                )}
               </div>
-              {batch.status === 'approved' && (
-                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-teal-50 text-teal-700 dark:bg-teal-950/30 dark:text-teal-400">
-                  <CheckCircle2 className="w-3.5 h-3.5" /> Adiantamento confirmado — em produção
-                </span>
-              )}
-              {isRemainder && (
-                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-indigo-50 text-indigo-700 dark:bg-indigo-950/30 dark:text-indigo-400">
-                  <CheckCircle2 className="w-3.5 h-3.5" /> Pronta para levantamento
-                </span>
+
+              {isRemainder ? (
+                <div className="mt-2 text-sm text-gray-600 dark:text-zinc-400 space-y-1">
+                  <p className="font-semibold text-gray-800 dark:text-zinc-200">Remanescente a pagar (30%): {formatMt(remanescenteValor)} MT</p>
+                  {remanescenteMetodo ? (
+                    <>
+                      <p className="font-semibold text-gray-800 dark:text-zinc-200">Método escolhido: {metodoPagamentoLabel(remanescenteMetodo)}</p>
+                      <MetodoInstrucoes metodo={remanescenteMetodo} />
+                      <p className="text-xs text-gray-400 dark:text-zinc-500 mt-1">
+                        A equipa confirma o pagamento manualmente e entrega assim que o valor for recebido.
+                      </p>
+                    </>
+                  ) : (
+                    <a href={`/cotacao/${anchor.id}/pagamento`} className={`${panelBtnPrimary} mt-1`}>
+                      Pagar remanescente para levantar
+                    </a>
+                  )}
+                </div>
+              ) : metodoPagamento ? (
+                <div className="mt-2 text-sm text-gray-600 dark:text-zinc-400 space-y-1">
+                  <p className="font-semibold text-gray-800 dark:text-zinc-200">Método escolhido: {metodoPagamentoLabel(metodoPagamento)}</p>
+                  <MetodoInstrucoes metodo={metodoPagamento} />
+                  {batch.status !== 'approved' && (
+                    <p className="text-xs text-gray-400 dark:text-zinc-500 mt-1">
+                      A equipa confirma o pagamento manualmente assim que o depósito for recebido.
+                    </p>
+                  )}
+                </div>
+              ) : (
+                <a href={`/cotacao/${anchor.id}/pagamento`} className={panelBtnPrimary}>
+                  Escolher método de pagamento
+                </a>
               )}
             </div>
 
-            {isRemainder ? (
-              <div className="mt-2 text-sm text-gray-600 dark:text-zinc-400 space-y-1">
-                <p className="font-semibold text-gray-800 dark:text-zinc-200">Remanescente a pagar (30%): {formatMt(remanescenteValor)} MT</p>
-                {remanescenteMetodo ? (
-                  <>
-                    <p className="font-semibold text-gray-800 dark:text-zinc-200">Método escolhido: {metodoPagamentoLabel(remanescenteMetodo)}</p>
-                    <MetodoInstrucoes metodo={remanescenteMetodo} />
-                    <p className="text-xs text-gray-400 dark:text-zinc-500 mt-1">
-                      A equipa confirma o pagamento manualmente e entrega assim que o valor for recebido.
-                    </p>
-                  </>
-                ) : (
-                  <a href={`/cotacao/${anchor.id}/pagamento`} className={`${panelBtnPrimary} mt-1`}>
-                    Pagar remanescente para levantar
-                  </a>
-                )}
+            {facturaDisponivel && (
+              <div className="shrink-0 flex flex-col items-center justify-center border-l border-gray-100 dark:border-zinc-800 pl-4">
+                <button type="button" onClick={() => openFactura(anchor.id)} className={panelBtnSecondary}>
+                  <FileText className="w-4 h-4" /> Ver Factura
+                </button>
               </div>
-            ) : metodoPagamento ? (
-              <div className="mt-2 text-sm text-gray-600 dark:text-zinc-400 space-y-1">
-                <p className="font-semibold text-gray-800 dark:text-zinc-200">Método escolhido: {metodoPagamentoLabel(metodoPagamento)}</p>
-                <MetodoInstrucoes metodo={metodoPagamento} />
-                {batch.status !== 'approved' && (
-                  <p className="text-xs text-gray-400 dark:text-zinc-500 mt-1">
-                    A equipa confirma o pagamento manualmente assim que o depósito for recebido.
-                  </p>
-                )}
-              </div>
-            ) : (
-              <a href={`/cotacao/${anchor.id}/pagamento`} className={panelBtnPrimary}>
-                Escolher método de pagamento
-              </a>
             )}
           </div>
         );

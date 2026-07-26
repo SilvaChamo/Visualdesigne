@@ -103,7 +103,7 @@ export async function POST(req: Request) {
     const { data: profile, error: profileError } = await supabase
       .from('profiles')
       .select('*')
-      .eq('id', auth.user.id)
+      .eq('user_id', auth.user.id)
       .single();
 
     if (profileError && profileError.code !== 'PGRST116') {

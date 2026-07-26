@@ -96,7 +96,7 @@ export function EncomendasSidebar({
                 } rounded-lg ${
                   isActive
                     ? 'text-red-600 font-bold'
-                    : 'text-gray-600 hover:text-red-600 dark:text-zinc-400 dark:hover:text-red-400'
+                    : 'text-gray-600 hover:bg-gray-100 hover:text-red-600 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-red-400'
                 }`}
                 title={isCollapsed ? item.label : ''}
               >

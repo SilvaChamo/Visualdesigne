@@ -1,7 +1,7 @@
 'use client';
 
-import { useEffect, useState, useCallback, useRef } from 'react';
-import { Download, XCircle, Pencil, CreditCard, AlertCircle, Loader2, Trash2 } from 'lucide-react';
+import { useEffect, useState, useCallback } from 'react';
+import { XCircle, Pencil, CreditCard, AlertCircle, Loader2, Trash2 } from 'lucide-react';
 import { supabase } from '@/lib/supabase-client';
 import { Spinner } from '@/components/ui/spinner';
 import { formatMt } from '@/lib/pricing-catalog';
@@ -32,13 +32,18 @@ type QuotationRow = {
   created_at: string;
 };
 
-type Tab = 'detalhes' | 'historico' | 'anexos' | 'cotacao';
+type Tab = 'detalhes' | 'historico' | 'facturas';
+type FacturaView = 'cotacoes' | 'facturas';
 
 const TABS: { id: Tab; label: string }[] = [
   { id: 'detalhes', label: 'Detalhes da Encomenda' },
   { id: 'historico', label: 'Histórico' },
-  { id: 'anexos', label: 'Anexos' },
-  { id: 'cotacao', label: 'Cotação' },
+  { id: 'facturas', label: 'Facturas' },
+];
+
+const FACTURA_VIEWS: { id: FacturaView; label: string }[] = [
+  { id: 'cotacoes', label: 'Cotações' },
+  { id: 'facturas', label: 'Facturas' },
 ];
 
 export function EncomendaDetalhe({
@@ -53,12 +58,12 @@ export function EncomendaDetalhe({
   const [items, setItems] = useState<QuotationRow[] | null>(null);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<Tab>('detalhes');
+  const [facturaView, setFacturaView] = useState<FacturaView>('cotacoes');
   const numeros = useBatchNumeros();
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
   const [cancelling, setCancelling] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [actionError, setActionError] = useState('');
-  const iframeRef = useRef<HTMLIFrameElement>(null);
 
   const fetchQuotation = useCallback(async () => {
     setLoading(true);
@@ -79,6 +84,7 @@ export function EncomendaDetalhe({
 
   useEffect(() => {
     setTab('detalhes');
+    setFacturaView('cotacoes');
     setEditingItemId(null);
     setActionError('');
     fetchQuotation();
@@ -230,16 +236,25 @@ export function EncomendaDetalhe({
               </button>
             ))}
           </div>
-          {tab === 'cotacao' && (
-            <button
-              type="button"
-              onClick={() => iframeRef.current?.contentWindow?.print()}
-              className={`${panelBtnSecondary} shrink-0`}
-            >
-              <Download className="w-4 h-4" /> Baixar PDF
-            </button>
-          )}
         </div>
+        {tab === 'facturas' && (
+          <div className="flex gap-4 pb-2 pt-1">
+            {FACTURA_VIEWS.map((v) => (
+              <button
+                key={v.id}
+                type="button"
+                onClick={() => setFacturaView(v.id)}
+                className={`text-xs font-bold pb-1 border-b-2 transition-colors ${
+                  facturaView === v.id
+                    ? 'border-red-600 text-red-600 dark:border-red-500 dark:text-red-400'
+                    : 'border-transparent text-gray-400 hover:text-gray-600 dark:text-zinc-500 dark:hover:text-zinc-300'
+                }`}
+              >
+                {v.label}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       <div className="flex-1 overflow-y-auto">
@@ -285,17 +300,35 @@ export function EncomendaDetalhe({
             })}
           </div>
         )}
-        {tab === 'cotacao' && (
+        {tab === 'historico' && <div className="p-4"><QuotationHistoryTimeline quotationId={primary.id} /></div>}
+        {tab === 'facturas' && facturaView === 'cotacoes' && (
           <iframe
             key={primary.id}
-            ref={iframeRef}
-            src={`/cotacao/${primary.id}?embed=1`}
+            src={`/cotacao/${primary.id}?embed=1&payment=1`}
             className="w-full h-full min-h-[600px] border-0"
             title="Cotação"
           />
         )}
-        {tab === 'historico' && <div className="p-4"><QuotationHistoryTimeline quotationId={primary.id} /></div>}
-        {tab === 'anexos' && <div className="p-4"><QuotationAttachmentsList quotationId={primary.id} viewerRole="client" /></div>}
+        {tab === 'facturas' && facturaView === 'facturas' && (
+          <div className="p-4 space-y-4">
+            {['approved', 'delivered', 'done'].includes(status) ? (
+              <iframe
+                key={`${primary.id}-factura`}
+                src={`/cotacao/${primary.id}?embed=1&tipo=factura`}
+                className="w-full h-full min-h-[500px] border-0"
+                title="Factura"
+              />
+            ) : (
+              <div className="rounded-lg border border-gray-200 dark:border-zinc-800 p-4 text-sm text-gray-500 dark:text-zinc-400">
+                A factura fica disponível aqui assim que a equipa confirmar o pagamento do adiantamento.
+              </div>
+            )}
+            <div>
+              <p className="text-xs font-bold uppercase text-gray-400 dark:text-zinc-500 mb-2">Outros anexos</p>
+              <QuotationAttachmentsList quotationId={primary.id} viewerRole="client" />
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

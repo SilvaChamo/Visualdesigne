@@ -15,20 +15,18 @@ const supabaseAnonKey =
   process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY ||
   'placeholder-key'
 
+// Host-only (sem `domain`) — de propósito, para ficar igual ao que o
+// servidor já grava (ver getSharedAuthCookieDomain em panel-origin.ts).
+// `domain: '.visualdesignmoz.com'` já causou dois problemas reais: enviava o
+// cookie de sessão também para host.visualdesignmoz.com (DirectAdmin),
+// rebentando o limite de 4KB de headers e devolvendo erro 500 lá; e criava
+// uma sessão diferente da que o browser lê depois (o cookie do servidor é
+// host-only), fazendo o cliente falhar a autenticar mesmo com sessão válida.
 function resolveBrowserCookieOptions() {
   if (typeof window === 'undefined') {
     return { path: '/', sameSite: 'lax' as const }
   }
-  const host = window.location.hostname.toLowerCase()
   const secure = window.location.protocol === 'https:'
-  if (host.endsWith('visualdesignmoz.com')) {
-    return {
-      domain: '.visualdesignmoz.com',
-      path: '/',
-      sameSite: 'lax' as const,
-      secure,
-    }
-  }
   return { path: '/', sameSite: 'lax' as const, secure }
 }
 

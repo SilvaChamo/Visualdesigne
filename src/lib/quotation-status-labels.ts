@@ -5,7 +5,7 @@ export const STATUS_LABELS: Record<string, { label: string; color: string }> = {
   // itens Sob Consulta é que realmente esperam contacto da equipa antes de
   // haver algo para pagar (ver PENDING_SOB_CONSULTA abaixo).
   pending: { label: 'Aguarda pagamento', color: 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/30 dark:text-amber-400 dark:border-amber-900/30' },
-  payment_selected: { label: 'Pago', color: 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/30 dark:text-blue-400 dark:border-blue-900/30' },
+  payment_selected: { label: 'Pagamento em confirmação', color: 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/30 dark:text-blue-400 dark:border-blue-900/30' },
   approved: { label: 'Em produção', color: 'bg-teal-50 text-teal-700 border-teal-200 dark:bg-teal-950/30 dark:text-teal-400 dark:border-teal-900/30' },
   // Pronta para levantamento — falta o cliente pagar o remanescente (30%).
   delivered: { label: 'Entregue', color: 'bg-indigo-50 text-indigo-700 border-indigo-200 dark:bg-indigo-950/30 dark:text-indigo-400 dark:border-indigo-900/30' },

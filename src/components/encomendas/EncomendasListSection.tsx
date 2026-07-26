@@ -70,16 +70,16 @@ export function EncomendasListSection() {
   };
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-[320px_1fr] gap-4 lg:gap-6 min-h-0 h-full">
+    <div className="grid grid-cols-1 lg:grid-cols-[400px_1fr] gap-4 lg:gap-6 min-h-0 h-full">
       <div className="space-y-3 lg:overflow-y-auto">
         {loading && (
-          <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg p-5 text-sm text-gray-500 dark:text-zinc-400">
+          <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg p-5 text-base text-gray-500 dark:text-zinc-400">
             A carregar...
           </div>
         )}
 
         {!loading && quotations.length === 0 && (
-          <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg p-5 text-sm text-gray-500 dark:text-zinc-400">
+          <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg p-5 text-base text-gray-500 dark:text-zinc-400">
             Ainda não tem encomendas submetidas.
           </div>
         )}
@@ -93,26 +93,28 @@ export function EncomendasListSection() {
               ? `${anchor.categoria_label} — ${anchor.produto}`
               : `${batch.items.length} serviços`;
           return (
-            <button
+            <div
               key={batch.batchId}
-              type="button"
+              role="button"
+              tabIndex={0}
               onClick={() => setSelectedId(anchor.id)}
-              className={`w-full text-left flex items-start gap-3 p-4 rounded-lg border transition-all ${
+              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setSelectedId(anchor.id) } }}
+              className={`w-full text-left flex items-start gap-3 p-4 rounded-lg border transition-all cursor-pointer ${
                 isSelected
                   ? 'border-red-400 bg-red-50/50 dark:bg-red-950/10 dark:border-red-900/50'
-                  : 'border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 hover:border-red-300 dark:hover:border-red-500'
+                  : 'border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 hover:bg-gray-100 hover:border-red-300 dark:hover:bg-zinc-800 dark:hover:border-red-500'
               }`}
             >
               <div className="w-9 h-9 bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-900/30 rounded-lg flex items-center justify-center flex-shrink-0">
                 <FileText className="w-4 h-4 text-red-600 dark:text-red-500" />
               </div>
               <div className="min-w-0 flex-1">
-                <p className="font-bold text-sm text-black dark:text-white truncate">Encomenda Nº {numeros[batch.batchId] ?? batchNumero(batch.batchId)}</p>
-                <p className="text-xs text-gray-500 dark:text-zinc-400 mt-0.5 truncate">{resumo}</p>
-                <p className="text-xs text-gray-500 dark:text-zinc-400 mt-0.5">
+                <p className="font-bold text-base text-black dark:text-white truncate">Encomenda Nº {numeros[batch.batchId] ?? batchNumero(batch.batchId)}</p>
+                <p className="text-sm text-gray-500 dark:text-zinc-400 mt-0.5 truncate">{resumo}</p>
+                <p className="text-sm text-gray-500 dark:text-zinc-400 mt-0.5">
                   {batch.sobConsulta ? 'Sob Consulta' : `${formatMt(batch.totalMt)} MT`}
                 </p>
-                <span className={`inline-block mt-2 px-2 py-0.5 rounded-md text-[10px] font-bold border ${meta.color}`}>
+                <span className={`inline-block mt-2 px-2 py-0.5 rounded-md text-[11px] font-bold border ${meta.color}`}>
                   {meta.label}
                 </span>
               </div>
@@ -127,7 +129,7 @@ export function EncomendasListSection() {
                   {deletingBatchId === batch.batchId ? <Spinner className="w-4 h-4" /> : <Trash2 className="w-4 h-4" />}
                 </button>
               )}
-            </button>
+            </div>
           );
         })}
       </div>

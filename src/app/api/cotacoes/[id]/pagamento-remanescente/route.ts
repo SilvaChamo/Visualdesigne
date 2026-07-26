@@ -3,6 +3,7 @@ import { createClient } from '@/utils/supabase/server';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { formatMt } from '@/lib/pricing-catalog';
 import { notifyQuoteTeam } from '@/lib/notify-quote-team';
+import { resolveRoleForAuthUser } from '@/lib/server-auth-role';
 
 const VALID_METHODS = ['mpesa', 'transferencia'];
 
@@ -48,8 +49,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     }
 
     if (quotation.user_id !== user.id) {
-      const { data: profile } = await admin.from('profiles').select('role').eq('id', user.id).single();
-      if (profile?.role !== 'admin') {
+      const role = await resolveRoleForAuthUser(supabase, user);
+      if (role !== 'admin') {
         return NextResponse.json({ error: 'Não tem permissão para alterar esta cotação.' }, { status: 403 });
       }
     }

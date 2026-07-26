@@ -35,7 +35,7 @@ export function EncomendasMensagensSection() {
   const numeros = useBatchNumeros();
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-[320px_1fr] gap-4 lg:gap-6 min-h-0 h-full">
+    <div className="grid grid-cols-1 lg:grid-cols-[400px_1fr] gap-4 lg:gap-6 min-h-0 h-full">
       <div className="space-y-3 lg:overflow-y-auto">
         {loading && (
           <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg p-5 text-sm text-gray-500 dark:text-zinc-400">
@@ -70,12 +70,12 @@ export function EncomendasMensagensSection() {
                 <FileText className="w-4 h-4 text-red-600 dark:text-red-500" />
               </div>
               <div className="min-w-0 flex-1">
-                <p className="font-bold text-sm text-black dark:text-white truncate">Encomenda Nº {numeros[batch.batchId] ?? batchNumero(batch.batchId)}</p>
-                <p className="text-xs text-gray-500 dark:text-zinc-400 mt-0.5 truncate">{resumo}</p>
-                <p className="text-xs text-gray-500 dark:text-zinc-400 mt-0.5">
+                <p className="font-bold text-base text-black dark:text-white truncate">Encomenda Nº {numeros[batch.batchId] ?? batchNumero(batch.batchId)}</p>
+                <p className="text-sm text-gray-500 dark:text-zinc-400 mt-0.5 truncate">{resumo}</p>
+                <p className="text-sm text-gray-500 dark:text-zinc-400 mt-0.5">
                   {batch.sobConsulta ? 'Sob Consulta' : `${formatMt(batch.totalMt)} MT`}
                 </p>
-                <span className={`inline-block mt-2 px-2 py-0.5 rounded-md text-[10px] font-bold border ${meta.color}`}>
+                <span className={`inline-block mt-2 px-2 py-0.5 rounded-md text-[11px] font-bold border ${meta.color}`}>
                   {meta.label}
                 </span>
               </div>
