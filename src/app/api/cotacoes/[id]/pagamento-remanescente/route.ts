@@ -8,10 +8,10 @@ import { resolveRoleForAuthUser } from '@/lib/server-auth-role';
 const VALID_METHODS = ['mpesa', 'transferencia'];
 
 // Pagamento do remanescente (30% restante, pago na entrega/levantamento) —
-// só depois de a equipa marcar os itens como 'delivered' (Entregue, pronto
+// só depois de a equipa marcar os itens como 'delivered' ("Concluída", pronta
 // para levantamento). Não muda o estado (fica 'delivered' até a equipa
-// confirmar o recebimento e marcar 'done') — só regista o método escolhido,
-// mesmo padrão de /pagamento para o adiantamento.
+// confirmar o recebimento e marcar 'done', "Entregue") — só regista o método
+// escolhido, mesmo padrão de /pagamento para o adiantamento.
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params;

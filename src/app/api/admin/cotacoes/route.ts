@@ -109,6 +109,58 @@ export async function PATCH(request: Request) {
       console.error('[admin/cotacoes] falha ao registar histórico:', historyError);
     }
 
+    // Emite o número de factura (série própria, sequencial, imutável) na
+    // primeira vez que a encomenda é aprovada — é o momento em que a aba
+    // "Factura" passa a ficar visível para o cliente. Idempotente: chamadas
+    // repetidas devolvem sempre o mesmo número, nunca criam outro.
+    let invoiceNumber: string | null = null;
+    if (status === 'approved') {
+      try {
+        const { data: rpcData, error: rpcError } = await supabase.rpc('assign_quotation_invoice_number', {
+          p_batch_id: data.batch_id,
+        });
+        if (rpcError) throw rpcError;
+        invoiceNumber = rpcData as string;
+      } catch (invoiceError) {
+        console.error('[admin/cotacoes] falha ao emitir número de factura:', invoiceError);
+      }
+    }
+
+    // Livro de pagamentos: regista o valor confirmado nos dois momentos em
+    // que o admin efectivamente confirma dinheiro recebido — 'approved'
+    // (adiantamento, 70%) e 'done' (remanescente, 30%). Como o estado é
+    // actualizado item-a-item (uma encomenda com vários serviços pode
+    // disparar este PATCH várias vezes para o mesmo lote), o upsert com
+    // `ignoreDuplicates` garante um único registo por fase, sem sobrescrever
+    // um valor já confirmado/corrigido manualmente.
+    if (status === 'approved' || status === 'done') {
+      try {
+        const { data: siblings, error: siblingsError } = await supabase
+          .from('quotation_requests')
+          .select('total_mt, sob_consulta')
+          .eq('batch_id', data.batch_id);
+        if (siblingsError) throw siblingsError;
+
+        const batchTotal = (siblings || []).reduce(
+          (sum, row) => sum + (row.sob_consulta ? 0 : Number(row.total_mt) || 0),
+          0,
+        );
+        const phase = status === 'approved' ? 'advance' : 'remainder';
+        const valorMt = Math.round(batchTotal * (phase === 'advance' ? 0.7 : 0.3) * 100) / 100;
+        const metodo = phase === 'advance' ? data.metodo_pagamento : data.remanescente_metodo_pagamento;
+
+        const { error: paymentError } = await supabase
+          .from('quotation_payments')
+          .upsert(
+            { batch_id: data.batch_id, phase, metodo, valor_mt: valorMt },
+            { onConflict: 'batch_id,phase', ignoreDuplicates: true },
+          );
+        if (paymentError) throw paymentError;
+      } catch (paymentError) {
+        console.error('[admin/cotacoes] falha ao registar pagamento:', paymentError);
+      }
+    }
+
     // Não aguardar o envio do email (ver /api/cotacoes) — a actualização de
     // estado já ficou gravada, não pode falhar por causa de um SMTP lento.
     if (status === 'approved' || status === 'rejected') {
@@ -121,7 +173,7 @@ export async function PATCH(request: Request) {
       }).catch((err) => console.error('[admin/cotacoes] falha ao notificar cliente:', err));
     }
 
-    return NextResponse.json({ success: true, cotacao: data });
+    return NextResponse.json({ success: true, cotacao: data, invoiceNumber });
   } catch (error: any) {
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });
   }
@@ -158,6 +210,21 @@ export async function DELETE(request: Request) {
     if (computeBatchStatus(batchItems) !== 'done') {
       return NextResponse.json(
         { success: false, error: 'Só é possível eliminar encomendas já concluídas.' },
+        { status: 409 },
+      );
+    }
+
+    // Uma factura emitida (número sequencial imutável) nunca pode desaparecer
+    // silenciosamente — bloqueia a eliminação em vez de apagar o registo.
+    const { data: existingInvoice } = await supabase
+      .from('quotation_invoices')
+      .select('invoice_number')
+      .eq('batch_id', batchId)
+      .maybeSingle();
+
+    if (existingInvoice) {
+      return NextResponse.json(
+        { success: false, error: `Não é possível eliminar: já tem a factura ${existingInvoice.invoice_number} emitida.` },
         { status: 409 },
       );
     }

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { requireAdminOrReseller } from '@/lib/panel-api-auth';
+import { readImpersonateDaUsername } from '@/lib/panel-api-context';
 import { spaceshipAPI } from '@/lib/spaceship-adapter';
 
 /**
@@ -10,7 +11,11 @@ import { spaceshipAPI } from '@/lib/spaceship-adapter';
 export async function GET() {
   const auth = await requireAdminOrReseller();
   if ('error' in auth) return auth.error;
-  if (auth.user.role !== 'admin') {
+  // Um admin a impersonar um revendedor deve ver exactamente o que esse revendedor veria
+  // (bloqueado, como já acontece para revendedores reais) — nunca a conta partilhada inteira.
+  const impersonating =
+    auth.user.role === 'admin' ? await readImpersonateDaUsername() : null;
+  if (auth.user.role !== 'admin' || impersonating) {
     return NextResponse.json({ success: false, error: 'Acção restrita a administradores.' }, { status: 403 });
   }
 

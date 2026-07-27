@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import {
   RefreshCw, FileText, Building2, Phone, Mail, Calendar,
-  Inbox, Clock, Factory, PackageCheck, XCircle, CheckCircle2, MessageCircle, X, Trash2,
+  Inbox, Clock, Factory, PackageCheck, XCircle, CheckCircle2, MessageCircle, X, Calculator,
 } from 'lucide-react'
 import {
   panelBtnPrimary, panelBtnSecondary, panelField,
@@ -17,6 +17,8 @@ import { QuotationHistoryTimeline } from '@/components/quotations/QuotationHisto
 import { QuotationAttachmentsList } from '@/components/quotations/QuotationAttachmentsList'
 import { QuotationMessagesThread } from '@/components/quotations/QuotationMessagesThread'
 import { QuotationLayoutsList } from '@/components/quotations/QuotationLayoutsList'
+import { QuotationBatchExpenses } from '@/components/quotations/QuotationBatchExpenses'
+import { ContabilidadeTable } from '@/components/quotations/ContabilidadeTable'
 import { useAdminSectionChrome } from '@/components/admin/AdminSectionChrome'
 import { Spinner } from '@/components/ui/spinner'
 
@@ -42,9 +44,9 @@ const STATUS_OPTIONS: { value: QuotationRequest['status']; label: string; badge:
   { value: 'pending', label: 'Pendente', badge: 'bg-amber-100 text-amber-700 dark:bg-amber-950/30 dark:text-amber-400' },
   { value: 'payment_selected', label: 'Pagamento em confirmação', badge: 'bg-blue-100 text-blue-700 dark:bg-blue-950/30 dark:text-blue-400' },
   { value: 'approved', label: 'Em Produção', badge: 'bg-teal-100 text-teal-700 dark:bg-teal-950/30 dark:text-teal-400' },
-  { value: 'delivered', label: 'Entregue', badge: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-950/30 dark:text-indigo-400' },
+  { value: 'delivered', label: 'Concluída', badge: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-950/30 dark:text-indigo-400' },
   { value: 'rejected', label: 'Rejeitada', badge: 'bg-rose-100 text-rose-700 dark:bg-rose-950/30 dark:text-rose-400' },
-  { value: 'done', label: 'Concluída', badge: 'bg-green-100 text-green-700 dark:bg-green-950/30 dark:text-green-400' },
+  { value: 'done', label: 'Entregue', badge: 'bg-green-100 text-green-700 dark:bg-green-950/30 dark:text-green-400' },
   { value: 'cancelled', label: 'Cancelada', badge: 'bg-gray-200 text-gray-600 dark:bg-zinc-800 dark:text-zinc-400' },
 ]
 
@@ -65,17 +67,20 @@ function deliveryCountdown(dateStr: string): { label: string; className: string 
   return { label: `Faltam ${diffDays}d`, className: 'bg-gray-100 text-gray-600 dark:bg-zinc-800 dark:text-zinc-400' }
 }
 
+// Ordem = fluxo real da encomenda: Pendentes -> Em produção -> Concluídas (pronta,
+// falta o cliente pagar o remanescente de 30%) -> Entregues (tudo terminado, incl.
+// pagamento). Canceladas fica fora do fluxo principal, por isso vai no fim.
 const BUCKET_ITEMS: { value: StatusBucket; label: string; icon: React.ElementType }[] = [
   { value: 'pending', label: 'Pendentes', icon: Clock },
   { value: 'approved', label: 'Em produção', icon: Factory },
-  { value: 'delivered', label: 'Entregues', icon: PackageCheck },
+  { value: 'delivered', label: 'Concluídas', icon: PackageCheck },
+  { value: 'done', label: 'Entregues', icon: CheckCircle2 },
   { value: 'cancelled', label: 'Canceladas', icon: XCircle },
-  { value: 'done', label: 'Concluídas', icon: CheckCircle2 },
 ]
 
 const CATEGORY_LABELS = [...BRANDS.map((b) => b.label), 'Outros']
 
-type NavMode = 'categoria' | 'bucket'
+type NavMode = 'categoria' | 'bucket' | 'contabilidade'
 
 // Cache rápida (sessionStorage) para a lista aparecer junto com a barra lateral em vez de
 // esperar pela ida ao servidor a cada visita — a mesma abordagem já usada noutras secções do
@@ -111,7 +116,6 @@ export function CotacoesSection() {
   const [activeBucket, setActiveBucket] = useState<StatusBucket>('pending')
   const [updatingId, setUpdatingId] = useState<string | null>(null)
   const [expandedBatchId, setExpandedBatchId] = useState<string | null>(null)
-  const [deletingBatchId, setDeletingBatchId] = useState<string | null>(null)
   const numeros = useBatchNumeros()
 
   const fetchCotacoes = useCallback(async (opts?: { background?: boolean }) => {
@@ -218,28 +222,6 @@ export function CotacoesSection() {
     }
   }
 
-  const deleteBatch = async (batchId: string) => {
-    if (!window.confirm('Eliminar esta encomenda concluída? Esta ação não pode ser desfeita.')) return
-    setDeletingBatchId(batchId)
-    try {
-      const res = await fetch('/api/admin/cotacoes', {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ batchId }),
-      })
-      const data = await res.json()
-      if (data.success) {
-        setCotacoes((prev) => prev.filter((c) => c.batch_id !== batchId))
-      } else {
-        window.alert(data.error || 'Não foi possível eliminar a encomenda.')
-      }
-    } catch (error) {
-      console.error('Erro ao eliminar encomenda:', error)
-    } finally {
-      setDeletingBatchId(null)
-    }
-  }
-
   const navBtnClass = (active: boolean) =>
     `w-full flex items-center gap-2 px-2.5 py-2 rounded text-sm font-medium transition-colors text-left ${
       active
@@ -290,10 +272,22 @@ export function CotacoesSection() {
               )
             })}
           </div>
+
+          <div className="space-y-0.5 pt-3 border-t border-gray-100 dark:border-zinc-800">
+            <button
+              type="button"
+              onClick={() => setNavMode('contabilidade')}
+              className={navBtnClass(navMode === 'contabilidade')}
+            >
+              <Calculator className="w-4 h-4 shrink-0" /> Contabilidade
+            </button>
+          </div>
         </nav>
 
         <div className="min-w-0 flex-1 w-full">
-          {loading ? (
+          {navMode === 'contabilidade' ? (
+            <ContabilidadeTable />
+          ) : loading ? (
             <div className="text-center py-12 text-sm text-gray-400 dark:text-zinc-500">A carregar encomendas...</div>
           ) : visibleGroups.every((g) => g.batches.length === 0) ? (
             <div className={`${panelSectionCard} p-8 text-center text-sm text-gray-500 dark:text-zinc-400`}>
@@ -324,8 +318,6 @@ export function CotacoesSection() {
                             updatingId={updatingId}
                             onUpdateStatus={updateStatus}
                             onUpdateDeliveryDate={updateDeliveryDate}
-                            deletingBatchId={deletingBatchId}
-                            onDeleteBatch={deleteBatch}
                           />
                         )
                       })}
@@ -367,8 +359,6 @@ function BatchCard({
   updatingId,
   onUpdateStatus,
   onUpdateDeliveryDate,
-  deletingBatchId,
-  onDeleteBatch,
 }: {
   number: number
   batch: QuotationBatch<QuotationRequest>
@@ -378,14 +368,32 @@ function BatchCard({
   updatingId: string | null
   onUpdateStatus: (itemId: string, status: QuotationRequest['status']) => void
   onUpdateDeliveryDate: (batchId: string, dataLimiteEntrega: string) => void
-  deletingBatchId: string | null
-  onDeleteBatch: (batchId: string) => void
 }) {
   const [activeTab, setActiveTab] = useState<BatchTab>('itens')
   const [showMessages, setShowMessages] = useState(false)
   const [chatMenuOpen, setChatMenuOpen] = useState(false)
   const [editingDate, setEditingDate] = useState(false)
+  const [invoiceNumber, setInvoiceNumber] = useState<string | null>(null)
+  const [payments, setPayments] = useState<{ phase: string; metodo: string | null; valor_mt: number; confirmed_at: string }[]>([])
   const anchor = batch.primaryItem
+  const hasFactura = ['approved', 'delivered', 'done'].includes(batch.status)
+
+  // Número de factura (série própria, sequencial) e livro de pagamentos —
+  // só existem a partir de 'approved'; carregados sob pedido (ao expandir)
+  // em vez de para todas as encomendas da lista de uma vez.
+  useEffect(() => {
+    if (!isExpanded || !hasFactura) return
+    let cancelled = false
+    fetch(`/api/cotacoes/${anchor.id}`)
+      .then((r) => r.json())
+      .then((data) => {
+        if (cancelled || !data.success) return
+        setInvoiceNumber(data.invoiceNumber ?? null)
+        setPayments(data.payments ?? [])
+      })
+      .catch(() => {})
+    return () => { cancelled = true }
+  }, [isExpanded, hasFactura, anchor.id])
   const whatsappDigits = phoneToWhatsAppDigits(anchor.telefone || '')
   const whatsappHref = whatsappDigits
     ? `https://wa.me/${whatsappDigits}?text=${encodeURIComponent(`Olá ${anchor.responsavel || ''}, sobre a sua encomenda Nº ${numero} (${anchor.empresa}):`)}`
@@ -421,37 +429,26 @@ function BatchCard({
           #{number}
         </span>
         <div className="min-w-0 flex-1 flex flex-col gap-1">
-          <div className="flex items-center gap-3">
-            <Building2 className="w-4 h-4 text-gray-400 shrink-0" />
-            <span className="min-w-0 truncate font-bold text-gray-900 dark:text-white">{anchor.empresa}</span>
-            <span className="shrink-0 rounded border border-gray-300 bg-gray-50 px-1.5 py-0.5 font-mono text-xs font-bold text-black dark:border-zinc-600 dark:bg-zinc-800 dark:text-white">
-              Nº {numero}
-            </span>
-            <div className="ml-auto shrink-0 flex items-center gap-2 pl-2">
-              <span className="shrink-0 w-28 text-right text-sm font-semibold whitespace-nowrap">
-                {batch.sobConsulta ? (
-                  <span className="text-red-600 dark:text-red-500 font-extrabold">Sob Consulta</span>
-                ) : (
-                  <span className="text-gray-700 dark:text-zinc-300">{formatMt(batch.totalMt)} MT</span>
-                )}
+          <div className="grid grid-cols-1 gap-x-[25px] gap-y-1.5 md:grid-cols-2 lg:grid-cols-[1fr_auto] lg:items-center">
+            <div className="min-w-0 flex items-center gap-2 justify-self-start">
+              <Building2 className="w-4 h-4 text-gray-400 shrink-0" />
+              <span className="min-w-0 truncate font-bold text-gray-900 dark:text-white">{anchor.empresa}</span>
+              <span className="w-fit shrink-0 rounded border border-gray-300 bg-gray-50 px-1.5 py-0.5 font-mono text-xs font-bold text-black whitespace-nowrap dark:border-zinc-600 dark:bg-zinc-800 dark:text-white">
+                Nº {numero}
               </span>
-              <span className={`shrink-0 w-36 text-center px-2.5 py-1 rounded text-xs font-bold whitespace-nowrap border ${meta.color}`}>
+              {hasFactura && invoiceNumber && (
+                <span className="w-fit shrink-0 rounded border border-red-200 bg-red-50 px-1.5 py-0.5 font-mono text-xs font-bold text-red-700 whitespace-nowrap dark:border-red-900/40 dark:bg-red-950/20 dark:text-red-400">
+                  {invoiceNumber}
+                </span>
+              )}
+            </div>
+            <div className="grid grid-cols-2 gap-x-3 gap-y-1 justify-self-start lg:grid-cols-[14rem_6rem] lg:items-center lg:gap-2 lg:justify-self-end">
+              <span className={`w-fit justify-self-end px-2.5 py-1 rounded text-xs font-bold whitespace-nowrap border ${meta.color}`}>
                 {meta.label}
               </span>
-              <span className="shrink-0 w-20 text-right text-xs text-gray-400 dark:text-zinc-500 whitespace-nowrap">
+              <span className="justify-self-start text-xs text-gray-400 dark:text-zinc-500 whitespace-nowrap">
                 {new Date(anchor.created_at).toLocaleDateString('pt-PT')}
               </span>
-              {batch.status === 'done' && (
-                <button
-                  type="button"
-                  onClick={(e) => { e.stopPropagation(); onDeleteBatch(batch.batchId) }}
-                  disabled={deletingBatchId === batch.batchId}
-                  className="shrink-0 text-gray-300 hover:text-red-600 dark:text-zinc-600 dark:hover:text-red-500 transition-colors p-1"
-                  title="Eliminar encomenda"
-                >
-                  {deletingBatchId === batch.batchId ? <Spinner className="w-4 h-4" /> : <Trash2 className="w-4 h-4" />}
-                </button>
-              )}
             </div>
           </div>
           <p className="text-xs text-gray-500 dark:text-zinc-400 truncate">{resumo}</p>
@@ -536,6 +533,13 @@ function BatchCard({
                               <span className="block truncate text-xs text-rose-600 dark:text-rose-400">Motivo: {item.rejection_reason}</span>
                             )}
                           </div>
+                          <span className="w-24 shrink-0 text-right text-xs font-semibold whitespace-nowrap">
+                            {item.sob_consulta ? (
+                              <span className="text-red-600 dark:text-red-500 font-extrabold">Sob Consulta</span>
+                            ) : (
+                              <span className="text-gray-700 dark:text-zinc-300">{formatMt(item.preco_unitario_mt * item.quantidade)} MT</span>
+                            )}
+                          </span>
                           <span className={`w-24 shrink-0 text-center px-2 py-1 rounded text-[10px] font-bold whitespace-nowrap ${itemMeta.badge}`}>
                             {itemMeta.label}
                           </span>
@@ -552,7 +556,24 @@ function BatchCard({
                         </div>
                       )
                     })}
+                    <div className="flex items-center gap-3 px-3 py-2 bg-gray-50 dark:bg-zinc-800/60">
+                      <div className="min-w-0 flex-1 text-right">
+                        <span className="text-xs font-bold uppercase tracking-wide text-gray-400 dark:text-zinc-500">Total da encomenda</span>
+                      </div>
+                      <span className="w-24 shrink-0 text-right text-sm font-bold whitespace-nowrap">
+                        {batch.sobConsulta ? (
+                          <span className="text-red-600 dark:text-red-500 font-extrabold">Sob Consulta</span>
+                        ) : (
+                          <span className="text-gray-900 dark:text-white">{formatMt(batch.totalMt)} MT</span>
+                        )}
+                      </span>
+                      <span className="w-24 shrink-0" aria-hidden="true" />
+                      <span className="w-40 shrink-0" aria-hidden="true" />
+                    </div>
                   </div>
+
+                  <QuotationBatchExpenses batchId={batch.batchId} />
+
                   <button type="button" onClick={() => openCotacaoPopup(anchor.id)} className={panelBtnPrimary + ' mt-1'}>
                     <FileText className="w-3.5 h-3.5" />
                     <span>Ver cotação</span>
@@ -573,6 +594,20 @@ function BatchCard({
                 <p className="text-gray-500 dark:text-zinc-400 flex items-center gap-1.5"><Phone className="w-3.5 h-3.5" /> {anchor.telefone}</p>
                 <p className="text-gray-500 dark:text-zinc-400 flex items-center gap-1.5"><Mail className="w-3.5 h-3.5" /> {anchor.email}</p>
                 {anchor.nif && <p className="text-gray-500 dark:text-zinc-400">NIF: {anchor.nif}</p>}
+
+                {payments.length > 0 && (
+                  <div className="mt-3 pt-3 border-t border-gray-100 dark:border-zinc-800">
+                    <p className="text-xs font-bold uppercase text-gray-400 dark:text-zinc-500 mb-1.5">Pagamentos confirmados</p>
+                    <div className="space-y-1">
+                      {payments.map((p) => (
+                        <p key={p.phase} className="text-gray-600 dark:text-zinc-300">
+                          {p.phase === 'advance' ? 'Adiantamento' : 'Remanescente'}: {formatMt(p.valor_mt)} MT
+                          {p.metodo ? ` (${p.metodo})` : ''} — {new Date(p.confirmed_at).toLocaleDateString('pt-PT')}
+                        </p>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 

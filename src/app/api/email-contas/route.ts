@@ -7,6 +7,7 @@ import { decryptStoredPassword, buildPanelAccessConfigText } from '@/lib/panel-a
 import { STANDARD_PANEL_PASSWORD } from '@/lib/stored-panel-password'
 import { resolveRoleForAuthUser } from '@/lib/server-auth-role'
 import { ADMIN_BOOTSTRAP_EMAILS } from '@/lib/panel-user-registry'
+import { readImpersonateDaUsername } from '@/lib/panel-api-context'
 import type { User } from '@supabase/supabase-js'
 
 async function resolveSessionUser(supabase: Awaited<ReturnType<typeof createClient>>): Promise<User | null> {
@@ -147,27 +148,40 @@ export async function GET(req: NextRequest) {
       ? await resolveRoleForAuthUser(roleDb, session.user)
       : 'guest';
     const isAdmin = isBootstrap || effectiveRole === 'admin';
-    
-    console.log(`� [API] Usuário: ${session.user?.email}, isAdmin: ${isAdmin}`);
-    
+    // Admin a impersonar um revendedor deve ver só as contas do revendedor impersonado,
+    // nunca as de toda a empresa (mesma lógica de /api/panel/bootstrap).
+    const impersonating = isAdmin ? await readImpersonateDaUsername() : null;
+
+    console.log(`� [API] Usuário: ${session.user?.email}, isAdmin: ${isAdmin}, impersonating: ${impersonating || 'não'}`);
+
     let allEmails: any[] = [];
-    
+
     // �🚀 ADMIN: Buscar TODAS as contas activas
     if (isAdmin) {
-      console.log(`📧 [API] Modo ADMIN - Buscando todas as contas`);
       const { data: allContas, error } = await supabaseAdmin
         .from('email_contas')
         .select('*')
         .or('status.eq.active,status.eq.activo')
         .limit(100);
-      
+
       if (error) {
         console.error('📧 [API] Erro ao buscar todas as contas:', error);
       } else if (allContas && allContas.length > 0) {
-        allEmails = allContas;
-        console.log(`📧 [API] Encontradas ${allContas.length} contas no modo admin`);
+        if (impersonating) {
+          const { listMirrorWebsites } = await import('@/lib/panel-mirror-read');
+          const sites = await listMirrorWebsites({ role: 'reseller', daUsername: impersonating });
+          const ownedDomains = new Set(sites.map((s) => s.domain.toLowerCase()));
+          allEmails = allContas.filter((c: any) => {
+            const domain = String(c.email || '').split('@')[1]?.toLowerCase();
+            return domain ? ownedDomains.has(domain) : false;
+          });
+          console.log(`📧 [API] Modo ADMIN (impersonando ${impersonating}) - ${allEmails.length} contas`);
+        } else {
+          allEmails = allContas;
+          console.log(`📧 [API] Modo ADMIN - Encontradas ${allContas.length} contas`);
+        }
       }
-    } 
+    }
     // 🚀 CLIENTE NORMAL: Busca por domínio ou cliente_id
     else {
       // Busca por domínio do utilizador

@@ -139,6 +139,7 @@ export async function GET(req: NextRequest) {
       return adminListRedirect(result.error);
     }
     const target = resolvePanelApiRedirect('/revendedor?impersonate=1');
+    console.log('[IMPERSONATE-DEBUG] GET redirecting to', target);
     return NextResponse.redirect(target, { status: 307 });
   }
 

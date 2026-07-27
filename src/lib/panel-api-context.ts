@@ -31,6 +31,12 @@ export async function resolvePanelDaContext(auth: PanelStaffAuthSuccess): Promis
   const impersonating =
     auth.user.role === 'admin' ? await readImpersonateDaUsername() : null;
 
+  console.log('[IMPERSONATE-DEBUG] resolvePanelDaContext', {
+    authRole: auth.user.role,
+    authEmail: auth.user.email,
+    impersonating,
+  });
+
   if (impersonating) {
     const daApi = await getDirectAdminAPIForDaUsername(impersonating);
     return {

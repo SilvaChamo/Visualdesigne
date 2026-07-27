@@ -54,6 +54,7 @@ function CotacaoDocumentContent() {
   const documentLabel = isFactura ? 'Factura' : 'Cotação';
 
   const [items, setItems] = useState<QuotationRow[] | null>(null);
+  const [invoiceNumber, setInvoiceNumber] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const numeros = useBatchNumeros();
@@ -70,6 +71,7 @@ function CotacaoDocumentContent() {
           return;
         }
         setItems(data.items as QuotationRow[]);
+        setInvoiceNumber(data.invoiceNumber ?? null);
       } catch {
         setError('Não foi possível encontrar esta cotação.');
       } finally {
@@ -152,7 +154,9 @@ function CotacaoDocumentContent() {
               )}
             </div>
             <div className="sm:text-right shrink-0">
-              <h1 className="text-xl font-bold text-black">{documentLabel} Nº {numeroCotacao}</h1>
+              <h1 className="text-xl font-bold text-black">
+                {documentLabel} Nº {isFactura ? (invoiceNumber ?? 'a emitir') : numeroCotacao}
+              </h1>
               <p className="text-xs text-zinc-500 mt-1">Data de emissão: {dataEmissao}</p>
             </div>
           </div>

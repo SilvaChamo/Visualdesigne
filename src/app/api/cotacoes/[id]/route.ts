@@ -57,7 +57,24 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
 
     const items = !siblingsError && siblings && siblings.length > 0 ? siblings : [row];
 
-    return NextResponse.json({ success: true, items });
+    const { data: invoice } = await admin
+      .from('quotation_invoices')
+      .select('invoice_number')
+      .eq('batch_id', row.batch_id)
+      .maybeSingle();
+
+    const { data: payments } = await admin
+      .from('quotation_payments')
+      .select('phase, metodo, valor_mt, confirmed_at')
+      .eq('batch_id', row.batch_id)
+      .order('confirmed_at', { ascending: true });
+
+    return NextResponse.json({
+      success: true,
+      items,
+      invoiceNumber: invoice?.invoice_number ?? null,
+      payments: payments ?? [],
+    });
   } catch (error: unknown) {
     console.error('[cotacoes/[id] GET] error:', error);
     return NextResponse.json({ error: 'Erro interno' }, { status: 500 });
@@ -341,6 +358,21 @@ export async function DELETE(_request: NextRequest, { params }: { params: Promis
     if (computeBatchStatus(batchItems) !== 'done') {
       return NextResponse.json(
         { error: 'Só é possível eliminar encomendas já concluídas.' },
+        { status: 409 },
+      );
+    }
+
+    // Uma factura emitida (número sequencial imutável) nunca pode desaparecer
+    // silenciosamente — bloqueia a eliminação em vez de apagar o registo.
+    const { data: existingInvoice } = await admin
+      .from('quotation_invoices')
+      .select('invoice_number')
+      .eq('batch_id', quotation.batch_id)
+      .maybeSingle();
+
+    if (existingInvoice) {
+      return NextResponse.json(
+        { error: `Não é possível eliminar: já tem a factura ${existingInvoice.invoice_number} emitida. Contacte o suporte.` },
         { status: 409 },
       );
     }

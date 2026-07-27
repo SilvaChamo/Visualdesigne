@@ -51,6 +51,14 @@ async function resolvePanelStaffAuth(): Promise<PanelStaffAuthSuccess | PanelAut
   }
 
   const email = (user.email || '').toLowerCase();
+
+  // Bootstrap admins conhecidos (ADMIN_EMAILS) já resultam sempre em 'admin' mais
+  // abaixo — sair aqui poupa a verificação de papel (perfil + 4 tabelas de
+  // produtos), que só interessa para contas que não estão nesta lista.
+  if (ADMIN_EMAILS.has(email)) {
+    return { user: { id: user.id, email, role: 'admin' } };
+  }
+
   const metadataRole = user.user_metadata?.role || user.app_metadata?.role;
 
   let effectiveRole = metadataRole;
@@ -62,7 +70,7 @@ async function resolvePanelStaffAuth(): Promise<PanelStaffAuthSuccess | PanelAut
     }
   }
 
-  if (effectiveRole === 'admin' || ADMIN_EMAILS.has(email)) {
+  if (effectiveRole === 'admin') {
     return { user: { id: user.id, email, role: 'admin' } };
   }
 
@@ -128,6 +136,14 @@ export async function requirePanelBootstrapAccess(): Promise<
   }
 
   const email = (user.email || '').toLowerCase();
+
+  // Bootstrap admins conhecidos (ADMIN_EMAILS) já resultam sempre em 'admin' mais
+  // abaixo — sair aqui poupa a verificação de papel (perfil + 4 tabelas de
+  // produtos), que só interessa para contas que não estão nesta lista.
+  if (ADMIN_EMAILS.has(email)) {
+    return { user: { id: user.id, email, role: 'admin' } };
+  }
+
   let effectiveRole = user.user_metadata?.role || user.app_metadata?.role;
   if (
     !effectiveRole ||
@@ -151,7 +167,7 @@ export async function requirePanelBootstrapAccess(): Promise<
     return { user: { id: user.id, email, role: 'manager' } };
   }
 
-  if (effectiveRole === 'admin' || ADMIN_EMAILS.has(email)) {
+  if (effectiveRole === 'admin') {
     return { user: { id: user.id, email, role: 'admin' } };
   }
 

@@ -90,7 +90,7 @@ export function batchNumero(batchId: string): string {
   return batchId.split('-')[0].toUpperCase();
 }
 
-/** Filtra encomendas pelo atalho de estado do menu admin (Pendentes/Em produção/Canceladas/Concluídas). */
+/** Filtra encomendas pelo atalho de estado do menu admin (Pendentes/Em produção/Concluídas/Entregues/Canceladas). */
 export function filterBatchesByBucket<T extends BatchItem>(
   batches: QuotationBatch<T>[],
   bucket: StatusBucket,
