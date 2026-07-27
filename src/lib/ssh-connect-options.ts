@@ -100,7 +100,7 @@ export function getSshConnectOptions(): {
   readyTimeout: number;
 } {
   const privateKey = resolveSshPrivateKey();
-  const password = process.env.SERVER_SSH_PASS?.trim() || undefined;
+  const password = process.env.SERVER_SSH_PASS?.trim() || process.env.SSH_PASS?.trim() || undefined;
 
   if (!privateKey && !password) {
     throw new Error(

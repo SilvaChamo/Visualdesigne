@@ -39,8 +39,6 @@ import {
   WPRestoreBackupSection, WPRemoteBackupSection, ListSubdomainsSection,
   WebsitePreviewSection, EmailImportSection,
   PackagesSection, DNSZoneEditorSection, FileManagerSection, BackupManagerSection,
-  BackupAutoConfigSection,
-  BackupReportSection,
   WordPressInstallSection, WPBackupSection, DomainManagerSection, DeploySection,
   SMTPConfigSection, AuditSyncSection, NameserverManagementSection,
   SecuritySection
@@ -2129,23 +2127,6 @@ function AdminPageContent() {
       case 'cp-api':
       case 'infrastructure':
         return <APIConfigSection />
-      case 'wp-backup-report':
-        return (
-          <BackupReportSection
-            sites={filteredSites}
-            initialDomain={selectedBackupDomain || primaryDomain}
-            isActive={isActive}
-            setActiveSection={setActiveSection}
-          />
-        )
-      case 'wp-backup-auto':
-        return (
-          <BackupAutoConfigSection
-            sites={filteredSites}
-            initialDomain={selectedBackupDomain || primaryDomain}
-            setActiveSection={setActiveSection}
-          />
-        )
       case 'backup-manager':
       case 'cp-backup':
       case 'cp-wp-backup':

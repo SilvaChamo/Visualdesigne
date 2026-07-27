@@ -1393,8 +1393,6 @@ export function DNSZoneEditorSection({
 
 export { DatabasesSection } from '@/app/dashboard/DatabasesManagerSection'
 export { BackupManagerSection } from '@/app/dashboard/BackupManagerSection'
-export { BackupAutoConfigSection } from '@/app/dashboard/BackupAutoConfigSection'
-export { BackupReportSection } from '@/app/dashboard/BackupReportSection'
 
 // ============================================================
 // FTP SECTION

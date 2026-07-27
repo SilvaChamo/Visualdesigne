@@ -29,8 +29,6 @@ import {
   WPRestoreBackupSection, WPRemoteBackupSection, ListSubdomainsSection,
   WebsitePreviewSection, EmailImportSection,
   PackagesSection, DNSZoneEditorSection, FileManagerSection, BackupManagerSection,
-  BackupAutoConfigSection,
-  BackupReportSection,
   WordPressInstallSection, WPBackupSection, DomainManagerSection, DeploySection,
   SMTPConfigSection, NameserverManagementSection
 } from '../dashboard/DirectAdminSections'
@@ -2493,23 +2491,6 @@ function ResellerPageContent() {
           />
         )
 
-      case 'wp-backup-report':
-        return (
-          <BackupReportSection
-            sites={filteredSites}
-            initialDomain={primaryDomain}
-            isActive={isActive}
-            setActiveSection={setActiveSection}
-          />
-        )
-      case 'wp-backup-auto':
-        return (
-          <BackupAutoConfigSection
-            sites={filteredSites}
-            initialDomain={primaryDomain}
-            setActiveSection={setActiveSection}
-          />
-        )
       case 'backup-manager':
       case 'cp-backup':
       case 'cp-wp-backup':
