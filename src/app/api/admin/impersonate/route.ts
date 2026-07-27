@@ -8,6 +8,7 @@ import { getProfileForAuthUser } from '@/lib/profile-db';
 import { resolveRegistryDaUsername } from '@/lib/panel-user-registry';
 import { getDaSyncAdmin } from '@/lib/da-sync-schema';
 import { resolvePanelApiRedirect } from '@/lib/panel-origin';
+import { getRequestHostname } from '@/lib/request-host';
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
@@ -115,31 +116,35 @@ async function startImpersonate(
   return { ok: true, userName: normalized };
 }
 
-function adminListRedirect(error?: string): NextResponse {
+function adminListRedirect(hostname: string, error?: string): NextResponse {
   const query = error
     ? `?section=hospedagem-contas&impersonate_error=${encodeURIComponent(error)}`
     : '?section=hospedagem-contas';
-  return NextResponse.redirect(resolvePanelApiRedirect(`/dashboard${query}`), { status: 307 });
+  return NextResponse.redirect(resolvePanelApiRedirect(`/dashboard${query}`, hostname), { status: 307 });
 }
 
 export async function GET(req: NextRequest) {
   const auth = await requireAdmin();
   if ('error' in auth) return auth.error;
+  const hostname = getRequestHostname(req.headers, req.url);
 
   if (req.nextUrl.searchParams.get('exit') === '1') {
     const store = await cookies();
     store.delete(IMPERSONATE_COOKIE);
-    return adminListRedirect();
+    return adminListRedirect(hostname);
   }
 
   const userParam = req.nextUrl.searchParams.get('user')?.trim().toLowerCase();
   if (userParam) {
     const result = await startImpersonate(userParam);
     if (!result.ok) {
-      return adminListRedirect(result.error);
+      return adminListRedirect(hostname, result.error);
     }
-    const target = resolvePanelApiRedirect('/revendedor?impersonate=1');
-    console.log('[IMPERSONATE-DEBUG] GET redirecting to', target);
+    // O redirect tem de ficar no MESMO domínio onde a cookie de impersonação
+    // acabou de ser definida (ex.: painel.visualdesignmoz.com) — se saltar
+    // para outro domínio, a cookie nunca chega ao pedido seguinte e o
+    // painel do revendedor mostra sempre os dados do próprio admin.
+    const target = resolvePanelApiRedirect('/revendedor?impersonate=1', hostname);
     return NextResponse.redirect(target, { status: 307 });
   }
 
@@ -175,7 +180,7 @@ export async function POST(req: NextRequest) {
   return NextResponse.json({
     success: true,
     daUsername: result.userName,
-    redirect: resolvePanelApiRedirect('/revendedor?impersonate=1'),
+    redirect: resolvePanelApiRedirect('/revendedor?impersonate=1', getRequestHostname(req.headers, req.url)),
   });
 }
 
@@ -188,6 +193,6 @@ export async function DELETE(req: NextRequest) {
 
   return NextResponse.json({
     success: true,
-    redirect: resolvePanelApiRedirect('/dashboard?section=hospedagem-contas'),
+    redirect: resolvePanelApiRedirect('/dashboard?section=hospedagem-contas', getRequestHostname(req.headers, req.url)),
   });
 }

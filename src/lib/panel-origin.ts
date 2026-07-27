@@ -114,14 +114,24 @@ export function resolvePanelInnerRedirect(
 }
 
 /**
- * Redirecções de rotas API do painel — usa sempre a origem pública
- * (NEXT_PUBLIC_SITE_URL), nunca a do pedido recebido. Atrás do proxy do
+ * Redirecções de rotas API do painel. Usa o hostname REAL do pedido
+ * recebido (via `requestHostname`, tipicamente `getRequestHostname()`)
+ * quando disponível e válido — o painel serve mais do que um domínio
+ * (ex.: painel.visualdesignmoz.com, além de visualdesignmoz.com), e uma
+ * cookie definida na resposta anterior (ex.: impersonar revendedor) só
+ * chega ao pedido seguinte se o redirect ficar no MESMO domínio onde foi
+ * definida. Só cai para a origem pública (NEXT_PUBLIC_SITE_URL) quando o
+ * hostname não é fornecido ou é "localhost"/"127.0.0.1" — atrás do proxy do
  * Hetzner (Apache -> Node em 127.0.0.1:3003), `request.url` por vezes
  * resolve para "localhost:3003", o que mandava o browser para localhost em
- * vez de ficar em visualdesignmoz.com (ex.: ao entrar em impersonate).
+ * vez de ficar no domínio real.
  */
-export function resolvePanelApiRedirect(pathAndQuery: string): string {
+export function resolvePanelApiRedirect(pathAndQuery: string, requestHostname?: string): string {
   const path = pathAndQuery.startsWith('/') ? pathAndQuery : `/${pathAndQuery}`
+  const host = requestHostname?.toLowerCase().split(':')[0]
+  if (host && !isLocalDevHost(host)) {
+    return `https://${host}${path}`
+  }
   return `${getPublicSiteOrigin()}${path}`
 }
 

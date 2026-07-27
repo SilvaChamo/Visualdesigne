@@ -98,12 +98,6 @@ export async function GET() {
         : { ...staffAuth.user, role: 'admin' },
     });
     const isReseller = effectiveRole === 'reseller';
-    console.log('[IMPERSONATE-DEBUG] bootstrap route', {
-      staffAuthRole: staffAuth.user.role,
-      effectiveRole,
-      mirrorScope,
-      isReseller,
-    });
     const resellerTier = isReseller ? await loadResellerTier(auth.user.id) : null;
 
     const [sites, users, accountsResult, resellerContext] = await Promise.all([

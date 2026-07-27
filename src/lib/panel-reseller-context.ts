@@ -71,12 +71,6 @@ export async function resolveResellerPanelContext(
 ): Promise<ResellerPanelContext | null> {
   const ctx = await resolvePanelDaContext(auth);
 
-  console.log('[IMPERSONATE-DEBUG] resolveResellerPanelContext ctx', {
-    effectiveRole: ctx.effectiveRole,
-    impersonating: ctx.impersonating,
-    mirrorScope: ctx.mirrorScope,
-  });
-
   if (ctx.effectiveRole !== 'reseller') {
     return null;
   }
@@ -89,8 +83,6 @@ export async function resolveResellerPanelContext(
       email: auth.user.email,
       role: 'reseller',
     }));
-
-  console.log('[IMPERSONATE-DEBUG] resolveResellerPanelContext daUsername', daUsername);
 
   if (!daUsername) return null;
 
