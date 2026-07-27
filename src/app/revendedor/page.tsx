@@ -1942,6 +1942,12 @@ function ResellerPageContent() {
 
   const searchParams = useSearchParams();
   const initialLoadDone = useRef(false);
+  // Marca que acabámos de entrar em impersonate — o efeito que carrega os
+  // dados do painel (mais abaixo) lê esta flag para forçar um pedido fresco
+  // em vez de confiar na ordem de execução entre os dois efeitos (a cache
+  // podia ainda não estar limpa quando o carregamento inicial a lia,
+  // mostrando os dados/email do admin em vez do revendedor impersonado).
+  const justImpersonatedRef = useRef(false);
 
   // Efeito para capturar section da URL - garantir dashboard como padrão
   useEffect(() => {
@@ -1950,6 +1956,7 @@ function ResellerPageContent() {
       initialLoadDone.current = true;
       if (searchParams.get('impersonate') === '1') {
         clearPanelBootstrapCache('reseller');
+        justImpersonatedRef.current = true;
         window.history.replaceState({}, '', '/revendedor');
       }
       setActiveSection('dashboard');
@@ -2032,6 +2039,10 @@ function ResellerPageContent() {
   useLayoutEffect(() => {
     if (bootstrapCacheApplied.current) return
     bootstrapCacheApplied.current = true
+    // Acabado de entrar em impersonate — nunca aplicar a cache daqui (seria
+    // do admin, de antes de impersonar); o efeito mais abaixo já força um
+    // pedido fresco.
+    if (searchParams.get('impersonate') === '1') return
     const cached = readBootstrapCache('reseller')
     if (cached) applyBootstrap(cached)
   }, [])
@@ -2102,7 +2113,7 @@ function ResellerPageContent() {
   const [emailMsg, setEmailMsg] = useState('')
 
   useEffect(() => {
-    void loadDirectAdminData(false)
+    void loadDirectAdminData(justImpersonatedRef.current)
   }, [])
 
   const handleSync = async () => {
