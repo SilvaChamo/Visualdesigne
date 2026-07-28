@@ -39,8 +39,9 @@ export const metadata: Metadata = {
   alternates: {
     canonical: "/",
   },
-  // Depois de registar o domínio na Google Search Console, colar aqui o
-  // código de verificação: verification: { google: "..." }.
+  verification: {
+    google: "vNIsPlR4rwBNVt8TduD24Op9KaeHWmZiWT9eO_rnrOg",
+  },
   openGraph: {
     title: "VisualDesign",
     description: SITE_DESCRIPTION,
