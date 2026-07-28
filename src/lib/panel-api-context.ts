@@ -27,9 +27,14 @@ export type PanelDaContext = {
   effectiveRole: 'admin' | 'reseller';
 };
 
-export async function resolvePanelDaContext(auth: PanelStaffAuthSuccess): Promise<PanelDaContext> {
+export async function resolvePanelDaContext(
+  auth: PanelStaffAuthSuccess,
+  opts?: { ignoreImpersonation?: boolean },
+): Promise<PanelDaContext> {
   const impersonating =
-    auth.user.role === 'admin' ? await readImpersonateDaUsername() : null;
+    auth.user.role === 'admin' && !opts?.ignoreImpersonation
+      ? await readImpersonateDaUsername()
+      : null;
 
   if (impersonating) {
     const daApi = await getDirectAdminAPIForDaUsername(impersonating);

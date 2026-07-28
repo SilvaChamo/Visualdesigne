@@ -88,6 +88,9 @@ export async function PATCH(request: Request) {
     if (status === 'rejected') {
       update.rejection_reason = rejectionReason || null;
     }
+    if (status === 'done') {
+      update.delivered_at = new Date().toISOString();
+    }
 
     const { data, error } = await supabase
       .from('quotation_requests')

@@ -116,6 +116,7 @@ const SECTION_DESCRIPTIONS: Record<string, string> = {
   'cp-reseller-permissions': 'Módulos visíveis no painel do revendedor',
   renewals: 'Renovações de domínios e hospedagem',
   cotacoes: 'Pedidos de cotação recebidos a partir de /precos',
+  'nextjs-sites': 'Sites Next.js registados, estado e consumo de CPU',
   'cadastrar-renovacao': 'Registar nova renovação',
   'templates-renovacao': 'Modelos de notificação de renovação',
   'cp-audit-sync': 'Auditoria e sincronização com o servidor',

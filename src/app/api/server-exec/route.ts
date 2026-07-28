@@ -411,6 +411,38 @@ export async function POST(req: NextRequest) {
       });
     }
 
+    if (action === 'pm2ProcessList') {
+      const auth = await requireAdminOrReseller();
+      if ('error' in auth) return auth.error;
+      if (auth.user.role !== 'admin') {
+        return NextResponse.json({ success: false, error: 'Apenas administradores' }, { status: 403 });
+      }
+
+      try {
+        const { executeServerCommand } = await import('@/lib/server-ssh-exec');
+        const output = await executeServerCommand('pm2 jlist');
+        const list = JSON.parse(output) as Array<{
+          name?: string;
+          monit?: { cpu?: number; memory?: number };
+          pm2_env?: { status?: string; pm_uptime?: number; restart_time?: number };
+        }>;
+        const processes = list.map((p) => ({
+          name: String(p.name || ''),
+          status: String(p.pm2_env?.status || ''),
+          cpu: Number(p.monit?.cpu) || 0,
+          memoryMb: Math.round((Number(p.monit?.memory) || 0) / 1024 / 1024),
+          uptimeMs: p.pm2_env?.pm_uptime ? Date.now() - Number(p.pm2_env.pm_uptime) : null,
+          restarts: Number(p.pm2_env?.restart_time) || 0,
+        }));
+        return NextResponse.json({ success: true, data: { processes } });
+      } catch (e: unknown) {
+        return NextResponse.json({
+          success: false,
+          error: e instanceof Error ? e.message : 'Falha ao consultar processos PM2',
+        }, { status: 502 });
+      }
+    }
+
     if (action === 'checkSitesSsl') {
       const auth = await requireAdminOrReseller();
       if ('error' in auth) return auth.error;

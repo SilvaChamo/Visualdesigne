@@ -1,8 +1,8 @@
 'use client'
 
-import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import {
-  RefreshCw, Building2, Phone, Mail, Calendar,
+  RefreshCw, Building2, Phone, Mail, Calendar, ChevronDown, History,
   Inbox, Clock, Factory, PackageCheck, XCircle, CheckCircle2, MessageCircle, X, Calculator,
 } from 'lucide-react'
 import {
@@ -10,7 +10,7 @@ import {
   panelTabBar, panelTabBtn, panelTabBtnActive, panelTabBtnInactive, panelSectionCard,
 } from '@/lib/panel-ui'
 import { formatMt, BRANDS } from '@/lib/pricing-catalog'
-import { statusMeta, type StatusBucket } from '@/lib/quotation-status-labels'
+import { statusMeta, statusBucket, type StatusBucket } from '@/lib/quotation-status-labels'
 import { groupIntoBatches, groupBatchesByBrand, filterBatchesByBucket, batchNumero, type BatchItem, type QuotationBatch } from '@/lib/quotation-batch'
 import { useBatchNumeros } from '@/lib/use-batch-numeros'
 import { QuotationHistoryTimeline } from '@/components/quotations/QuotationHistoryTimeline'
@@ -38,29 +38,70 @@ interface QuotationRequest extends BatchItem {
   remanescente_metodo_pagamento: string | null
   notas: string | null
   rejection_reason: string | null
+  delivered_at: string | null
 }
 
+// 'payment_selected' não é uma opção manual — é indistinguível de 'pending' do ponto de
+// vista do admin (nada por fazer até o pagamento confirmar), por isso mostra-se/edita-se
+// sempre como "Pendente" em vez de duplicar um estado redundante.
 const STATUS_OPTIONS: { value: QuotationRequest['status']; label: string; badge: string }[] = [
   { value: 'pending', label: 'Pendente', badge: 'bg-amber-100 text-amber-700 dark:bg-amber-950/30 dark:text-amber-400' },
-  { value: 'payment_selected', label: 'Pagamento em confirmação', badge: 'bg-blue-100 text-blue-700 dark:bg-blue-950/30 dark:text-blue-400' },
   { value: 'approved', label: 'Em Produção', badge: 'bg-teal-100 text-teal-700 dark:bg-teal-950/30 dark:text-teal-400' },
   { value: 'delivered', label: 'Concluída', badge: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-950/30 dark:text-indigo-400' },
   { value: 'rejected', label: 'Rejeitada', badge: 'bg-rose-100 text-rose-700 dark:bg-rose-950/30 dark:text-rose-400' },
+  // 'done' fica de fora das opções seleccionáveis por item — "Entregue" só se aplica à
+  // encomenda inteira, de uma vez, através do botão junto ao prazo de entrega (ver
+  // markBatchDelivered). Continua aqui só para o badge de um item que já esteja 'done'.
   { value: 'done', label: 'Entregue', badge: 'bg-green-100 text-green-700 dark:bg-green-950/30 dark:text-green-400' },
   { value: 'cancelled', label: 'Cancelada', badge: 'bg-gray-200 text-gray-600 dark:bg-zinc-800 dark:text-zinc-400' },
 ]
 
+const SELECTABLE_STATUS_OPTIONS = STATUS_OPTIONS.filter((s) => s.value !== 'done')
+
+const displayStatusValue = (status: QuotationRequest['status']) => (status === 'payment_selected' ? 'pending' : status)
+
+/** Só se pode marcar a encomenda inteira como entregue quando não sobra nenhum item por concluir (cancelados não contam). */
+function batchReadyToDeliver(batch: QuotationBatch<QuotationRequest>): boolean {
+  return batch.items
+    .filter((i) => i.status !== 'cancelled')
+    .every((i) => i.status === 'delivered' || i.status === 'done')
+}
+
+const DELIVERED_BUCKET_DAYS = 7
+
+function daysSinceDelivered(deliveredAt: string | null): number | null {
+  if (!deliveredAt) return null
+  return Math.floor((Date.now() - new Date(deliveredAt).getTime()) / 86_400_000)
+}
+
+/** Momento em que a encomenda (todos os itens) ficou entregue — o mais recente entre os itens. */
+function batchDeliveredAt(batch: QuotationBatch<QuotationRequest>): string | null {
+  const dates = batch.items.map((i) => i.delivered_at).filter((d): d is string => Boolean(d))
+  if (dates.length === 0) return null
+  return dates.reduce((max, d) => (d > max ? d : max))
+}
+
 const metodoLabel = (m: string | null) => (m === 'mpesa' ? 'M-Pesa' : m === 'transferencia' ? 'Transferência' : '—')
 
-/** Contador decrescente até à data limite de entrega, com cor de alerta consoante a urgência. */
-function deliveryCountdown(dateStr: string): { label: string; className: string } {
+/**
+ * Contador decrescente até à data limite de entrega, com cor de alerta relativa ao
+ * tempo total do pedido (criação -> prazo): verde com folga, laranja a meio do prazo,
+ * vermelho perto do fim (ou já atrasado).
+ */
+function deliveryCountdown(dateStr: string, createdAtStr: string): { label: string; className: string } {
   const deadline = new Date(dateStr)
   deadline.setHours(23, 59, 59, 999)
   const diffDays = Math.ceil((deadline.getTime() - Date.now()) / 86_400_000)
   if (diffDays < 0) return { label: `${Math.abs(diffDays)}d em atraso`, className: 'bg-red-100 text-red-700 dark:bg-red-950/30 dark:text-red-400' }
   if (diffDays === 0) return { label: 'Entrega hoje', className: 'bg-red-100 text-red-700 dark:bg-red-950/30 dark:text-red-400' }
-  if (diffDays <= 3) return { label: `Faltam ${diffDays}d`, className: 'bg-amber-100 text-amber-700 dark:bg-amber-950/30 dark:text-amber-400' }
-  return { label: `Faltam ${diffDays}d`, className: 'bg-gray-100 text-gray-600 dark:bg-zinc-800 dark:text-zinc-400' }
+
+  const created = new Date(createdAtStr)
+  const totalDays = Math.max(1, Math.ceil((deadline.getTime() - created.getTime()) / 86_400_000))
+  const remainingRatio = diffDays / totalDays
+  const label = `Faltam ${diffDays}d`
+  if (remainingRatio <= 0.25) return { label, className: 'bg-red-100 text-red-700 dark:bg-red-950/30 dark:text-red-400' }
+  if (remainingRatio <= 0.5) return { label, className: 'bg-amber-100 text-amber-700 dark:bg-amber-950/30 dark:text-amber-400' }
+  return { label, className: 'bg-green-100 text-green-700 dark:bg-green-950/30 dark:text-green-400' }
 }
 
 // Ordem = fluxo real da encomenda: Pendentes -> Em produção -> Concluídas (pronta,
@@ -76,7 +117,7 @@ const BUCKET_ITEMS: { value: StatusBucket; label: string; icon: React.ElementTyp
 
 const CATEGORY_LABELS = [...BRANDS.map((b) => b.label), 'Outros']
 
-type NavMode = 'categoria' | 'bucket' | 'contabilidade'
+type NavMode = 'categoria' | 'bucket' | 'contabilidade' | 'historico'
 
 // Cache rápida (sessionStorage) para a lista aparecer junto com a barra lateral em vez de
 // esperar pela ida ao servidor a cada visita — a mesma abordagem já usada noutras secções do
@@ -112,6 +153,8 @@ export function CotacoesSection() {
   const [activeBucket, setActiveBucket] = useState<StatusBucket>('pending')
   const [updatingId, setUpdatingId] = useState<string | null>(null)
   const [expandedBatchId, setExpandedBatchId] = useState<string | null>(null)
+  const [categoriesOpen, setCategoriesOpen] = useState(true)
+  const [expandedCompany, setExpandedCompany] = useState<string | null>(null)
   const numeros = useBatchNumeros()
 
   const fetchCotacoes = useCallback(async (opts?: { background?: boolean }) => {
@@ -158,11 +201,59 @@ export function CotacoesSection() {
       return aPaid ? -1 : 1
     })
   }, [cotacoes])
-  const categoryGroups = useMemo(() => groupBatchesByBrand(batches), [batches])
+  // "Recebidas"/categorias nunca mostram encomendas já entregues — uma vez marcada
+  // "Entregue", a encomenda sai da caixa de entrada (só continua visível em Entregues,
+  // durante DELIVERED_BUCKET_DAYS, e no Histórico da equipa, para sempre).
+  const activeBatches = useMemo(() => batches.filter((b) => statusBucket(b.status) !== 'done'), [batches])
+  const categoryGroups = useMemo(() => groupBatchesByBrand(activeBatches), [activeBatches])
+
+  // O balde "Entregues" só mostra o que foi entregue há até DELIVERED_BUCKET_DAYS —
+  // depois disso passa a existir só no Histórico da equipa (arquivo permanente).
+  const bucketBatches = useMemo(() => {
+    const map = {} as Record<StatusBucket, QuotationBatch<QuotationRequest>[]>
+    for (const b of BUCKET_ITEMS) {
+      let list = filterBatchesByBucket(batches, b.value)
+      if (b.value === 'done') {
+        list = list.filter((batch) => {
+          const days = daysSinceDelivered(batchDeliveredAt(batch))
+          return days === null || days <= DELIVERED_BUCKET_DAYS
+        })
+      }
+      map[b.value] = list
+    }
+    return map
+  }, [batches])
   const bucketCounts = useMemo(() => {
     const counts: Record<StatusBucket, number> = { pending: 0, approved: 0, delivered: 0, cancelled: 0, done: 0 }
-    for (const b of BUCKET_ITEMS) counts[b.value] = filterBatchesByBucket(batches, b.value).length
+    for (const b of BUCKET_ITEMS) counts[b.value] = bucketBatches[b.value].length
     return counts
+  }, [bucketBatches])
+
+  // Histórico da equipa — um card por empresa com quem já trabalhámos (nº de
+  // encomendas, data da primeira encomenda, data da última entrega), que abre para
+  // mostrar as próprias encomendas já entregues. Arquivo permanente, ao contrário do
+  // balde "Entregues" (só 7 dias) — e separado da aba "Histórico" de cada encomenda
+  // (QuotationHistoryTimeline), que continua a mostrar o registo de mudanças de estado.
+  const deliveredByCompany = useMemo(() => {
+    const delivered = filterBatchesByBucket(batches, 'done')
+    const byCompany = new Map<string, QuotationBatch<QuotationRequest>[]>()
+    for (const b of delivered) {
+      const company = b.primaryItem.empresa
+      const list = byCompany.get(company) ?? []
+      list.push(b)
+      byCompany.set(company, list)
+    }
+    return [...byCompany.entries()]
+      .map(([company, companyBatches]) => {
+        const allCompanyBatches = batches.filter((b) => b.primaryItem.empresa === company)
+        const firstOrderAt = allCompanyBatches.reduce((min, b) => (b.createdAt < min ? b.createdAt : min), allCompanyBatches[0].createdAt)
+        const lastDeliveryAt = companyBatches.reduce((max: string | null, b) => {
+          const d = batchDeliveredAt(b) ?? b.primaryItem.data_limite_entrega
+          return !max || d > max ? d : max
+        }, null as string | null)
+        return { company, batches: companyBatches, orderCount: companyBatches.length, firstOrderAt, lastDeliveryAt }
+      })
+      .sort((a, b) => a.company.localeCompare(b.company, 'pt'))
   }, [batches])
 
   // "Recebidas" (sem categoria escolhida) mostra tudo numa lista só — nunca
@@ -171,11 +262,11 @@ export function CotacoesSection() {
   // tempo. Só ao escolher uma categoria específica é que filtra.
   const visibleGroups = useMemo(() => {
     if (navMode === 'bucket') {
-      return [{ label: null as string | null, batches: filterBatchesByBucket(batches, activeBucket) }]
+      return [{ label: null as string | null, batches: bucketBatches[activeBucket] }]
     }
-    if (activeCategory === null) return [{ label: null as string | null, batches }]
+    if (activeCategory === null) return [{ label: null as string | null, batches: activeBatches }]
     return categoryGroups.filter((g) => g.label === activeCategory).map((g) => ({ label: null as string | null, batches: g.batches }))
-  }, [navMode, activeBucket, activeCategory, batches, categoryGroups])
+  }, [navMode, activeBucket, activeCategory, activeBatches, categoryGroups, bucketBatches])
 
   const updateStatus = async (itemId: string, status: QuotationRequest['status']) => {
     let rejectionReason: string | null = null
@@ -218,6 +309,34 @@ export function CotacoesSection() {
     }
   }
 
+  // Marca TODOS os itens da encomenda como entregues de uma vez — "Entregue" deixou de
+  // ser um estado por item (ver STATUS_OPTIONS) precisamente para evitar encomendas
+  // "entregues em partes". Pode acontecer antes do prazo (entrega antecipada).
+  const markBatchDelivered = async (batch: QuotationBatch<QuotationRequest>) => {
+    if (!batchReadyToDeliver(batch)) {
+      window.alert('Ainda há itens por concluir nesta encomenda — não é possível marcar como entregue.')
+      return
+    }
+    if (!window.confirm(`Marcar toda a encomenda de ${batch.primaryItem.empresa} como entregue?`)) return
+    const itemIds = batch.items.map((i) => i.id)
+    const deliveredAt = new Date().toISOString()
+    setUpdatingId(batch.batchId)
+    try {
+      await Promise.all(itemIds.map((id) =>
+        fetch('/api/admin/cotacoes', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id, status: 'done', rejectionReason: null }),
+        }),
+      ))
+      setCotacoes((prev) => prev.map((c) => (itemIds.includes(c.id) ? { ...c, status: 'done', delivered_at: deliveredAt } : c)))
+    } catch (error) {
+      console.error('Erro ao marcar encomenda como entregue:', error)
+    } finally {
+      setUpdatingId(null)
+    }
+  }
+
   const navBtnClass = (active: boolean) =>
     `w-full flex items-center gap-2 px-2.5 py-2 rounded text-sm font-medium transition-colors text-left ${
       active
@@ -230,25 +349,37 @@ export function CotacoesSection() {
       <div className="flex flex-col lg:flex-row gap-4 lg:gap-5 items-start">
         <nav className={`${panelSectionCard} sticky top-0 h-[calc(100vh-116px)] w-full shrink-0 space-y-5 overflow-y-auto p-3 lg:w-[220px]`}>
           <div>
-            <button
-              type="button"
-              onClick={() => { setNavMode('categoria'); setActiveCategory(null) }}
-              className={navBtnClass(navMode === 'categoria' && activeCategory === null)}
-            >
-              <Inbox className="w-4 h-4 shrink-0" /> Recebidas
-            </button>
-            <div className="ml-3 mt-1 space-y-0.5 border-l border-gray-200 dark:border-zinc-800 pl-2">
-              {CATEGORY_LABELS.map((label) => (
-                <button
-                  key={label}
-                  type="button"
-                  onClick={() => { setNavMode('categoria'); setActiveCategory(label) }}
-                  className={navBtnClass(navMode === 'categoria' && activeCategory === label) + ' text-xs py-1.5'}
-                >
-                  {label}
-                </button>
-              ))}
+            <div className={navBtnClass(navMode === 'categoria' && activeCategory === null) + ' flex items-center pr-1'}>
+              <button
+                type="button"
+                onClick={() => { setNavMode('categoria'); setActiveCategory(null) }}
+                className="flex flex-1 items-center gap-2"
+              >
+                <Inbox className="w-4 h-4 shrink-0" /> Recebidas
+              </button>
+              <button
+                type="button"
+                onClick={() => setCategoriesOpen((v) => !v)}
+                className="shrink-0 rounded p-0.5 text-current opacity-60 hover:opacity-100 transition-opacity"
+                title={categoriesOpen ? 'Colapsar categorias' : 'Expandir categorias'}
+              >
+                <ChevronDown className={`w-3.5 h-3.5 transition-transform ${categoriesOpen ? '' : '-rotate-90'}`} />
+              </button>
             </div>
+            {categoriesOpen && (
+              <div className="ml-3 mt-1 space-y-0.5 border-l border-gray-200 dark:border-zinc-800 pl-2">
+                {CATEGORY_LABELS.map((label) => (
+                  <button
+                    key={label}
+                    type="button"
+                    onClick={() => { setNavMode('categoria'); setActiveCategory(label) }}
+                    className={navBtnClass(navMode === 'categoria' && activeCategory === label) + ' text-xs py-1.5'}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
 
           <div className="space-y-0.5 pt-3 border-t border-gray-100 dark:border-zinc-800">
@@ -272,6 +403,13 @@ export function CotacoesSection() {
           <div className="space-y-0.5 pt-3 border-t border-gray-100 dark:border-zinc-800">
             <button
               type="button"
+              onClick={() => setNavMode('historico')}
+              className={navBtnClass(navMode === 'historico')}
+            >
+              <History className="w-4 h-4 shrink-0" /> Histórico
+            </button>
+            <button
+              type="button"
               onClick={() => setNavMode('contabilidade')}
               className={navBtnClass(navMode === 'contabilidade')}
             >
@@ -283,6 +421,59 @@ export function CotacoesSection() {
         <div className="min-w-0 flex-1 w-full">
           {navMode === 'contabilidade' ? (
             <ContabilidadeTable />
+          ) : navMode === 'historico' ? (
+            loading ? (
+              <div className="text-center py-12 text-sm text-gray-400 dark:text-zinc-500">A carregar encomendas...</div>
+            ) : deliveredByCompany.length === 0 ? (
+              <div className={`${panelSectionCard} p-8 text-center text-sm text-gray-500 dark:text-zinc-400`}>
+                Ainda não há encomendas entregues.
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {deliveredByCompany.map(({ company, batches: companyBatches, orderCount, firstOrderAt, lastDeliveryAt }) => {
+                  const isOpen = expandedCompany === company
+                  return (
+                    <div key={company} className={panelSectionCard}>
+                      <div
+                        role="button"
+                        tabIndex={0}
+                        onClick={() => setExpandedCompany(isOpen ? null : company)}
+                        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setExpandedCompany(isOpen ? null : company) } }}
+                        className="flex w-full items-center gap-3 p-4 text-left cursor-pointer"
+                      >
+                        <Building2 className="w-4 h-4 text-gray-400 shrink-0" />
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate font-bold text-gray-900 dark:text-white">{company}</p>
+                          <p className="text-xs text-gray-500 dark:text-zinc-400">
+                            {orderCount} {orderCount === 1 ? 'encomenda' : 'encomendas'} · 1ª encomenda em {new Date(firstOrderAt).toLocaleDateString('pt-PT')}
+                            {lastDeliveryAt && ` · última entrega em ${new Date(lastDeliveryAt).toLocaleDateString('pt-PT')}`}
+                          </p>
+                        </div>
+                        <ChevronDown className={`w-4 h-4 shrink-0 text-gray-400 transition-transform ${isOpen ? '' : '-rotate-90'}`} />
+                      </div>
+                      {isOpen && (
+                        <div className="space-y-3 border-t border-gray-100 p-4 dark:border-zinc-800" onClick={(e) => e.stopPropagation()}>
+                          {companyBatches.map((batch, idx) => (
+                            <BatchCard
+                              key={batch.batchId}
+                              number={idx + 1}
+                              batch={batch}
+                              numero={numeros[batch.batchId] ?? batchNumero(batch.batchId)}
+                              isExpanded={expandedBatchId === batch.batchId}
+                              onToggle={() => setExpandedBatchId(expandedBatchId === batch.batchId ? null : batch.batchId)}
+                              updatingId={updatingId}
+                              onUpdateStatus={updateStatus}
+                              onUpdateDeliveryDate={updateDeliveryDate}
+                              onMarkDelivered={markBatchDelivered}
+                            />
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            )
           ) : loading ? (
             <div className="text-center py-12 text-sm text-gray-400 dark:text-zinc-500">A carregar encomendas...</div>
           ) : visibleGroups.every((g) => g.batches.length === 0) ? (
@@ -314,6 +505,7 @@ export function CotacoesSection() {
                             updatingId={updatingId}
                             onUpdateStatus={updateStatus}
                             onUpdateDeliveryDate={updateDeliveryDate}
+                            onMarkDelivered={markBatchDelivered}
                           />
                         )
                       })}
@@ -355,6 +547,7 @@ function BatchCard({
   updatingId,
   onUpdateStatus,
   onUpdateDeliveryDate,
+  onMarkDelivered,
 }: {
   number: number
   batch: QuotationBatch<QuotationRequest>
@@ -364,11 +557,20 @@ function BatchCard({
   updatingId: string | null
   onUpdateStatus: (itemId: string, status: QuotationRequest['status']) => void
   onUpdateDeliveryDate: (batchId: string, dataLimiteEntrega: string) => void
+  onMarkDelivered: (batch: QuotationBatch<QuotationRequest>) => void
 }) {
   const [activeTab, setActiveTab] = useState<BatchTab>('itens')
   const [showMessages, setShowMessages] = useState(false)
   const [chatMenuOpen, setChatMenuOpen] = useState(false)
   const [editingDate, setEditingDate] = useState(false)
+  const [deliveryMenuOpen, setDeliveryMenuOpen] = useState(false)
+  const statusSelectRefs = useRef<Record<string, HTMLSelectElement | null>>({})
+  const openStatusPicker = (itemId: string) => {
+    const el = statusSelectRefs.current[itemId]
+    if (!el) return
+    el.focus()
+    el.showPicker?.()
+  }
   const [invoiceNumber, setInvoiceNumber] = useState<string | null>(null)
   const [payments, setPayments] = useState<{ phase: string; metodo: string | null; valor_mt: number; confirmed_at: string }[]>([])
   const anchor = batch.primaryItem
@@ -405,7 +607,7 @@ function BatchCard({
       `width=${w},height=${h},left=${left},top=${top},resizable=yes,scrollbars=yes`,
     )
   }
-  const meta = statusMeta(batch.status, batch.sobConsulta)
+  const meta = statusMeta(displayStatusValue(batch.status), batch.sobConsulta)
   const resumo = batch.sobConsulta
     ? 'Pedido personalizado — aguarda contacto'
     : batch.items.length === 1
@@ -485,20 +687,51 @@ function BatchCard({
                   <button
                     type="button"
                     onClick={() => setEditingDate(true)}
-                    className="font-bold text-gray-900 dark:text-white hover:underline decoration-dotted underline-offset-2"
+                    className="font-bold text-gray-900 dark:text-white hover:text-red-600 dark:hover:text-red-400 hover:underline decoration-dotted underline-offset-2 transition-colors"
                     title="Clique para alterar o prazo"
                   >
                     Entrega até {new Date(anchor.data_limite_entrega).toLocaleDateString('pt-PT')}
                   </button>
                 )}
-                {(() => {
-                  const countdown = deliveryCountdown(anchor.data_limite_entrega)
-                  return (
-                    <span className={`px-2 py-0.5 rounded text-xs font-bold whitespace-nowrap ${countdown.className}`}>
-                      {countdown.label}
-                    </span>
-                  )
-                })()}
+                {batch.status === 'done' ? (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-bold whitespace-nowrap bg-green-100 text-green-700 dark:bg-green-950/30 dark:text-green-400">
+                    <CheckCircle2 className="w-3.5 h-3.5" /> Entregue
+                  </span>
+                ) : (
+                  <div className="relative">
+                    {(() => {
+                      const countdown = deliveryCountdown(anchor.data_limite_entrega, anchor.created_at)
+                      return (
+                        <button
+                          type="button"
+                          onClick={() => setDeliveryMenuOpen((v) => !v)}
+                          className={`px-2 py-0.5 rounded text-xs font-bold whitespace-nowrap transition hover:brightness-95 ${countdown.className}`}
+                          title="Clique para marcar como entregue"
+                        >
+                          {countdown.label}
+                        </button>
+                      )
+                    })()}
+                    {deliveryMenuOpen && (
+                      <div className="absolute right-0 top-full z-20 mt-1 w-52 overflow-hidden rounded-lg border border-gray-200 bg-white shadow-xl dark:border-zinc-700 dark:bg-zinc-900">
+                        <button
+                          type="button"
+                          onClick={() => { setDeliveryMenuOpen(false); onMarkDelivered(batch) }}
+                          disabled={updatingId === batch.batchId || !batchReadyToDeliver(batch)}
+                          title={batchReadyToDeliver(batch) ? undefined : 'Ainda há itens por concluir nesta encomenda'}
+                          className="flex w-full items-center gap-2 px-3 py-2 text-sm text-gray-700 transition-colors hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent dark:text-zinc-300 dark:hover:bg-zinc-800"
+                        >
+                          <CheckCircle2 className="w-4 h-4 text-green-600 dark:text-green-400" /> Entregue
+                        </button>
+                        {!batchReadyToDeliver(batch) && (
+                          <p className="px-3 pb-2 text-[11px] leading-tight text-gray-400 dark:text-zinc-500">
+                            Ainda há itens por concluir.
+                          </p>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -528,23 +761,48 @@ function BatchCard({
                               <span className="block truncate text-xs text-rose-600 dark:text-rose-400">Motivo: {item.rejection_reason}</span>
                             )}
                           </div>
-                          <select
-                            className={`${panelField} w-40 shrink-0`}
-                            value={item.status}
-                            disabled={updatingId === item.id}
-                            onChange={(e) => onUpdateStatus(item.id, e.target.value as QuotationRequest['status'])}
-                          >
-                            {STATUS_OPTIONS.map((s) => (
-                              <option key={s.value} value={s.value}>{s.label}</option>
-                            ))}
-                          </select>
-                          <span className="w-24 shrink-0 text-right text-xs font-semibold whitespace-nowrap">
+                          <div className="relative shrink-0 flex items-center gap-1">
+                            <button
+                              type="button"
+                              onClick={() => openStatusPicker(item.id)}
+                              disabled={updatingId === item.id}
+                              className="shrink-0 text-gray-400 hover:text-red-600 dark:text-zinc-500 dark:hover:text-red-500 transition-colors disabled:opacity-50"
+                              title="Clique para alterar o estado"
+                            >
+                              <ChevronDown className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => openStatusPicker(item.id)}
+                              disabled={updatingId === item.id}
+                              className={`shrink-0 whitespace-nowrap rounded px-2.5 py-1 text-xs font-bold transition hover:brightness-95 disabled:opacity-50 ${
+                                STATUS_OPTIONS.find((s) => s.value === displayStatusValue(item.status))?.badge ?? ''
+                              }`}
+                              title="Clique para alterar o estado"
+                            >
+                              {STATUS_OPTIONS.find((s) => s.value === displayStatusValue(item.status))?.label ?? item.status}
+                            </button>
+                            <select
+                              ref={(el) => { statusSelectRefs.current[item.id] = el }}
+                              className="sr-only"
+                              tabIndex={-1}
+                              value={displayStatusValue(item.status)}
+                              disabled={updatingId === item.id}
+                              onChange={(e) => onUpdateStatus(item.id, e.target.value as QuotationRequest['status'])}
+                            >
+                              {SELECTABLE_STATUS_OPTIONS.map((s) => (
+                                <option key={s.value} value={s.value}>{s.label}</option>
+                              ))}
+                            </select>
+                          </div>
+                          <span className="w-24 shrink-0 text-right text-sm font-semibold whitespace-nowrap">
                             {item.sob_consulta ? (
                               <span className="text-red-600 dark:text-red-500 font-extrabold">Sob Consulta</span>
                             ) : (
                               <span className="text-gray-700 dark:text-zinc-300">{formatMt(item.preco_unitario_mt * item.quantidade)} MT</span>
                             )}
                           </span>
+                          <span className="ml-2 w-3.5 shrink-0" aria-hidden="true" />
                         </div>
                       )
                     })}
@@ -559,6 +817,7 @@ function BatchCard({
                           <span className="text-gray-900 dark:text-white">{formatMt(batch.totalMt)} MT</span>
                         )}
                       </span>
+                      <span className="ml-2 w-3.5 shrink-0" aria-hidden="true" />
                     </div>
                   </div>
 

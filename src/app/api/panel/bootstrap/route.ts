@@ -1,6 +1,7 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
+import { cookies } from 'next/headers';
 import { requirePanelBootstrapAccess } from '@/lib/panel-api-auth';
-import { resolvePanelDaContext } from '@/lib/panel-api-context';
+import { IMPERSONATE_COOKIE, resolvePanelDaContext } from '@/lib/panel-api-context';
 import { resolveResellerPanelContext } from '@/lib/panel-reseller-context';
 import { scheduleDaSync } from '@/lib/da-sync-engine';
 import { resolveClientPanelContext } from '@/lib/panel-client-context';
@@ -41,7 +42,7 @@ async function loadResellerTier(userId: string): Promise<ResellerTier | null> {
   return 'essencial';
 }
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
     const auth = await requirePanelBootstrapAccess();
     if ('error' in auth) return auth.error;
@@ -92,11 +93,28 @@ export async function GET() {
     const staffAuth = {
       user: auth.user as { id: string; email?: string; role: 'admin' | 'reseller' },
     };
-    const { mirrorScope, effectiveRole } = await resolvePanelDaContext({
-      user: staffAuth.user.role === 'reseller'
-        ? staffAuth.user
-        : { ...staffAuth.user, role: 'admin' },
-    });
+
+    // O painel /dashboard pede sempre scope=admin — se um admin ficou "preso" a
+    // impersonar um revendedor (ex.: saiu de /revendedor sem clicar "Voltar ao
+    // painel"), este é o ponto onde a própria conta admin volta a pedir os seus
+    // dados, por isso é seguro (e necessário) ignorar e limpar aqui a cookie de
+    // impersonação — caso contrário o /dashboard continua a mostrar as contas do
+    // revendedor em vez das da VisualDesign.
+    const requestedScope = req.nextUrl.searchParams.get('scope');
+    const bypassImpersonation = requestedScope === 'admin' && staffAuth.user.role === 'admin';
+    if (bypassImpersonation) {
+      const store = await cookies();
+      if (store.get(IMPERSONATE_COOKIE)) store.delete(IMPERSONATE_COOKIE);
+    }
+
+    const { mirrorScope, effectiveRole } = await resolvePanelDaContext(
+      {
+        user: staffAuth.user.role === 'reseller'
+          ? staffAuth.user
+          : { ...staffAuth.user, role: 'admin' },
+      },
+      { ignoreImpersonation: bypassImpersonation },
+    );
     const isReseller = effectiveRole === 'reseller';
     const resellerTier = isReseller ? await loadResellerTier(auth.user.id) : null;
 

@@ -85,6 +85,11 @@ export const NEW_MENU_ITEM_DEFS: PanelMenuItemDef[] = [
     isNewMenu: true,
   },
   {
+    id: 'nextjs-sites',
+    label: 'Sites Next.js',
+    isNewMenu: true,
+  },
+  {
     id: 'nov-wordpress',
     label: 'WordPress',
     isNewMenu: true,

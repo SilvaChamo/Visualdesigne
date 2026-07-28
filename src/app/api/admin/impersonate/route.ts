@@ -21,8 +21,9 @@ const COOKIE_OPTS = {
   maxAge: 60 * 60 * 8,
 };
 
-function isResellerAccount(acl?: string | null): boolean {
-  return String(acl || '').toLowerCase() === 'reseller';
+function isImpersonatableAccount(acl?: string | null): boolean {
+  const normalized = String(acl || '').toLowerCase();
+  return normalized === 'reseller' || normalized === 'manager';
 }
 
 function serviceClient() {
@@ -82,7 +83,7 @@ async function isKnownResellerDaUsername(userName: string): Promise<boolean> {
     .eq('username', userName)
     .maybeSingle();
 
-  return isResellerAccount(data?.acl);
+  return isImpersonatableAccount(data?.acl);
 }
 
 async function startImpersonate(

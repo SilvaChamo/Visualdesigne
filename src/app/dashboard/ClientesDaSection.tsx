@@ -685,14 +685,18 @@ export function ClientesDaSection({
                     {formatRegisteredAt(u.registeredAt)}
                   </td>
                   <td className={accountsCellBorder}>
-                    <a
-                      href={`/api/admin/impersonate?user=${encodeURIComponent(u.userName)}`}
-                      onClick={() => clearAllPanelClientCaches()}
-                      className="inline-flex h-7 items-center gap-1 rounded bg-rose-50 px-2.5 text-xs font-bold text-rose-600 hover:bg-rose-100 transition-colors dark:bg-rose-950/30 dark:text-rose-400 dark:hover:bg-rose-950/60"
-                    >
-                      <ExternalLink className="h-3.5 w-3.5" />
-                      Entrar
-                    </a>
+                    {String(u.type || '').toLowerCase() === 'reseller' || String(u.type || '').toLowerCase() === 'manager' ? (
+                      <a
+                        href={`/api/admin/impersonate?user=${encodeURIComponent(u.userName)}`}
+                        onClick={() => clearAllPanelClientCaches()}
+                        className="inline-flex h-7 items-center gap-1 rounded bg-rose-50 px-2.5 text-xs font-bold text-rose-600 hover:bg-rose-100 transition-colors dark:bg-rose-950/30 dark:text-rose-400 dark:hover:bg-rose-950/60"
+                      >
+                        <ExternalLink className="h-3.5 w-3.5" />
+                        Entrar
+                      </a>
+                    ) : (
+                      <span className="text-gray-400 dark:text-zinc-600">—</span>
+                    )}
                   </td>
                   <td className="px-4 py-1.5 text-left">
                     <button

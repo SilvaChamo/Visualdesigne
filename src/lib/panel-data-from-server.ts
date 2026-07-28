@@ -107,7 +107,8 @@ export async function fetchPanelBootstrap(options?: {
     if (cached) return cached;
   }
 
-  const res = await fetch(`/api/panel/bootstrap?t=${Date.now()}`, { cache: 'no-store' });
+  const query = scope ? `t=${Date.now()}&scope=${scope}` : `t=${Date.now()}`;
+  const res = await fetch(`/api/panel/bootstrap?${query}`, { cache: 'no-store' });
   const json = await parseJsonResponse<{
     success?: boolean;
     error?: string;
