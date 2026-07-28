@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
 import { createClient } from '@/utils/supabase/server'
 import { resolveRoleForAuthUser } from '@/lib/server-auth-role'
+import { decryptStoredPassword } from '@/lib/panel-access-credentials'
 
 const adminEmails = ['admin@your-domain.com', 'silva.chamo@gmail.com', 'geral@visualdesignmoz.com', 'suporte@visualdesignmoz.com'];
 
@@ -10,14 +11,7 @@ const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PU
 
 const supabaseAdmin = createAdminClient(supabaseUrl, supabaseKey)
 
-// Decriptação base64
-const decrypt = (text: string) => {
-  try {
-    return Buffer.from(text, 'base64').toString('utf8')
-  } catch {
-    return text
-  }
-}
+const decrypt = decryptStoredPassword
 
 export async function POST(req: NextRequest) {
   const supabase = await createClient()

@@ -3,7 +3,7 @@ import { createClient as createAdminClient } from '@supabase/supabase-js'
 import { createClient } from '@/utils/supabase/server'
 import { detectDomainConfig } from '@/lib/email-autoconfig'
 import { PANEL_SLUG, inferPanelSiteFromEmail } from '@/lib/panel-tenant'
-import { decryptStoredPassword, buildPanelAccessConfigText } from '@/lib/panel-access-credentials'
+import { encryptStoredPassword, decryptStoredPassword, buildPanelAccessConfigText } from '@/lib/panel-access-credentials'
 import { STANDARD_PANEL_PASSWORD } from '@/lib/stored-panel-password'
 import { resolveRoleForAuthUser } from '@/lib/server-auth-role'
 import { ADMIN_BOOTSTRAP_EMAILS } from '@/lib/panel-user-registry'
@@ -28,9 +28,8 @@ const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PU
 // Cliente com privilégios de admin para operações na BD
 const supabaseAdmin = createAdminClient(supabaseUrl, supabaseKey)
 
-// Encriptação simples base64 (para produção usar crypto)
-const encrypt = (text: string) => Buffer.from(text).toString('base64')
-const decrypt = (text: string) => Buffer.from(text, 'base64').toString('utf8')
+const encrypt = encryptStoredPassword
+const decrypt = decryptStoredPassword
 
 async function userCanAccessMailboxPassword(
   sessionUser: { id: string; email?: string | null },

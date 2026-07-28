@@ -9,8 +9,9 @@ import {
   getCachedFolderList,
   resolveMailboxPassword,
 } from '@/lib/imap-panel-shared'
+import { decryptStoredPassword } from '@/lib/panel-access-credentials'
 
-const decryptPassword = (text: string) => Buffer.from(text, 'base64').toString('utf8')
+const decryptPassword = decryptStoredPassword
 
 // --- HELPERS ---
 function withTimeout<T>(promise: Promise<T>, timeoutMs: number, errorMessage: string = 'Operação expirou (timeout)'): Promise<T> {
