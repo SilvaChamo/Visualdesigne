@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient as createAdminClient, type SupabaseClient, type User } from '@supabase/supabase-js';
+import { withTimeout } from '@/lib/with-timeout';
 import { requireAdmin } from '@/lib/admin-api-auth';
 import { requireAdminOrReseller } from '@/lib/panel-api-auth';
 import {
@@ -623,17 +624,25 @@ export async function PUT(req: NextRequest) {
     const admin = createAdminClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
     const displayName = name?.trim() || normalizedEmail.split('@')[0];
 
-    const { data: created, error: createError } = await admin.auth.admin.createUser({
-      email: normalizedEmail,
-      password,
-      email_confirm: true,
-      user_metadata: {
-        role,
-        name: displayName,
-        nome: displayName,
-        site: PANEL_SLUG,
-      },
-    });
+    // O servidor é um processo Node persistente (pm2), não serverless — sem
+    // isto, uma chamada externa (Supabase Auth, DirectAdmin) que nunca resolve
+    // deixa o pedido "a processar" para sempre, sem qualquer limite. Ver
+    // with-timeout.ts.
+    const { data: created, error: createError } = await withTimeout(
+      admin.auth.admin.createUser({
+        email: normalizedEmail,
+        password,
+        email_confirm: true,
+        user_metadata: {
+          role,
+          name: displayName,
+          nome: displayName,
+          site: PANEL_SLUG,
+        },
+      }),
+      15_000,
+      'Criar conta (Supabase Auth)',
+    );
 
     if (createError || !created.user) {
       const msg = createError?.message || 'Erro ao criar conta';
@@ -641,54 +650,81 @@ export async function PUT(req: NextRequest) {
       return NextResponse.json({ success: false, error: msg }, { status });
     }
 
-    await saveProfileForAuthUser(admin, created.user.id, {
-      email: normalizedEmail,
-      role,
-      name: displayName,
-    });
+    await withTimeout(
+      saveProfileForAuthUser(admin, created.user.id, {
+        email: normalizedEmail,
+        role,
+        name: displayName,
+      }),
+      10_000,
+      'Guardar perfil',
+    );
 
-    await upsertDownloadableCredentials(admin, {
-      email: normalizedEmail,
-      password,
-      userId: created.user.id,
-      role,
-    });
+    await withTimeout(
+      upsertDownloadableCredentials(admin, {
+        email: normalizedEmail,
+        password,
+        userId: created.user.id,
+        role,
+      }),
+      10_000,
+      'Guardar credenciais',
+    );
 
-    await upsertPanelAuthAccount(admin, {
-      userId: created.user.id,
-      email: normalizedEmail,
-      role,
-      name: displayName,
-      serverLinked: false,
-      daUsername: null,
-    });
-
-    let provisionResult = null;
-    let provisionWarning: string | null = null;
-    const provisionAttempt = await tryProvisionReseller(admin, {
-      userId: created.user.id,
-      email: normalizedEmail,
-      nome: displayName,
-      explicitPassword: password,
-      provisionDa,
-      role,
-    });
-    provisionResult = provisionAttempt.provisionResult;
-    provisionWarning = provisionAttempt.provisionWarning;
-
-    if (role === 'reseller' && provisionResult?.daUsername) {
-      await upsertPanelAuthAccount(admin, {
+    await withTimeout(
+      upsertPanelAuthAccount(admin, {
         userId: created.user.id,
         email: normalizedEmail,
         role,
         name: displayName,
-        serverLinked: true,
-        daUsername: provisionResult.daUsername,
-      });
+        serverLinked: false,
+        daUsername: null,
+      }),
+      10_000,
+      'Guardar conta de painel',
+    );
+
+    let provisionResult = null;
+    let provisionWarning: string | null = null;
+    const provisionAttempt = await withTimeout(
+      tryProvisionReseller(admin, {
+        userId: created.user.id,
+        email: normalizedEmail,
+        nome: displayName,
+        explicitPassword: password,
+        provisionDa,
+        role,
+      }),
+      20_000,
+      'Provisionar revenda',
+    );
+    provisionResult = provisionAttempt.provisionResult;
+    provisionWarning = provisionAttempt.provisionWarning;
+
+    if (role === 'reseller' && provisionResult?.daUsername) {
+      await withTimeout(
+        upsertPanelAuthAccount(admin, {
+          userId: created.user.id,
+          email: normalizedEmail,
+          role,
+          name: displayName,
+          serverLinked: true,
+          daUsername: provisionResult.daUsername,
+        }),
+        10_000,
+        'Guardar conta de painel (revenda)',
+      );
     }
 
     clearPanelUsersServerCache();
-    const users = await buildPanelAccounts({ sync: false, includePaidCheck: false });
+    // A conta já está criada nesta altura — se só isto (montar a lista
+    // actualizada para devolver à UI) demorar demasiado, não faz sentido
+    // reportar a criação como falhada. A UI recarrega a lista à parte.
+    const users = await withTimeout(
+      buildPanelAccounts({ sync: false, includePaidCheck: false }),
+      15_000,
+      'Actualizar lista de contas',
+    ).catch(() => null);
 
     const message =
       role === 'admin'
