@@ -602,7 +602,6 @@ function MailMarketingContacts({ selectedSite, setSelectedSite, sites, listas, s
   const [loading, setLoading] = useState(true);
   const [showAddForm, setShowAddForm] = useState(false);
   const [newEmail, setNewEmail] = useState('');
-  const [newName, setNewName] = useState('');
   const [newListLabel, setNewListLabel] = useState('Contactos');
   const [newDomainLabel, setNewDomainLabel] = useState('');
   const [editingSub, setEditingSub] = useState<any>(null);
@@ -711,7 +710,6 @@ function MailMarketingContacts({ selectedSite, setSelectedSite, sites, listas, s
     setNewListLabel(listName);
     setEditingSub(null);
     setNewEmail('');
-    setNewName('');
     setShowAddForm(true);
   };
 
@@ -724,7 +722,7 @@ function MailMarketingContacts({ selectedSite, setSelectedSite, sites, listas, s
     e.preventDefault();
     if (!newEmail) return;
     try {
-      const payload = { email: newEmail, full_name: newName, domain: newDomainLabel || selectedSite, list: newListLabel };
+      const payload = { email: newEmail, domain: newDomainLabel || selectedSite, list: newListLabel };
       const result = editingSub ? await atualizarSubscritor(editingSub.id, payload) : await adicionarSubscritor(payload);
       if (result) {
         toast.success("Contacto guardado!");
@@ -785,7 +783,7 @@ function MailMarketingContacts({ selectedSite, setSelectedSite, sites, listas, s
                 <td className="px-5 py-3"><span className="px-2.5 py-1 bg-gray-100 text-gray-700 rounded-full text-xs font-medium">{sub.metadata?.domain || '-'}</span></td>
                 <td className="px-5 py-3"><span className="px-2.5 py-1 bg-gray-100 text-gray-700 rounded-full text-xs font-medium">{sub.metadata?.list || 'Contactos'}</span></td>
                 <td className="px-5 py-3 text-right flex justify-end gap-2">
-                  <button onClick={() => { setEditingSub(sub); setNewEmail(sub.email); setNewName(sub.full_name || ''); setShowAddForm(true); }} className="p-2 hover:bg-gray-100 text-gray-500 hover:text-gray-900 rounded-md transition-colors"><Pencil size={14} /></button>
+                  <button onClick={() => { setEditingSub(sub); setNewEmail(sub.email); setShowAddForm(true); }} className="p-2 hover:bg-gray-100 text-gray-500 hover:text-gray-900 rounded-md transition-colors"><Pencil size={14} /></button>
                   <button onClick={() => handleDelete(sub.id)} className="p-2 hover:bg-red-50 text-gray-500 hover:text-red-600 rounded-md transition-colors"><Trash2 size={14} /></button>
                 </td>
               </tr>
@@ -801,10 +799,6 @@ function MailMarketingContacts({ selectedSite, setSelectedSite, sites, listas, s
               <div>
                 <label className="text-xs font-bold text-gray-600 mb-1 block">Email *</label>
                 <Input value={newEmail} onChange={e => setNewEmail(e.target.value)} placeholder="exemplo@email.com" required className="rounded-md border-gray-200 focus-visible:ring-1 focus-visible:ring-gray-300" />
-              </div>
-              <div>
-                <label className="text-xs font-bold text-gray-600 mb-1 block">Nome</label>
-                <Input value={newName} onChange={e => setNewName(e.target.value)} placeholder="Nome completo" className="rounded-md border-gray-200 focus-visible:ring-1 focus-visible:ring-gray-300" />
               </div>
               <div>
                 <label className="text-xs font-bold text-gray-600 mb-1 block">Lista de Destino *</label>
