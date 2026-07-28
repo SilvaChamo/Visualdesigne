@@ -143,7 +143,6 @@ export const RESELLER_MAIN_MENU_DEFS: PanelMenuItemDef[] = [
     subItems: [
       { id: 'domain-manager', label: 'Domínios' },
       { id: 'registrar-domains', label: 'Registar domínio' },
-      { id: 'domains-registados', label: 'Domínios registados' },
       { id: 'dns-central', label: 'DNS Central' },
       { id: 'cp-ssl', label: 'SSL / TLS' },
       { id: 'cp-php', label: 'Configurar PHP' },

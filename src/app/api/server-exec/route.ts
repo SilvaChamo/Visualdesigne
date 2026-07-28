@@ -3,7 +3,6 @@ import { NextRequest, NextResponse } from 'next/server';
 export const dynamic = 'force-dynamic';
 import { getServerHost } from '@/lib/server-config';
 import type { DirectAdminServerAPI } from '@/lib/directadmin-adapter';
-import { getDirectAdminAPIForAuth } from '@/lib/directadmin-adapter';
 import { requireAdminOrReseller, type PanelAuthSuccess } from '@/lib/panel-api-auth';
 import { resolvePanelDaContext } from '@/lib/panel-api-context';
 import { runDaFullSyncDeduped, scheduleDaSync } from '@/lib/da-sync-engine';
@@ -369,7 +368,7 @@ export async function POST(req: NextRequest) {
       if ('error' in auth) return auth.error;
 
       if (action === 'serverStats') {
-        const api = await getDirectAdminAPIForAuth(auth.user);
+        const { daApi: api } = await resolvePanelDaContext(auth);
         const stats = await api.getServerStats();
         return NextResponse.json({ success: true, data: stats });
       }

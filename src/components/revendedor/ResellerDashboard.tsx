@@ -7,6 +7,7 @@ import {
 import type { DirectAdminWebsite } from '@/lib/directadmin-api'
 import { directAdminAPI } from '@/lib/directadmin-api'
 import { Spinner } from '@/components/ui/spinner'
+import { readWpInstallsCache, writeWpInstallsCache } from '@/lib/panel-wp-cache'
 
 interface Props {
   sites: DirectAdminWebsite[]
@@ -93,6 +94,44 @@ export function ResellerDashboard({
 
   const totalSites = filteredSites.length
 
+  // A coluna do espelho (site_type) nunca é sincronizada com dados reais —
+  // a detecção real de WordPress vem do mesmo scan ao vivo usado em
+  // WordPress > Sites (/api/admin/wp-update), com cache de sessão igual.
+  const [wpDomains, setWpDomains] = useState<string[]>(() => readWpInstallsCache('reseller'))
+
+  useEffect(() => {
+    let cancelled = false
+    void (async () => {
+      try {
+        const res = await fetch('/api/admin/wp-update', { credentials: 'include' })
+        const data = await res.json().catch(() => ({}))
+        if (cancelled || !data.success || !Array.isArray(data.installs)) return
+        const domains = data.installs.map((i: { domain: string }) => String(i.domain || '').toLowerCase())
+        writeWpInstallsCache(domains, 'reseller')
+        setWpDomains(domains)
+      } catch {
+        /* mantém cache */
+      }
+    })()
+    return () => { cancelled = true }
+  }, [])
+
+  const wpDomainSet = useMemo(() => new Set(wpDomains), [wpDomains])
+  const wordpressSites = useMemo(
+    () => filteredSites.filter((s) => wpDomainSet.has(s.domain.toLowerCase())),
+    [filteredSites, wpDomainSet],
+  )
+
+  const sitesForWidget = useMemo(
+    () =>
+      [...filteredSites].sort((a, b) => {
+        const aActive = parseState(a.state) === 'Active' ? 0 : 1
+        const bActive = parseState(b.state) === 'Active' ? 0 : 1
+        return aActive - bActive
+      }),
+    [filteredSites],
+  )
+
   const expirationByDomain = useMemo(() => {
     const map = new Map<string, string>()
     for (const row of [...domainRenewals, ...hostingRenewals]) {
@@ -101,17 +140,6 @@ export function ResellerDashboard({
     }
     return map
   }, [domainRenewals, hostingRenewals])
-
-  const expiringSites = useMemo(
-    () =>
-      filteredSites.filter((site) => {
-        const exp = expirationByDomain.get(site.domain.toLowerCase())
-        if (!exp) return false
-        const days = getDaysUntilExpiration(exp)
-        return days > 0 && days <= EXPIRING_WINDOW_DAYS
-      }),
-    [filteredSites, expirationByDomain],
-  )
 
   const nextRenewal = useMemo(() => {
     let earliest: { date: string; days: number } | null = null
@@ -188,20 +216,28 @@ export function ResellerDashboard({
     <div className="flex gap-5 p-5">
       <div className="flex-1 space-y-5">
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-          <div className="bg-white rounded border border-gray-200 shadow-sm p-5 flex items-start gap-4 dark:border-zinc-700 dark:bg-zinc-900">
+          <button
+            type="button"
+            onClick={() => onNavigate('wp-sites')}
+            className="bg-white rounded border border-gray-200 shadow-sm p-5 flex items-start gap-4 text-left cursor-pointer hover:shadow-md hover:border-blue-200 transition-all dark:border-zinc-700 dark:bg-zinc-900 dark:hover:border-blue-900/50"
+          >
             <div className="p-3 bg-blue-50 rounded-lg dark:bg-blue-950/40">
               <Globe className="w-6 h-6 text-blue-600 dark:text-blue-400" />
             </div>
             <div>
-              <p className="text-sm text-gray-500 dark:text-zinc-400">Sites Activos</p>
-              <p className="text-2xl font-bold text-gray-900 dark:text-zinc-100">{totalSites}</p>
+              <p className="text-sm text-gray-500 dark:text-zinc-400">Sites WordPress</p>
+              <p className="text-2xl font-bold text-gray-900 dark:text-zinc-100">{wordpressSites.length}</p>
               <p className="text-xs text-gray-400 mt-0.5 dark:text-zinc-500">
-                {totalSites > 0 ? 'Websites geridos' : 'Nenhum site'}
+                {wordpressSites.length > 0 ? 'Ver sites WordPress' : 'Nenhum site WordPress'}
               </p>
             </div>
-          </div>
+          </button>
 
-          <div className="bg-white rounded border border-gray-200 shadow-sm p-5 flex items-start gap-4 dark:border-zinc-700 dark:bg-zinc-900">
+          <button
+            type="button"
+            onClick={() => onNavigate('domain-manager')}
+            className="bg-white rounded border border-gray-200 shadow-sm p-5 flex items-start gap-4 text-left cursor-pointer hover:shadow-md hover:border-purple-200 transition-all dark:border-zinc-700 dark:bg-zinc-900 dark:hover:border-purple-900/50"
+          >
             <div className="p-3 bg-purple-50 rounded-lg dark:bg-purple-950/40">
               <Server className="w-6 h-6 text-purple-600 dark:text-purple-400" />
             </div>
@@ -210,7 +246,7 @@ export function ResellerDashboard({
               <p className="text-2xl font-bold text-gray-900 dark:text-zinc-100">{totalSites}</p>
               <p className="text-xs text-gray-400 mt-0.5 dark:text-zinc-500">Domínios registados</p>
             </div>
-          </div>
+          </button>
 
           <div className="bg-white rounded border border-gray-200 shadow-sm p-5 flex items-start gap-4 dark:border-zinc-700 dark:bg-zinc-900">
             <div className="p-3 bg-green-50 rounded-lg dark:bg-green-950/40">
@@ -238,26 +274,23 @@ export function ResellerDashboard({
         </div>
 
         <div className="space-y-3">
-          {renewalsLoading ? (
-            <div className="bg-white rounded border border-gray-200 shadow-sm p-10 text-center dark:border-zinc-700 dark:bg-zinc-900">
-              <Spinner className="w-6 h-6 mx-auto" />
-            </div>
-          ) : expiringSites.length === 0 ? (
+          {sitesForWidget.length === 0 ? (
             <div className="bg-white rounded border border-gray-200 shadow-sm p-10 text-center dark:border-zinc-700 dark:bg-zinc-900">
               <Globe className="w-12 h-12 text-gray-300 mx-auto mb-4 dark:text-zinc-600" />
               <p className="text-gray-500 dark:text-zinc-400">
-                Nenhum domínio a expirar nos próximos 3 meses.
+                Nenhum domínio encontrado.
               </p>
             </div>
           ) : (
             <div className="space-y-3">
-              {expiringSites.map((site) => {
+              {sitesForWidget.slice(0, 3).map((site) => {
                 const extension = getDomainExtension(site.domain)
                 const expirationDate =
                   expirationByDomain.get(site.domain.toLowerCase()) || ''
+                const hasExpiration = Boolean(expirationDate)
                 const status = parseState(site.state)
                 const isActive = status === 'Active'
-                const showRenewButton = shouldShowRenewButton(expirationDate)
+                const showRenewButton = hasExpiration && shouldShowRenewButton(expirationDate)
 
                 return (
                   <div
@@ -265,8 +298,8 @@ export function ResellerDashboard({
                     className="bg-white rounded border border-gray-200 shadow-sm p-4 flex items-center justify-between hover:shadow-md transition-shadow dark:border-zinc-700 dark:bg-zinc-900"
                   >
                     <div className="flex items-center gap-4">
-                      <div className="w-12 h-12 bg-green-50 rounded flex items-center justify-center border border-green-100 dark:bg-green-950/30 dark:border-green-900/50">
-                        <Globe className="w-6 h-6 text-green-600 dark:text-green-400" />
+                      <div className={`w-12 h-12 rounded flex items-center justify-center border ${isActive ? 'bg-green-50 border-green-100 dark:bg-green-950/30 dark:border-green-900/50' : 'bg-red-50 border-red-100 dark:bg-red-950/30 dark:border-red-900/50'}`}>
+                        <Globe className={`w-6 h-6 ${isActive ? 'text-green-600 dark:text-green-400' : 'text-red-500 dark:text-red-400'}`} />
                       </div>
                       <div>
                         <div className="flex items-center gap-2">
@@ -277,12 +310,14 @@ export function ResellerDashboard({
                             {extension}
                           </span>
                         </div>
-                        <div className="flex items-center gap-2 mt-1">
-                          <Calendar className="w-3.5 h-3.5 text-green-600 dark:text-green-400" />
-                          <span className="text-xs text-green-600 font-medium dark:text-green-400">
-                            Expiração: {formatExpirationLabel(expirationDate)}
-                          </span>
-                        </div>
+                        {hasExpiration ? (
+                          <div className="flex items-center gap-2 mt-1">
+                            <Calendar className="w-3.5 h-3.5 text-green-600 dark:text-green-400" />
+                            <span className="text-xs text-green-600 font-medium dark:text-green-400">
+                              Expiração: {formatExpirationLabel(expirationDate)}
+                            </span>
+                          </div>
+                        ) : null}
                       </div>
                     </div>
 
@@ -420,7 +455,7 @@ export function ResellerDashboard({
               Sites ({filteredSites.length})
             </p>
             <div className="space-y-2 max-h-48 overflow-y-auto">
-              {filteredSites.slice(0, 5).map((s, i) => (
+              {sitesForWidget.slice(0, 5).map((s, i) => (
                 <div key={i} className="flex items-center gap-2 text-xs">
                   <div
                     className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${

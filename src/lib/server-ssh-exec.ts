@@ -16,21 +16,43 @@ import { withSshSlot } from '@/lib/ssh-connection-queue';
 
 const execFileAsync = promisify(execFile);
 
+let sshpassAvailable: boolean | null = null;
+async function hasSshpass(): Promise<boolean> {
+  if (sshpassAvailable !== null) return sshpassAvailable;
+  try {
+    await execFileAsync('sshpass', ['-V']);
+    sshpassAvailable = true;
+  } catch {
+    sshpassAvailable = false;
+  }
+  return sshpassAvailable;
+}
+
+// A biblioteca ssh2 (JS puro) falha a autenticação por password de forma
+// intermitente/consistente quando corre dentro do processo do `next dev`
+// (funciona isoladamente via tsx/node simples) — usar o `ssh` nativo com
+// sshpass para password evita depender da negociação criptográfica do ssh2.
 async function executeViaNativeSsh(command: string, fast = false): Promise<string> {
   const opts = getSshConnectOptions();
   const keyPath = resolveSshKeyPath();
 
   let tempKeyPath: string | undefined;
-  let identityArg: string[];
+  let identityArg: string[] = [];
+  let useSshpass = false;
 
   if (keyPath) {
     identityArg = ['-i', keyPath];
   } else {
     const key = resolveSshPrivateKey();
-    if (!key) throw new Error('Chave SSH indisponível');
-    tempKeyPath = path.join(os.tmpdir(), `vd-ssh-${process.pid}-${Date.now()}.key`);
-    fs.writeFileSync(tempKeyPath, key, { mode: 0o600 });
-    identityArg = ['-i', tempKeyPath];
+    if (key) {
+      tempKeyPath = path.join(os.tmpdir(), `vd-ssh-${process.pid}-${Date.now()}.key`);
+      fs.writeFileSync(tempKeyPath, key, { mode: 0o600 });
+      identityArg = ['-i', tempKeyPath];
+    } else if (opts.password && (await hasSshpass())) {
+      useSshpass = true;
+    } else {
+      throw new Error('Chave SSH indisponível');
+    }
   }
 
   const sshOpts = [
@@ -42,7 +64,7 @@ async function executeViaNativeSsh(command: string, fast = false): Promise<strin
     '-o',
     'UserKnownHostsFile=/dev/null',
     '-o',
-    'BatchMode=yes',
+    useSshpass ? 'BatchMode=no' : 'BatchMode=yes',
     '-o',
     `ConnectTimeout=${fast ? 6 : 15}`,
     '-o',
@@ -52,15 +74,17 @@ async function executeViaNativeSsh(command: string, fast = false): Promise<strin
     sshOpts.push('-o', 'Compression=no');
   }
 
+  const sshArgs = [...sshOpts, `${opts.username}@${opts.host}`, command];
+
   try {
     const { stdout, stderr } = await execFileAsync(
-      'ssh',
-      [
-        ...sshOpts,
-        `${opts.username}@${opts.host}`,
-        command,
-      ],
-      { maxBuffer: 10 * 1024 * 1024, timeout: fast ? 20000 : 120000 },
+      useSshpass ? 'sshpass' : 'ssh',
+      useSshpass ? ['-e', 'ssh', ...sshArgs] : sshArgs,
+      {
+        maxBuffer: 10 * 1024 * 1024,
+        timeout: fast ? 20000 : 120000,
+        env: useSshpass ? { ...process.env, SSHPASS: opts.password } : process.env,
+      },
     );
     return (stdout || stderr || '').trim();
   } finally {

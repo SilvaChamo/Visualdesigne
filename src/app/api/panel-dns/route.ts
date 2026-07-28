@@ -1,16 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getAdminDirectAdminAPI, getDirectAdminAPIForAuth } from '@/lib/directadmin-adapter';
 import { daAddDnsRecord, daDeleteDnsRecord, normalizeDnsNameForDa } from '@/lib/da-dns-ops';
-import { loadResellerCredentialsByUserId } from '@/lib/da-credential-store';
+import {
+  loadResellerCredentialsByDaUsername,
+  loadResellerCredentialsByUserId,
+} from '@/lib/da-credential-store';
 import { scheduleDaSync } from '@/lib/da-sync-engine';
 import { getDaSyncAdmin } from '@/lib/da-sync-schema';
 import { requireAdminResellerOrManager } from '@/lib/panel-api-auth';
-import {
-  getMirrorSiteOwner,
-  isMirrorStale,
-  listMirrorDns,
-  type MirrorScope,
-} from '@/lib/panel-mirror-read';
+import { resolvePanelDaContext } from '@/lib/panel-api-context';
+import { getMirrorSiteOwner, isMirrorStale, listMirrorDns } from '@/lib/panel-mirror-read';
 import { deleteMirrorDnsById, upsertMirrorDns } from '@/lib/panel-mirror-write';
 import { resolveDirectAdminCredentials } from '@/lib/directadmin-credentials';
 
@@ -18,7 +16,12 @@ async function canAccessDomain(
   role: 'admin' | 'reseller' | 'manager',
   userId: string,
   domain: string,
+  impersonatingDaUsername?: string | null,
 ): Promise<boolean> {
+  if (impersonatingDaUsername) {
+    const owner = await getMirrorSiteOwner(domain);
+    return owner === impersonatingDaUsername;
+  }
   if (role === 'admin') return true;
   const creds = await loadResellerCredentialsByUserId(userId);
   if (!creds?.user) return false;
@@ -26,7 +29,16 @@ async function canAccessDomain(
   return owner === creds.user;
 }
 
-async function resolveDaCreds(role: 'admin' | 'reseller' | 'manager', userId: string) {
+async function resolveDaCreds(
+  role: 'admin' | 'reseller' | 'manager',
+  userId: string,
+  impersonatingDaUsername?: string | null,
+) {
+  if (impersonatingDaUsername) {
+    const stored = await loadResellerCredentialsByDaUsername(impersonatingDaUsername);
+    if (!stored) throw new Error('Credenciais de revendedor indisponíveis');
+    return { role: 'reseller' as const, user: stored.user, password: stored.password };
+  }
   if (role === 'admin') return resolveDirectAdminCredentials('admin');
   const stored = await loadResellerCredentialsByUserId(userId);
   if (!stored) throw new Error('Credenciais de revendedor indisponíveis');
@@ -43,14 +55,12 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ success: false, error: 'Domínio obrigatório' }, { status: 400 });
     }
 
-    if (!(await canAccessDomain(auth.user.role, auth.user.id, domain))) {
+    const { impersonating, mirrorScope, daApi } = await resolvePanelDaContext(auth);
+
+    if (!(await canAccessDomain(auth.user.role, auth.user.id, domain, impersonating))) {
       return NextResponse.json({ success: false, error: 'Sem acesso a este domínio' }, { status: 403 });
     }
 
-    const mirrorScope: MirrorScope = {
-      role: auth.user.role === 'admin' ? 'admin' : 'reseller',
-      userId: auth.user.id,
-    };
     const stale = await isMirrorStale(120);
     if (stale) scheduleDaSync(0);
 
@@ -59,15 +69,7 @@ export async function GET(req: NextRequest) {
 
     if (records.length === 0) {
       try {
-        const da =
-          auth.user.role === 'admin'
-            ? await getAdminDirectAdminAPI()
-            : await getDirectAdminAPIForAuth({
-                id: auth.user.id,
-                email: auth.user.email,
-                role: 'reseller',
-              });
-        const live = await da.listDNS(domain);
+        const live = await daApi.listDNS(domain);
         records = live.map((r) => ({
           id: '',
           name: String(r.name || ''),
@@ -112,11 +114,13 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: false, error: 'Campos incompletos' }, { status: 400 });
     }
 
-    if (!(await canAccessDomain(auth.user.role, auth.user.id, domain))) {
+    const { impersonating } = await resolvePanelDaContext(auth);
+
+    if (!(await canAccessDomain(auth.user.role, auth.user.id, domain, impersonating))) {
       return NextResponse.json({ success: false, error: 'Sem acesso a este domínio' }, { status: 403 });
     }
 
-    const creds = await resolveDaCreds(auth.user.role, auth.user.id);
+    const creds = await resolveDaCreds(auth.user.role, auth.user.id, impersonating);
     const result = await daAddDnsRecord(creds, { domain, name, type, value, ttl });
     if (!result.ok) {
       return NextResponse.json({ success: false, error: result.error || 'Falha ao criar registo' }, { status: 502 });
@@ -152,7 +156,9 @@ export async function DELETE(req: NextRequest) {
       return NextResponse.json({ success: false, error: 'Domínio e registo obrigatórios' }, { status: 400 });
     }
 
-    if (!(await canAccessDomain(auth.user.role, auth.user.id, domain))) {
+    const { impersonating } = await resolvePanelDaContext(auth);
+
+    if (!(await canAccessDomain(auth.user.role, auth.user.id, domain, impersonating))) {
       return NextResponse.json({ success: false, error: 'Sem acesso a este domínio' }, { status: 403 });
     }
 
@@ -172,7 +178,7 @@ export async function DELETE(req: NextRequest) {
       return NextResponse.json({ success: false, error: 'Registo não encontrado' }, { status: 404 });
     }
 
-    const creds = await resolveDaCreds(auth.user.role, auth.user.id);
+    const creds = await resolveDaCreds(auth.user.role, auth.user.id, impersonating);
     const result = await daDeleteDnsRecord(creds, {
       domain,
       name: String(row.name),

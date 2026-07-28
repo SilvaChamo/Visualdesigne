@@ -50,10 +50,6 @@ const STATUS_OPTIONS: { value: QuotationRequest['status']; label: string; badge:
   { value: 'cancelled', label: 'Cancelada', badge: 'bg-gray-200 text-gray-600 dark:bg-zinc-800 dark:text-zinc-400' },
 ]
 
-function itemStatusMeta(status: string) {
-  return STATUS_OPTIONS.find((s) => s.value === status) || STATUS_OPTIONS[0]
-}
-
 const metodoLabel = (m: string | null) => (m === 'mpesa' ? 'M-Pesa' : m === 'transferencia' ? 'Transferência' : '—')
 
 /** Contador decrescente até à data limite de entrega, com cor de alerta consoante a urgência. */
@@ -446,7 +442,7 @@ function BatchCard({
               <span className={`w-fit justify-self-end px-2.5 py-1 rounded text-xs font-bold whitespace-nowrap border ${meta.color}`}>
                 {meta.label}
               </span>
-              <span className="justify-self-start text-xs text-gray-400 dark:text-zinc-500 whitespace-nowrap">
+              <span className="justify-self-start text-xs text-gray-500 dark:text-zinc-400 whitespace-nowrap">
                 {new Date(anchor.created_at).toLocaleDateString('pt-PT')}
               </span>
             </div>
@@ -517,7 +513,6 @@ function BatchCard({
                 <div className="space-y-2">
                   <div className="rounded-lg border border-gray-100 dark:border-zinc-800 overflow-hidden divide-y divide-gray-100 dark:divide-zinc-800">
                     {batch.items.map((item, idx) => {
-                      const itemMeta = itemStatusMeta(item.status)
                       return (
                         <div
                           key={item.id}
@@ -533,16 +528,6 @@ function BatchCard({
                               <span className="block truncate text-xs text-rose-600 dark:text-rose-400">Motivo: {item.rejection_reason}</span>
                             )}
                           </div>
-                          <span className="w-24 shrink-0 text-right text-xs font-semibold whitespace-nowrap">
-                            {item.sob_consulta ? (
-                              <span className="text-red-600 dark:text-red-500 font-extrabold">Sob Consulta</span>
-                            ) : (
-                              <span className="text-gray-700 dark:text-zinc-300">{formatMt(item.preco_unitario_mt * item.quantidade)} MT</span>
-                            )}
-                          </span>
-                          <span className={`w-24 shrink-0 text-center px-2 py-1 rounded text-[10px] font-bold whitespace-nowrap ${itemMeta.badge}`}>
-                            {itemMeta.label}
-                          </span>
                           <select
                             className={`${panelField} w-40 shrink-0`}
                             value={item.status}
@@ -553,6 +538,13 @@ function BatchCard({
                               <option key={s.value} value={s.value}>{s.label}</option>
                             ))}
                           </select>
+                          <span className="w-24 shrink-0 text-right text-xs font-semibold whitespace-nowrap">
+                            {item.sob_consulta ? (
+                              <span className="text-red-600 dark:text-red-500 font-extrabold">Sob Consulta</span>
+                            ) : (
+                              <span className="text-gray-700 dark:text-zinc-300">{formatMt(item.preco_unitario_mt * item.quantidade)} MT</span>
+                            )}
+                          </span>
                         </div>
                       )
                     })}
@@ -567,8 +559,6 @@ function BatchCard({
                           <span className="text-gray-900 dark:text-white">{formatMt(batch.totalMt)} MT</span>
                         )}
                       </span>
-                      <span className="w-24 shrink-0" aria-hidden="true" />
-                      <span className="w-40 shrink-0" aria-hidden="true" />
                     </div>
                   </div>
 

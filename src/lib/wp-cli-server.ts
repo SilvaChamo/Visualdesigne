@@ -116,7 +116,9 @@ export async function resolveWpInstall(domain: string): Promise<WpInstallInfo | 
 }
 
 export async function listWpInstalls(): Promise<WpInstallInfo[]> {
-  const findCmd = `find /home -path '*/domains/*/public_html/wp-config.php' 2>/dev/null | grep -vi backup | sort`;
+  // -maxdepth 5 evita descer para dentro de public_html (uploads, cache, etc.) —
+  // wp-config.php está sempre a essa profundidade fixa a partir de /home.
+  const findCmd = `find /home -maxdepth 5 -path '*/domains/*/public_html/wp-config.php' 2>/dev/null | grep -vi backup | sort`;
   const raw = (await executeServerCommand(findCmd)).trim();
   if (!raw) return [];
 

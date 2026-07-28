@@ -188,7 +188,7 @@ export function DomainsHubSection({
           onNavigate={onNavigate}
           hubMode
           hubPanel="list"
-          domainListMode="hosting"
+          domainListMode={variant === 'reseller' ? 'all' : 'hosting'}
           isActive={isActive}
           listSearch={listSearch}
           onListSearchChange={setListSearch}

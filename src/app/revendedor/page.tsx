@@ -312,11 +312,19 @@ function ListWordPressSection({ sites, onRefresh, setActiveSection, setFileManag
   const handleSuspend = async (domain: string, state: string) => {
     setLoading(domain)
     const action = state === 'Active' ? 'suspendWebsite' : 'unsuspendWebsite'
-    await fetch('/api/server-exec', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action, params: { domain } })
-    })
-    await onRefresh()
+    try {
+      const res = await fetch('/api/server-exec', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action, params: { domain } })
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!data.success) {
+        alert('Erro: ' + (data.data?.output || data.error || 'desconhecido'))
+      }
+      await onRefresh()
+    } catch (e: any) {
+      alert('Erro de ligação: ' + e.message)
+    }
     setLoading(null)
   }
 
@@ -623,11 +631,19 @@ function ListWebsitesSection({ sites, onRefresh, packages, setActiveSection, set
   const handleSuspend = async (domain: string, state: string) => {
     setLoading(domain)
     const action = state === 'Active' ? 'suspendWebsite' : 'unsuspendWebsite'
-    await fetch('/api/server-exec', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action, params: { domain } })
-    })
-    await onRefresh()
+    try {
+      const res = await fetch('/api/server-exec', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action, params: { domain } })
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!data.success) {
+        alert('Erro: ' + (data.data?.output || data.error || 'desconhecido'))
+      }
+      await onRefresh()
+    } catch (e: any) {
+      alert('Erro de ligação: ' + e.message)
+    }
     setLoading(null)
   }
 
@@ -635,32 +651,40 @@ function ListWebsitesSection({ sites, onRefresh, packages, setActiveSection, set
     setLoading(domain)
     let command = ''
 
-    if (field === 'php') {
-      command = `directadmin changePHP --domainName ${domain} --phpVersion "${value}" 2>&1`
-    } else if (field === 'package') {
-      command = `directadmin changePackage --domainName ${domain} --packageName "${value}" 2>&1`
-    } else {
-      // Para outros campos, usa modifyWebsite
-      await fetch('/api/server-exec', {
+    try {
+      if (field === 'php') {
+        command = `directadmin changePHP --domainName ${domain} --phpVersion "${value}" 2>&1`
+      } else if (field === 'package') {
+        command = `directadmin changePackage --domainName ${domain} --packageName "${value}" 2>&1`
+      } else {
+        // Para outros campos, usa modifyWebsite
+        const res = await fetch('/api/server-exec', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'modifyWebsite', params: { domain, [field]: value } })
+        })
+        const data = await res.json().catch(() => ({}))
+        if (!data.success) {
+          alert('Erro: ' + (data.data?.output || data.error || 'desconhecido'))
+        }
+        setEditingField(null)
+        await onRefresh()
+        setLoading(null)
+        return
+      }
+
+      const res = await fetch('/api/server-exec', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'modifyWebsite', params: { domain, [field]: value } })
+        body: JSON.stringify({ action: 'execCommand', params: { command } })
       })
+      const data = await res.json().catch(() => ({}))
+      if (!data.success) {
+        alert('Erro: ' + (data.data?.output || data.error || 'desconhecido'))
+      }
       setEditingField(null)
       await onRefresh()
-      setLoading(null)
-      return
+    } catch (e: any) {
+      alert('Erro de ligação: ' + e.message)
     }
-
-    const res = await fetch('/api/server-exec', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'execCommand', params: { command } })
-    })
-    const data = await res.json()
-    if (!data.success) {
-      alert('Erro: ' + (data.data?.output || data.error || 'desconhecido'))
-    }
-    setEditingField(null)
-    await onRefresh()
     setLoading(null)
   }
 
@@ -1057,17 +1081,26 @@ function ClientesSection() {
   })
   const [erro, setErro] = useState('')
   const [sucesso, setSucesso] = useState('')
+  const [listError, setListError] = useState('')
 
   const carregarClientes = async () => {
     setLoading(true)
+    setListError('')
     try {
       const res = await fetch(`${SUPABASE_URL}/rest/v1/clientes?order=created_at.desc`, {
         headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` }
       })
-      const data = await res.json()
-      setClientes(Array.isArray(data) ? data : [])
-    } catch (e) {
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        setClientes([])
+        setListError(err.message || `Erro ao carregar clientes (${res.status})`)
+      } else {
+        const data = await res.json()
+        setClientes(Array.isArray(data) ? data : [])
+      }
+    } catch (e: any) {
       setClientes([])
+      setListError(e.message || 'Erro de ligação ao carregar clientes')
     }
     setLoading(false)
   }
@@ -1190,13 +1223,22 @@ function ClientesSection() {
         />
       </div>
 
+      {listError && (
+        <div className="mb-4 flex items-center justify-between gap-3 bg-red-50 border border-red-200 text-red-700 rounded px-4 py-3 text-sm">
+          <span>{listError}</span>
+          <button onClick={() => void carregarClientes()} className="font-bold underline shrink-0">
+            Tentar novamente
+          </button>
+        </div>
+      )}
+
       {loading ? (
         <div className="flex items-center justify-center py-16">
           <Spinner className="w-6 h-6" />
         </div>
       ) : clientesFiltrados.length === 0 ? (
         <div className="text-center py-16 text-gray-500">
-          {busca ? t('admin.clientSection.notFound') : t('admin.clientSection.empty')}
+          {listError ? '' : busca ? t('admin.clientSection.notFound') : t('admin.clientSection.empty')}
         </div>
       ) : (
         <div className="grid gap-3">
@@ -2381,6 +2423,10 @@ function ResellerPageContent() {
             onCreateEmail={(domain) => {
               setPreSelectedEmailDomain(domain)
               setActiveSection('cp-email-mgmt')
+            }}
+            onNavigate={(section, opts) => {
+              if (opts?.domain) setSelectedDNSDomain(opts.domain)
+              handleNavigate(section)
             }}
             onHubPanelClose={() => setDomainHubTab('meus')}
           />

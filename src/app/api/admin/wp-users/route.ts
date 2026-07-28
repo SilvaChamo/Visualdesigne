@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAdminResellerOrManager } from '@/lib/panel-api-auth';
+import { resolvePanelDaContext } from '@/lib/panel-api-context';
 import {
   assertPanelOwnsWpDomain,
   resolvePanelWpScope,
@@ -26,7 +27,8 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    const scope = await resolvePanelWpScope(auth.user.id, auth.user.role);
+    const { impersonating } = await resolvePanelDaContext(auth);
+    const scope = await resolvePanelWpScope(auth.user.id, auth.user.role, impersonating);
     await assertPanelOwnsWpDomain(scope, domain);
 
     const users = await listWpUsers(domain);
@@ -56,7 +58,8 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const scope = await resolvePanelWpScope(auth.user.id, auth.user.role);
+    const { impersonating } = await resolvePanelDaContext(auth);
+    const scope = await resolvePanelWpScope(auth.user.id, auth.user.role, impersonating);
     await assertPanelOwnsWpDomain(scope, domain);
 
     if (action === 'get') {

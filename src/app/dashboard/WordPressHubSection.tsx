@@ -200,13 +200,23 @@ export function WordPressHubSection({
         signal: controller.signal,
       });
       window.clearTimeout(timeout);
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
       if (data.success && Array.isArray(data.installs)) {
         setWpDomains(data.installs);
         writeWpInstallsCache(data.installs);
+      } else if (!readWpInstallsCache()?.length) {
+        setMsg({
+          ok: false,
+          text: data.error || 'Não foi possível carregar os sites WordPress.',
+        });
       }
-    } catch {
-      /* mantém cache ou sites do painel */
+    } catch (e: unknown) {
+      if (!readWpInstallsCache()?.length) {
+        setMsg({
+          ok: false,
+          text: e instanceof Error ? e.message : 'Erro de ligação ao carregar sites WordPress.',
+        });
+      }
     } finally {
       setLoadingList(false);
     }

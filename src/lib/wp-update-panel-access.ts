@@ -17,7 +17,15 @@ const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
 export async function resolvePanelWpScope(
   userId: string,
   role: 'admin' | 'reseller' | 'manager',
+  impersonatingDaUsername?: string | null,
 ): Promise<PanelWpScope> {
+  // Admin a impersonar um revendedor: a sessão real continua 'admin', mas o
+  // scope tem de ficar preso à conta impersonada — nunca cair no ramo
+  // 'admin' abaixo, que devolveria sempre o (vazio) escopo do próprio admin.
+  if (impersonatingDaUsername) {
+    return { role: 'reseller', userId, daUsername: impersonatingDaUsername };
+  }
+
   if (role === 'admin') {
     return { role: 'admin', userId, daUsername: 'admin' };
   }

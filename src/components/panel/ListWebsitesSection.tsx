@@ -151,6 +151,17 @@ function ListWebsitesSection({ sites, onRefresh, packages, setActiveSection, set
     wordpressOnly ? new Set(readWpInstallsCache(panelScope).map((d) => d.toLowerCase())) : new Set(),
   )
   const [wpListLoading, setWpListLoading] = useState(false)
+  const [wpListError, setWpListError] = useState('')
+  const [ownerSyncTimedOut, setOwnerSyncTimedOut] = useState(false)
+
+  useEffect(() => {
+    if (!wordpressOnly || wordpressOwner?.trim()) {
+      setOwnerSyncTimedOut(false)
+      return
+    }
+    const timer = window.setTimeout(() => setOwnerSyncTimedOut(true), 12_000)
+    return () => window.clearTimeout(timer)
+  }, [wordpressOnly, wordpressOwner])
 
   const sitesArray = Array.isArray(sites) ? sites : []
 
@@ -221,6 +232,7 @@ function ListWebsitesSection({ sites, onRefresh, packages, setActiveSection, set
     if (!wordpressOnly) return
     let cancelled = false
     const cached = readWpInstallsCache(panelScope)
+    setWpListError('')
     if (cached.length > 0) {
       setWpDomainSet(new Set(cached.map((d) => d.toLowerCase())))
     } else {
@@ -231,13 +243,21 @@ function ListWebsitesSection({ sites, onRefresh, packages, setActiveSection, set
         const { supabase } = await import('@/lib/supabase-client')
         await supabase.auth.getSession()
         const res = await fetch('/api/admin/wp-update', { credentials: 'include' })
-        const data = await res.json()
-        if (cancelled || !data.success || !Array.isArray(data.installs)) return
+        const data = await res.json().catch(() => ({}))
+        if (cancelled) return
+        if (!data.success || !Array.isArray(data.installs)) {
+          if (!cached.length) {
+            setWpListError(data.error || 'Não foi possível carregar os sites WordPress.')
+          }
+          return
+        }
         const domains = data.installs.map((i: { domain: string }) => i.domain.toLowerCase())
         writeWpInstallsCache(domains, panelScope)
         setWpDomainSet(new Set(domains))
-      } catch {
-        /* mantém cache/espelho */
+      } catch (e: unknown) {
+        if (!cancelled && !cached.length) {
+          setWpListError(e instanceof Error ? e.message : 'Erro de ligação ao carregar sites WordPress.')
+        }
       } finally {
         if (!cancelled) setWpListLoading(false)
       }
@@ -495,6 +515,20 @@ function ListWebsitesSection({ sites, onRefresh, packages, setActiveSection, set
   }
 
   if (wordpressOnly && !wordpressOwner?.trim()) {
+    if (ownerSyncTimedOut) {
+      return (
+        <div className="flex flex-col items-center justify-center h-48 gap-3 text-sm text-gray-500 dark:text-zinc-400">
+          <p>Não foi possível determinar a conta activa. Tente actualizar a página.</p>
+          <button
+            type="button"
+            onClick={() => onRefresh()}
+            className="rounded border border-gray-300 px-4 py-1.5 text-xs font-bold text-gray-700 hover:bg-gray-50 dark:border-zinc-700 dark:text-zinc-300"
+          >
+            Tentar novamente
+          </button>
+        </div>
+      )
+    }
     return (
       <div className="flex items-center justify-center h-48 text-sm text-gray-500 dark:text-zinc-400">
         <Spinner className="w-5 h-5 mr-2" />
@@ -545,13 +579,28 @@ function ListWebsitesSection({ sites, onRefresh, packages, setActiveSection, set
         </div>
       )}
 
+      {wpListError && (
+        <div className="flex items-center justify-between gap-3 px-4 py-3 rounded text-sm bg-red-50 text-red-800 border border-red-200">
+          <span><strong>WordPress:</strong> {wpListError}</span>
+          <button
+            type="button"
+            onClick={() => onRefresh()}
+            className="font-bold underline shrink-0"
+          >
+            Tentar novamente
+          </button>
+        </div>
+      )}
+
       {filtered.length === 0 && !daLoadError && (
         <p className="text-center text-gray-500 py-8">
           {wordpressOnly && wpListLoading
             ? 'A detectar sites WordPress…'
-            : wordpressOnly
-              ? 'Nenhum site WordPress nesta conta.'
-              : 'Nenhum website encontrado no DirectAdmin.'}
+            : wordpressOnly && wpListError
+              ? ''
+              : wordpressOnly
+                ? 'Nenhum site WordPress nesta conta.'
+                : 'Nenhum website encontrado no DirectAdmin.'}
         </p>
       )}
 

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAdminResellerOrManager } from '@/lib/panel-api-auth';
+import { resolvePanelDaContext } from '@/lib/panel-api-context';
 import { handleWpUpdateGet, handleWpUpdatePost } from '@/lib/wp-update-handlers';
 import {
   assertPanelOwnsWpDomain,
@@ -38,7 +39,8 @@ export async function GET(req: NextRequest) {
   const domain = req.nextUrl.searchParams.get('domain')?.trim().toLowerCase() || '';
 
   try {
-    const scope = await resolvePanelWpScope(auth.user.id, auth.user.role);
+    const { impersonating } = await resolvePanelDaContext(auth);
+    const scope = await resolvePanelWpScope(auth.user.id, auth.user.role, impersonating);
     if (domain) {
       await assertPanelOwnsWpDomain(scope, domain);
     }
@@ -88,7 +90,8 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const scope = await resolvePanelWpScope(auth.user.id, auth.user.role);
+    const { impersonating } = await resolvePanelDaContext(auth);
+    const scope = await resolvePanelWpScope(auth.user.id, auth.user.role, impersonating);
     await assertPanelOwnsWpDomain(scope, domain);
 
     const result = await handleWpUpdatePost(domain, body as Parameters<typeof handleWpUpdatePost>[1]);

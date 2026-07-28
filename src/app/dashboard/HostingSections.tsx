@@ -585,13 +585,16 @@ export function DNSZoneEditorSection({
     setRefreshing(false)
   }
 
+  // Sincroniza sempre que o domínio pedido de fora mudar (ex: clique no
+  // menu "Editar Zona de DNS" de outro domínio) — sem isto, uma vez
+  // seleccionado um domínio, cliques seguintes para domínios diferentes
+  // eram ignorados e a página ficava presa no primeiro domínio.
   useEffect(() => {
-    if (selectedDomain) return
-    if (initialDomain) {
-      setSelectedDomain(initialDomain)
-      return
-    }
-    if (sites.length > 0) {
+    if (initialDomain) setSelectedDomain(initialDomain)
+  }, [initialDomain])
+
+  useEffect(() => {
+    if (!selectedDomain && !initialDomain && sites.length > 0) {
       setSelectedDomain(sites[0].domain)
     }
   }, [sites, selectedDomain, initialDomain])
@@ -9873,7 +9876,7 @@ export function DomainManagerSection({
   onRefresh?: () => void | Promise<void>
   hubMode?: boolean
   hubPanel?: 'list' | 'add'
-  domainListMode?: 'hosting' | 'registrar'
+  domainListMode?: 'hosting' | 'registrar' | 'all'
   isActive?: boolean
   onHubAddClose?: () => void
   listSearch?: string
@@ -9917,7 +9920,7 @@ export function DomainManagerSection({
   const [registrarListLoading, setRegistrarListLoading] = useState(false)
 
   useEffect(() => {
-    if (domainListMode !== 'registrar' || !isActive || hubPanel !== 'list') return
+    if ((domainListMode !== 'registrar' && domainListMode !== 'all') || !isActive || hubPanel !== 'list') return
     let cancelled = false
     const cached = readRegistrarDomainListCache(true)
     if (cached.length > 0) {
@@ -9972,6 +9975,11 @@ export function DomainManagerSection({
 
   const domainList = useMemo(() => {
     if (domainListMode === 'registrar') return mergedRegistrarRows
+    if (domainListMode === 'all') {
+      const seen = new Set(rowsFromSites.map((r) => r.domain.toLowerCase()))
+      const registrarOnly = mergedRegistrarRows.filter((r) => !seen.has(r.domain.toLowerCase()))
+      return [...rowsFromSites, ...registrarOnly]
+    }
     if (rowsFromSites.length > 0) return rowsFromSites
     return readDomainListCache()
   }, [domainListMode, mergedRegistrarRows, rowsFromSites])
@@ -10385,7 +10393,7 @@ export function DomainManagerSection({
           }`}>{msg}</div>
       )}
 
-      {((domainListMode === 'registrar' ? registrarListLoading : loading) && filteredDomains.length === 0) ? (
+      {(((domainListMode === 'registrar' || domainListMode === 'all') ? registrarListLoading : loading) && filteredDomains.length === 0) ? (
         <div className="flex justify-center py-16">
           <Spinner className="h-6 w-6" />
         </div>
