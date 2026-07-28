@@ -733,13 +733,19 @@ function ListWebsitesSection({ sites, onRefresh, packages, setActiveSection, set
 
                 {/* Miniatura + 6 cards uniformes */}
                 <div className="flex flex-col gap-3 md:flex-row md:items-stretch md:min-h-[10.5rem]">
-                  <div className="w-full max-w-[300px] shrink-0 h-40 overflow-hidden rounded border border-gray-200 dark:border-zinc-600 md:w-[38%] md:max-w-[300px] md:h-[10.5rem]">
+                  <a
+                    href={`https://${s.domain}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    title={`Abrir ${s.domain}`}
+                    className="block w-full max-w-[300px] shrink-0 h-40 overflow-hidden rounded border border-gray-200 dark:border-zinc-600 md:w-[38%] md:max-w-[300px] md:h-[10.5rem]"
+                  >
                     <SiteThumbnail
                       domain={s.domain}
                       width={wordpressOnly ? 320 : 600}
                       className="h-full w-full"
                     />
-                  </div>
+                  </a>
 
                   <div className={`flex-1 ${panelMobileCardGrid} md:grid-cols-3 md:grid-rows-2`}>
                     <EditableField domain={s.domain} field="state" value={parseState(s.state) || 'Active'} label="State" />
