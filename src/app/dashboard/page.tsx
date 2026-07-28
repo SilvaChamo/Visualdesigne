@@ -46,6 +46,7 @@ import {
 import { NewsManagerSection } from './NewsManagerSection'
 import { RenewalsSection } from './RenewalsSection'
 import { CotacoesSection } from './CotacoesSection'
+import { NextJsSitesSection } from './NextJsSitesSection'
 import { TemplatesSection } from './TemplatesSection'
 import { DNSCentralSection } from './DNSCentralSection'
 import { DomainTransferSection } from './DomainTransferSection'
@@ -1414,6 +1415,16 @@ function AdminPageContent() {
         return <RenewalsSection initialTab="add" hideTabs={true} />
       case 'cotacoes':
         return <CotacoesSection />
+      case 'nextjs-sites':
+        return (
+          <NextJsSitesSection
+            sites={directAdminSites}
+            onNavigate={(section, opts) => {
+              if (opts?.domain) setSelectedDNSDomain(opts.domain)
+              handleNavigate(section)
+            }}
+          />
+        )
       case 'cp-users':
         return <CPUsersSection variant="panels" panelScope="users" isActive={isActive} onBootstrapRefresh={() => void loadDirectAdminData(true)} onNavigate={handleNavigate} />
       case 'wp-users':
