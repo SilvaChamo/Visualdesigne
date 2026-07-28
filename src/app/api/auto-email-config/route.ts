@@ -10,11 +10,19 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: 'Dados incompletos' }, { status: 400 });
         }
 
-        // Configuração SMTP master (credenciais Gmail do usuário)
-        const smtpUser = 'Visualdesign.moz@gmail.com';
-        const smtpPass = '***REMOVIDO***';
+        // Configuração SMTP master (credenciais Gmail do usuário) — nunca em
+        // código-fonte (chegou a estar aqui em texto simples, já revogar essa
+        // password de app na conta Google, esta já não é usada).
+        const smtpUser = process.env.GMAIL_AUTOCONFIG_USER?.trim() || '';
+        const smtpPass = process.env.GMAIL_AUTOCONFIG_PASSWORD?.trim() || '';
         const smtpHost = 'smtp.gmail.com';
         const smtpPort = 587;
+
+        if (!smtpUser || !smtpPass) {
+            return NextResponse.json({
+                error: 'GMAIL_AUTOCONFIG_USER / GMAIL_AUTOCONFIG_PASSWORD não configurados.',
+            }, { status: 503 });
+        }
 
         const transporter = nodemailer.createTransport({
             host: smtpHost,
@@ -26,6 +34,9 @@ export async function POST(req: NextRequest) {
             },
             tls: { rejectUnauthorized: false }
         });
+        // Sem isto, um erro tardio no socket derruba o processo Node inteiro e
+        // tira o site do ar para todos os utilizadores (ver smtp-mail.ts).
+        transporter.on('error', (err) => console.error('[auto-email-config] erro tardio no transporte SMTP:', err));
 
         // Verificar conexão
         await transporter.verify();

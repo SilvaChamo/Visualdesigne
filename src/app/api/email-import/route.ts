@@ -23,7 +23,11 @@ export async function POST(request: NextRequest) {
         user: gmailUser,
         pass: gmailAppPassword
       },
-      logger: false
+      logger: false,
+      // Importação copia muitas mensagens, algumas grandes — timeout generoso
+      // em vez do costume (12s), para não abortar a meio de um fetch/append legítimo.
+      socketTimeout: 60000,
+      greetingTimeout: 15000,
     }
 
     // Configuração IMAP servidor (servidor próprio)
@@ -35,7 +39,9 @@ export async function POST(request: NextRequest) {
         user: destinationEmail,
         pass: destinationPassword
       },
-      logger: false
+      logger: false,
+      socketTimeout: 60000,
+      greetingTimeout: 15000,
     }
 
     // Mapeamento de pastas Gmail → servidor
@@ -56,10 +62,15 @@ export async function POST(request: NextRequest) {
     try {
       // Conectar ao Gmail
       const gmailClient = new ImapFlow.ImapFlow(gmailConfig as any)
+      // Sem isto, um erro tardio no socket (ex.: timeout a meio da cópia de
+      // mensagens, que aqui demora — muitas mensagens, algumas grandes) derruba
+      // o processo Node inteiro e tira o site do ar para todos os utilizadores.
+      gmailClient.on('error', (err: unknown) => console.error('📧 [email-import] erro tardio no socket (Gmail):', err))
       await gmailClient.connect()
 
       // Conectar ao servidor
       const destClient = new ImapFlow.ImapFlow(destConfig as any)
+      destClient.on('error', (err: unknown) => console.error('📧 [email-import] erro tardio no socket (destino):', err))
       await destClient.connect()
 
       // Listar pastas do Gmail

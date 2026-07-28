@@ -22,6 +22,9 @@ export async function POST(req: NextRequest) {
       logger: false
     })
 
+    // Sem isto, um erro tardio no socket derruba o processo Node inteiro e
+    // tira o site do ar para todos os utilizadores (ver imap-panel-shared.ts).
+    imapClient.on('error', (err) => console.error('[forward-email] erro tardio no socket IMAP:', err))
     await imapClient.connect()
     console.log(`IMAP Connected for forward. Folder: ${folder}, emailId: ${emailId}`);
     const lock = await imapClient.getMailboxLock(folder)
@@ -52,6 +55,7 @@ export async function POST(req: NextRequest) {
       auth: { user: email, pass: password },
       tls: { rejectUnauthorized: false }
     })
+    smtpTransporter.on('error', (err) => console.error('[forward-email] erro tardio no transporte SMTP:', err))
 
     // Extrair assunto de forma mais robusta
     const subjectMatch = emailContent.match(/^Subject:\s*(.*)$/im)

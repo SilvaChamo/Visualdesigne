@@ -4,15 +4,12 @@ import { createClient } from '@supabase/supabase-js';
 import {
   getDomainReputation,
 } from '@/lib/warmup-service';
-import {
-  createSmtpTransport,
-  getMarketingFromEmail,
-  getSmtpHost,
-  getSmtpPort,
-  getSmtpUser,
-} from '@/lib/smtp-mail';
+import { getMarketingFromEmail } from '@/lib/smtp-mail';
+import { sendBrevoBulkEmail, isBrevoApiConfigured } from '@/lib/brevo-mail';
 
-// SMTP via Brevo (relay). Credenciais: SMTP_* ou DA_SMTP_* no .env / Vercel.
+// Envio em lote via API REST da Brevo (não SMTP) — ver comentário em
+// sendBrevoBulkEmail (brevo-mail.ts) para o porquê. O SMTP_* continua só
+// para o diagnóstico de ligação abaixo (GET sem action=process-queue).
 const MAIL_BATCH_SIZE = Math.max(10, parseInt(process.env.MAILMARKETING_BATCH_SIZE || '50'));
 const MAIL_BATCH_PAUSE_MS = Math.max(0, parseInt(process.env.MAILMARKETING_BATCH_PAUSE_MS || '500'));
 const MAIL_MAX_RETRIES = Math.max(1, parseInt(process.env.MAILMARKETING_MAX_RETRIES || '3'));
@@ -77,27 +74,20 @@ function normalizeQueuePayload(raw: unknown): QueuePayload {
   };
 }
 
-function createMailTransport() {
-  return createSmtpTransport();
-}
-
-async function sendSingleBatchViaDirectAdminSMTP(
+async function sendSingleBatchViaBrevo(
   to: string[],
   subject: string,
   content: string,
   fromEmail: string,
   fromName: string = 'VisualDesigne'
 ): Promise<{ success: boolean; sent: number; failed: number; errors: string[] }> {
-  const transport = createMailTransport();
-  // Ver comentário equivalente em smtp-mail.ts — sem isto, um erro tardio no
-  // socket (ex.: timeout a meio de um envio em lote) derruba o processo Node
-  // inteiro e tira o site do ar para todos os utilizadores.
-  transport.on('error', (err) => console.error('[mailmarketing] erro tardio no transporte SMTP:', err));
-  await transport.verify();
+  if (!isBrevoApiConfigured()) {
+    return { success: false, sent: 0, failed: to.length, errors: ['BREVO_API_KEY não configurada.'] };
+  }
   try {
     const cleanFromEmail = extractEmail(fromEmail || getMarketingFromEmail());
     const unsubscribeDomain = cleanFromEmail.includes('@') ? cleanFromEmail.split('@')[1] : 'localhost.localdomain';
-    await transport.sendMail({
+    await sendBrevoBulkEmail({
       from: `"${fromName}" <${cleanFromEmail}>`,
       bcc: to,
       subject,
@@ -109,9 +99,7 @@ async function sendSingleBatchViaDirectAdminSMTP(
     });
     return { success: true, sent: to.length, failed: 0, errors: [] };
   } catch (err: any) {
-    return { success: false, sent: 0, failed: to.length, errors: [err?.message || 'SMTP batch failed'] };
-  } finally {
-    transport.close();
+    return { success: false, sent: 0, failed: to.length, errors: [err?.message || 'Brevo batch failed'] };
   }
 }
 
@@ -191,7 +179,7 @@ async function processQueuedCampaigns() {
     await supabaseAdmin.from('email_campaigns').update({ status: 'processing' }).eq('id', campaign.id);
     const batchSize = queue.batchSize || MAIL_BATCH_SIZE;
     const batch = pending.slice(0, batchSize);
-    const result = await sendSingleBatchViaDirectAdminSMTP(
+    const result = await sendSingleBatchViaBrevo(
       batch,
       String(campaign.subject || ''),
       String(campaign.content_html || ''),
@@ -279,8 +267,6 @@ export async function POST(req: NextRequest) {
     const fromName = senderName || (domainFrom ? 'Osher Collective' : 'VisualDesigne Marketing');
 
     console.log(`🚀 Campanha enfileirada para envio assíncrono:`, {
-      host: getSmtpHost(),
-      port: getSmtpPort(),
       from: fromEmail,
       recipients: recipients.length,
     });
@@ -308,23 +294,6 @@ export async function POST(req: NextRequest) {
 
   } catch (error: any) {
     console.error('❌ [mailmarketing-send] Erro geral:', error?.message);
-
-    // Erro de autenticação SMTP - credenciais em falta
-    if (error.code === 'EAUTH' || error.responseCode === 535) {
-      return NextResponse.json({
-        error: 'Erro de autenticação SMTP. Configure SMTP_USER e SMTP_PASS (Brevo) na Vercel.',
-        code: 'SMTP_AUTH_ERROR',
-      }, { status: 500 });
-    }
-
-    // Erro de ligação - servidor inacessível
-    if (error.code === 'ECONNREFUSED' || error.code === 'ETIMEDOUT') {
-      return NextResponse.json({
-        error: `Não foi possível ligar ao servidor SMTP (${getSmtpHost()}:${getSmtpPort()}).`,
-        code: 'SMTP_CONNECTION_ERROR',
-      }, { status: 500 });
-    }
-
     return NextResponse.json({
       error: error?.message || 'Erro interno no servidor',
       code: 'INTERNAL_ERROR',
@@ -360,27 +329,11 @@ export async function GET(req: NextRequest) {
     const auth = await requireAdminOrReseller();
     if ('error' in auth) return auth.error;
 
-    // Testar ligação SMTP
-    let smtpStatus = 'unknown';
-    let smtpError = '';
-    try {
-      const transport = createSmtpTransport();
-      await transport.verify();
-      transport.close();
-      smtpStatus = 'connected';
-    } catch (err: any) {
-      smtpStatus = 'error';
-      smtpError = err.message;
-    }
-
     const response: any = {
       success: true,
-      smtp: {
-        host: getSmtpHost(),
-        port: getSmtpPort(),
-        user: getSmtpUser() ? `${getSmtpUser().substring(0, 3)}***` : '(não configurado)',
-        status: smtpStatus,
-        error: smtpError || undefined,
+      brevo: {
+        status: isBrevoApiConfigured() ? 'connected' : 'error',
+        error: isBrevoApiConfigured() ? undefined : 'BREVO_API_KEY não configurada.',
       },
     };
 

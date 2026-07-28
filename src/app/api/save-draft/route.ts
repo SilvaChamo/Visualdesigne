@@ -20,6 +20,9 @@ export async function POST(req: NextRequest) {
       logger: false
     })
 
+    // Sem isto, um erro tardio no socket derruba o processo Node inteiro e
+    // tira o site do ar para todos os utilizadores (ver imap-panel-shared.ts).
+    client.on('error', (err) => console.error('[save-draft] erro tardio no socket IMAP:', err))
     await client.connect()
 
     const mensagem = [
