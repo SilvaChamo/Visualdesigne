@@ -356,7 +356,7 @@ export const NEW_SECTION_TO_PARENT: Record<string, string> = {
   'wp-backup-auto': 'nov-wordpress',
   'wp-backup-report': 'nov-wordpress',
   'cp-databases': 'nov-wordpress',
-  'manage-website': 'nov-wordpress',
+  'domain-detail': 'nov-dominios',
   'backup-manager': 'nov-wordpress',
   infrastructure: 'nov-sistema',
   'git-deploy': 'nov-sistema',
@@ -395,7 +395,7 @@ export const RESELLER_SECTION_TO_PARENT: Record<string, string> = {
   'wp-backup-auto': 'nov-wordpress',
   'wp-backup-report': 'nov-wordpress',
   'cp-databases': 'nov-wordpress',
-  'manage-website': 'nov-wordpress',
+  'domain-detail': 'nov-dominios',
   infrastructure: 'nov-definicoes',
   'git-deploy': 'nov-definicoes',
   'file-manager': 'nov-definicoes',
@@ -441,7 +441,7 @@ export function adminMenuParentForSection(sectionId: string): string | null {
   ) {
     return 'nov-dominios';
   }
-  if (resolved === 'cp-databases' || resolved === 'manage-website') return 'nov-wordpress';
+  if (resolved === 'cp-databases') return 'nov-wordpress';
   if (NEW_SECTION_TO_PARENT[resolved]) return NEW_SECTION_TO_PARENT[resolved];
   return null;
 }

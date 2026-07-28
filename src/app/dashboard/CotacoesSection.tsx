@@ -2,11 +2,11 @@
 
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import {
-  RefreshCw, FileText, Building2, Phone, Mail, Calendar,
+  RefreshCw, Building2, Phone, Mail, Calendar,
   Inbox, Clock, Factory, PackageCheck, XCircle, CheckCircle2, MessageCircle, X, Calculator,
 } from 'lucide-react'
 import {
-  panelBtnPrimary, panelBtnSecondary, panelField,
+  panelBtnSecondary, panelField,
   panelTabBar, panelTabBtn, panelTabBtnActive, panelTabBtnInactive, panelSectionCard,
 } from '@/lib/panel-ui'
 import { formatMt, BRANDS } from '@/lib/pricing-catalog'
@@ -562,12 +562,7 @@ function BatchCard({
                     </div>
                   </div>
 
-                  <QuotationBatchExpenses batchId={batch.batchId} />
-
-                  <button type="button" onClick={() => openCotacaoPopup(anchor.id)} className={panelBtnPrimary + ' mt-1'}>
-                    <FileText className="w-3.5 h-3.5" />
-                    <span>Ver cotação</span>
-                  </button>
+                  <QuotationBatchExpenses batchId={batch.batchId} onVerCotacao={() => openCotacaoPopup(anchor.id)} />
                 </div>
               </div>
             )}

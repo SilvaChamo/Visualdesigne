@@ -192,7 +192,7 @@ export function ResellerDashboard({
   const handleGerenciar = (domain: string) => {
     // @ts-ignore
     window.__selectedManageDomain = domain
-    onNavigate('manage-website')
+    onNavigate('domain-detail')
   }
 
   const profileLabel = displayName || (sessionUser ? sessionUser.split('@')[0] : 'Revendedor')

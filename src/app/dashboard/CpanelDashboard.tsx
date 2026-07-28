@@ -626,7 +626,7 @@ export function CpanelDashboard({
                       onClick={() => {
                         // @ts-ignore
                         window.__selectedManageDomain = s.domain
-                        onNavigate('manage-website')
+                        onNavigate('domain-detail')
                       }}
                       title="Gerir website"
                       className="flex items-center gap-0.5 rounded bg-indigo-50 px-1.5 py-0.5 text-[10px] font-bold text-indigo-600 transition-colors hover:bg-indigo-100 hover:text-indigo-800"

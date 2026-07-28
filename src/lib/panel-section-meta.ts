@@ -31,7 +31,7 @@ const SECTION_TITLES: Record<string, string> = {
   'hospedagem-administradores': 'Administradores',
   'packages-reseller': 'Pacotes de revenda',
   'packages-new': 'Criar pacote',
-  'manage-website': 'Gerir website',
+  'domain-detail': 'Gerir domínio',
 };
 
 const SECTION_DESCRIPTIONS: Record<string, string> = {
@@ -92,7 +92,7 @@ const SECTION_DESCRIPTIONS: Record<string, string> = {
   'packages-reseller': 'Criar e gerir pacotes de revenda',
   'hospedagem-contas': 'Contas de hospedagem no servidor',
   'website-preview': 'Pré-visualização do website',
-  'manage-website': 'Gerir website e serviços associados',
+  'domain-detail': 'Registo, DNS, SSL e conectividade do domínio',
   'email-import': 'Importar contas de e-mail',
   'packages-list': 'Criar e gerir pacotes de hospedagem',
   'cp-reseller': 'ACLs e permissões de revendedores',
