@@ -349,23 +349,16 @@ export function CotacoesSection() {
       <div className="flex flex-col lg:flex-row gap-4 lg:gap-5 items-start">
         <nav className={`${panelSectionCard} sticky top-0 h-[calc(100vh-116px)] w-full shrink-0 space-y-5 overflow-y-auto p-3 lg:w-[220px]`}>
           <div>
-            <div className={navBtnClass(navMode === 'categoria' && activeCategory === null) + ' flex items-center pr-1'}>
-              <button
-                type="button"
-                onClick={() => { setNavMode('categoria'); setActiveCategory(null) }}
-                className="flex flex-1 items-center gap-2"
-              >
-                <Inbox className="w-4 h-4 shrink-0" /> Recebidas
-              </button>
-              <button
-                type="button"
-                onClick={() => setCategoriesOpen((v) => !v)}
-                className="shrink-0 rounded p-0.5 text-current opacity-60 hover:opacity-100 transition-opacity"
-                title={categoriesOpen ? 'Colapsar categorias' : 'Expandir categorias'}
-              >
-                <ChevronDown className={`w-3.5 h-3.5 transition-transform ${categoriesOpen ? '' : '-rotate-90'}`} />
-              </button>
-            </div>
+            <button
+              type="button"
+              onClick={() => { setNavMode('categoria'); setActiveCategory(null); setCategoriesOpen((v) => !v) }}
+              className={navBtnClass(navMode === 'categoria' && activeCategory === null) + ' flex items-center pr-1'}
+              title={categoriesOpen ? 'Colapsar categorias' : 'Expandir categorias'}
+            >
+              <Inbox className="w-4 h-4 shrink-0" />
+              <span className="flex-1 text-left">Recebidas</span>
+              <ChevronDown className={`w-3.5 h-3.5 shrink-0 opacity-60 transition-transform ${categoriesOpen ? '' : '-rotate-90'}`} />
+            </button>
             {categoriesOpen && (
               <div className="ml-3 mt-1 space-y-0.5 border-l border-gray-200 dark:border-zinc-800 pl-2">
                 {CATEGORY_LABELS.map((label) => (
@@ -521,14 +514,18 @@ export function CotacoesSection() {
   )
 }
 
-type BatchTab = 'itens' | 'historico' | 'anexos' | 'layouts' | 'empresa'
+type BatchTab = 'itens' | 'cotacao' | 'factura' | 'historico' | 'anexos' | 'layouts' | 'empresa'
 
+// 'factura' só entra na lista quando a encomenda já tem factura emitida (ver
+// hasFactura em BatchCard) — antes de 'approved' não há número nenhum.
 const BATCH_TABS: { id: BatchTab; label: string }[] = [
   { id: 'itens', label: 'Itens da encomenda' },
   { id: 'historico', label: 'Histórico' },
   { id: 'anexos', label: 'Anexos' },
   { id: 'layouts', label: 'Layouts' },
   { id: 'empresa', label: 'Dados da empresa' },
+  { id: 'cotacao', label: 'Cotação' },
+  { id: 'factura', label: 'Factura' },
 ]
 
 /** Mesma heurística usada no resto do painel para normalizar números moçambicanos para wa.me. */
@@ -560,6 +557,15 @@ function BatchCard({
   onMarkDelivered: (batch: QuotationBatch<QuotationRequest>) => void
 }) {
   const [activeTab, setActiveTab] = useState<BatchTab>('itens')
+  // Cotação/Factura só arrancam a carregar quando a aba é aberta pela primeira
+  // vez (evita 2 iframes extra em toda a encomenda expandida) — mas depois de
+  // carregados ficam montados e só se escondem/mostram por CSS, para trocar de
+  // aba não obrigar a recarregar o documento outra vez do zero.
+  const [mountedTabs, setMountedTabs] = useState<Set<BatchTab>>(() => new Set(['itens'] as BatchTab[]))
+  const openTab = (tab: BatchTab) => {
+    setActiveTab(tab)
+    setMountedTabs((prev) => (prev.has(tab) ? prev : new Set(prev).add(tab)))
+  }
   const [showMessages, setShowMessages] = useState(false)
   const [chatMenuOpen, setChatMenuOpen] = useState(false)
   const [editingDate, setEditingDate] = useState(false)
@@ -596,17 +602,6 @@ function BatchCard({
   const whatsappHref = whatsappDigits
     ? `https://wa.me/${whatsappDigits}?text=${encodeURIComponent(`Olá ${anchor.responsavel || ''}, sobre a sua encomenda Nº ${numero} (${anchor.empresa}):`)}`
     : null
-  const openCotacaoPopup = (anchorId: string) => {
-    const w = 900
-    const h = 1000
-    const left = window.screenX + Math.max(0, (window.outerWidth - w) / 2)
-    const top = window.screenY + Math.max(0, (window.outerHeight - h) / 2)
-    window.open(
-      `/cotacao/${anchorId}?embed=1`,
-      `cotacao-${anchorId}`,
-      `width=${w},height=${h},left=${left},top=${top},resizable=yes,scrollbars=yes`,
-    )
-  }
   const meta = statusMeta(displayStatusValue(batch.status), batch.sobConsulta)
   const resumo = batch.sobConsulta
     ? 'Pedido personalizado — aguarda contacto'
@@ -658,11 +653,11 @@ function BatchCard({
           <div className={`${panelTabBar} px-4 pt-2`}>
             <div className="flex flex-wrap items-end justify-between gap-3">
               <div className="flex flex-wrap gap-5">
-                {BATCH_TABS.map((t) => (
+                {BATCH_TABS.filter((t) => t.id !== 'factura' || hasFactura).map((t) => (
                   <button
                     key={t.id}
                     type="button"
-                    onClick={() => setActiveTab(t.id)}
+                    onClick={() => openTab(t.id)}
                     className={`${panelTabBtn} ${activeTab === t.id ? panelTabBtnActive : panelTabBtnInactive}`}
                   >
                     {t.label}
@@ -821,7 +816,41 @@ function BatchCard({
                     </div>
                   </div>
 
-                  <QuotationBatchExpenses batchId={batch.batchId} onVerCotacao={() => openCotacaoPopup(anchor.id)} />
+                  <QuotationBatchExpenses batchId={batch.batchId} />
+                </div>
+              </div>
+            )}
+
+            {mountedTabs.has('cotacao') && (
+              <iframe
+                src={`/cotacao/${anchor.id}?embed=1`}
+                title="Cotação"
+                className={`h-[80vh] w-full rounded-lg border border-gray-200 dark:border-zinc-800 ${activeTab === 'cotacao' ? '' : 'hidden'}`}
+              />
+            )}
+            {mountedTabs.has('factura') && hasFactura && (
+              <div className={`space-y-4 ${activeTab === 'factura' ? '' : 'hidden'}`}>
+                <div>
+                  <p className="mb-2 text-xs font-bold uppercase tracking-wide text-gray-400 dark:text-zinc-500">Factura do adiantamento</p>
+                  <iframe
+                    src={`/cotacao/${anchor.id}?embed=1&tipo=factura&fase=adiantamento`}
+                    title="Factura do adiantamento"
+                    className="h-[60vh] w-full rounded-lg border border-gray-200 dark:border-zinc-800"
+                  />
+                </div>
+                <div>
+                  <p className="mb-2 text-xs font-bold uppercase tracking-wide text-gray-400 dark:text-zinc-500">Factura do remanescente</p>
+                  {batch.status === 'done' ? (
+                    <iframe
+                      src={`/cotacao/${anchor.id}?embed=1&tipo=factura&fase=remanescente`}
+                      title="Factura do remanescente"
+                      className="h-[60vh] w-full rounded-lg border border-gray-200 dark:border-zinc-800"
+                    />
+                  ) : (
+                    <div className={`${panelSectionCard} p-4 text-sm text-gray-500 dark:text-zinc-400`}>
+                      Fica disponível assim que o remanescente for confirmado e a encomenda ficar concluída.
+                    </div>
+                  )}
                 </div>
               </div>
             )}

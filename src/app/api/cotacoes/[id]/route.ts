@@ -32,9 +32,12 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
       return NextResponse.json({ error: 'Serviço indisponível.' }, { status: 503 });
     }
 
+    // Só os campos necessários para a verificação de acesso — o resto da
+    // encomenda já vem completo a seguir via `siblings` (que inclui esta
+    // própria linha), não vale a pena trazer tudo duas vezes.
     const { data: row, error: fetchError } = await admin
       .from('quotation_requests')
-      .select('*')
+      .select('id, user_id, batch_id')
       .eq('id', id)
       .single();
 
@@ -49,30 +52,36 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
       }
     }
 
-    const { data: siblings, error: siblingsError } = await admin
-      .from('quotation_requests')
-      .select('*')
-      .eq('batch_id', row.batch_id)
-      .order('created_at', { ascending: true });
+    const [{ data: siblings, error: siblingsError }, { data: invoices }, { data: payments }] = await Promise.all([
+      admin
+        .from('quotation_requests')
+        .select('*')
+        .eq('batch_id', row.batch_id)
+        .order('created_at', { ascending: true }),
+      // Duas facturas possíveis por encomenda — uma por fase de pagamento
+      // (adiantamento / remanescente), ver saveAccountingSnapshot e
+      // assign_quotation_invoice_number em /api/admin/cotacoes.
+      admin
+        .from('quotation_invoices')
+        .select('phase, invoice_number')
+        .eq('batch_id', row.batch_id),
+      admin
+        .from('quotation_payments')
+        .select('phase, metodo, valor_mt, confirmed_at')
+        .eq('batch_id', row.batch_id)
+        .order('confirmed_at', { ascending: true }),
+    ]);
 
-    const items = !siblingsError && siblings && siblings.length > 0 ? siblings : [row];
-
-    const { data: invoice } = await admin
-      .from('quotation_invoices')
-      .select('invoice_number')
-      .eq('batch_id', row.batch_id)
-      .maybeSingle();
-
-    const { data: payments } = await admin
-      .from('quotation_payments')
-      .select('phase, metodo, valor_mt, confirmed_at')
-      .eq('batch_id', row.batch_id)
-      .order('confirmed_at', { ascending: true });
+    const items = !siblingsError && siblings && siblings.length > 0 ? siblings : null;
+    if (!items) {
+      return NextResponse.json({ error: 'Não foi possível encontrar esta cotação.' }, { status: 404 });
+    }
 
     return NextResponse.json({
       success: true,
       items,
-      invoiceNumber: invoice?.invoice_number ?? null,
+      invoiceNumber: invoices?.find((i) => i.phase === 'advance')?.invoice_number ?? null,
+      remainderInvoiceNumber: invoices?.find((i) => i.phase === 'remainder')?.invoice_number ?? null,
       payments: payments ?? [],
     });
   } catch (error: unknown) {

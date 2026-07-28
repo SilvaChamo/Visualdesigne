@@ -1,8 +1,8 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Check, ChevronDown, ChevronRight, FileText, Plus, Trash2 } from 'lucide-react'
-import { panelBtnPrimary, panelField } from '@/lib/panel-ui'
+import { Check, ChevronDown, ChevronRight, Plus, Trash2 } from 'lucide-react'
+import { panelField } from '@/lib/panel-ui'
 import { formatMt } from '@/lib/pricing-catalog'
 
 type Expense = {
@@ -11,11 +11,11 @@ type Expense = {
   valor_mt: number
 }
 
-export function QuotationBatchExpenses({ batchId, onVerCotacao }: { batchId: string; onVerCotacao: () => void }) {
+export function QuotationBatchExpenses({ batchId }: { batchId: string }) {
   const [despesas, setDespesas] = useState<Expense[] | null>(null)
   const [draftDescricao, setDraftDescricao] = useState('')
   const [draftValor, setDraftValor] = useState('')
-  const [collapsed, setCollapsed] = useState(true)
+  const [collapsed, setCollapsed] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editDescricao, setEditDescricao] = useState('')
   const [editValor, setEditValor] = useState('')
@@ -217,10 +217,6 @@ export function QuotationBatchExpenses({ batchId, onVerCotacao }: { batchId: str
 
       {!collapsed && (
         <div className="flex items-center gap-3 pr-3">
-          <button type="button" onClick={onVerCotacao} className={panelBtnPrimary}>
-            <FileText className="w-3.5 h-3.5" />
-            <span>Ver cotação</span>
-          </button>
           <span className="flex-1" />
           <input
             type="text"

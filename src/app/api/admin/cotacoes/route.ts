@@ -3,8 +3,70 @@ import { createClient } from '@supabase/supabase-js';
 import { requireAdminOrReseller } from '@/lib/panel-api-auth';
 import { notifyQuoteClientStatusChange } from '@/lib/notify-quote-client';
 import { computeBatchStatus } from '@/lib/quotation-status-labels';
+import { batchNumero } from '@/lib/quotation-batch';
 import { QUOTATION_ATTACHMENTS_BUCKET } from '@/lib/quotation-attachments-bucket';
 import { QUOTATION_LAYOUTS_BUCKET } from '@/lib/quotation-layouts-bucket';
+
+const IVA_PERCENT = 16;
+
+// Cópia fixa para a Contabilidade (abas "Cotações"/"Facturas") — gravada uma
+// única vez quando a encomenda INTEIRA (todas as linhas do batch) atinge
+// 'done'. Ao contrário dos dados de origem, este registo nunca muda depois,
+// mesmo que a encomenda seja editada ou uma despesa seja lançada mais tarde.
+async function saveAccountingSnapshot(
+  supabase: ReturnType<typeof getSupabaseAdmin>,
+  batchId: string,
+  siblings: { id: string; status: string; categoria_label: string; produto: string; total_mt: number; sob_consulta: boolean; empresa: string; nif: string | null }[],
+) {
+  try {
+    const sorted = [...siblings].sort((a, b) => a.id.localeCompare(b.id));
+    const primary = sorted[0];
+    if (!primary) return;
+
+    const receitaMt = siblings.reduce((sum, r) => sum + (r.sob_consulta ? 0 : Number(r.total_mt) || 0), 0);
+    const resumo = siblings.length === 1 ? `${primary.categoria_label} — ${primary.produto}` : `${siblings.length} serviços`;
+
+    const { data: invoices } = await supabase
+      .from('quotation_invoices')
+      .select('phase, invoice_number')
+      .eq('batch_id', batchId);
+
+    const { data: expenses } = await supabase
+      .from('quotation_batch_expenses')
+      .select('valor_mt')
+      .eq('batch_id', batchId);
+    const custosProducaoMt = (expenses || []).reduce((sum: number, e: any) => sum + (Number(e.valor_mt) || 0), 0);
+
+    // IVA sai depois de retirar os custos de produção, nunca sobre a receita
+    // bruta — e é sempre a taxa fixa de 16%, nunca editável.
+    const ivaMt = ((receitaMt - custosProducaoMt) * IVA_PERCENT) / 100;
+    const lucroMt = receitaMt - custosProducaoMt - ivaMt;
+
+    await supabase
+      .from('accounting_batch_snapshots')
+      .upsert(
+        {
+          batch_id: batchId,
+          primary_item_id: primary.id,
+          numero: batchNumero(batchId),
+          advance_invoice_number: (invoices || []).find((i: any) => i.phase === 'advance')?.invoice_number ?? null,
+          remainder_invoice_number: (invoices || []).find((i: any) => i.phase === 'remainder')?.invoice_number ?? null,
+          empresa: primary.empresa,
+          nif: primary.nif,
+          resumo,
+          receita_mt: receitaMt,
+          custos_producao_mt: custosProducaoMt,
+          iva_percent: IVA_PERCENT,
+          iva_mt: ivaMt,
+          lucro_mt: lucroMt,
+          done_at: new Date().toISOString(),
+        },
+        { onConflict: 'batch_id', ignoreDuplicates: true },
+      );
+  } catch (snapshotError) {
+    console.error('[admin/cotacoes] falha ao gravar cópia de contabilidade:', snapshotError);
+  }
+}
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
@@ -140,7 +202,7 @@ export async function PATCH(request: Request) {
       try {
         const { data: siblings, error: siblingsError } = await supabase
           .from('quotation_requests')
-          .select('total_mt, sob_consulta')
+          .select('id, status, categoria_label, produto, total_mt, sob_consulta, empresa, nif')
           .eq('batch_id', data.batch_id);
         if (siblingsError) throw siblingsError;
 
@@ -159,6 +221,24 @@ export async function PATCH(request: Request) {
             { onConflict: 'batch_id,phase', ignoreDuplicates: true },
           );
         if (paymentError) throw paymentError;
+
+        if (status === 'done' && computeBatchStatus(siblings || []) === 'done') {
+          // Segunda factura da encomenda — remanescente, só emitida quando a
+          // encomenda fica mesmo paga na totalidade (a do adiantamento já foi
+          // emitida em 'approved', mais acima). Mesma função RPC, agora com
+          // fase 'remainder'; idempotente como a primeira.
+          try {
+            const { error: rpcError } = await supabase.rpc('assign_quotation_invoice_number', {
+              p_batch_id: data.batch_id,
+              p_phase: 'remainder',
+            });
+            if (rpcError) throw rpcError;
+          } catch (invoiceError) {
+            console.error('[admin/cotacoes] falha ao emitir factura do remanescente:', invoiceError);
+          }
+
+          await saveAccountingSnapshot(supabase, data.batch_id, siblings || []);
+        }
       } catch (paymentError) {
         console.error('[admin/cotacoes] falha ao registar pagamento:', paymentError);
       }

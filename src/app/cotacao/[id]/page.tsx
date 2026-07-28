@@ -36,6 +36,17 @@ type QuotationRow = {
 
 const MPESA_NUMBER = '+258 85 73 96 739';
 
+// Mesma percentagem usada na pré-visualização do pedido de cotação
+// (/cotacao, antes de submeter) — o documento final tem de mostrar o mesmo
+// IVA acrescido, senão o valor aqui não bate certo com o que foi prometido
+// ao cliente nesse passo.
+const IVA_PERCENT = 16;
+
+type PaymentRow = { phase: string; metodo: string | null; valor_mt: number; confirmed_at: string };
+
+const PHASE_LABEL: Record<string, string> = { advance: 'Adiantamento (70%)', remainder: 'Remanescente (30%)' };
+const METODO_LABEL: Record<string, string> = { mpesa: 'M-Pesa', transferencia: 'Transferência' };
+
 function CotacaoDocumentContent() {
   const params = useParams();
   const searchParams = useSearchParams();
@@ -52,9 +63,15 @@ function CotacaoDocumentContent() {
   // Factura em vez de Cotação — mesmo layout, só muda o rótulo.
   const isFactura = searchParams.get('tipo') === 'factura';
   const documentLabel = isFactura ? 'Factura' : 'Cotação';
+  // Há duas facturas por encomenda — uma emitida no adiantamento (70%), outra
+  // no remanescente (30%, quando a encomenda fica totalmente paga). ?fase=
+  // escolhe qual mostrar; por omissão é a do adiantamento.
+  const facturaPhase: 'advance' | 'remainder' = searchParams.get('fase') === 'remanescente' ? 'remainder' : 'advance';
 
   const [items, setItems] = useState<QuotationRow[] | null>(null);
-  const [invoiceNumber, setInvoiceNumber] = useState<string | null>(null);
+  const [advanceInvoiceNumber, setAdvanceInvoiceNumber] = useState<string | null>(null);
+  const [remainderInvoiceNumber, setRemainderInvoiceNumber] = useState<string | null>(null);
+  const [payments, setPayments] = useState<PaymentRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const numeros = useBatchNumeros();
@@ -71,7 +88,9 @@ function CotacaoDocumentContent() {
           return;
         }
         setItems(data.items as QuotationRow[]);
-        setInvoiceNumber(data.invoiceNumber ?? null);
+        setAdvanceInvoiceNumber(data.invoiceNumber ?? null);
+        setRemainderInvoiceNumber(data.remainderInvoiceNumber ?? null);
+        setPayments((data.payments as PaymentRow[]) ?? []);
       } catch {
         setError('Não foi possível encontrar esta cotação.');
       } finally {
@@ -114,8 +133,14 @@ function CotacaoDocumentContent() {
     month: 'long',
     year: 'numeric',
   });
-  const adiantamento = Math.round(totalMt * 0.7 * 100) / 100;
+  const ivaMt = totalMt * (IVA_PERCENT / 100);
+  const totalComIvaMt = totalMt + ivaMt;
+  const adiantamento = Math.round(totalComIvaMt * 0.7 * 100) / 100;
+  const remanescenteValor = Math.round((totalComIvaMt - adiantamento) * 100) / 100;
   const numeroCotacao = numeros[quotation.batch_id] ?? quotation.batch_id.split('-')[0].toUpperCase();
+  const facturaInvoiceNumber = facturaPhase === 'remainder' ? remainderInvoiceNumber : advanceInvoiceNumber;
+  const valorDestaFactura = facturaPhase === 'remainder' ? remanescenteValor : adiantamento;
+  const phasePayment = payments.find((p) => p.phase === facturaPhase) ?? null;
 
   const documentCard = (
         <div id="quote-print-area" className={`bg-white dark:bg-white text-zinc-900 shadow-sm border border-zinc-200 p-8 sm:p-12 ${embed ? 'rounded-lg rounded-tr-none' : 'rounded-lg'}`}>
@@ -144,7 +169,7 @@ function CotacaoDocumentContent() {
               {quotation.telefone_institucional && <p>Tele: {quotation.telefone_institucional}</p>}
               {quotation.email_institucional && <p>Email: {quotation.email_institucional}</p>}
               {quotation.website && <p>Website: {quotation.website}</p>}
-              {quotation.responsavel !== quotation.empresa && (
+              {!isFactura && quotation.responsavel !== quotation.empresa && (
                 <>
                   <div className="border-t border-zinc-200 my-2 w-full" />
                   <p>Responsável: {quotation.responsavel}{quotation.cargo ? ` — ${quotation.cargo}` : ''}</p>
@@ -155,8 +180,13 @@ function CotacaoDocumentContent() {
             </div>
             <div className="sm:text-right shrink-0">
               <h1 className="text-xl font-bold text-black">
-                {documentLabel} Nº {isFactura ? (invoiceNumber ?? 'a emitir') : numeroCotacao}
+                {documentLabel} Nº {isFactura ? (facturaInvoiceNumber ?? 'a emitir') : numeroCotacao}
               </h1>
+              {isFactura && (
+                <p className="text-xs font-bold text-red-600 mt-1">
+                  {facturaPhase === 'remainder' ? 'Remanescente — Pago na Totalidade' : 'Adiantamento (70%)'}
+                </p>
+              )}
               <p className="text-xs text-zinc-500 mt-1">Data de emissão: {dataEmissao}</p>
             </div>
           </div>
@@ -188,9 +218,25 @@ function CotacaoDocumentContent() {
             {!allSobConsulta && (
               <tfoot>
                 <tr>
-                  <td colSpan={3} className="pt-4 text-right font-bold text-zinc-900">Total</td>
-                  <td className="pt-4 text-right font-bold text-zinc-900">{formatMt(totalMt)} MT</td>
+                  <td colSpan={3} className="pt-4 text-right text-zinc-600">Subtotal</td>
+                  <td className="pt-4 text-right text-zinc-600">{formatMt(totalMt)} MT</td>
                 </tr>
+                <tr>
+                  <td colSpan={3} className="pt-1 text-right text-zinc-600">IVA ({IVA_PERCENT}%, acrescido)</td>
+                  <td className="pt-1 text-right text-zinc-600">{formatMt(ivaMt)} MT</td>
+                </tr>
+                <tr>
+                  <td colSpan={3} className="pt-2 text-right font-bold text-zinc-900 border-t border-zinc-200">Total da encomenda</td>
+                  <td className="pt-2 text-right font-bold text-zinc-900 border-t border-zinc-200">{formatMt(totalComIvaMt)} MT</td>
+                </tr>
+                {isFactura && (
+                  <tr>
+                    <td colSpan={3} className="pt-2 text-right font-bold text-red-600">
+                      Valor desta factura ({facturaPhase === 'remainder' ? 'Remanescente 30%' : 'Adiantamento 70%'})
+                    </td>
+                    <td className="pt-2 text-right font-bold text-red-600">{formatMt(valorDestaFactura)} MT</td>
+                  </tr>
+                )}
               </tfoot>
             )}
           </table>
@@ -201,35 +247,75 @@ function CotacaoDocumentContent() {
             </div>
           )}
 
-          {/* Prazo */}
-          <div className="bg-zinc-50 border border-zinc-200 rounded-md p-4 mb-4 text-sm">
-            <p className="text-zinc-700"><span className="font-bold">Data-limite de entrega pretendida:</span> {dataLimite}</p>
-            <p className="text-xs text-zinc-500 mt-1">Prazo mínimo de execução: 7 dias úteis a partir da aprovação da cotação.</p>
-          </div>
+          {/* Prazo — só faz sentido antes de a encomenda estar concluída; numa
+              factura já paga não há "prazo a cumprir" para mostrar. */}
+          {!isFactura && (
+            <div className="bg-zinc-50 border border-zinc-200 rounded-md p-4 mb-4 text-sm">
+              <p className="text-zinc-700"><span className="font-bold">Data-limite de entrega pretendida:</span> {dataLimite}</p>
+              <p className="text-xs text-zinc-500 mt-1">Prazo mínimo de execução: 7 dias úteis a partir da aprovação da cotação.</p>
+            </div>
+          )}
 
-          {/* Pagamento */}
-          <div className="bg-red-50 border border-red-200 rounded-md p-4 text-sm">
-            {allSobConsulta ? (
-              <p className="text-zinc-800">
-                <span className="font-bold">Condições de pagamento:</span> serviço Sob Consulta — entraremos em contacto para confirmar o valor e as condições de pagamento.
+          {/* Pagamento — na Cotação são condições (ainda por cumprir); na
+              Factura confirma-se o que já foi efectivamente pago. */}
+          {isFactura ? (
+            <div className="bg-red-50 border border-red-200 rounded-md p-4 text-sm">
+              <p className="font-bold text-zinc-800 mb-2">
+                Pagamento confirmado — {PHASE_LABEL[facturaPhase]}
               </p>
-            ) : (
-              <>
-                <p className="text-zinc-800">
-                  <span className="font-bold">Condições de pagamento:</span> 70% de adiantamento na aprovação da cotação
-                  ({formatMt(adiantamento)} MT), restante na entrega.
+              {phasePayment ? (
+                <p className="text-zinc-700">
+                  {formatMt(phasePayment.valor_mt)} MT
+                  {phasePayment.metodo && ` — ${METODO_LABEL[phasePayment.metodo] ?? phasePayment.metodo}`}
+                  {' — confirmado em '}{new Date(phasePayment.confirmed_at).toLocaleDateString('pt-PT')}
                 </p>
-                <p className="text-xs text-zinc-600 mt-1">Adiantamento via M-Pesa: {MPESA_NUMBER}</p>
-                {someSobConsulta && (
-                  <p className="text-xs text-zinc-600 mt-1">Os itens Sob Consulta acima não entram neste valor — o preço é confirmado à parte.</p>
-                )}
-              </>
-            )}
-          </div>
+              ) : (
+                <p className="text-zinc-500 text-xs">Ainda não confirmado.</p>
+              )}
+              {facturaPhase === 'remainder' && (
+                <p className="text-xs font-bold text-green-700 mt-2">Encomenda paga na totalidade.</p>
+              )}
+            </div>
+          ) : (
+            <div className="bg-red-50 border border-red-200 rounded-md p-4 text-sm">
+              {allSobConsulta ? (
+                <p className="text-zinc-800">
+                  <span className="font-bold">Condições de pagamento:</span> serviço Sob Consulta — entraremos em contacto para confirmar o valor e as condições de pagamento.
+                </p>
+              ) : (
+                <>
+                  <p className="text-zinc-800">
+                    <span className="font-bold">Condições de pagamento:</span> 70% de adiantamento na aprovação da cotação
+                    ({formatMt(adiantamento)} MT), restante na entrega.
+                  </p>
+                  <p className="text-xs text-zinc-600 mt-1">Adiantamento via M-Pesa: {MPESA_NUMBER}</p>
+                  {someSobConsulta && (
+                    <p className="text-xs text-zinc-600 mt-1">Os itens Sob Consulta acima não entram neste valor — o preço é confirmado à parte.</p>
+                  )}
+                </>
+              )}
+            </div>
+          )}
 
-          <p className="text-[11px] text-zinc-400 mt-8 text-center">
-            Cotação válida por 30 dias a partir da data de emissão. Os valores incluem IVA.
-          </p>
+          {!isFactura && (
+            <p className="text-[11px] text-zinc-400 mt-8 text-center">
+              Cotação válida por 30 dias a partir da data de emissão.
+            </p>
+          )}
+
+          {/* Selo/assinatura electrónica — validação visual de que o documento
+              foi emitido pelo sistema da VisualDESIGN, não editado à mão. */}
+          <div className="mt-8 pt-4 border-t border-zinc-200 flex items-center justify-end gap-2">
+            <div className="shrink-0 flex h-6 w-6 items-center justify-center rounded-full border border-red-600 text-red-600">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} className="h-3 w-3">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+              </svg>
+            </div>
+            <div className="text-right leading-tight">
+              <p className="text-xs font-bold text-zinc-800">VisualDESIGN Services, Lda.</p>
+              <p className="text-[11px] text-zinc-500">Documento gerado e validado electronicamente — dispensa assinatura manuscrita.</p>
+            </div>
+          </div>
         </div>
   );
 

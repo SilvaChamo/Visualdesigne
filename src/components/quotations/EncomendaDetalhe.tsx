@@ -311,18 +311,36 @@ export function EncomendaDetalhe({
         )}
         {tab === 'facturas' && facturaView === 'facturas' && (
           <div className="p-4 space-y-4">
-            {['approved', 'delivered', 'done'].includes(status) ? (
-              <iframe
-                key={`${primary.id}-factura`}
-                src={`/cotacao/${primary.id}?embed=1&tipo=factura`}
-                className="w-full h-full min-h-[500px] border-0"
-                title="Factura"
-              />
-            ) : (
-              <div className="rounded-lg border border-gray-200 dark:border-zinc-800 p-4 text-sm text-gray-500 dark:text-zinc-400">
-                A factura fica disponível aqui assim que a equipa confirmar o pagamento do adiantamento.
-              </div>
-            )}
+            <div>
+              <p className="text-xs font-bold uppercase text-gray-400 dark:text-zinc-500 mb-2">Factura do adiantamento</p>
+              {['approved', 'delivered', 'done'].includes(status) ? (
+                <iframe
+                  key={`${primary.id}-factura-adiantamento`}
+                  src={`/cotacao/${primary.id}?embed=1&tipo=factura&fase=adiantamento`}
+                  className="w-full h-full min-h-[500px] border-0"
+                  title="Factura do adiantamento"
+                />
+              ) : (
+                <div className="rounded-lg border border-gray-200 dark:border-zinc-800 p-4 text-sm text-gray-500 dark:text-zinc-400">
+                  Fica disponível aqui assim que a equipa confirmar o pagamento do adiantamento.
+                </div>
+              )}
+            </div>
+            <div>
+              <p className="text-xs font-bold uppercase text-gray-400 dark:text-zinc-500 mb-2">Factura do remanescente</p>
+              {status === 'done' ? (
+                <iframe
+                  key={`${primary.id}-factura-remanescente`}
+                  src={`/cotacao/${primary.id}?embed=1&tipo=factura&fase=remanescente`}
+                  className="w-full h-full min-h-[500px] border-0"
+                  title="Factura do remanescente"
+                />
+              ) : (
+                <div className="rounded-lg border border-gray-200 dark:border-zinc-800 p-4 text-sm text-gray-500 dark:text-zinc-400">
+                  Fica disponível aqui assim que pagar o remanescente e a encomenda ficar concluída.
+                </div>
+              )}
+            </div>
             <div>
               <p className="text-xs font-bold uppercase text-gray-400 dark:text-zinc-500 mb-2">Outros anexos</p>
               <QuotationAttachmentsList quotationId={primary.id} viewerRole="client" />
