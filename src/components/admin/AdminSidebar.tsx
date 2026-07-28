@@ -102,6 +102,64 @@ function flattenSubItemsForFlyout(
   return out;
 }
 
+/**
+ * Se um admin entrar em "impersonar revendedor" e sair da página sem clicar em
+ * "Voltar ao painel" (ex.: navegou directamente para /dashboard), o cookie
+ * vd_impersonate_reseller fica preso — e passa a filtrar silenciosamente TODOS
+ * os pedidos do admin (emails, sites, etc.) para os do revendedor impersonado.
+ * Este aviso aparece em qualquer página do admin enquanto isso acontecer.
+ */
+function ImpersonationExitBanner({ isCollapsed }: { isCollapsed: boolean }) {
+  const [daUsername, setDaUsername] = React.useState<string | null>(null);
+
+  React.useEffect(() => {
+    let cancelled = false;
+    fetch('/api/admin/impersonate')
+      .then((r) => r.json())
+      .then((data) => {
+        if (!cancelled && data?.active) setDaUsername(data.daUsername || null);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  if (!daUsername) return null;
+
+  const handleExit = async () => {
+    const { clearAllPanelClientCaches } = await import('@/lib/panel-session-cache-clear');
+    clearAllPanelClientCaches();
+    await fetch('/api/admin/impersonate', { method: 'DELETE' }).catch(() => {});
+    window.location.reload();
+  };
+
+  if (isCollapsed) {
+    return (
+      <button
+        type="button"
+        onClick={handleExit}
+        title={`A impersonar ${daUsername} — clique para sair`}
+        className="mx-auto my-2 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-red-600 text-white transition-colors hover:bg-red-700"
+      >
+        <LogOut size={14} className="-scale-x-100" />
+      </button>
+    );
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={handleExit}
+      title="Sair da impersonação"
+      className="mx-2 my-2 flex shrink-0 items-center justify-between gap-2 rounded-lg bg-red-600 px-3 py-2 text-left text-xs font-semibold text-white transition-colors hover:bg-red-700"
+    >
+      <span className="truncate">A impersonar: {daUsername}</span>
+      <span className="shrink-0 underline">Sair</span>
+    </button>
+  );
+}
+
 /** Altura fixa — cada linha do menu principal (não cresce nem encolhe com o conteúdo). */
 const MENU_ROW_CLASS = 'box-border h-11 min-h-11 max-h-11 shrink-0';
 /** Submenu: texto maior, mas linhas mais apertadas entre si. */
@@ -225,6 +283,8 @@ export function AdminSidebar({
           </div>
         )}
       </div>
+
+      <ImpersonationExitBanner isCollapsed={isCollapsed} />
 
       <nav className="flex flex-1 flex-col overflow-y-auto px-2 py-2">
         <div className="flex flex-col space-y-0">
