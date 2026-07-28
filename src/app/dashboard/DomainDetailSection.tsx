@@ -4,9 +4,10 @@ import { useEffect, useState } from 'react'
 import {
   Globe, Server, Cloud, LockOpen, RefreshCw, Key, Copy, Calendar,
   Mail, ExternalLink, Trash2, CheckCircle, XCircle, ShieldCheck,
+  ChevronDown, ChevronRight, ArrowRightLeft, Plus,
 } from 'lucide-react'
 import { Spinner } from '@/components/ui/spinner'
-import { panelBtnPrimary, panelBtnSecondary } from '@/lib/panel-ui'
+import { panelBtnPrimary, panelBtnSecondary, panelField } from '@/lib/panel-ui'
 import type { DirectAdminWebsite } from '@/lib/directadmin-api'
 
 type RegistrarInfo = {
@@ -71,6 +72,12 @@ export function DomainDetailSection({ domain, sites, onNavigate, onRefresh, setA
   const [health, setHealth] = useState<HealthResult>(null)
 
   const [renewal, setRenewal] = useState<RenewalInfo>(null)
+
+  const [pointerOpen, setPointerOpen] = useState(false)
+  const [pointerLoading, setPointerLoading] = useState(false)
+  const [pointers, setPointers] = useState<string[]>([])
+  const [pointerFrom, setPointerFrom] = useState('')
+  const [pointerSaving, setPointerSaving] = useState(false)
 
   const loadRegistrarInfo = async () => {
     if (!domain) return
@@ -219,6 +226,75 @@ export function DomainDetailSection({ domain, sites, onNavigate, onRefresh, setA
       showMsg(e instanceof Error ? e.message : 'Erro de ligação', 'error')
     } finally {
       setRegistrarLoading(false)
+    }
+  }
+
+  const loadPointers = async () => {
+    if (!domain) return
+    setPointerLoading(true)
+    try {
+      const res = await fetch('/api/server-exec', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'listDomainPointers', params: { domain } }),
+      })
+      const data = await res.json()
+      if (data.success) setPointers(Array.isArray(data.data) ? data.data : [])
+    } catch {
+      /* lista fica vazia — sem espelho para isto, é sempre pedido ao vivo */
+    } finally {
+      setPointerLoading(false)
+    }
+  }
+
+  const togglePointerPanel = () => {
+    const next = !pointerOpen
+    setPointerOpen(next)
+    if (next && pointers.length === 0) void loadPointers()
+  }
+
+  const handleAddPointer = async () => {
+    const from = pointerFrom.trim().toLowerCase()
+    if (!from) return
+    setPointerSaving(true)
+    try {
+      const res = await fetch('/api/server-exec', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'addDomainPointer', params: { domain, from } }),
+      })
+      const data = await res.json()
+      if (data.success) {
+        showMsg(`"${from}" passa a redireccionar para "${domain}".`)
+        setPointerFrom('')
+        await loadPointers()
+      } else {
+        showMsg(data.error || 'Erro ao criar redireccionamento', 'error')
+      }
+    } catch (e: unknown) {
+      showMsg(e instanceof Error ? e.message : 'Erro de ligação', 'error')
+    } finally {
+      setPointerSaving(false)
+    }
+  }
+
+  const handleDeletePointer = async (from: string) => {
+    if (!confirm(`Remover o redireccionamento de "${from}"?`)) return
+    try {
+      const res = await fetch('/api/server-exec', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'deleteDomainPointer', params: { domain, from } }),
+      })
+      const data = await res.json()
+      if (data.success) {
+        showMsg(`Redireccionamento de "${from}" removido.`)
+        await loadPointers()
+      } else {
+        showMsg(data.error || 'Erro ao remover redireccionamento', 'error')
+      }
+    } catch (e: unknown) {
+      showMsg(e instanceof Error ? e.message : 'Erro de ligação', 'error')
     }
   }
 
@@ -521,6 +597,75 @@ export function DomainDetailSection({ domain, sites, onNavigate, onRefresh, setA
                 <ExternalLink className="h-4 w-4 shrink-0" />
               </button>
             </div>
+          </div>
+
+          <div className="rounded border border-gray-200 bg-white dark:border-zinc-700 dark:bg-zinc-900">
+            <button
+              type="button"
+              onClick={togglePointerPanel}
+              className="flex w-full items-center justify-between px-4 py-3 text-left"
+            >
+              <span className="flex items-center gap-2 text-xs font-bold uppercase text-gray-500 dark:text-zinc-500">
+                <ArrowRightLeft className="h-4 w-4 shrink-0" />
+                Redireccionar domínio
+              </span>
+              {pointerOpen ? <ChevronDown className="h-4 w-4 shrink-0 text-gray-400" /> : <ChevronRight className="h-4 w-4 shrink-0 text-gray-400" />}
+            </button>
+            {pointerOpen && (
+              <div className="border-t border-gray-100 p-4 dark:border-zinc-800">
+                <p className="mb-3 text-xs text-gray-500 dark:text-zinc-400">
+                  Outro domínio que já possuis passa a redireccionar para <span className="font-mono">{domain}</span>.
+                </p>
+
+                {pointerLoading ? (
+                  <div className="flex items-center gap-2 py-2 text-sm text-gray-400 dark:text-zinc-500">
+                    <Spinner className="h-4 w-4" /> A carregar...
+                  </div>
+                ) : pointers.length > 0 ? (
+                  <div className="mb-3 space-y-1.5">
+                    {pointers.map((from) => (
+                      <div
+                        key={from}
+                        className="flex items-center justify-between gap-2 rounded border border-gray-100 bg-gray-50 px-3 py-1.5 text-sm dark:border-zinc-800 dark:bg-zinc-800/50"
+                      >
+                        <span className="truncate font-mono text-xs text-gray-700 dark:text-zinc-300">
+                          {from} <span className="text-gray-400 dark:text-zinc-500">→ {domain}</span>
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => void handleDeletePointer(from)}
+                          className="shrink-0 text-gray-300 hover:text-red-600 dark:text-zinc-600 dark:hover:text-red-500"
+                          title="Remover redireccionamento"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="mb-3 text-sm text-gray-400 dark:text-zinc-500">Nenhum domínio a redireccionar para aqui ainda.</p>
+                )}
+
+                <div className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    placeholder="outro-dominio.co.mz"
+                    value={pointerFrom}
+                    onChange={(e) => setPointerFrom(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === 'Enter') void handleAddPointer() }}
+                    className={`${panelField} min-w-0 flex-1`}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => void handleAddPointer()}
+                    disabled={pointerSaving || !pointerFrom.trim()}
+                    className={`${panelBtnSecondary} shrink-0 disabled:opacity-50`}
+                  >
+                    {pointerSaving ? <Spinner className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
 
           {site && (

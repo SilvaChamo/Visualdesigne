@@ -89,6 +89,8 @@ const DA_MUTATION_PROXY: Record<
   deleteFTPAccount: (api, p) => api.deleteFTPAccount(p),
   enableDKIM: (api, p) => api.enableDKIM(String(p.domain || '')),
   changePHPVersion: (api, p) => api.changePHPVersion(p),
+  addDomainPointer: (api, p) => api.addDomainPointer(p),
+  deleteDomainPointer: (api, p) => api.deleteDomainPointer(p),
 };
 
 /** Aplica pacote no DirectAdmin de forma síncrona. */
@@ -141,6 +143,7 @@ const DA_READ_PROXY: Record<
   (api: DirectAdminServerAPI, params: Record<string, unknown>) => Promise<unknown>
 > = {
   getPackageDetails: (api, p) => api.getPackageDetails(String(p.packageName || '')),
+  listDomainPointers: (api, p) => api.listDomainPointers(String(p.domain || '')),
 };
 
 async function readFromMirror(

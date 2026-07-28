@@ -22,6 +22,7 @@ const MUTATION_ACTIONS = new Set([
   'createEmail', 'deleteEmail', 'suspendEmail', 'unsuspendEmail',
   'changeEmailPassword', 'setEmailLimits',
   'addEmailForwarding', 'setCatchAllEmail', 'addPatternForwarding', 'togglePlusAddressing',
+  'addDomainPointer', 'deleteDomainPointer',
   'createSubdomain', 'deleteSubdomain',
   'createDatabase', 'deleteDatabase',
   'createFTPAccount', 'deleteFTPAccount',
@@ -185,6 +186,15 @@ export async function POST(req: NextRequest) {
         break;
       case 'addEmailForwarding':
         data = await daApi.addEmailForwarding(params);
+        break;
+      case 'listDomainPointers':
+        data = await daApi.listDomainPointers(String(params.domain || ''));
+        break;
+      case 'addDomainPointer':
+        data = await daApi.addDomainPointer(params);
+        break;
+      case 'deleteDomainPointer':
+        data = await daApi.deleteDomainPointer(params);
         break;
       case 'getCatchAllEmail':
         data = await daApi.getCatchAllEmail(params.domain);

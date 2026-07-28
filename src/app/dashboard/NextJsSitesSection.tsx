@@ -1,10 +1,19 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { RefreshCw, Plus, MoreVertical, X, ExternalLink, Cpu, CheckCircle2, XCircle } from 'lucide-react'
+import {
+  RefreshCw, Plus, MoreVertical, X, ExternalLink, ChevronRight, Lock, LockOpen,
+} from 'lucide-react'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import { useAdminSectionChrome } from '@/components/admin/AdminSectionChrome'
 import { Spinner } from '@/components/ui/spinner'
-import { panelBtnPrimary, panelBtnSecondary, panelField, panelSectionCard, panelMobileCardGrid } from '@/lib/panel-ui'
+import { panelBtnPrimary, panelBtnSecondary, panelField, panelSectionCard, panelInnerDetailCard, panelMobileCardGrid } from '@/lib/panel-ui'
+import { SiteThumbnail } from '@/components/panel/ListWebsitesSection'
 import type { DirectAdminWebsite } from '@/lib/directadmin-api'
 
 interface NextJsSiteRow {
@@ -12,6 +21,7 @@ interface NextJsSiteRow {
   domain: string
   name: string | null
   hostingNote: string | null
+  siteUrl: string | null
   adminUrl: string | null
   pm2ProcessName: string | null
   notes: string | null
@@ -35,6 +45,7 @@ const emptyForm = {
   domain: '',
   name: '',
   hostingNote: '',
+  siteUrl: '',
   adminUrl: '',
   pm2ProcessName: '',
   notes: '',
@@ -49,6 +60,15 @@ function formatUptime(ms: number | null): string {
   return `${Math.floor(hours / 24)}d`
 }
 
+const SITE_DETAIL_CARD = `${panelInnerDetailCard} overflow-hidden`
+
+/** O site institucional da VisualDesign fica sempre em primeiro na lista. */
+const PINNED_DOMAIN = 'visualdesignmoz.com'
+
+function siteLinkFor(row: NextJsSiteRow): string {
+  return row.siteUrl || `https://${row.domain}`
+}
+
 export function NextJsSitesSection({
   sites,
   onNavigate,
@@ -60,10 +80,19 @@ export function NextJsSitesSection({
   const [loading, setLoading] = useState(true)
   const [processes, setProcesses] = useState<Pm2Process[]>([])
   const [health, setHealth] = useState<Record<string, HealthState>>({})
-  const [openMenuId, setOpenMenuId] = useState<string | null>(null)
+  const [expandedDomain, setExpandedDomain] = useState<string | null>(null)
   const [form, setForm] = useState<typeof emptyForm | null>(null)
   const [saving, setSaving] = useState(false)
   const [formError, setFormError] = useState('')
+
+  const sortedRows = useMemo(() => {
+    return [...rows].sort((a, b) => {
+      const aPinned = a.domain.toLowerCase() === PINNED_DOMAIN ? 0 : 1
+      const bPinned = b.domain.toLowerCase() === PINNED_DOMAIN ? 0 : 1
+      if (aPinned !== bPinned) return aPinned - bPinned
+      return a.domain.localeCompare(b.domain)
+    })
+  }, [rows])
 
   const ownerByDomain = useMemo(() => {
     const map = new Map<string, string>()
@@ -120,6 +149,16 @@ export function NextJsSitesSection({
     void loadProcesses()
   }, [])
 
+  // Abre o primeiro site por defeito assim que a lista chega, para o
+  // screenshot já ficar visível sem ser preciso clicar — só na carga
+  // inicial, não volta a forçar se o utilizador colapsar manualmente.
+  useEffect(() => {
+    if (expandedDomain === null && sortedRows.length > 0) {
+      setExpandedDomain(sortedRows[0].domain)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sortedRows])
+
   useEffect(() => {
     for (const row of rows) {
       if (!health[row.domain]) void checkHealth(row.domain)
@@ -173,6 +212,7 @@ export function NextJsSitesSection({
           domain,
           name: form.name.trim() || null,
           hostingNote: form.hostingNote.trim() || null,
+          siteUrl: form.siteUrl.trim() || null,
           adminUrl: form.adminUrl.trim() || null,
           pm2ProcessName: form.pm2ProcessName.trim() || null,
           notes: form.notes.trim() || null,
@@ -210,139 +250,210 @@ export function NextJsSitesSection({
           Ainda não há sites Next.js registados.
         </div>
       ) : (
-        <div className={panelMobileCardGrid}>
-          {rows.map((row) => {
+        <div className="space-y-2">
+          {sortedRows.map((row) => {
             const proc = row.pm2ProcessName
               ? processes.find((p) => p.name === row.pm2ProcessName)
               : undefined
             const cpuPct = proc ? Math.round((proc.cpu / maxCpu) * 100) : null
             const owner = ownerByDomain.get(row.domain)
             const h = health[row.domain]
+            const isOnline = typeof h === 'object' && h.server
+            const isExpanded = expandedDomain === row.domain
 
             return (
-              <div key={row.id} className={`${panelSectionCard} p-4 space-y-3`}>
-                <div className="flex items-start justify-between gap-2">
-                  <div className="min-w-0">
-                    <p className="font-bold text-sm text-gray-900 dark:text-white truncate">
-                      {row.name || row.domain}
-                    </p>
-                    <p className="text-xs text-gray-500 dark:text-zinc-400 truncate">{row.domain}</p>
-                  </div>
-                  <div className="relative shrink-0">
+              <div
+                key={row.id}
+                className={`bg-white rounded border dark:bg-zinc-900 ${isExpanded ? 'border-blue-200 dark:border-blue-900 shadow-md' : 'border-gray-200 dark:border-zinc-800 shadow-sm'} transition-all`}
+              >
+                <div className="flex flex-col gap-3 px-4 py-4 md:flex-row md:items-center md:justify-between">
+                  <div className="flex flex-wrap items-center justify-start gap-2 md:gap-3">
                     <button
-                      type="button"
-                      onClick={() => setOpenMenuId(openMenuId === row.id ? null : row.id)}
-                      className="rounded p-1.5 text-zinc-500 hover:bg-gray-100 dark:hover:bg-zinc-800"
-                      aria-label="Mais opções"
+                      onClick={() => setExpandedDomain(isExpanded ? null : row.domain)}
+                      className="p-1 rounded hover:bg-gray-100 dark:hover:bg-zinc-800 transition-colors"
+                      title="Expandir/Colapsar"
                     >
-                      <MoreVertical className="w-4 h-4" />
+                      <ChevronRight className={`w-4 h-4 text-gray-400 transition-transform ${isExpanded ? 'rotate-90' : ''}`} />
                     </button>
-                    {openMenuId === row.id && (
-                      <div className="absolute right-0 top-full z-20 mt-1 w-56 rounded border border-gray-200 bg-white py-1 text-xs shadow-lg dark:border-zinc-700 dark:bg-zinc-900">
-                        <button
-                          type="button"
-                          className="block w-full px-3 py-2 text-left text-gray-700 hover:text-red-600 dark:text-zinc-300 dark:hover:text-red-400"
-                          onClick={() => {
-                            setOpenMenuId(null)
-                            setFormError('')
-                            setForm({
-                              id: row.id,
-                              domain: row.domain,
-                              name: row.name || '',
-                              hostingNote: row.hostingNote || '',
-                              adminUrl: row.adminUrl || '',
-                              pm2ProcessName: row.pm2ProcessName || '',
-                              notes: row.notes || '',
-                            })
-                          }}
-                        >
-                          Editar
-                        </button>
-                        {owner && (
-                          <>
-                            <button
-                              type="button"
-                              className="block w-full px-3 py-2 text-left text-gray-700 hover:text-red-600 dark:text-zinc-300 dark:hover:text-red-400"
-                              onClick={() => { setOpenMenuId(null); onNavigate('dns-central', { domain: row.domain }) }}
-                            >
-                              Gerir DNS
-                            </button>
-                            <button
-                              type="button"
-                              className="block w-full px-3 py-2 text-left text-gray-700 hover:text-red-600 dark:text-zinc-300 dark:hover:text-red-400"
-                              onClick={() => { setOpenMenuId(null); onNavigate('cp-dns-nameserver', { domain: row.domain }) }}
-                            >
-                              Nameservers
-                            </button>
-                            <a
-                              href={`/api/directadmin-access?user=${encodeURIComponent(owner)}`}
-                              className="block w-full px-3 py-2 text-left text-gray-700 hover:text-red-600 dark:text-zinc-300 dark:hover:text-red-400"
-                              onClick={() => setOpenMenuId(null)}
-                            >
-                              Abrir no DirectAdmin
-                            </a>
-                          </>
-                        )}
-                        <button
-                          type="button"
-                          className="block w-full px-3 py-2 text-left text-rose-600 hover:text-rose-700 dark:text-rose-400"
-                          onClick={() => { setOpenMenuId(null); void removeSite(row) }}
-                        >
-                          Remover
-                        </button>
-                      </div>
+                    <a
+                      href={siteLinkFor(row)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="font-bold text-sm text-gray-900 dark:text-zinc-100 hover:text-red-600 dark:hover:text-red-400 transition-colors"
+                    >
+                      {row.name || row.domain}
+                    </a>
+                    <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${
+                      h === 'loading' || h === undefined
+                        ? 'bg-gray-100 text-gray-500 dark:bg-zinc-800 dark:text-zinc-400'
+                        : isOnline
+                          ? 'bg-green-100 text-green-700'
+                          : 'bg-red-100 text-red-700'
+                    }`}>
+                      {h === 'loading' || h === undefined ? 'A verificar...' : isOnline ? 'Online' : 'Offline'}
+                    </span>
+                    <span className="px-2 py-0.5 bg-black text-white rounded-full text-xs font-bold">Next.js</span>
+                    {typeof h === 'object' && (
+                      h.ssl ? (
+                        <span className="flex items-center gap-1 text-xs font-bold text-emerald-600 dark:text-emerald-400">
+                          <Lock className="w-3.5 h-3.5" /> SSL Activo
+                        </span>
+                      ) : (
+                        <span className="flex items-center gap-1 text-xs font-bold text-red-600 dark:text-red-400">
+                          <LockOpen className="w-3.5 h-3.5" /> Sem SSL
+                        </span>
+                      )
                     )}
                   </div>
-                </div>
 
-                <div className="flex items-center gap-2 text-xs">
-                  {h === 'loading' || h === undefined ? (
-                    <span className="inline-flex items-center gap-1 rounded bg-gray-100 px-2 py-0.5 font-bold text-gray-500 dark:bg-zinc-800 dark:text-zinc-400">
-                      <Spinner className="w-3 h-3" /> A verificar
-                    </span>
-                  ) : h === 'error' || !h.server ? (
-                    <span className="inline-flex items-center gap-1 rounded bg-red-100 px-2 py-0.5 font-bold text-red-700 dark:bg-red-950/30 dark:text-red-400">
-                      <XCircle className="w-3 h-3" /> Offline
-                    </span>
-                  ) : (
-                    <span className="inline-flex items-center gap-1 rounded bg-green-100 px-2 py-0.5 font-bold text-green-700 dark:bg-green-950/30 dark:text-green-400">
-                      <CheckCircle2 className="w-3 h-3" /> Online
-                    </span>
-                  )}
-                  {row.hostingNote && (
-                    <span className="truncate text-gray-500 dark:text-zinc-400">{row.hostingNote}</span>
-                  )}
-                </div>
-
-                {proc && (
-                  <div className="space-y-1">
-                    <div className="flex items-center justify-between text-xs text-gray-500 dark:text-zinc-400">
-                      <span className="inline-flex items-center gap-1"><Cpu className="w-3 h-3" /> CPU (vs. outros sites)</span>
-                      <span className="font-bold text-gray-700 dark:text-zinc-300">{proc.cpu}%</span>
-                    </div>
-                    <div className="h-1.5 w-full rounded-full bg-gray-100 dark:bg-zinc-800">
-                      <div
-                        className="h-1.5 rounded-full bg-red-500"
-                        style={{ width: `${Math.max(2, cpuPct || 0)}%` }}
-                      />
-                    </div>
-                    <div className="flex items-center justify-between text-xs text-gray-500 dark:text-zinc-400">
-                      <span>{proc.memoryMb} MB · {proc.restarts} restarts</span>
-                      <span>{formatUptime(proc.uptimeMs)}</span>
-                    </div>
+                  <div className="flex flex-wrap items-center justify-start gap-2 shrink-0 md:justify-end">
+                    {row.adminUrl && (
+                      <>
+                        <a
+                          href={row.adminUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-gray-600 hover:text-gray-900 dark:text-zinc-400 dark:hover:text-zinc-200 text-xs font-medium transition-colors underline-offset-2 hover:underline"
+                        >
+                          Aceder ao backend
+                        </a>
+                        <span className="w-px h-[0.85em] shrink-0 bg-gray-300/80 dark:bg-zinc-600/80" aria-hidden />
+                      </>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setFormError('')
+                        setForm({
+                          id: row.id,
+                          domain: row.domain,
+                          name: row.name || '',
+                          hostingNote: row.hostingNote || '',
+                          siteUrl: row.siteUrl || '',
+                          adminUrl: row.adminUrl || '',
+                          pm2ProcessName: row.pm2ProcessName || '',
+                          notes: row.notes || '',
+                        })
+                      }}
+                      className="text-gray-600 hover:text-gray-900 dark:text-zinc-400 dark:hover:text-zinc-200 text-xs font-medium transition-colors underline-offset-2 hover:underline"
+                    >
+                      Editar
+                    </button>
+                    <span className="w-px h-[0.85em] shrink-0 bg-gray-300/80 dark:bg-zinc-600/80" aria-hidden />
+                    <button
+                      type="button"
+                      onClick={() => void removeSite(row)}
+                      className="text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 text-xs font-medium transition-colors underline-offset-2 hover:underline"
+                    >
+                      Remover
+                    </button>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <button
+                          type="button"
+                          className="p-1 rounded hover:bg-gray-100 dark:hover:bg-zinc-800 text-gray-500 dark:text-zinc-400"
+                          aria-label="Mais opções"
+                        >
+                          <MoreVertical className="w-4 h-4" />
+                        </button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent
+                        side="left"
+                        align="center"
+                        sideOffset={6}
+                        className="z-[200] min-w-max p-1 text-xs !bg-white dark:!bg-zinc-900 border border-gray-200 dark:border-zinc-700 shadow-lg"
+                      >
+                        {owner ? (
+                          <>
+                            <DropdownMenuItem
+                              className="text-xs px-2 py-1.5"
+                              onClick={() => onNavigate('dns-central', { domain: row.domain })}
+                            >
+                              Gerir DNS
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              className="text-xs px-2 py-1.5"
+                              onClick={() => onNavigate('cp-dns-nameserver', { domain: row.domain })}
+                            >
+                              Nameservers
+                            </DropdownMenuItem>
+                            <DropdownMenuItem asChild className="text-xs px-2 py-1.5">
+                              <a href={`/api/directadmin-access?user=${encodeURIComponent(owner)}`}>
+                                Abrir no DirectAdmin
+                              </a>
+                            </DropdownMenuItem>
+                          </>
+                        ) : (
+                          <div className="px-2 py-1.5 text-xs text-gray-400 dark:text-zinc-500 max-w-[14rem]">
+                            Domínio não gerido neste servidor.
+                          </div>
+                        )}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   </div>
-                )}
+                </div>
 
-                {row.adminUrl && (
-                  <a
-                    href={row.adminUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className={`${panelBtnSecondary} w-full`}
-                  >
-                    <ExternalLink className="w-3.5 h-3.5" />
-                    <span>Aceder ao backend</span>
-                  </a>
+                {isExpanded && (
+                  <div className="border-t border-gray-100 dark:border-zinc-800 p-4 space-y-4">
+                    <div className="flex flex-col gap-3 md:flex-row md:items-stretch md:min-h-[10.5rem]">
+                      <a
+                        href={siteLinkFor(row)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        title={`Abrir ${row.domain}`}
+                        className="w-full max-w-[300px] shrink-0 h-40 overflow-hidden rounded border border-gray-200 dark:border-zinc-600 md:w-[38%] md:max-w-[300px] md:h-[10.5rem] block"
+                      >
+                        <SiteThumbnail domain={row.domain} width={600} className="h-full w-full" objectPosition="center" />
+                      </a>
+
+                      <div className={`flex-1 ${panelMobileCardGrid} md:grid-cols-3 md:grid-rows-2`}>
+                        <div className={SITE_DETAIL_CARD}>
+                          <p className="text-xs font-bold text-gray-400 uppercase mb-1">Estado</p>
+                          <p className={`text-sm font-bold truncate ${isOnline ? 'text-green-700 dark:text-green-400' : 'text-red-700 dark:text-red-400'}`}>
+                            {h === 'loading' || h === undefined ? 'A verificar...' : isOnline ? 'Online' : 'Offline'}
+                          </p>
+                        </div>
+                        <div className={SITE_DETAIL_CARD}>
+                          <p className="text-xs font-bold text-gray-400 uppercase mb-1">CPU (vs. outros sites)</p>
+                          {proc ? (
+                            <>
+                              <p className="text-sm font-bold text-gray-900 dark:text-white truncate">{proc.cpu}%</p>
+                              <div className="mt-1 h-1.5 w-full rounded-full bg-gray-100 dark:bg-zinc-800">
+                                <div className="h-1.5 rounded-full bg-red-500" style={{ width: `${Math.max(2, cpuPct || 0)}%` }} />
+                              </div>
+                            </>
+                          ) : (
+                            <p className="text-sm font-bold text-gray-400 dark:text-zinc-500 truncate">—</p>
+                          )}
+                        </div>
+                        <div className={SITE_DETAIL_CARD}>
+                          <p className="text-xs font-bold text-gray-400 uppercase mb-1">Memória</p>
+                          <p className="text-sm font-bold text-gray-900 dark:text-white truncate">
+                            {proc ? `${proc.memoryMb} MB` : '—'}
+                          </p>
+                        </div>
+                        <div className={SITE_DETAIL_CARD}>
+                          <p className="text-xs font-bold text-gray-400 uppercase mb-1">Uptime</p>
+                          <p className="text-sm font-bold text-gray-900 dark:text-white truncate">
+                            {proc ? `${formatUptime(proc.uptimeMs)} · ${proc.restarts} restarts` : '—'}
+                          </p>
+                        </div>
+                        <div className={SITE_DETAIL_CARD}>
+                          <p className="text-xs font-bold text-gray-400 uppercase mb-1">Alojado em</p>
+                          <p className="text-sm font-bold text-gray-900 dark:text-white truncate">{row.hostingNote || '—'}</p>
+                        </div>
+                        <div className={SITE_DETAIL_CARD}>
+                          <p className="text-xs font-bold text-gray-400 uppercase mb-1">Processo PM2</p>
+                          <p className="text-sm font-bold text-gray-900 dark:text-white truncate">{row.pm2ProcessName || '—'}</p>
+                        </div>
+                      </div>
+                    </div>
+                    {row.notes && (
+                      <p className="text-xs text-gray-500 dark:text-zinc-400 border-t border-gray-100 dark:border-zinc-800 pt-3">
+                        {row.notes}
+                      </p>
+                    )}
+                  </div>
                 )}
               </div>
             )
@@ -369,8 +480,7 @@ export function NextJsSitesSection({
                   value={form.domain}
                   onChange={(e) => setForm({ ...form, domain: e.target.value })}
                   placeholder="visualdesignmoz.com"
-                  disabled={Boolean(form.id)}
-                  className={`${panelField} w-full disabled:opacity-60`}
+                  className={`${panelField} w-full`}
                 />
               </div>
               <div className="space-y-1">
@@ -390,6 +500,18 @@ export function NextJsSitesSection({
                   placeholder="Hetzner — mesmo servidor / Vercel / outro"
                   className={`${panelField} w-full`}
                 />
+              </div>
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Link do site</label>
+                <input
+                  value={form.siteUrl}
+                  onChange={(e) => setForm({ ...form, siteUrl: e.target.value })}
+                  placeholder={`https://${form.domain || 'exemplo.com'}`}
+                  className={`${panelField} w-full`}
+                />
+                <p className="text-[10px] italic text-gray-400">
+                  Deixe em branco para usar https://{'{domínio}'} automaticamente.
+                </p>
               </div>
               <div className="space-y-1">
                 <label className="text-[10px] font-bold uppercase tracking-widest text-gray-400">

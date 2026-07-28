@@ -12,12 +12,14 @@ CREATE TABLE IF NOT EXISTS public.panel_nextjs_sites (
   domain TEXT NOT NULL UNIQUE,
   name TEXT,
   hosting_note TEXT,
+  site_url TEXT,
   admin_url TEXT,
   pm2_process_name TEXT,
   notes TEXT,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+ALTER TABLE public.panel_nextjs_sites ADD COLUMN IF NOT EXISTS site_url TEXT;
 CREATE INDEX IF NOT EXISTS idx_panel_nextjs_sites_domain ON public.panel_nextjs_sites (domain);
 ALTER TABLE public.panel_nextjs_sites ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "Allow all on panel_nextjs_sites" ON public.panel_nextjs_sites;

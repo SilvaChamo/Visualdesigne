@@ -2,7 +2,7 @@
 
 import React from 'react';
 import {
-  Home, LogOut, ChevronRight, Archive, Users, Server, Mail, Globe, Bell, Layout, Settings, FileText, Code2,
+  Home, LogOut, ChevronRight, Archive, Users, Server, Mail, Globe, Bell, Layout, Settings, FileText, Code2, AppWindow,
 } from 'lucide-react';
 import { SidebarAccount } from '@/components/panel/SidebarAccount';
 import { SidebarMenuFlyout } from '@/components/panel/SidebarMenuFlyout';
@@ -27,9 +27,13 @@ function WordPressMenuIcon({ className, size = 20 }: { className?: string; size?
 import {
   ADMIN_MENU_ITEM_DEFS,
   adminMenuParentForSection,
+  activeSubGroupForSection,
+  findFirstNavigableSubItem,
+  isMenuHeaderSubItem,
   isPanelMenuItemActive,
   resolveSectionId,
   type PanelMenuItemDef,
+  type PanelMenuSubItem,
 } from '@/lib/panel-admin-menu';
 import { panelShellHeaderHeight } from '@/lib/panel-ui';
 import { cn } from '@/lib/utils';
@@ -56,9 +60,8 @@ const MENU_ICONS: Record<string, React.ElementType> = {
   'nov-dominios': Globe,
   'nov-notificacoes': Bell,
   cotacoes: FileText,
-  'nextjs-sites': Code2,
   newsletter: Layout,
-  'nov-wordpress': WordPressMenuIcon,
+  'nov-wordpress': AppWindow,
   'nov-sistema': Settings,
 };
 
@@ -72,6 +75,31 @@ function buildMenuItems(defs: PanelMenuItemDef[]): MenuItem[] {
     ...item,
     icon: MENU_ICONS[item.id] || Archive,
   }));
+}
+
+function subItemsContainActiveSection(subItems: PanelMenuSubItem[], activeSection: string): boolean {
+  const resolved = resolveSectionId(activeSection);
+  return subItems.some((s) => {
+    if (resolveSectionId(s.id) === resolved || s.id === activeSection) return true;
+    if (s.subItems?.length) return subItemsContainActiveSection(s.subItems, activeSection);
+    return false;
+  });
+}
+
+/** O flyout (mobile + colapsado) não suporta grupos aninhados — achata um nível de subItems. */
+function flattenSubItemsForFlyout(
+  subItems: PanelMenuSubItem[],
+): { id: string; label: string; isHeader: boolean }[] {
+  const out: { id: string; label: string; isHeader: boolean }[] = [];
+  for (const sub of subItems) {
+    if (sub.subItems?.length) {
+      out.push({ id: `${sub.id}-header`, label: `— ${sub.label} —`, isHeader: true });
+      out.push(...flattenSubItemsForFlyout(sub.subItems));
+      continue;
+    }
+    out.push({ id: sub.id, label: sub.label, isHeader: isMenuHeaderSubItem(sub.id) });
+  }
+  return out;
 }
 
 /** Altura fixa — cada linha do menu principal (não cresce nem encolhe com o conteúdo). */
@@ -98,10 +126,19 @@ export function AdminSidebar({
   const [expandedMenu, setExpandedMenu] = React.useState<string | null>(() =>
     adminMenuParentForSection(activeSection),
   );
+  const [expandedSubGroup, setExpandedSubGroup] = React.useState<string | null>(() => {
+    const parent = adminMenuParentForSection(activeSection);
+    const parentItem = items.find((i) => i.id === parent);
+    return parentItem?.subItems ? activeSubGroupForSection(parentItem.subItems, activeSection) : null;
+  });
 
   React.useEffect(() => {
     const parent = adminMenuParentForSection(activeSection);
     if (parent) setExpandedMenu(parent);
+    const parentItem = items.find((i) => i.id === parent);
+    const subGroup = parentItem?.subItems ? activeSubGroupForSection(parentItem.subItems, activeSection) : null;
+    if (subGroup) setExpandedSubGroup(subGroup);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeSection]);
 
   const handleParentClick = (item: MenuItem) => {
@@ -125,7 +162,13 @@ export function AdminSidebar({
       onNavigate('hospedagem-contas');
       return;
     }
-    const firstNavigable = item.subItems.find((s) => !s.id.endsWith('-header'));
+    const firstNavigable = findFirstNavigableSubItem(item.subItems);
+    if (firstNavigable) onNavigate(resolveSectionId(firstNavigable.id));
+  };
+
+  const handleSubGroupClick = (sub: PanelMenuSubItem) => {
+    setExpandedSubGroup((prev) => (prev === sub.id ? null : sub.id));
+    const firstNavigable = sub.subItems?.length ? findFirstNavigableSubItem(sub.subItems) : null;
     if (firstNavigable) onNavigate(resolveSectionId(firstNavigable.id));
   };
 
@@ -210,25 +253,14 @@ export function AdminSidebar({
                         }`}
                         title={isCollapsed ? item.label : ''}
                       >
-                        {item.id === 'nov-wordpress' ? (
-                          <WordPressMenuIcon
-                            size={20}
-                            className={
-                              isActive
-                                ? 'text-red-600'
-                                : 'text-gray-500 group-hover:text-red-600'
-                            }
-                          />
-                        ) : (
-                          <Icon
-                            size={20}
-                            className={`shrink-0 ${
-                              isActive
-                                ? 'text-red-600'
-                                : 'text-gray-500 group-hover:text-red-600'
-                            }`}
-                          />
-                        )}
+                        <Icon
+                          size={20}
+                          className={`shrink-0 ${
+                            isActive
+                              ? 'text-red-600'
+                              : 'text-gray-500 group-hover:text-red-600'
+                          }`}
+                        />
                         {!isCollapsed && <span className="ml-3 truncate text-base leading-none">{item.label}</span>}
                         {!isCollapsed && item.subItems && (
                           <ChevronRight size={14} className={`ml-auto text-gray-400 transition-transform group-hover:text-red-600 ${isOpen ? 'rotate-90' : ''}`} />
@@ -240,11 +272,7 @@ export function AdminSidebar({
                       return (
                         <SidebarMenuFlyout
                           label={item.label}
-                          subItems={item.subItems.map((sub) => ({
-                            id: sub.id,
-                            label: sub.label,
-                            isHeader: sub.id.endsWith('-header'),
-                          }))}
+                          subItems={flattenSubItemsForFlyout(item.subItems)}
                           activeSection={activeSection}
                           resolveSectionId={resolveSectionId}
                           onSubNavigate={handleSubClick}
@@ -260,7 +288,7 @@ export function AdminSidebar({
                   {!isCollapsed && item.subItems && isOpen && (
                     <div className="ml-9 flex max-h-[55vh] flex-col overflow-y-auto">
                       {item.subItems.map((sub) => {
-                        if (sub.id.endsWith('-header')) {
+                        if (isMenuHeaderSubItem(sub.id)) {
                           return (
                             <div key={sub.id} className="flex items-stretch">
                               <div className={SUB_MENU_TRACK_CLASS} aria-hidden>
@@ -272,6 +300,66 @@ export function AdminSidebar({
                             </div>
                           );
                         }
+
+                        if (sub.subItems?.length) {
+                          const isGroupOpen = expandedSubGroup === sub.id;
+                          const isGroupActive = subItemsContainActiveSection(sub.subItems, activeSection);
+                          return (
+                            <div key={sub.id}>
+                              <div className={`flex items-stretch ${SUB_ROW_CLASS}`}>
+                                <div className={SUB_MENU_TRACK_CLASS} aria-hidden>
+                                  <div className={SUB_MENU_TRACK_LINE} />
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() => handleSubGroupClick(sub)}
+                                  className={`flex min-w-0 flex-1 items-center rounded px-3 text-left text-[15px] transition-colors duration-200 focus:outline-none ${
+                                    isGroupActive
+                                      ? 'font-bold text-red-600'
+                                      : 'text-gray-600 hover:bg-gray-100 hover:text-red-600 dark:text-zinc-500 dark:hover:bg-zinc-800 dark:hover:text-red-400'
+                                  }`}
+                                >
+                                  {sub.id === 'wordpress-group' && (
+                                    <WordPressMenuIcon size={16} className="mr-2 shrink-0" />
+                                  )}
+                                  <span className="truncate">{sub.label}</span>
+                                  <ChevronRight
+                                    size={13}
+                                    className={`ml-auto shrink-0 transition-transform ${isGroupOpen ? 'rotate-90' : ''}`}
+                                  />
+                                </button>
+                              </div>
+                              {isGroupOpen && (
+                                <div className="ml-6 flex flex-col">
+                                  {sub.subItems.map((child) => {
+                                    const resolved = resolveSectionId(child.id);
+                                    const isChildActive = resolveSectionId(activeSection) === resolved;
+                                    return (
+                                      <div key={child.id} className={`flex items-stretch ${SUB_ROW_CLASS}`}>
+                                        <div className={SUB_MENU_TRACK_CLASS} aria-hidden>
+                                          <div className={SUB_MENU_TRACK_LINE} />
+                                          {isChildActive && <span className={SUB_MENU_ACTIVE_MARK} />}
+                                        </div>
+                                        <button
+                                          type="button"
+                                          onClick={() => handleSubClick(child.id)}
+                                          className={`flex min-w-0 flex-1 items-center rounded px-3 text-left text-sm transition-colors duration-200 focus:outline-none ${
+                                            isChildActive
+                                              ? 'font-bold text-red-600'
+                                              : 'text-gray-600 hover:bg-gray-100 hover:text-red-600 dark:text-zinc-500 dark:hover:bg-zinc-800 dark:hover:text-red-400'
+                                          }`}
+                                        >
+                                          {child.label}
+                                        </button>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        }
+
                         const resolved = resolveSectionId(sub.id);
                         const isSubActive = resolveSectionId(activeSection) === resolved;
                         return (
@@ -289,6 +377,7 @@ export function AdminSidebar({
                                   : 'text-gray-600 hover:bg-gray-100 hover:text-red-600 dark:text-zinc-500 dark:hover:bg-zinc-800 dark:hover:text-red-400'
                               }`}
                             >
+                              {sub.id === 'nextjs-sites' && <Code2 size={15} className="mr-2 shrink-0" />}
                               {sub.label}
                             </button>
                           </div>

@@ -607,6 +607,8 @@ export async function mirrorAfterDaMutation(
     case 'setEmailLimits':
     case 'addEmailForwarding':
     case 'setCatchAllEmail':
+    case 'addDomainPointer':
+    case 'deleteDomainPointer':
       scheduleDaSync(800);
       break;
     case 'changeEmailPassword': {

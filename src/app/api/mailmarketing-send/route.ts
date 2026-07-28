@@ -89,6 +89,10 @@ async function sendSingleBatchViaDirectAdminSMTP(
   fromName: string = 'VisualDesigne'
 ): Promise<{ success: boolean; sent: number; failed: number; errors: string[] }> {
   const transport = createMailTransport();
+  // Ver comentário equivalente em smtp-mail.ts — sem isto, um erro tardio no
+  // socket (ex.: timeout a meio de um envio em lote) derruba o processo Node
+  // inteiro e tira o site do ar para todos os utilizadores.
+  transport.on('error', (err) => console.error('[mailmarketing] erro tardio no transporte SMTP:', err));
   await transport.verify();
   try {
     const cleanFromEmail = extractEmail(fromEmail || getMarketingFromEmail());

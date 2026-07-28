@@ -28,12 +28,20 @@ const MENU_GROUP_NAV: Record<string, string> = {
   newsletter: 'newsletter-subs',
 };
 
+function findSubItemLabel(subItems: PanelMenuItemDef['subItems'], sectionId: string): string | null {
+  for (const sub of subItems ?? []) {
+    if (sub.id === sectionId) return sub.label;
+    const nested = findSubItemLabel(sub.subItems, sectionId);
+    if (nested) return nested;
+  }
+  return null;
+}
+
 function menuLabelFromDefs(defs: PanelMenuItemDef[], sectionId: string): string | null {
   for (const item of defs) {
     if (item.id === sectionId) return item.label;
-    for (const sub of item.subItems ?? []) {
-      if (sub.id === sectionId) return sub.label;
-    }
+    const found = findSubItemLabel(item.subItems, sectionId);
+    if (found) return found;
   }
   return null;
 }

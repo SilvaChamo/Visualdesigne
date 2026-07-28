@@ -3,6 +3,8 @@ export type DomainHubTab = 'meus' | 'adicionar' | 'registados' | 'registar';
 export interface PanelMenuSubItem {
   id: string;
   label: string;
+  /** Grupo colapsável dentro do submenu (ex.: "WordPress" dentro de "Websites") — não navega, só expande/colapsa. */
+  subItems?: PanelMenuSubItem[];
 }
 
 export interface PanelMenuItemDef {
@@ -85,20 +87,22 @@ export const NEW_MENU_ITEM_DEFS: PanelMenuItemDef[] = [
     isNewMenu: true,
   },
   {
-    id: 'nextjs-sites',
-    label: 'Sites Next.js',
-    isNewMenu: true,
-  },
-  {
     id: 'nov-wordpress',
-    label: 'WordPress',
+    label: 'Websites',
     isNewMenu: true,
     subItems: [
-      { id: 'wp-sites', label: 'Sites' },
-      { id: 'wordpress-install', label: 'Criar Website' },
-      { id: 'wp-plugins', label: 'Plugins' },
-      { id: 'wp-backup', label: 'Backups' },
-      { id: 'cp-databases', label: 'Bases de Dados' },
+      { id: 'nextjs-sites', label: 'Next.js' },
+      {
+        id: 'wordpress-group',
+        label: 'WordPress',
+        subItems: [
+          { id: 'wp-sites', label: 'Sites' },
+          { id: 'wordpress-install', label: 'Criar Website' },
+          { id: 'wp-plugins', label: 'Plugins' },
+          { id: 'wp-backup', label: 'Backups' },
+          { id: 'cp-databases', label: 'Bases de Dados' },
+        ],
+      },
     ],
   },
   {
@@ -361,6 +365,7 @@ export const NEW_SECTION_TO_PARENT: Record<string, string> = {
   'wp-backup-auto': 'nov-wordpress',
   'wp-backup-report': 'nov-wordpress',
   'cp-databases': 'nov-wordpress',
+  'nextjs-sites': 'nov-wordpress',
   'domain-detail': 'nov-dominios',
   'backup-manager': 'nov-wordpress',
   infrastructure: 'nov-sistema',
@@ -428,6 +433,33 @@ export function isMenuHeaderSubItem(subId: string): boolean {
   return subId.endsWith('-header');
 }
 
+/** Primeiro sub-item realmente navegável (ignora headers e grupos colapsáveis sem secção própria). */
+export function findFirstNavigableSubItem(subItems: PanelMenuSubItem[]): PanelMenuSubItem | null {
+  for (const sub of subItems) {
+    if (isMenuHeaderSubItem(sub.id)) continue;
+    if (sub.subItems?.length) {
+      const nested = findFirstNavigableSubItem(sub.subItems);
+      if (nested) return nested;
+      continue;
+    }
+    return sub;
+  }
+  return null;
+}
+
+/** Id do grupo colapsável (sub-item com subItems próprios) que contém a secção activa, se houver. */
+export function activeSubGroupForSection(
+  subItems: PanelMenuSubItem[],
+  activeSection: string,
+): string | null {
+  const resolved = resolveSectionId(activeSection);
+  for (const sub of subItems) {
+    if (!sub.subItems?.length) continue;
+    if (subItemsContainSection(sub.subItems, resolved, activeSection)) return sub.id;
+  }
+  return null;
+}
+
 export function adminMenuParentForSection(sectionId: string): string | null {
   const resolved = resolveSectionId(sectionId);
   if (resolved === 'infrastructure' || resolved === 'git-deploy') return 'nov-sistema';
@@ -451,6 +483,14 @@ export function adminMenuParentForSection(sectionId: string): string | null {
   return null;
 }
 
+function subItemsContainSection(subItems: PanelMenuSubItem[], resolved: string, activeSection: string): boolean {
+  return subItems.some((s) => {
+    if (resolveSectionId(s.id) === resolved || s.id === activeSection) return true;
+    if (s.subItems?.length) return subItemsContainSection(s.subItems, resolved, activeSection);
+    return false;
+  });
+}
+
 export function isPanelMenuItemActive(
   item: PanelMenuItemDef,
   activeSection: string,
@@ -458,7 +498,7 @@ export function isPanelMenuItemActive(
 ): boolean {
   const resolved = resolveSectionId(activeSection);
   if (resolved === item.id || activeSection === item.id) return true;
-  if (item.subItems?.some((s) => resolveSectionId(s.id) === resolved || s.id === activeSection)) {
+  if (item.subItems?.length && subItemsContainSection(item.subItems, resolved, activeSection)) {
     return true;
   }
   if (sectionToParent[resolved] === item.id) return true;

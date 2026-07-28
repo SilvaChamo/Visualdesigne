@@ -48,14 +48,16 @@ function formatSitePhpVersion(site: DirectAdminWebsite): string {
 function getSiteIpAddress(site: DirectAdminWebsite): string {
   return site.ip?.trim() || getServerHost()
 }
-function SiteThumbnail({
+export function SiteThumbnail({
   domain,
   width = 320,
   className,
+  objectPosition = 'top',
 }: {
   domain: string
   width?: number
   className?: string
+  objectPosition?: 'top' | 'center'
 }) {
   const [src, setSrc] = useState<string | null>(() => getCachedScreenshot(domain, width))
 
@@ -85,7 +87,7 @@ function SiteThumbnail({
     <img
       src={src}
       alt={`Pré-visualização de ${domain}`}
-      className={`block object-cover object-top ${className || ''}`}
+      className={`block object-cover ${objectPosition === 'center' ? 'object-center' : 'object-top'} ${className || ''}`}
       loading="lazy"
       decoding="async"
     />

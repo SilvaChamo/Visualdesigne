@@ -122,14 +122,22 @@ const SECTION_DESCRIPTIONS: Record<string, string> = {
   'cp-audit-sync': 'Auditoria e sincronização com o servidor',
 };
 
+function findSubItemLabel(subItems: { id: string; label: string; subItems?: unknown[] }[], sectionId: string): string | null {
+  for (const sub of subItems) {
+    if (sub.id === sectionId || resolveSectionId(sub.id) === sectionId) return sub.label;
+    if (sub.subItems?.length) {
+      const nested = findSubItemLabel(sub.subItems as typeof subItems, sectionId);
+      if (nested) return nested;
+    }
+  }
+  return null;
+}
+
 function menuLabelForSection(sectionId: string): string | null {
   for (const item of ADMIN_MENU_ITEM_DEFS) {
     if (item.id === sectionId) return item.label;
-    for (const sub of item.subItems ?? []) {
-      if (sub.id === sectionId || resolveSectionId(sub.id) === sectionId) {
-        return sub.label;
-      }
-    }
+    const found = findSubItemLabel(item.subItems ?? [], sectionId);
+    if (found) return found;
   }
   return null;
 }

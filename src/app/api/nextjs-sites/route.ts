@@ -17,6 +17,7 @@ export interface NextJsSiteRow {
   domain: string
   name: string | null
   hostingNote: string | null
+  siteUrl: string | null
   adminUrl: string | null
   pm2ProcessName: string | null
   notes: string | null
@@ -30,6 +31,7 @@ function rowToClient(r: Record<string, unknown>): NextJsSiteRow {
     domain: String(r.domain),
     name: r.name ? String(r.name) : null,
     hostingNote: r.hosting_note ? String(r.hosting_note) : null,
+    siteUrl: r.site_url ? String(r.site_url) : null,
     adminUrl: r.admin_url ? String(r.admin_url) : null,
     pm2ProcessName: r.pm2_process_name ? String(r.pm2_process_name) : null,
     notes: r.notes ? String(r.notes) : null,
@@ -78,6 +80,7 @@ export async function POST(req: NextRequest) {
     domain,
     name: body.name ? String(body.name).trim() : null,
     hosting_note: body.hostingNote ? String(body.hostingNote).trim() : null,
+    site_url: body.siteUrl ? String(body.siteUrl).trim() : null,
     admin_url: body.adminUrl ? String(body.adminUrl).trim() : null,
     pm2_process_name: body.pm2ProcessName ? String(body.pm2ProcessName).trim() : null,
     notes: body.notes ? String(body.notes).trim() : null,
@@ -108,6 +111,7 @@ export async function PATCH(req: NextRequest) {
   if (body.domain !== undefined) updates.domain = String(body.domain).trim().toLowerCase()
   if (body.name !== undefined) updates.name = body.name ? String(body.name).trim() : null
   if (body.hostingNote !== undefined) updates.hosting_note = body.hostingNote ? String(body.hostingNote).trim() : null
+  if (body.siteUrl !== undefined) updates.site_url = body.siteUrl ? String(body.siteUrl).trim() : null
   if (body.adminUrl !== undefined) updates.admin_url = body.adminUrl ? String(body.adminUrl).trim() : null
   if (body.pm2ProcessName !== undefined) {
     updates.pm2_process_name = body.pm2ProcessName ? String(body.pm2ProcessName).trim() : null

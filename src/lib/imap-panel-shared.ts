@@ -81,6 +81,12 @@ export async function connectImapClient(email: string, password: string): Promis
     socketTimeout: 12000,
     greetingTimeout: 8000,
   })
+  // O socket IMAP por vezes emite um 'error' tardio (ex.: timeout a meio de
+  // uma operação, já depois do connect() ter resolvido) — sem este listener,
+  // esse evento não tem quem o apanhe e derruba o processo Node inteiro
+  // (uncaughtException), levando o site abaixo para todos os utilizadores a
+  // meio de outros pedidos. Mesmo padrão já usado em smtp-mail.ts.
+  client.on('error', (err) => console.error(`📧 [imap] erro tardio no socket (${email}):`, err))
   try {
     await client.connect()
     return client

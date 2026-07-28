@@ -872,6 +872,34 @@ export function createDirectAdminAPI(credentials: DirectAdminCredentials) {
       return { success: result.ok };
     },
 
+    // Redireccionar um domínio (ou domínio adicional que já possuis) para este
+    // domínio principal — ex.: uma antiga variante com erro de escrita a apontar
+    // para o domínio correcto. alias='no' -> redirecciona (HTTP), em vez de servir
+    // o mesmo conteúdo sem redireccionar (alias='yes').
+    listDomainPointers: async (domain: string) => {
+      const data = await daGet(credentials, 'CMD_API_DOMAIN_POINTER', { domain });
+      return extractList(data);
+    },
+
+    addDomainPointer: async (p: Record<string, unknown>) => {
+      const result = await daPost(credentials, 'CMD_API_DOMAIN_POINTER', {
+        action: 'add',
+        domain: String(p.domain || ''),
+        from: String(p.from || ''),
+        alias: 'no',
+      });
+      return { success: result.ok, message: result.error };
+    },
+
+    deleteDomainPointer: async (p: Record<string, unknown>) => {
+      const result = await daPost(credentials, 'CMD_API_DOMAIN_POINTER', {
+        action: 'delete',
+        domain: String(p.domain || ''),
+        select0: String(p.from || ''),
+      });
+      return { success: result.ok, message: result.error };
+    },
+
     getCatchAllEmail: async (domain: string) => {
       const data = await daGet(credentials, 'CMD_API_EMAIL_CATCH_ALL', { domain });
       return field(data, 'value');
