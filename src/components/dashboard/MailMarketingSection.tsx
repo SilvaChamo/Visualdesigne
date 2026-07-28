@@ -697,7 +697,8 @@ function MailMarketingContacts({ selectedSite, setSelectedSite, sites, listas, s
     }
   };
 
-  useEffect(() => { fetchSubs(); }, [selectedSite, searchTerm]);
+  // searchTerm filtra localmente (filteredSubscribers) — não precisa de recarregar do servidor a cada tecla.
+  useEffect(() => { fetchSubs(); }, [selectedSite]);
 
   useEffect(() => {
     if (!listFocus) return;
@@ -723,13 +724,25 @@ function MailMarketingContacts({ selectedSite, setSelectedSite, sites, listas, s
     if (!newEmail) return;
     try {
       const payload = { email: newEmail, domain: newDomainLabel || selectedSite, list: newListLabel };
-      const result = editingSub ? await atualizarSubscritor(editingSub.id, payload) : await adicionarSubscritor(payload);
-      if (result) {
+      const row = editingSub
+        ? await atualizarSubscritor(editingSub.id, payload)
+        : (await adicionarSubscritor(payload))?.data;
+
+      if (row) {
+        // Actualiza a lista localmente com a resposta já recebida do servidor,
+        // em vez de recarregar tudo (fetchSubs) — evita mostrar o skeleton de
+        // loading sobre a tabela inteira outra vez só para reflectir 1 linha.
+        setSubscribers(prev => {
+          const exists = prev.some(s => s.id === row.id);
+          return exists ? prev.map(s => (s.id === row.id ? row : s)) : [row, ...prev];
+        });
+        if (setListas) {
+          setListas(prev => (prev.includes(newListLabel) ? prev : [...prev, newListLabel]));
+        }
         toast.success("Contacto guardado!");
         setShowAddForm(false);
         setEditingSub(null);
         setNewEmail('');
-        fetchSubs();
       }
     } catch (error: any) {
       toast.error(error.message || "Erro ao guardar");
@@ -758,7 +771,7 @@ function MailMarketingContacts({ selectedSite, setSelectedSite, sites, listas, s
             <Upload className="w-4 h-4 mr-2" />
             Importar CSV
           </Button>
-          <Button size="sm" onClick={() => { setEditingSub(null); setNewEmail(''); setShowAddForm(true); }} className="h-9 bg-black hover:bg-gray-800 text-white rounded-md">
+          <Button size="sm" onClick={() => { setEditingSub(null); setNewEmail(''); setShowAddForm(true); }} className="h-9 bg-black hover:bg-red-600 text-white rounded-md">
             <Plus className="w-4 h-4 sm:mr-2" />
             <span className="hidden sm:inline">Adicionar</span>
           </Button>
@@ -776,7 +789,7 @@ function MailMarketingContacts({ selectedSite, setSelectedSite, sites, listas, s
               <th className="px-5 py-3 font-medium text-gray-500 text-right">Acções</th>
             </tr>
           </thead>
-          <tbody className="divide-y">
+          <tbody className="divide-y divide-gray-100">
             {loading ? <MailMarketingContactsSkeleton /> : currentItems.map(sub => (
               <tr key={sub.id} className="hover:bg-gray-50/50 transition-colors border-b border-gray-100 last:border-0">
                 <td className="px-5 py-3 font-medium text-gray-900">{sub.email}</td>
@@ -809,7 +822,7 @@ function MailMarketingContacts({ selectedSite, setSelectedSite, sites, listas, s
               </div>
               <div className="flex gap-3 pt-2">
                 <Button type="button" onClick={() => setShowAddForm(false)} className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-md">Cancelar</Button>
-                <Button type="submit" className="flex-1 bg-black hover:bg-gray-800 text-white rounded-md">Guardar</Button>
+                <Button type="submit" className="flex-1 bg-black hover:bg-red-600 text-white rounded-md">Guardar</Button>
               </div>
             </form>
           </div>
