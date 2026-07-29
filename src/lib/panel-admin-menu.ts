@@ -157,6 +157,7 @@ export const RESELLER_MAIN_MENU_DEFS: PanelMenuItemDef[] = [
       { id: 'cp-php', label: 'Configurar PHP' },
       { id: 'cp-dns-nameserver', label: 'Nameservers' },
       { id: 'transferir-dominio', label: 'Transferir' },
+      { id: 'cp-ftp', label: 'Contas FTP' },
     ],
   },
   {
@@ -169,6 +170,10 @@ export const RESELLER_MAIN_MENU_DEFS: PanelMenuItemDef[] = [
       { id: 'wp-backup', label: 'Backup' },
       { id: 'cp-databases', label: 'Bases de Dados' },
     ],
+  },
+  {
+    id: 'file-manager',
+    label: 'Gestão de Ficheiros',
   },
   {
     id: 'nov-notificacoes',
@@ -185,9 +190,6 @@ export const RESELLER_MAIN_MENU_DEFS: PanelMenuItemDef[] = [
     label: 'Definições',
     subItems: [
       { id: 'infrastructure', label: 'Servidor e API' },
-      { id: 'git-deploy', label: 'Deploy / GitHub' },
-      { id: 'file-manager', label: 'Gestor de ficheiros' },
-      { id: 'cp-ftp', label: 'Contas FTP' },
       { id: 'settings-branding', label: 'Branding & Logo' },
       { id: 'settings-profile', label: 'Meu Perfil' },
     ],
@@ -406,13 +408,12 @@ export const RESELLER_SECTION_TO_PARENT: Record<string, string> = {
   'wp-backup-report': 'nov-wordpress',
   'cp-databases': 'nov-wordpress',
   'domain-detail': 'nov-dominios',
+  'cp-ftp': 'nov-dominios',
   infrastructure: 'nov-definicoes',
-  'git-deploy': 'nov-definicoes',
-  'file-manager': 'nov-definicoes',
-  'cp-file-manager': 'nov-definicoes',
-  'cp-ftp': 'nov-definicoes',
   'settings-branding': 'nov-definicoes',
   'settings-profile': 'nov-definicoes',
+  'file-manager': 'file-manager',
+  'cp-file-manager': 'file-manager',
 };
 
 export function resellerMenuParentForSection(sectionId: string): string | null {

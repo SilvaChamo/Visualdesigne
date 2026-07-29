@@ -19,6 +19,7 @@ export function ResellerProfileSection() {
   const [isSavingProfile, setIsSavingProfile] = useState(false);
   const [isChangingPassword, setIsChangingPassword] = useState(false);
   const [message, setMessage] = useState({ type: '', text: '' });
+  const [originalEmail, setOriginalEmail] = useState('');
 
   useEffect(() => {
     async function loadUser() {
@@ -30,6 +31,7 @@ export function ResellerProfileSection() {
           telefone: user.user_metadata?.telefone || '',
           empresa: user.user_metadata?.empresa || ''
         });
+        setOriginalEmail(user.email || '');
       }
     }
     loadUser();
@@ -50,16 +52,25 @@ export function ResellerProfileSection() {
     setMessage({ type: '', text: '' });
 
     try {
+      const newEmail = userData.email.trim();
+      const emailChanged = newEmail.toLowerCase() !== originalEmail.trim().toLowerCase();
+
       const { error } = await supabase.auth.updateUser({
-        data: { 
-          nome: userData.nome, 
+        data: {
+          nome: userData.nome,
           telefone: userData.telefone,
           empresa: userData.empresa
-        }
+        },
+        ...(emailChanged ? { email: newEmail } : {})
       });
 
       if (error) throw error;
-      setMessage({ type: 'success', text: 'Perfil actualizado com sucesso!' });
+      setMessage({
+        type: 'success',
+        text: emailChanged
+          ? 'Perfil actualizado! Foi enviado um email de confirmação para o novo endereço — a alteração de email só é aplicada depois de confirmar.'
+          : 'Perfil actualizado com sucesso!'
+      });
     } catch (error: any) {
       setMessage({ type: 'error', text: error.message });
     } finally {
@@ -126,12 +137,13 @@ export function ResellerProfileSection() {
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <label className="text-sm font-bold text-gray-700">Email (Apenas leitura)</label>
+                  <label className="text-sm font-bold text-gray-700">Email</label>
                   <input
                     type="email"
                     value={userData.email}
-                    disabled
-                    className="w-full bg-gray-100 border border-gray-200 rounded px-4 py-2 text-sm text-gray-500 cursor-not-allowed"
+                    onChange={(e) => setUserData({ ...userData, email: e.target.value })}
+                    className="w-full bg-gray-50 border border-gray-200 rounded px-4 py-2 text-sm focus:ring-2 focus:ring-red-500/20 outline-none"
+                    placeholder="email@exemplo.com"
                   />
                 </div>
                 <div className="space-y-1.5">

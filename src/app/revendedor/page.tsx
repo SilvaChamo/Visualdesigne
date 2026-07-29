@@ -19,7 +19,7 @@ import { WebmailSection } from '@/components/dashboard/WebmailSection'
 import {
   DatabasesSection, FTPSection, EmailManagementSection,
   CPUsersSection, SSLSection, SSLViewSection, SecuritySection, PHPConfigSection,
-  APIConfigSection, GitDeploySection, WPPluginsSection,
+  APIConfigSection, WPPluginsSection,
   ResellerSection, ModifyWebsiteSection, SuspendWebsiteSection,
   DeleteWebsiteSection, DNSDefaultNSSection,
   DNSCreateZoneSection, DNSDeleteZoneSection, CloudFlareSection,
@@ -49,6 +49,7 @@ import { ProvisionAccountFormInline } from '../dashboard/ProvisionAccountFormInl
 import { ResellerProvisionForm } from '../dashboard/ResellerProvisionForm'
 import { createDefaultResellerPackageForm } from '@/lib/reseller-package-form'
 import { ResellerSettingsSection } from '@/components/revendedor/ResellerSettingsSection'
+import { fetchCompanyLogoUrl } from '@/components/admin/CompanyLogoUpload'
 import { ResellerProfileSection } from '@/components/revendedor/ResellerProfileSection'
 import { ResellerNotificationsInbox } from '@/components/revendedor/ResellerNotificationsInbox'
 import { directAdminAPI as panelAPI } from '@/lib/directadmin-api'
@@ -1290,14 +1291,14 @@ function ResellerPageContent() {
   const [selectedDatabaseDomain, setSelectedDatabaseDomain] = useState('')
   const [selectedManageDomain, setSelectedManageDomain] = useState<string>(() => {
     if (typeof window !== 'undefined') {
-      return localStorage.getItem('last_managed_domain_reseller') || ''
+      return localStorage.getItem('panel_last_managed_domain_reseller') || ''
     }
     return ''
   })
 
   useEffect(() => {
     if (typeof window !== 'undefined' && selectedManageDomain) {
-      localStorage.setItem('last_managed_domain_reseller', selectedManageDomain)
+      localStorage.setItem('panel_last_managed_domain_reseller', selectedManageDomain)
     }
   }, [selectedManageDomain])
   const [preSelectedEmailDomain, setPreSelectedEmailDomain] = useState<string>('')
@@ -1313,8 +1314,7 @@ function ResellerPageContent() {
   const [logoUrl, setLogoUrl] = useState<string>('/assets/simbolo.png');
 
   useEffect(() => {
-    const savedLogo = localStorage.getItem('reseller_custom_logo');
-    if (savedLogo) setLogoUrl(savedLogo);
+    fetchCompanyLogoUrl().then((url) => { if (url) setLogoUrl(url); });
   }, []);
 
   const searchParams = useSearchParams();
@@ -1768,8 +1768,6 @@ function ResellerPageContent() {
             onHubPanelClose={() => setDomainHubTab('meus')}
           />
         )
-      case 'git-deploy':
-        return <GitDeploySection />
       case 'deploy':
         return <DeploySection sites={filteredSites} />
       case 'packages-new':
@@ -1901,7 +1899,7 @@ function ResellerPageContent() {
           onRefresh={() => void loadDirectAdminData(true)}
         />
       case 'settings-branding':
-        return <ResellerSettingsSection onLogoChange={setLogoUrl} />;
+        return <ResellerSettingsSection onLogoChange={(url) => setLogoUrl(url || '/assets/simbolo.png')} />;
       case 'settings-profile':
         return <ResellerProfileSection />;
       default:

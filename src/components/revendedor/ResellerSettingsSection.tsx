@@ -1,54 +1,26 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
-import { Upload, Save, CheckCircle, Image as ImageIcon } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { Image as ImageIcon } from 'lucide-react';
+import { CompanyLogoUpload, fetchCompanyLogoUrl } from '@/components/admin/CompanyLogoUpload';
 
-export function ResellerSettingsSection({ onLogoChange }: { onLogoChange?: (logo: string) => void }) {
-  const [logoUrl, setLogoUrl] = useState<string>('');
-  const [preview, setPreview] = useState<string>('');
-  const [isSaving, setIsSaving] = useState(false);
-  const [message, setMessage] = useState('');
+/**
+ * Único sítio onde o revendedor define o seu logótipo — guardado em
+ * profiles.logo_url via /api/mailmarketing-logo (mesmo backend usado pelo
+ * Composer de Mailmarketing e por "A Minha Conta"). Todos os outros lugares
+ * do painel (barra lateral, cabeçalho dos templates de email) leem daqui,
+ * em vez de terem cada um o seu próprio campo de upload.
+ */
+export function ResellerSettingsSection({ onLogoChange }: { onLogoChange?: (logo: string | null) => void }) {
+  const [logoUrl, setLogoUrl] = useState<string | null>(null);
 
   useEffect(() => {
-    // Carregar o logo actual do localStorage (simulando base de dados)
-    const savedLogo = localStorage.getItem('reseller_custom_logo');
-    const defaultLogo = '/assets/simbolo.png';
-    
-    if (savedLogo) {
-      setLogoUrl(savedLogo);
-      setPreview(savedLogo);
-    } else {
-      setLogoUrl(defaultLogo);
-      setPreview(defaultLogo);
-    }
+    fetchCompanyLogoUrl().then(setLogoUrl);
   }, []);
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const base64 = event.target?.result as string;
-      setPreview(base64);
-    };
-    reader.readAsDataURL(file);
-  };
-
-  const handleSave = () => {
-    setIsSaving(true);
-    setMessage('');
-    
-    setTimeout(() => {
-      // Salvar a nova imagem
-      if (preview) {
-        localStorage.setItem('reseller_custom_logo', preview);
-        setLogoUrl(preview);
-        if (onLogoChange) onLogoChange(preview);
-        setMessage('Logótipo actualizado com sucesso!');
-      }
-      setIsSaving(false);
-    }, 800);
+  const handleChange = (url: string | null) => {
+    setLogoUrl(url);
+    onLogoChange?.(url);
   };
 
   return (
@@ -58,48 +30,10 @@ export function ResellerSettingsSection({ onLogoChange }: { onLogoChange?: (logo
           <ImageIcon className="w-5 h-5 text-red-600" /> Branding & Logótipo
         </h2>
         <p className="text-sm text-gray-500 mb-6">
-          Personalize a identidade visual do seu portal. O logótipo que enviar aqui será apresentado na barra lateral esquerda e nos cabeçalhos dos relatórios/notificações enviadas aos seus clientes.
+          Personalize a identidade visual do seu portal. Este logótipo é usado na barra lateral do
+          painel e no cabeçalho dos templates de Mailmarketing enviados aos seus clientes.
         </p>
-
-        <div className="space-y-6">
-          <div>
-            <label className="block text-sm font-bold text-gray-700 mb-2">Logótipo Actual</label>
-            <div className="flex items-center gap-6">
-              <div className="w-40 h-24 bg-gray-50 border border-gray-200 border-dashed rounded-lg flex flex-col items-center justify-center relative overflow-hidden">
-                {preview ? (
-                  <img src={preview} alt="Logo Preview" className="max-w-full max-h-full object-contain p-2" />
-                ) : (
-                  <span className="text-xs text-gray-400">Sem imagem</span>
-                )}
-              </div>
-              
-              <div className="flex-1">
-                <label className="flex items-center gap-2 px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-bold rounded cursor-pointer transition-colors w-fit">
-                  <Upload size={16} />
-                  <span>Escolher nova imagem...</span>
-                  <input type="file" accept="image/*" className="hidden" onChange={handleFileChange} />
-                </label>
-                <p className="text-xs text-gray-400 mt-2">Formatos suportados: PNG, JPG ou SVG. Altura recomendada: 60px.</p>
-              </div>
-            </div>
-          </div>
-
-          {message && (
-            <div className="p-3 bg-green-50 text-green-700 border border-green-200 rounded text-sm flex items-center gap-2">
-              <CheckCircle size={16} /> {message}
-            </div>
-          )}
-
-          <div className="pt-4 border-t border-gray-100 flex justify-end">
-            <button
-              onClick={handleSave}
-              disabled={isSaving || preview === logoUrl}
-              className="bg-red-600 hover:bg-red-700 text-white px-5 py-2 rounded text-sm font-bold transition-all disabled:opacity-50 flex items-center gap-2 shadow-sm"
-            >
-              {isSaving ? 'A guardar...' : <><Save size={16} /> Guardar Alterações</>}
-            </button>
-          </div>
-        </div>
+        <CompanyLogoUpload value={logoUrl} onChange={handleChange} />
       </div>
     </div>
   );

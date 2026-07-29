@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
 import { requirePanelBootstrapAccess } from '@/lib/panel-api-auth';
-import { IMPERSONATE_COOKIE, resolvePanelDaContext } from '@/lib/panel-api-context';
+import { resolvePanelDaContext } from '@/lib/panel-api-context';
 import { resolveResellerPanelContext } from '@/lib/panel-reseller-context';
 import { scheduleDaSync } from '@/lib/da-sync-engine';
 import { resolveClientPanelContext } from '@/lib/panel-client-context';
@@ -94,18 +93,18 @@ export async function GET(req: NextRequest) {
       user: auth.user as { id: string; email?: string; role: 'admin' | 'reseller' },
     };
 
-    // O painel /dashboard pede sempre scope=admin — se um admin ficou "preso" a
-    // impersonar um revendedor (ex.: saiu de /revendedor sem clicar "Voltar ao
-    // painel"), este é o ponto onde a própria conta admin volta a pedir os seus
-    // dados, por isso é seguro (e necessário) ignorar e limpar aqui a cookie de
-    // impersonação — caso contrário o /dashboard continua a mostrar as contas do
-    // revendedor em vez das da VisualDesign.
+    // O painel /dashboard pede sempre scope=admin — se um admin estiver a impersonar
+    // um revendedor (ex.: tem /revendedor aberto noutro separador), esta resposta em
+    // concreto deve mostrar os dados da própria VisualDesign, não os do revendedor.
+    // Importante: isto só ignora a impersonação PARA ESTA RESPOSTA — nunca apagar a
+    // cookie aqui. Apagar a cookie era um efeito secundário de um GET, e como
+    // cookies não são por separador, um simples pedido de bootstrap feito a partir
+    // de /dashboard (ex.: um componente de chrome partilhado) terminava
+    // silenciosamente a sessão de impersonação activa no separador /revendedor a
+    // meio do uso. A saída de impersonação já tem um caminho explícito (botão
+    // "Voltar ao painel" / aviso "A impersonar: X — Sair" na AdminSidebar).
     const requestedScope = req.nextUrl.searchParams.get('scope');
     const bypassImpersonation = requestedScope === 'admin' && staffAuth.user.role === 'admin';
-    if (bypassImpersonation) {
-      const store = await cookies();
-      if (store.get(IMPERSONATE_COOKIE)) store.delete(IMPERSONATE_COOKIE);
-    }
 
     const { mirrorScope, effectiveRole } = await resolvePanelDaContext(
       {

@@ -19,7 +19,7 @@ import { RichTextEditor } from "@/components/RichTextEditor";
 import { MultiFileUpload } from "@/components/admin/MultiFileUpload";
 import { SenderEmailSelector } from "@/components/admin/SenderEmailSelector";
 import { EmailTemplates } from "@/components/admin/EmailTemplates";
-import { CompanyLogoUpload, fetchCompanyLogoUrl } from "@/components/admin/CompanyLogoUpload";
+import { fetchCompanyLogoUrl } from "@/components/admin/CompanyLogoUpload";
 import { toast } from "sonner";
 import {
   adminListarSubscritores as listarSubscritores,
@@ -694,11 +694,6 @@ function MailMarketingComposer({ selectedSite, setSelectedSite, sites, onGoToHis
               </div>
             )}
           </div>
-          {!isAdminAccount && (
-            <div className="bg-white dark:bg-zinc-900 p-5 rounded-lg border border-slate-100 dark:border-zinc-800 shadow-sm">
-              <CompanyLogoUpload value={companyLogoUrl} onChange={setCompanyLogoUrl} />
-            </div>
-          )}
         </div>
       </div>
       {showTemplates && (
