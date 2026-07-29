@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { requireAdminOrReseller } from '@/lib/panel-api-auth';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
+import { isYearClosed } from '@/lib/accounting-year-lock';
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ batchId: string; expenseId: string }> }) {
   const auth = await requireAdminOrReseller();
@@ -17,10 +18,24 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ ba
   const { expenseId } = await params;
 
   try {
+    const { data: existing, error: existingError } = await supabase
+      .from('quotation_batch_expenses')
+      .select('created_at')
+      .eq('id', expenseId)
+      .single();
+    if (existingError || !existing) {
+      return NextResponse.json({ success: false, error: 'Despesa não encontrada.' }, { status: 404 });
+    }
+    const expenseYear = new Date(existing.created_at).getFullYear();
+    if (await isYearClosed(supabase, expenseYear)) {
+      return NextResponse.json({ success: false, error: `O exercício de ${expenseYear} já está fechado — não é possível alterar esta despesa.` }, { status: 409 });
+    }
+
     const body = await request.json();
     const update: Record<string, unknown> = { updated_at: new Date().toISOString() };
     if (body?.descricao !== undefined) update.descricao = body.descricao;
     if (body?.valorMt !== undefined) update.valor_mt = body.valorMt;
+    if (body?.quantidade !== undefined) update.quantidade = body.quantidade;
 
     const { data, error } = await supabase
       .from('quotation_batch_expenses')
@@ -52,6 +67,19 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ b
   const { expenseId } = await params;
 
   try {
+    const { data: existing, error: existingError } = await supabase
+      .from('quotation_batch_expenses')
+      .select('created_at')
+      .eq('id', expenseId)
+      .single();
+    if (existingError || !existing) {
+      return NextResponse.json({ success: false, error: 'Despesa não encontrada.' }, { status: 404 });
+    }
+    const expenseYear = new Date(existing.created_at).getFullYear();
+    if (await isYearClosed(supabase, expenseYear)) {
+      return NextResponse.json({ success: false, error: `O exercício de ${expenseYear} já está fechado — não é possível remover esta despesa.` }, { status: 409 });
+    }
+
     const { error } = await supabase.from('quotation_batch_expenses').delete().eq('id', expenseId);
     if (error) throw error;
 

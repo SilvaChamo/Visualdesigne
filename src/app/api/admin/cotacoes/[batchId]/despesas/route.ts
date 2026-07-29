@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { requireAdminOrReseller } from '@/lib/panel-api-auth';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
+import { isYearClosed } from '@/lib/accounting-year-lock';
 
 // Lista/regista despesas de produção (materiais, etc.) de uma encomenda —
 // o total alimenta "Custos de produção" na Contabilidade mensal.
@@ -48,10 +49,14 @@ export async function POST(request: Request, { params }: { params: Promise<{ bat
   const { batchId } = await params;
 
   try {
+    if (await isYearClosed(supabase, new Date().getFullYear())) {
+      return NextResponse.json({ success: false, error: 'O exercício deste ano já está fechado — não é possível lançar novas despesas.' }, { status: 409 });
+    }
+
     const body = await request.json();
     const { data, error } = await supabase
       .from('quotation_batch_expenses')
-      .insert({ batch_id: batchId, descricao: body?.descricao || '', valor_mt: body?.valorMt || 0 })
+      .insert({ batch_id: batchId, descricao: body?.descricao || '', valor_mt: body?.valorMt || 0, quantidade: body?.quantidade || 1 })
       .select()
       .single();
     if (error) throw error;

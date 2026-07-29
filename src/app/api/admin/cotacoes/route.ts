@@ -33,9 +33,9 @@ async function saveAccountingSnapshot(
 
     const { data: expenses } = await supabase
       .from('quotation_batch_expenses')
-      .select('valor_mt')
+      .select('valor_mt, quantidade')
       .eq('batch_id', batchId);
-    const custosProducaoMt = (expenses || []).reduce((sum: number, e: any) => sum + (Number(e.valor_mt) || 0), 0);
+    const custosProducaoMt = (expenses || []).reduce((sum: number, e: any) => sum + (Number(e.valor_mt) || 0) * (Number(e.quantidade) || 1), 0);
 
     // IVA sai depois de retirar os custos de produção, nunca sobre a receita
     // bruta — e é sempre a taxa fixa de 16%, nunca editável.

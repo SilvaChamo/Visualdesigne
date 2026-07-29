@@ -740,6 +740,12 @@ function BatchCard({
 
                 <div className="space-y-2">
                   <div className="rounded-lg border border-gray-100 dark:border-zinc-800 overflow-hidden divide-y divide-gray-100 dark:divide-zinc-800">
+                    <div className="flex items-center gap-3 px-3 py-1.5 bg-gray-50 dark:bg-zinc-800/60">
+                      <span className="min-w-0 flex-1 text-[10px] font-bold uppercase tracking-wide text-gray-400 dark:text-zinc-500">Descrição</span>
+                      <span className="w-24 shrink-0 text-right text-[10px] font-bold uppercase tracking-wide text-gray-400 dark:text-zinc-500 whitespace-nowrap">V. unitário</span>
+                      <span className="w-24 shrink-0 text-right text-[10px] font-bold uppercase tracking-wide text-gray-400 dark:text-zinc-500 whitespace-nowrap">V. total</span>
+                      <span className="ml-2 w-3.5 shrink-0" aria-hidden="true" />
+                    </div>
                     {batch.items.map((item, idx) => {
                       return (
                         <div
@@ -790,6 +796,13 @@ function BatchCard({
                               ))}
                             </select>
                           </div>
+                          <span className="w-24 shrink-0 text-right text-sm whitespace-nowrap">
+                            {item.sob_consulta ? (
+                              <span className="text-gray-300 dark:text-zinc-600">—</span>
+                            ) : (
+                              <span className="text-gray-500 dark:text-zinc-400">{formatMt(item.preco_unitario_mt)} MT</span>
+                            )}
+                          </span>
                           <span className="w-24 shrink-0 text-right text-sm font-semibold whitespace-nowrap">
                             {item.sob_consulta ? (
                               <span className="text-red-600 dark:text-red-500 font-extrabold">Sob Consulta</span>
@@ -805,6 +818,7 @@ function BatchCard({
                       <div className="min-w-0 flex-1 text-right">
                         <span className="text-xs font-bold uppercase tracking-wide text-gray-400 dark:text-zinc-500">Total da encomenda</span>
                       </div>
+                      <span className="w-24 shrink-0" aria-hidden="true" />
                       <span className="w-24 shrink-0 text-right text-sm font-bold whitespace-nowrap">
                         {batch.sobConsulta ? (
                           <span className="text-red-600 dark:text-red-500 font-extrabold">Sob Consulta</span>
@@ -816,7 +830,7 @@ function BatchCard({
                     </div>
                   </div>
 
-                  <QuotationBatchExpenses batchId={batch.batchId} />
+                  <QuotationBatchExpenses batchId={batch.batchId} receitaMt={batch.sobConsulta ? null : batch.totalMt} />
                 </div>
               </div>
             )}

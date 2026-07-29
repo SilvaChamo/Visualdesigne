@@ -16,6 +16,17 @@ type MonthRow = {
   lucroMt: number
 }
 
+type FechoRow = {
+  year: number
+  receita_mt: number
+  custos_producao_mt: number
+  iva_percent: number
+  iva_mt: number
+  lucro_mt: number
+  closed_at: string
+  closed_by: string | null
+}
+
 type RegistoRow = {
   batch_id: string
   primary_item_id: string
@@ -63,6 +74,7 @@ const TABS: { id: ContabilidadeTab; label: string }[] = [
 export function ContabilidadeTable() {
   const [meses, setMeses] = useState<MonthRow[] | null>(null)
   const [registos, setRegistos] = useState<RegistoRow[] | null>(null)
+  const [fechos, setFechos] = useState<FechoRow[] | null>(null)
   const [activeTab, setActiveTab] = useState<ContabilidadeTab>('balanco')
 
   const load = () => {
@@ -72,6 +84,7 @@ export function ContabilidadeTable() {
         if (data.success) {
           setMeses(data.meses)
           setRegistos(data.registos ?? [])
+          setFechos(data.fechos ?? [])
         }
       })
       .catch((error) => console.error('Erro ao carregar contabilidade:', error))
@@ -81,7 +94,7 @@ export function ContabilidadeTable() {
     load()
   }, [])
 
-  if (!meses || !registos) {
+  if (!meses || !registos || !fechos) {
     return <div className="text-center py-12 text-sm text-gray-400 dark:text-zinc-500">A carregar contabilidade...</div>
   }
 
@@ -102,7 +115,12 @@ export function ContabilidadeTable() {
         </div>
       </div>
 
-      {activeTab === 'balanco' && <BalancoTable meses={meses} />}
+      {activeTab === 'balanco' && (
+        <div className="space-y-4">
+          <BalancoTable meses={meses} />
+          <FechoAnualCard meses={meses} fechos={fechos} onClosed={load} />
+        </div>
+      )}
       {activeTab === 'cotacoes' && <RegistosTable registos={registos} variant="cotacao" />}
       {activeTab === 'facturas' && <RegistosTable registos={registos} variant="factura" />}
     </div>
@@ -153,6 +171,149 @@ function BalancoTable({ meses }: { meses: MonthRow[] }) {
             ))}
           </tbody>
         </table>
+      </div>
+    </div>
+  )
+}
+
+function FechoAnualCard({
+  meses,
+  fechos,
+  onClosed,
+}: {
+  meses: MonthRow[]
+  fechos: FechoRow[]
+  onClosed: () => void
+}) {
+  const [open, setOpen] = useState(false)
+  const [closing, setClosing] = useState<number | null>(null)
+  const [error, setError] = useState('')
+
+  const years = [...new Set(meses.map((m) => Number(anoLabel(m.month))))].sort((a, b) => b - a)
+  if (years.length === 0) return null
+
+  const closeYear = async (year: number) => {
+    const monthsInYear = meses.filter((m) => Number(anoLabel(m.month)) === year).length
+    const confirmMsg = monthsInYear < 12
+      ? `Este ano só tem ${monthsInYear} ${monthsInYear === 1 ? 'mês' : 'meses'} com movimento — tens a certeza que já pode ser fechado?`
+      : `Fechar o exercício de ${year}? Os valores ficam congelados e as despesas desse ano deixam de poder ser editadas.`
+    if (!window.confirm(confirmMsg)) return
+
+    setClosing(year)
+    setError('')
+    try {
+      const res = await fetch('/api/admin/contabilidade/fechar', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ year }),
+      })
+      const data = await res.json()
+      if (!res.ok || !data.success) throw new Error(data.error || 'Não foi possível fechar o ano.')
+      onClosed()
+    } catch (err: any) {
+      setError(err.message || 'Falha ao comunicar com o servidor.')
+    } finally {
+      setClosing(null)
+    }
+  }
+
+  return (
+    <div className={`${panelSectionCard} overflow-hidden`}>
+      <div className="border-b border-gray-200 bg-gray-50 px-4 py-3 dark:border-zinc-700 dark:bg-zinc-800/50 flex items-start justify-between gap-3">
+        <div>
+          <p className="font-bold text-gray-900 dark:text-white">Fecho de exercício anual</p>
+          <p className="text-xs text-gray-500 dark:text-zinc-400">Revê os 12 meses antes de fechar — depois de fechado, o ano fica congelado e não pode voltar a mudar.</p>
+        </div>
+        <button
+          type="button"
+          onClick={() => setOpen((v) => !v)}
+          className="shrink-0 whitespace-nowrap text-sm font-bold text-red-600 hover:underline dark:text-red-400"
+        >
+          Fechar o ano {open ? '▾' : '▸'}
+        </button>
+      </div>
+
+      {/* Desliza para baixo em vez de aparecer instantaneamente — mesmo
+          truque de grid-rows já usado em /precos para os acordeões. */}
+      <div className={`grid transition-all duration-300 ease-in-out ${open ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'}`}>
+        <div className="overflow-hidden">
+          {error && <p className="px-4 pt-3 text-xs text-rose-600 dark:text-rose-400">{error}</p>}
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-gray-200 text-xs font-bold uppercase tracking-wide text-gray-500 dark:border-zinc-700 dark:text-zinc-400">
+                  <th className="px-4 py-2 text-left whitespace-nowrap">Ano / Mês</th>
+                  <th className="px-4 py-2 text-right whitespace-nowrap">Receita</th>
+                  <th className="px-4 py-2 text-right whitespace-nowrap">Custo de produção</th>
+                  <th className="px-4 py-2 text-right whitespace-nowrap">IVA (16%)</th>
+                  <th className="px-4 py-2 text-right whitespace-nowrap">Lucro</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100 dark:divide-zinc-800">
+                {years.flatMap((year) => {
+                  const fecho = fechos.find((f) => f.year === year)
+                  const monthsInYear = meses.filter((m) => Number(anoLabel(m.month)) === year)
+                  const receitaMt = fecho ? fecho.receita_mt : monthsInYear.reduce((sum, m) => sum + m.receitaMt, 0)
+                  const custosProducaoMt = fecho ? fecho.custos_producao_mt : monthsInYear.reduce((sum, m) => sum + m.custosProducaoMt, 0)
+                  const ivaMt = fecho ? fecho.iva_mt : monthsInYear.reduce((sum, m) => sum + m.ivaMt, 0)
+                  const lucroMt = fecho ? fecho.lucro_mt : monthsInYear.reduce((sum, m) => sum + m.lucroMt, 0)
+
+                  const rows = [
+                    <tr key={`${year}-total`} className="bg-gray-50 dark:bg-zinc-800/40">
+                      <td className="whitespace-nowrap px-4 py-2.5">
+                        {fecho ? (
+                          <a
+                            href={`/contabilidade/fecho/${year}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="font-bold text-gray-900 hover:underline dark:text-white"
+                            title="Ver documento do fecho"
+                          >
+                            {year} · Fechado em {new Date(fecho.closed_at).toLocaleDateString('pt-PT')}
+                          </a>
+                        ) : (
+                          <span className="font-bold text-gray-900 dark:text-white">{year}</span>
+                        )}
+                      </td>
+                      <td className="whitespace-nowrap px-4 py-2.5 text-right font-bold tabular-nums text-gray-900 dark:text-white">{formatMt(receitaMt)} MT</td>
+                      <td className="whitespace-nowrap px-4 py-2.5 text-right tabular-nums text-gray-700 dark:text-zinc-300">{formatMt(custosProducaoMt)} MT</td>
+                      <td className="whitespace-nowrap px-4 py-2.5 text-right tabular-nums text-gray-700 dark:text-zinc-300">{formatMt(ivaMt)} MT</td>
+                      <td className="whitespace-nowrap px-4 py-2.5 text-right font-bold tabular-nums text-gray-900 dark:text-white">{formatMt(lucroMt)} MT</td>
+                    </tr>,
+                    ...monthsInYear.map((m) => (
+                      <tr key={m.month}>
+                        <td className="whitespace-nowrap py-1.5 pl-8 pr-4 text-xs text-gray-500 dark:text-zinc-400">{mesLabel(m.month)}</td>
+                        <td className="whitespace-nowrap px-4 py-1.5 text-right text-xs tabular-nums text-gray-500 dark:text-zinc-400">{formatMt(m.receitaMt)} MT</td>
+                        <td className="whitespace-nowrap px-4 py-1.5 text-right text-xs tabular-nums text-gray-500 dark:text-zinc-400">{formatMt(m.custosProducaoMt)} MT</td>
+                        <td className="whitespace-nowrap px-4 py-1.5 text-right text-xs tabular-nums text-gray-500 dark:text-zinc-400">{formatMt(m.ivaMt)} MT</td>
+                        <td className="whitespace-nowrap px-4 py-1.5 text-right text-xs tabular-nums text-gray-500 dark:text-zinc-400">{formatMt(m.lucroMt)} MT</td>
+                      </tr>
+                    )),
+                  ]
+
+                  if (!fecho) {
+                    rows.push(
+                      <tr key={`${year}-fechar`}>
+                        <td colSpan={5} className="px-4 py-2.5 text-right">
+                          <button
+                            type="button"
+                            onClick={() => closeYear(year)}
+                            disabled={closing === year}
+                            className="text-xs font-bold text-red-600 hover:underline disabled:opacity-50 dark:text-red-400"
+                          >
+                            {closing === year ? 'A fechar...' : `Fechar o ano ${year}`}
+                          </button>
+                        </td>
+                      </tr>,
+                    )
+                  }
+
+                  return rows
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
       </div>
     </div>
   )

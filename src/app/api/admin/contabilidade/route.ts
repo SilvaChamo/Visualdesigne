@@ -47,20 +47,27 @@ export async function GET() {
     const [
       { data: registos, error: registosError },
       { data: expenses, error: expensesError },
+      { data: fechos, error: fechosError },
     ] = await Promise.all([
       supabase
         .from('accounting_batch_snapshots')
         .select('batch_id, primary_item_id, numero, advance_invoice_number, remainder_invoice_number, empresa, resumo, receita_mt, custos_producao_mt, iva_percent, iva_mt, lucro_mt, done_at')
         .order('done_at', { ascending: false }),
-      supabase.from('quotation_batch_expenses').select('valor_mt, created_at'),
+      supabase.from('quotation_batch_expenses').select('valor_mt, quantidade, created_at'),
+      supabase
+        .from('accounting_year_closings')
+        .select('year, receita_mt, custos_producao_mt, iva_percent, iva_mt, lucro_mt, closed_at, closed_by')
+        .order('year', { ascending: false }),
     ]);
     if (registosError) throw registosError;
     if (expensesError) throw expensesError;
+    if (fechosError) throw fechosError;
 
     const custosByMonth = new Map<string, number>();
     for (const e of expenses || []) {
       const key = monthKey(e.created_at);
-      custosByMonth.set(key, (custosByMonth.get(key) || 0) + (e.valor_mt || 0));
+      const valorTotal = (e.valor_mt || 0) * (e.quantidade || 1);
+      custosByMonth.set(key, (custosByMonth.get(key) || 0) + valorTotal);
     }
 
     const revenueByMonth = new Map<string, number>();
@@ -79,7 +86,7 @@ export async function GET() {
       return { month, receitaMt, custosProducaoMt, ivaPercent: IVA_PERCENT, ivaMt, lucroMt };
     });
 
-    return NextResponse.json({ success: true, meses, registos: registos || [] });
+    return NextResponse.json({ success: true, meses, registos: registos || [], fechos: fechos || [] });
   } catch (error: any) {
     console.error('[admin/contabilidade GET] error:', error);
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });

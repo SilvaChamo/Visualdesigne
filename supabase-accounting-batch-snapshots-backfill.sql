@@ -1,18 +1,10 @@
--- Backfill de accounting_batch_snapshots — corre isto UMA VEZ, depois de criar a
--- tabela (supabase-accounting-batch-snapshots.sql) e antes/depois de publicar a
--- versão optimizada de GET /api/admin/contabilidade.
---
--- Contexto: a Contabilidade passou a somar a receita mensal directamente de
--- accounting_batch_snapshots em vez de recalcular a cada carregamento a partir de
--- quotation_requests + quotation_status_history (tabelas que crescem com TODAS as
--- encomendas, de sempre, e tornavam o carregamento lento). O snapshot só é gravado
--- automaticamente daqui para a frente, no momento em que uma encomenda passa a
--- 'done' (ver saveAccountingSnapshot em /api/admin/cotacoes). Encomendas que já
--- estavam 'done' ANTES desta alteração não têm snapshot nenhum — sem este
--- backfill, a receita de todos os meses anteriores desaparecia da Contabilidade.
---
--- Idempotente: usa ON CONFLICT (batch_id) DO NOTHING, seguro para correr mais do
--- que uma vez (não duplica nem sobrescreve snapshots já existentes).
+-- Backfill/re-sync de accounting_batch_snapshots — apanha qualquer encomenda já
+-- 'done' que ainda não tenha snapshot gravado. Seguro para correr sempre que
+-- precisares (idempotente, ON CONFLICT (batch_id) DO NOTHING) — útil sobretudo
+-- enquanto o código novo (saveAccountingSnapshot em /api/admin/cotacoes) ainda
+-- não estiver publicado em produção: encomendas marcadas "Entregue" pelo
+-- código antigo (já em produção) não geram snapshot sozinhas, por isso a
+-- Contabilidade não as mostra até correr isto.
 
 WITH batch_status AS (
   SELECT
@@ -48,7 +40,7 @@ item_done_at AS (
 batch_done_at AS (
   SELECT
     qr.batch_id,
-    MAX(COALESCE(ida.done_at, qr.updated_at, qr.created_at)) AS done_at
+    MAX(COALESCE(qr.delivered_at, ida.done_at, qr.updated_at, qr.created_at)) AS done_at
   FROM quotation_requests qr
   LEFT JOIN item_done_at ida ON ida.quotation_id = qr.id
   WHERE qr.batch_id IN (SELECT batch_id FROM done_batches)
@@ -59,29 +51,35 @@ batch_expenses AS (
   FROM quotation_batch_expenses
   WHERE batch_id IN (SELECT batch_id FROM done_batches)
   GROUP BY batch_id
+),
+batch_advance_invoice AS (
+  SELECT batch_id, invoice_number FROM quotation_invoices WHERE phase = 'advance'
+),
+batch_remainder_invoice AS (
+  SELECT batch_id, invoice_number FROM quotation_invoices WHERE phase = 'remainder'
 )
 INSERT INTO accounting_batch_snapshots (
-  batch_id, primary_item_id, numero, invoice_number, empresa, nif, resumo,
+  batch_id, primary_item_id, numero, advance_invoice_number, remainder_invoice_number, empresa, nif, resumo,
   receita_mt, custos_producao_mt, iva_percent, iva_mt, lucro_mt, done_at
 )
 SELECT
   bt.batch_id,
   bt.primary_item_id,
   UPPER(SPLIT_PART(bt.batch_id::text, '-', 1)) AS numero,
-  qi.invoice_number,
+  bai.invoice_number,
+  bri.invoice_number,
   bt.empresa,
   bt.nif,
   CASE WHEN bt.item_count = 1 THEN bt.first_categoria_label || ' — ' || bt.first_produto ELSE bt.item_count || ' serviços' END AS resumo,
   bt.receita_mt,
   COALESCE(be.custos_producao_mt, 0),
-  COALESCE(ma.iva_percent, 16) AS iva_percent,
-  bt.receita_mt * COALESCE(ma.iva_percent, 16) / 100 AS iva_mt,
-  bt.receita_mt - COALESCE(be.custos_producao_mt, 0) - (bt.receita_mt * COALESCE(ma.iva_percent, 16) / 100) AS lucro_mt,
+  16 AS iva_percent,
+  (bt.receita_mt - COALESCE(be.custos_producao_mt, 0)) * 16 / 100 AS iva_mt,
+  bt.receita_mt - COALESCE(be.custos_producao_mt, 0) - ((bt.receita_mt - COALESCE(be.custos_producao_mt, 0)) * 16 / 100) AS lucro_mt,
   bda.done_at
 FROM batch_totals bt
 JOIN batch_done_at bda ON bda.batch_id = bt.batch_id
-LEFT JOIN quotation_invoices qi ON qi.batch_id = bt.batch_id
 LEFT JOIN batch_expenses be ON be.batch_id = bt.batch_id
-LEFT JOIN monthly_accounting ma
-  ON ma.month = date_trunc('month', bda.done_at AT TIME ZONE 'UTC')::date
+LEFT JOIN batch_advance_invoice bai ON bai.batch_id = bt.batch_id
+LEFT JOIN batch_remainder_invoice bri ON bri.batch_id = bt.batch_id
 ON CONFLICT (batch_id) DO NOTHING;
