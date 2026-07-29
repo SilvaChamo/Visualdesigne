@@ -448,31 +448,6 @@ export function ResellerDashboard({
             ))}
           </div>
         </div>
-
-        {filteredSites.length > 0 ? (
-          <div className="bg-white rounded border border-gray-200 shadow-sm p-4 dark:border-zinc-700 dark:bg-zinc-900">
-            <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-3 dark:text-zinc-400">
-              Sites ({filteredSites.length})
-            </p>
-            <div className="space-y-2 max-h-48 overflow-y-auto">
-              {sitesForWidget.slice(0, 5).map((s, i) => (
-                <div key={i} className="flex items-center gap-2 text-xs">
-                  <div
-                    className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${
-                      parseState(s.state) === 'Active' ? 'bg-green-500' : 'bg-red-400'
-                    }`}
-                  />
-                  <span className="text-gray-700 truncate font-medium flex-1 dark:text-zinc-300">{s.domain}</span>
-                </div>
-              ))}
-              {filteredSites.length > 5 ? (
-                <p className="text-xs text-gray-400 text-center pt-1 dark:text-zinc-500">
-                  +{filteredSites.length - 5} mais
-                </p>
-              ) : null}
-            </div>
-          </div>
-        ) : null}
       </div>
     </div>
   )
