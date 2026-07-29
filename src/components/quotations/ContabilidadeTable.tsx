@@ -170,7 +170,9 @@ function BalancoTable({ meses, registos }: { meses: MonthRow[]; registos: Regist
           </thead>
           <tbody className="divide-y divide-gray-100 dark:divide-zinc-800">
             {meses.flatMap((m) => {
-              const encomendasDoMes = registos.filter((r) => monthKey(r.done_at) === m.month)
+              const encomendasDoMes = registos
+                .filter((r) => monthKey(r.done_at) === m.month)
+                .sort((a, b) => b.numero.localeCompare(a.numero))
               const isCollapsed = collapsedMonths.has(m.month)
 
               const rows = [
@@ -216,14 +218,19 @@ function BalancoTable({ meses, registos }: { meses: MonthRow[]; registos: Regist
                   )
                 } else {
                   rows.push(
-                    ...encomendasDoMes.map((r) => (
+                    ...encomendasDoMes.map((r, idx) => (
                       <tr key={r.batch_id} className="hover:bg-gray-50 dark:hover:bg-zinc-800/30">
-                        <td className="px-4 py-1.5 pl-10 text-xs text-gray-500 dark:text-zinc-400">
-                          <span className="font-mono font-bold text-red-600 dark:text-red-400">{r.numero}</span>
-                          {' · '}
-                          <span className="font-medium text-gray-700 dark:text-zinc-300">{r.empresa}</span>
-                          {' — '}
-                          <span className="truncate">{r.resumo}</span>
+                        <td className="px-4 py-1.5 text-xs text-gray-500 dark:text-zinc-400">
+                          <span className="inline-flex items-baseline gap-2">
+                            <span className="w-3.5 shrink-0 text-right tabular-nums text-gray-400 dark:text-zinc-500">{idx + 1}</span>
+                            <span className="min-w-0">
+                              <span className="font-mono font-bold text-red-600 dark:text-red-400">{r.numero}</span>
+                              {' · '}
+                              <span className="font-medium text-gray-700 dark:text-zinc-300">{r.empresa}</span>
+                              {' — '}
+                              <span className="truncate">{r.resumo}</span>
+                            </span>
+                          </span>
                         </td>
                         <td className="whitespace-nowrap px-4 py-1.5 text-right text-xs tabular-nums text-gray-500 dark:text-zinc-400">{formatMt(r.receita_mt)} MT</td>
                         <td className="whitespace-nowrap px-4 py-1.5 text-right text-xs tabular-nums text-gray-500 dark:text-zinc-400">{formatMt(r.custos_producao_mt)} MT</td>
