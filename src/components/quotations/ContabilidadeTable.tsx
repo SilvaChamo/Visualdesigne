@@ -165,7 +165,6 @@ function BalancoTable({ meses, registos }: { meses: MonthRow[]; registos: Regist
               <th className="px-4 py-2 text-right whitespace-nowrap">Custo de produção</th>
               <th className="px-4 py-2 text-right whitespace-nowrap">IVA (16%)</th>
               <th className="px-4 py-2 text-right whitespace-nowrap">Lucro</th>
-              <th className="px-4 py-2 text-right whitespace-nowrap"> </th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100 dark:divide-zinc-800">
@@ -201,9 +200,6 @@ function BalancoTable({ meses, registos }: { meses: MonthRow[]; registos: Regist
                   <td className="whitespace-nowrap px-4 py-2.5 text-right font-bold tabular-nums text-gray-900 dark:text-white">
                     {formatMt(m.lucroMt)} MT
                   </td>
-                  <td className="whitespace-nowrap px-4 py-2.5 text-right text-xs text-gray-400 dark:text-zinc-500">
-                    {encomendasDoMes.length > 0 ? `${encomendasDoMes.length} encomenda${encomendasDoMes.length === 1 ? '' : 's'}` : '—'}
-                  </td>
                 </tr>,
               ]
 
@@ -211,7 +207,7 @@ function BalancoTable({ meses, registos }: { meses: MonthRow[]; registos: Regist
                 if (encomendasDoMes.length === 0) {
                   rows.push(
                     <tr key={`${m.month}-vazio`}>
-                      <td colSpan={6} className="px-4 py-2 pl-10 text-xs text-gray-400 dark:text-zinc-500">
+                      <td colSpan={5} className="px-4 py-2 pl-10 text-xs text-gray-400 dark:text-zinc-500">
                         Nenhuma encomenda concluída neste mês.
                       </td>
                     </tr>,
@@ -236,7 +232,6 @@ function BalancoTable({ meses, registos }: { meses: MonthRow[]; registos: Regist
                         <td className="whitespace-nowrap px-4 py-1.5 text-right text-xs tabular-nums text-gray-500 dark:text-zinc-400">{formatMt(r.custos_producao_mt)} MT</td>
                         <td className="whitespace-nowrap px-4 py-1.5 text-right text-xs tabular-nums text-gray-500 dark:text-zinc-400">{formatMt(r.iva_mt)} MT</td>
                         <td className="whitespace-nowrap px-4 py-1.5 text-right text-xs tabular-nums text-gray-500 dark:text-zinc-400">{formatMt(r.lucro_mt)} MT</td>
-                        <td className="whitespace-nowrap px-4 py-1.5" />
                       </tr>
                     )),
                   )

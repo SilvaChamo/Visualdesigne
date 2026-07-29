@@ -25,7 +25,9 @@ async function saveAccountingSnapshot(
     if (!primary) return;
 
     const receitaMt = siblings.reduce((sum, r) => sum + (r.sob_consulta ? 0 : Number(r.total_mt) || 0), 0);
-    const resumo = siblings.length === 1 ? `${primary.categoria_label} — ${primary.produto}` : `${siblings.length} serviços`;
+    // Sempre "N serviços" — nunca a descrição completa do item, mesmo quando
+    // só há um, para ficar consistente com as restantes linhas na Contabilidade.
+    const resumo = `${siblings.length} serviço${siblings.length === 1 ? '' : 's'}`;
 
     const { data: invoices } = await supabase
       .from('quotation_invoices')
