@@ -68,12 +68,13 @@ function openDocumentPopup(itemId: string, tipo?: 'factura', fase?: 'adiantament
   window.open(`/cotacao/${itemId}${query}`, `documento-${itemId}-${tipo ?? 'cotacao'}-${fase ?? ''}`, `width=${w},height=${h},left=${left},top=${top},resizable=yes,scrollbars=yes`)
 }
 
-type ContabilidadeTab = 'balanco' | 'cotacoes' | 'facturas'
+type ContabilidadeTab = 'balanco' | 'cotacoes' | 'facturas' | 'creditos'
 
 const TABS: { id: ContabilidadeTab; label: string }[] = [
   { id: 'balanco', label: 'Balanço' },
   { id: 'cotacoes', label: 'Cotações' },
   { id: 'facturas', label: 'Facturas' },
+  { id: 'creditos', label: 'Créditos' },
 ]
 
 export function ContabilidadeTable() {
@@ -128,6 +129,154 @@ export function ContabilidadeTable() {
       )}
       {activeTab === 'cotacoes' && <RegistosTable registos={registos} variant="cotacao" />}
       {activeTab === 'facturas' && <RegistosTable registos={registos} variant="factura" />}
+      {activeTab === 'creditos' && <ResellerCreditsTable />}
+    </div>
+  )
+}
+
+type CreditoPedido = {
+  id: string
+  da_username: string
+  email: string | null
+  valor_mt: number
+  metodo_pagamento: string
+  status: 'pending' | 'confirmed' | 'rejected'
+  comprovativo_url: string | null
+  rejection_reason: string | null
+  created_at: string
+  confirmed_at: string | null
+}
+
+const METODO_LABEL: Record<string, string> = { mpesa: 'M-Pesa', transferencia: 'Transferência' }
+const CREDITO_STATUS_META: Record<CreditoPedido['status'], { label: string; className: string }> = {
+  pending: { label: 'Pendente', className: 'bg-amber-100 text-amber-700 dark:bg-amber-950/30 dark:text-amber-400' },
+  confirmed: { label: 'Confirmado', className: 'bg-green-100 text-green-700 dark:bg-green-950/30 dark:text-green-400' },
+  rejected: { label: 'Rejeitado', className: 'bg-rose-100 text-rose-700 dark:bg-rose-950/30 dark:text-rose-400' },
+}
+
+function ResellerCreditsTable() {
+  const [pedidos, setPedidos] = useState<CreditoPedido[] | null>(null)
+  const [updatingId, setUpdatingId] = useState<string | null>(null)
+
+  const load = () => {
+    fetch('/api/admin/reseller-creditos')
+      .then((r) => r.json())
+      .then((data) => { if (data.success) setPedidos(data.pedidos) })
+      .catch((error) => console.error('Erro ao carregar créditos de revendedores:', error))
+  }
+
+  useEffect(() => {
+    load()
+  }, [])
+
+  const respond = async (id: string, status: 'confirmed' | 'rejected') => {
+    let rejectionReason: string | null = null
+    if (status === 'rejected') {
+      rejectionReason = window.prompt('Motivo da rejeição (opcional):', '')
+      if (rejectionReason === null) return
+    } else if (!window.confirm('Confirmar este carregamento? O valor é somado ao saldo do revendedor de imediato.')) {
+      return
+    }
+
+    setUpdatingId(id)
+    try {
+      const res = await fetch(`/api/admin/reseller-creditos/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status, rejectionReason }),
+      })
+      const data = await res.json()
+      if (!data.success) throw new Error(data.error || 'Não foi possível actualizar o pedido.')
+      load()
+    } catch (error: any) {
+      window.alert(error.message || 'Falha ao comunicar com o servidor.')
+    } finally {
+      setUpdatingId(null)
+    }
+  }
+
+  if (!pedidos) {
+    return <div className="text-center py-12 text-sm text-gray-400 dark:text-zinc-500">A carregar pedidos de crédito...</div>
+  }
+  if (pedidos.length === 0) {
+    return <div className={`${panelSectionCard} p-8 text-center text-sm text-gray-500 dark:text-zinc-400`}>Ainda não há pedidos de carregamento de saldo.</div>
+  }
+
+  return (
+    <div className={`${panelSectionCard} overflow-hidden`}>
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b border-gray-200 text-xs font-bold uppercase tracking-wide text-gray-500 dark:border-zinc-700 dark:text-zinc-400">
+              <th className="px-4 py-2 text-left whitespace-nowrap">Data</th>
+              <th className="px-4 py-2 text-left">Revendedor</th>
+              <th className="px-4 py-2 text-right whitespace-nowrap">Valor</th>
+              <th className="px-4 py-2 text-left whitespace-nowrap">Método</th>
+              <th className="px-4 py-2 text-left whitespace-nowrap">Comprovativo</th>
+              <th className="px-4 py-2 text-right whitespace-nowrap">Estado</th>
+              <th className="px-4 py-2 text-right whitespace-nowrap"> </th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-100 dark:divide-zinc-800">
+            {pedidos.map((p) => {
+              const meta = CREDITO_STATUS_META[p.status]
+              return (
+                <tr key={p.id} className="hover:bg-gray-50 dark:hover:bg-zinc-800/30">
+                  <td className="whitespace-nowrap px-4 py-2.5 text-gray-500 dark:text-zinc-400">
+                    {new Date(p.created_at).toLocaleDateString('pt-PT')}
+                  </td>
+                  <td className="max-w-[12rem] truncate px-4 py-2.5 font-medium text-gray-900 dark:text-white">
+                    {p.da_username}{p.email ? <span className="text-gray-400 dark:text-zinc-500"> · {p.email}</span> : null}
+                  </td>
+                  <td className="whitespace-nowrap px-4 py-2.5 text-right font-bold tabular-nums text-gray-900 dark:text-white">
+                    {formatMt(p.valor_mt)} MT
+                  </td>
+                  <td className="whitespace-nowrap px-4 py-2.5 text-gray-500 dark:text-zinc-400">
+                    {METODO_LABEL[p.metodo_pagamento] || p.metodo_pagamento}
+                  </td>
+                  <td className="whitespace-nowrap px-4 py-2.5">
+                    {p.comprovativo_url ? (
+                      <a href={p.comprovativo_url} target="_blank" rel="noopener noreferrer" className="text-xs font-medium text-red-600 hover:underline dark:text-red-400">
+                        Ver ficheiro
+                      </a>
+                    ) : (
+                      <span className="text-xs text-gray-400 dark:text-zinc-500">Sem comprovativo</span>
+                    )}
+                  </td>
+                  <td className="whitespace-nowrap px-4 py-2.5 text-right">
+                    <span className={`px-2.5 py-1 rounded-full text-xs font-bold ${meta.className}`}>{meta.label}</span>
+                    {p.status === 'rejected' && p.rejection_reason && (
+                      <p className="mt-1 text-xs text-gray-400 dark:text-zinc-500">{p.rejection_reason}</p>
+                    )}
+                  </td>
+                  <td className="whitespace-nowrap px-4 py-2.5 text-right">
+                    {p.status === 'pending' && (
+                      <div className="flex items-center justify-end gap-2">
+                        <button
+                          type="button"
+                          disabled={updatingId === p.id}
+                          onClick={() => respond(p.id, 'confirmed')}
+                          className="text-xs font-medium text-green-600 hover:underline disabled:opacity-50 dark:text-green-400"
+                        >
+                          Confirmar
+                        </button>
+                        <button
+                          type="button"
+                          disabled={updatingId === p.id}
+                          onClick={() => respond(p.id, 'rejected')}
+                          className="text-xs font-medium text-rose-600 hover:underline disabled:opacity-50 dark:text-rose-400"
+                        >
+                          Rejeitar
+                        </button>
+                      </div>
+                    )}
+                  </td>
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
+      </div>
     </div>
   )
 }

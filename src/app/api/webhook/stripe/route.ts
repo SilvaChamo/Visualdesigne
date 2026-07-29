@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient as createAdminClient } from '@supabase/supabase-js';
 import { getStripe } from '@/lib/stripe';
 import { fulfillCheckout } from '@/lib/checkout-fulfillment';
+import { confirmResellerCreditRequest } from '@/lib/reseller-credit';
+import { confirmRenewalPayment } from '@/lib/renewal-payment';
 
 // Stripe precisa do corpo em bruto para validar a assinatura — nunca fazer request.json() aqui.
 export async function POST(request: NextRequest) {
@@ -33,6 +35,38 @@ export async function POST(request: NextRequest) {
 
   if (event.type === 'checkout.session.completed') {
     const stripeSession = event.data.object as { id: string; metadata?: Record<string, string> };
+
+    // Carregamento de saldo de revendedor — fluxo à parte da compra de
+    // domínios/hospedagem (checkout_sessions), identificado pelo metadata.
+    if (stripeSession.metadata?.kind === 'reseller_credito') {
+      const creditoId = stripeSession.metadata.credito_id;
+      if (!creditoId) {
+        console.error('[webhook/stripe] reseller_credito sem credito_id no metadata');
+        return NextResponse.json({ received: true });
+      }
+      const result = await confirmResellerCreditRequest(admin, creditoId);
+      if (!result.ok && !result.alreadyDone) {
+        console.error('[webhook/stripe] falha ao confirmar crédito de revendedor:', result.error);
+        return NextResponse.json({ error: 'Erro ao confirmar carregamento.' }, { status: 500 });
+      }
+      return NextResponse.json({ received: true });
+    }
+
+    // Pagamento de renovação de domínio/hospedagem — mesmo princípio.
+    if (stripeSession.metadata?.kind === 'renewal_payment') {
+      const renewalPaymentId = stripeSession.metadata.renewal_payment_id;
+      if (!renewalPaymentId) {
+        console.error('[webhook/stripe] renewal_payment sem renewal_payment_id no metadata');
+        return NextResponse.json({ received: true });
+      }
+      const result = await confirmRenewalPayment(admin, renewalPaymentId);
+      if (!result.ok && !result.alreadyDone) {
+        console.error('[webhook/stripe] falha ao confirmar pagamento de renovação:', result.error);
+        return NextResponse.json({ error: 'Erro ao confirmar renovação.' }, { status: 500 });
+      }
+      return NextResponse.json({ received: true });
+    }
+
     const checkoutSessionId = stripeSession.metadata?.checkout_session_id;
 
     const { data: checkoutSession, error } = await admin

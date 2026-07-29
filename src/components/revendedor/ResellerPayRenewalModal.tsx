@@ -1,71 +1,54 @@
 'use client'
 
-import { useEffect, useState } from 'react'
-import { X, Smartphone, Landmark, CreditCard, Check, Clock, CheckCircle2, XCircle } from 'lucide-react'
+import { useState } from 'react'
+import { X, Smartphone, Landmark, CreditCard, Check } from 'lucide-react'
 import { Spinner } from '@/components/ui/spinner'
-import { metodoPagamentoLabel } from '@/lib/quotation-payment-info'
-
-type Pedido = {
-  id: string
-  valor_mt: number
-  metodo_pagamento: string
-  status: 'pending' | 'confirmed' | 'rejected'
-  created_at: string
-}
 
 function formatMt(v: number) {
   return new Intl.NumberFormat('pt-PT', { minimumFractionDigits: 0, maximumFractionDigits: 2 }).format(v)
 }
 
-const STATUS_META: Record<Pedido['status'], { label: string; className: string; icon: typeof Clock }> = {
-  pending: { label: 'Aguarda confirmação', className: 'bg-amber-100 text-amber-700', icon: Clock },
-  confirmed: { label: 'Confirmado', className: 'bg-green-100 text-green-700', icon: CheckCircle2 },
-  rejected: { label: 'Rejeitado', className: 'bg-rose-100 text-rose-700', icon: XCircle },
-}
-
-// Formulário só cria o pedido e entrega logo à página dedicada
-// (/credito/[id]) para pagar/anexar comprovativo — a mesma página que o
-// link do email de notificação abre, para não duplicar a lógica em dois sítios.
-export function ResellerAddCreditModal({ onClose }: { onClose: () => void }) {
-  const [pedidos, setPedidos] = useState<Pedido[] | null>(null)
-  const [valor, setValor] = useState('')
+// Cria o pedido de pagamento e entrega logo à página dedicada
+// (/renovacao/[id]) para pagar/anexar comprovativo — mesmo padrão do
+// carregamento de saldo do revendedor.
+export function ResellerPayRenewalModal({
+  renewalType,
+  renewalId,
+  serviceName,
+  valorMt,
+  onClose,
+}: {
+  renewalType: 'domain' | 'hosting'
+  renewalId: string
+  serviceName: string
+  valorMt: number
+  onClose: () => void
+}) {
   const [metodo, setMetodo] = useState<'mpesa' | 'transferencia' | 'stripe'>('mpesa')
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
 
-  useEffect(() => {
-    fetch('/api/reseller/credito')
-      .then((r) => r.json())
-      .then((data) => { if (data.success) setPedidos(data.pedidos) })
-      .catch(() => {})
-  }, [])
-
   const handleSubmit = async () => {
-    const valorMt = Number(valor)
-    if (!Number.isFinite(valorMt) || valorMt <= 0) {
-      setError('Indica um valor válido.')
-      return
-    }
     setSubmitting(true)
     setError('')
     try {
-      const res = await fetch('/api/reseller/credito', {
+      const res = await fetch('/api/renewals/pagamento', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ valorMt, metodoPagamento: metodo }),
+        body: JSON.stringify({ renewalType, renewalId, metodoPagamento: metodo }),
       })
       const data = await res.json()
       if (!res.ok || !data.success) throw new Error(data.error || 'Não foi possível criar o pedido.')
 
       if (metodo === 'stripe') {
-        const stripeRes = await fetch(`/api/reseller/credito/${data.pedido.id}/stripe-session`, { method: 'POST' })
+        const stripeRes = await fetch(`/api/renewals/pagamento/${data.pedido.id}/stripe-session`, { method: 'POST' })
         const stripeData = await stripeRes.json()
         if (!stripeRes.ok || !stripeData.url) throw new Error(stripeData.error || 'Não foi possível iniciar o pagamento.')
         window.location.href = stripeData.url
         return
       }
 
-      window.location.href = `/credito/${data.pedido.id}`
+      window.location.href = `/renovacao/${data.pedido.id}`
     } catch (err: any) {
       setError(err.message || 'Falha ao comunicar com o servidor.')
       setSubmitting(false)
@@ -74,12 +57,17 @@ export function ResellerAddCreditModal({ onClose }: { onClose: () => void }) {
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg max-w-md w-full p-6 max-h-[90vh] overflow-y-auto">
+      <div className="bg-white rounded-lg max-w-md w-full p-6">
         <div className="flex items-center justify-between mb-6">
-          <h3 className="text-xl font-bold text-gray-900">Adicionar Fundos</h3>
+          <h3 className="text-xl font-bold text-gray-900">Pagar Renovação</h3>
           <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-md">
             <X className="w-5 h-5" />
           </button>
+        </div>
+
+        <div className="mb-5 p-3 rounded-md bg-gray-50 border border-gray-200">
+          <p className="text-sm font-bold text-gray-900 truncate">{serviceName}</p>
+          <p className="text-lg font-bold text-gray-900 mt-0.5">MT {formatMt(valorMt)}</p>
         </div>
 
         {error && (
@@ -87,19 +75,6 @@ export function ResellerAddCreditModal({ onClose }: { onClose: () => void }) {
         )}
 
         <div className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1.5">Valor a carregar (MT)</label>
-            <input
-              type="number"
-              min="1"
-              step="1"
-              placeholder="Ex: 5000"
-              value={valor}
-              onChange={(e) => setValor(e.target.value)}
-              className="w-full px-4 py-3 border border-gray-300 rounded-md focus:ring-2 focus:ring-red-500 focus:border-red-500"
-            />
-          </div>
-
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1.5">Método de pagamento</label>
             <div className="grid grid-cols-3 gap-2">
@@ -146,34 +121,6 @@ export function ResellerAddCreditModal({ onClose }: { onClose: () => void }) {
             {submitting ? 'A processar...' : 'Continuar'}
           </button>
         </div>
-
-        {pedidos && pedidos.length > 0 && (
-          <div className="mt-6 pt-4 border-t border-gray-100">
-            <p className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Pedidos anteriores</p>
-            <div className="space-y-1.5 max-h-40 overflow-y-auto">
-              {pedidos.map((p) => {
-                const meta = STATUS_META[p.status]
-                const Icon = meta.icon
-                return (
-                  <a
-                    key={p.id}
-                    href={`/credito/${p.id}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center justify-between gap-2 text-xs py-1 hover:bg-gray-50 rounded px-1 -mx-1"
-                  >
-                    <span className="text-gray-600">
-                      {formatMt(p.valor_mt)} MT · {metodoPagamentoLabel(p.metodo_pagamento)}
-                    </span>
-                    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full font-medium ${meta.className}`}>
-                      <Icon className="w-3 h-3" /> {meta.label}
-                    </span>
-                  </a>
-                )
-              })}
-            </div>
-          </div>
-        )}
       </div>
     </div>
   )

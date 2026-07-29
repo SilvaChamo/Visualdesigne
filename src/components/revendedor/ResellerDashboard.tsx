@@ -8,6 +8,8 @@ import type { DirectAdminWebsite } from '@/lib/directadmin-api'
 import { directAdminAPI } from '@/lib/directadmin-api'
 import { Spinner } from '@/components/ui/spinner'
 import { readWpInstallsCache, writeWpInstallsCache } from '@/lib/panel-wp-cache'
+import { ResellerAddCreditModal } from '@/components/revendedor/ResellerAddCreditModal'
+import { ResellerPayRenewalModal } from '@/components/revendedor/ResellerPayRenewalModal'
 
 interface Props {
   sites: DirectAdminWebsite[]
@@ -22,13 +24,18 @@ interface Props {
 }
 
 type RenewalRow = {
+  id: string
   domain_name?: string
   domain?: string
   expiration_date: string
+  renewal_price?: number
 }
 
 const EXPIRING_WINDOW_DAYS = 90
 const RENEW_BUTTON_DAYS = 60
+
+const formatMtValue = (v: number): string =>
+  new Intl.NumberFormat('pt-PT', { minimumFractionDigits: 0, maximumFractionDigits: 2 }).format(v)
 
 const parseState = (state: unknown): string => {
   if (state === 1 || state === '1' || state === 'Active') return 'Active'
@@ -85,6 +92,20 @@ export function ResellerDashboard({
   const [hostingRenewals, setHostingRenewals] = useState<RenewalRow[]>([])
   const [serverStatus, setServerStatus] = useState<Record<string, string> | null>(null)
   const [loadingStatus, setLoadingStatus] = useState(false)
+  const [saldoMt, setSaldoMt] = useState<number | null>(null)
+  const [showAddCreditModal, setShowAddCreditModal] = useState(false)
+  const [payRenewal, setPayRenewal] = useState<{ renewalType: 'domain' | 'hosting'; renewalId: string; serviceName: string; valorMt: number } | null>(null)
+
+  const loadSaldo = useCallback(() => {
+    fetch('/api/reseller/credito')
+      .then((r) => r.json())
+      .then((data) => { if (data.success) setSaldoMt(data.saldoMt) })
+      .catch(() => {})
+  }, [])
+
+  useEffect(() => {
+    loadSaldo()
+  }, [loadSaldo])
 
   const filteredSites = sites.filter(
     (s) =>
@@ -132,11 +153,27 @@ export function ResellerDashboard({
     [filteredSites],
   )
 
+  type RenewalInfo = { date: string; id: string; type: 'domain' | 'hosting'; renewalPrice: number }
   const expirationByDomain = useMemo(() => {
-    const map = new Map<string, string>()
-    for (const row of [...domainRenewals, ...hostingRenewals]) {
+    const map = new Map<string, RenewalInfo>()
+    for (const row of domainRenewals) {
       const domain = (row.domain_name || row.domain || '').toLowerCase()
-      if (domain && row.expiration_date) map.set(domain, row.expiration_date)
+      if (domain && row.expiration_date) {
+        map.set(domain, { date: row.expiration_date, id: row.id, type: 'domain', renewalPrice: Number(row.renewal_price) || 0 })
+      }
+    }
+    for (const row of hostingRenewals) {
+      const domain = (row.domain_name || row.domain || '').toLowerCase()
+      // Um site pode ter domínio E hospedagem — se já havia um domínio
+      // registado, mantém-se o que expira primeiro para o card "Próxima
+      // Renovação", mas o botão "PAGAR FACTURA" segue sempre a hospedagem
+      // quando ambos existem (é o valor mais frequente a vencer).
+      if (domain && row.expiration_date) {
+        const existing = map.get(domain)
+        if (!existing || row.expiration_date <= existing.date) {
+          map.set(domain, { date: row.expiration_date, id: row.id, type: 'hosting', renewalPrice: Number(row.renewal_price) || 0 })
+        }
+      }
     }
     return map
   }, [domainRenewals, hostingRenewals])
@@ -146,9 +183,9 @@ export function ResellerDashboard({
     for (const site of filteredSites) {
       const exp = expirationByDomain.get(site.domain.toLowerCase())
       if (!exp) continue
-      const days = getDaysUntilExpiration(exp)
+      const days = getDaysUntilExpiration(exp.date)
       if (days <= 0) continue
-      if (!earliest || days < earliest.days) earliest = { date: exp, days }
+      if (!earliest || days < earliest.days) earliest = { date: exp.date, days }
     }
     return earliest
   }, [filteredSites, expirationByDomain])
@@ -285,12 +322,12 @@ export function ResellerDashboard({
             <div className="space-y-3">
               {sitesForWidget.slice(0, 3).map((site) => {
                 const extension = getDomainExtension(site.domain)
-                const expirationDate =
-                  expirationByDomain.get(site.domain.toLowerCase()) || ''
+                const renewalInfo = expirationByDomain.get(site.domain.toLowerCase())
+                const expirationDate = renewalInfo?.date || ''
                 const hasExpiration = Boolean(expirationDate)
                 const status = parseState(site.state)
                 const isActive = status === 'Active'
-                const showRenewButton = hasExpiration && shouldShowRenewButton(expirationDate)
+                const showRenewButton = hasExpiration && shouldShowRenewButton(expirationDate) && Boolean(renewalInfo?.renewalPrice)
 
                 return (
                   <div
@@ -322,9 +359,15 @@ export function ResellerDashboard({
                     </div>
 
                     <div className="flex items-center gap-3">
-                      {showRenewButton ? (
+                      {showRenewButton && renewalInfo ? (
                         <button
                           type="button"
+                          onClick={() => setPayRenewal({
+                            renewalType: renewalInfo.type,
+                            renewalId: renewalInfo.id,
+                            serviceName: site.domain,
+                            valorMt: renewalInfo.renewalPrice,
+                          })}
                           className="px-5 py-2 bg-red-500 hover:bg-red-600 text-white text-xs font-bold uppercase tracking-wider rounded transition-colors"
                         >
                           PAGAR FACTURA
@@ -417,9 +460,12 @@ export function ResellerDashboard({
 
         <div className="bg-white rounded border border-gray-200 shadow-sm p-5 text-center dark:border-zinc-700 dark:bg-zinc-900">
           <p className="text-xs font-bold text-gray-500 uppercase mb-2 dark:text-zinc-400">Crédito Disponível</p>
-          <p className="text-2xl font-bold text-gray-900 mb-3 dark:text-zinc-100">MT 0</p>
+          <p className="text-2xl font-bold text-gray-900 mb-3 dark:text-zinc-100">
+            {saldoMt === null ? <Spinner className="w-5 h-5 mx-auto" /> : `MT ${formatMtValue(saldoMt)}`}
+          </p>
           <button
             type="button"
+            onClick={() => setShowAddCreditModal(true)}
             className="w-full bg-red-600 hover:bg-red-700 text-white text-[10px] font-black uppercase tracking-widest py-2 rounded transition-all"
           >
             Adicionar Fundos
@@ -449,6 +495,20 @@ export function ResellerDashboard({
           </div>
         </div>
       </div>
+
+      {showAddCreditModal && (
+        <ResellerAddCreditModal onClose={() => setShowAddCreditModal(false)} />
+      )}
+
+      {payRenewal && (
+        <ResellerPayRenewalModal
+          renewalType={payRenewal.renewalType}
+          renewalId={payRenewal.renewalId}
+          serviceName={payRenewal.serviceName}
+          valorMt={payRenewal.valorMt}
+          onClose={() => setPayRenewal(null)}
+        />
+      )}
     </div>
   )
 }

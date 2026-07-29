@@ -10,5 +10,6 @@ export const BANK_NIB = '0008.0000.370570564421.0195';
 export function metodoPagamentoLabel(m: string | null | undefined): string {
   if (m === 'mpesa') return 'M-Pesa';
   if (m === 'transferencia') return 'Transferência Bancária';
+  if (m === 'stripe') return 'Cartão';
   return '—';
 }

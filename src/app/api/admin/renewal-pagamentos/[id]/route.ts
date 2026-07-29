@@ -1,12 +1,11 @@
 import { NextResponse } from 'next/server';
 import { requireAdminOrReseller } from '@/lib/panel-api-auth';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
-import { confirmResellerCreditRequest } from '@/lib/reseller-credit';
+import { confirmRenewalPayment } from '@/lib/renewal-payment';
 
-// Confirma (soma ao saldo) ou rejeita um pedido de carregamento — só depois
-// de a equipa verificar manualmente que o M-Pesa/transferência entrou. Um
-// pedido pago por Cartão já chega confirmado pelo webhook do Stripe, nunca
-// passa por aqui.
+// Confirma (estende a validade 1 ano) ou rejeita um pedido de pagamento de
+// renovação — um pedido pago por Cartão já chega confirmado pelo webhook do
+// Stripe, nunca passa por aqui.
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const auth = await requireAdminOrReseller();
   if ('error' in auth) return auth.error;
@@ -29,16 +28,16 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     }
 
     if (status === 'confirmed') {
-      const result = await confirmResellerCreditRequest(supabase, id);
+      const result = await confirmRenewalPayment(supabase, id);
       if (!result.ok) {
         return NextResponse.json({ success: false, error: result.error || 'Não foi possível confirmar.' }, { status: 409 });
       }
-      const { data } = await supabase.from('reseller_credit_requests').select('*').eq('id', id).single();
+      const { data } = await supabase.from('renewal_payment_requests').select('*').eq('id', id).single();
       return NextResponse.json({ success: true, pedido: data });
     }
 
     const { data: pedido, error: pedidoError } = await supabase
-      .from('reseller_credit_requests')
+      .from('renewal_payment_requests')
       .select('id, status')
       .eq('id', id)
       .single();
@@ -50,7 +49,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     }
 
     const { data, error } = await supabase
-      .from('reseller_credit_requests')
+      .from('renewal_payment_requests')
       .update({ status: 'rejected', rejection_reason: rejectionReason || null, confirmed_at: new Date().toISOString() })
       .eq('id', id)
       .select()
@@ -59,7 +58,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
 
     return NextResponse.json({ success: true, pedido: data });
   } catch (error: any) {
-    console.error('[admin/reseller-creditos PATCH] error:', error);
+    console.error('[admin/renewal-pagamentos PATCH] error:', error);
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });
   }
 }

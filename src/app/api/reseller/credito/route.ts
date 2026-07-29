@@ -4,7 +4,7 @@ import { resolveResellerPanelContext } from '@/lib/panel-reseller-context';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { notifyQuoteTeam } from '@/lib/notify-quote-team';
 
-const VALID_METHODS = ['mpesa', 'transferencia'];
+const VALID_METHODS = ['mpesa', 'transferencia', 'stripe'];
 
 // Saldo + histórico de pedidos de carregamento do revendedor autenticado
 // (ou impersonado, se for um admin a ver como o revendedor).
@@ -83,11 +83,16 @@ export async function POST(request: Request) {
       .single();
     if (error) throw error;
 
-    notifyQuoteTeam({
-      title: 'Novo pedido de carregamento de saldo',
-      message: `${ctx.displayName} (${ctx.daUsername}) pediu um carregamento de ${valorMt} MT via ${metodoPagamento === 'mpesa' ? 'M-Pesa' : 'Transferência Bancária'}. Fica a aguardar comprovativo e confirmação da equipa.`,
-      link: `${process.env.NEXT_PUBLIC_SITE_URL || ''}/dashboard?section=cotacoes`,
-    }).catch((err) => console.error('[reseller/credito] falha ao notificar equipa:', err));
+    const metodoLabel = metodoPagamento === 'mpesa' ? 'M-Pesa' : metodoPagamento === 'transferencia' ? 'Transferência Bancária' : 'Cartão';
+    if (metodoPagamento !== 'stripe') {
+      // Pagamento por cartão só notifica a equipa depois de o webhook do
+      // Stripe confirmar — antes disso ainda pode nem ter sido pago.
+      notifyQuoteTeam({
+        title: 'Novo pedido de carregamento de saldo',
+        message: `${ctx.displayName} (${ctx.daUsername}) pediu um carregamento de ${valorMt} MT via ${metodoLabel}. Fica a aguardar comprovativo e confirmação da equipa.`,
+        link: `${process.env.NEXT_PUBLIC_SITE_URL || ''}/credito/${data.id}`,
+      }).catch((err) => console.error('[reseller/credito] falha ao notificar equipa:', err));
+    }
 
     return NextResponse.json({ success: true, pedido: data });
   } catch (error: any) {
