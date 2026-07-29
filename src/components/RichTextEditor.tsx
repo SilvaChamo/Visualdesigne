@@ -22,9 +22,13 @@ interface RichTextEditorProps {
     className?: string;
     style?: React.CSSProperties;
     children?: React.ReactNode;
+    // Remove o padding superior da área editável, para que o conteúdo
+    // inserido (ex: o cabeçalho de um template) fique encostado à barra
+    // acima (Assunto), em vez de flutuar com um espaço vazio por cima.
+    noTopPadding?: boolean;
 }
 
-export function RichTextEditor({ value, onChange, placeholder, className, style, children }: RichTextEditorProps) {
+export function RichTextEditor({ value, onChange, placeholder, className, style, children, noTopPadding }: RichTextEditorProps) {
     const editorRef = useRef<HTMLDivElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [activeStyles, setActiveStyles] = useState({
@@ -403,10 +407,10 @@ export function RichTextEditor({ value, onChange, placeholder, className, style,
 
     return (
         <div
-            className={cn("flex flex-col bg-white overflow-hidden transition-all relative", className)}
+            className={cn("flex flex-col bg-white dark:bg-zinc-900 overflow-hidden transition-all relative", className)}
         >
             {/* Toolbar */}
-            <div className="flex items-center gap-0 px-1 py-1 border-b border-slate-200 bg-white sticky top-0 z-30 flex-wrap">
+            <div className="flex items-center gap-0 px-1 py-1 border-b border-slate-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 sticky top-0 z-30 flex-wrap">
                 {/* Font Family Selector */}
                 <select
                     value={activeStyles.fontName || ""}
@@ -421,7 +425,7 @@ export function RichTextEditor({ value, onChange, placeholder, className, style,
                             checkStyles();
                         }
                     }}
-                    className="h-7 text-[11px] font-bold border border-slate-200 rounded text-slate-600 px-1 outline-none hover:border-emerald-500 hover:text-emerald-700 transition-all cursor-pointer appearance-none min-w-fit pr-4 mr-1 shrink-0"
+                    className="h-7 text-[11px] font-bold border border-slate-200 dark:border-zinc-700 dark:bg-zinc-800 rounded text-slate-600 dark:text-zinc-300 px-1 outline-none hover:border-emerald-500 hover:text-emerald-700 transition-all cursor-pointer appearance-none min-w-fit pr-4 mr-1 shrink-0"
                 >
                     <option value="">Fonte Padrão</option>
                     <option value="Exo 2">Exo 2</option>
@@ -432,11 +436,11 @@ export function RichTextEditor({ value, onChange, placeholder, className, style,
                     <option value="Georgia">Georgia</option>
                 </select>
 
-                <div className="w-px h-4 bg-slate-300 mx-1 shrink-0" />
+                <div className="w-px h-4 bg-slate-300 dark:bg-zinc-700 mx-1 shrink-0" />
                 <ToolbarButton onClick={() => { saveSelection(); execCommand("bold"); }} icon={<span className="font-black text-lg leading-none font-serif">B</span>} title="Bold" isActive={activeStyles.bold} />
                 <ToolbarButton onClick={() => { saveSelection(); execCommand("italic"); }} icon={<Italic className="w-4 h-4" />} title="Italic" isActive={activeStyles.italic} />
 
-                <div className="w-px h-4 bg-slate-300 mx-1 shrink-0" />
+                <div className="w-px h-4 bg-slate-300 dark:bg-zinc-700 mx-1 shrink-0" />
 
                 {/* Text Alignment */}
                 <ToolbarButton onClick={() => { saveSelection(); execCommand("justifyLeft"); }} icon={<AlignLeft className="w-4 h-4" />} title="Alinhar à Esquerda" isActive={activeStyles.justifyLeft} />
@@ -459,7 +463,7 @@ export function RichTextEditor({ value, onChange, placeholder, className, style,
                             checkStyles();
                         }
                     }}
-                    className="h-7 w-12 text-[11px] font-bold border border-slate-200 rounded text-slate-600 px-1 text-center outline-none hover:border-emerald-500 hover:text-emerald-700 transition-all cursor-pointer appearance-none shrink-0"
+                    className="h-7 w-12 text-[11px] font-bold border border-slate-200 dark:border-zinc-700 dark:bg-zinc-800 rounded text-slate-600 dark:text-zinc-300 px-1 text-center outline-none hover:border-emerald-500 hover:text-emerald-700 transition-all cursor-pointer appearance-none shrink-0"
                     title="Tamanho da Fonte"
                 >
                     <option value="">Nº</option>
@@ -472,7 +476,7 @@ export function RichTextEditor({ value, onChange, placeholder, className, style,
                     <option value="7">48</option>
                 </select>
 
-                <div className="w-px h-4 bg-slate-300 mx-1 shrink-0" />
+                <div className="w-px h-4 bg-slate-300 dark:bg-zinc-700 mx-1 shrink-0" />
 
                 {/* Line Spacing */}
                 <div className="relative group shrink-0 flex items-center" title="Espaçamento entre linhas">
@@ -502,7 +506,7 @@ export function RichTextEditor({ value, onChange, placeholder, className, style,
                                 e.target.value = "";
                             }
                         }}
-                        className="h-7 w-14 text-[11px] font-bold border border-slate-200 rounded text-slate-600 pl-4 pr-1 outline-none hover:border-emerald-500 hover:text-emerald-700 transition-all cursor-pointer appearance-none shrink-0"
+                        className="h-7 w-14 text-[11px] font-bold border border-slate-200 dark:border-zinc-700 dark:bg-zinc-800 rounded text-slate-600 dark:text-zinc-300 pl-4 pr-1 outline-none hover:border-emerald-500 hover:text-emerald-700 transition-all cursor-pointer appearance-none shrink-0"
                     >
                         <option value="">Espaç.</option>
                         <option value="1.0">1.0</option>
@@ -514,45 +518,45 @@ export function RichTextEditor({ value, onChange, placeholder, className, style,
                     </select>
                 </div>
 
-                <div className="w-px h-4 bg-slate-300 mx-1 shrink-0" />
+                <div className="w-px h-4 bg-slate-300 dark:bg-zinc-700 mx-1 shrink-0" />
 
                 <ToolbarButton onClick={() => { saveSelection(); execCommand("insertUnorderedList"); }} icon={<List className="w-4 h-4" />} title="Lista de Pontos" />
                 <ToolbarButton onClick={() => { saveSelection(); execCommand("insertOrderedList"); }} icon={<ListOrdered className="w-4 h-4" />} title="Lista Numerada" />
 
-                <div className="w-px h-4 bg-slate-300 mx-1 shrink-0" />
+                <div className="w-px h-4 bg-slate-300 dark:bg-zinc-700 mx-1 shrink-0" />
 
                 <ToolbarButton onClick={() => { saveSelection(); execCommand("outdent"); }} icon={<Outdent className="w-4 h-4" />} title="Diminuir Recuo (Tab)" />
                 <ToolbarButton onClick={() => { saveSelection(); execCommand("indent"); }} icon={<Indent className="w-4 h-4" />} title="Aumentar Recuo (Tab)" />
 
-                <div className="w-px h-4 bg-slate-300 mx-1 shrink-0" />
+                <div className="w-px h-4 bg-slate-300 dark:bg-zinc-700 mx-1 shrink-0" />
 
                 {/* Text Color Picker */}
                 <div className="relative group shrink-0 mx-1">
                     <button
                         onClick={() => { saveSelection(); setIsColorPickerOpen(!isColorPickerOpen); }}
                         className={cn(
-                            "w-7 h-7 flex items-center justify-center border border-slate-200 rounded hover:bg-slate-50 transition-all outline-none",
-                            isColorPickerOpen && "border-orange-500 bg-white ring-2 ring-orange-500/10"
+                            "w-7 h-7 flex items-center justify-center border border-slate-200 dark:border-zinc-700 rounded hover:bg-slate-50 dark:hover:bg-zinc-800 transition-all outline-none",
+                            isColorPickerOpen && "border-orange-500 bg-white dark:bg-zinc-800 ring-2 ring-orange-500/10"
                         )}
                         title="Cor do Texto"
                     >
                         <div
-                            className="w-4 h-4 rounded-sm border border-slate-300 shadow-sm"
+                            className="w-4 h-4 rounded-sm border border-slate-300 dark:border-zinc-600 shadow-sm"
                             style={{ backgroundColor: activeStyles.color || "#000000" }}
                         />
                     </button>
                     {/* Palette */}
                     {isColorPickerOpen && (
-                        <div className="absolute top-full left-0 mt-1 p-2 bg-white border border-slate-200 rounded-lg shadow-xl grid grid-cols-5 gap-1 z-50 w-[140px]">
+                        <div className="absolute top-full left-0 mt-1 p-2 bg-white dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 rounded-lg shadow-xl grid grid-cols-5 gap-1 z-50 w-[140px]">
                             {[
-                                "#000000", "#434343", "#666666", "#999999", "#b7b7b7", 
+                                "#000000", "#434343", "#666666", "#999999", "#b7b7b7",
                                 "#cccccc", "#d9d9d9", "#efefef", "#f3f3f3", "#ffffff",
-                                "#980000", "#ff0000", "#ff9900", "#ffff00", "#00ff00", 
+                                "#980000", "#ff0000", "#ff9900", "#ffff00", "#00ff00",
                                 "#00ffff", "#4a86e8", "#0000ff", "#9900ff", "#ff00ff"
                             ].map((c) => (
                                 <button
                                     key={c}
-                                    className="w-5 h-5 hover:scale-110 transition-transform shadow-sm border border-slate-200"
+                                    className="w-5 h-5 hover:scale-110 transition-transform shadow-sm border border-slate-200 dark:border-zinc-600"
                                     style={{ backgroundColor: c }}
                                     onMouseDown={(e) => { 
                                         e.preventDefault(); 
@@ -574,13 +578,13 @@ export function RichTextEditor({ value, onChange, placeholder, className, style,
                     )}
                 </div>
 
-                <div className="w-px h-4 bg-slate-300 mx-1 shrink-0" />
+                <div className="w-px h-4 bg-slate-300 dark:bg-zinc-700 mx-1 shrink-0" />
 
                 {/* Link Buttons */}
                 <ToolbarButton onClick={insertLink} icon={<LinkIcon className="w-4 h-4 text-emerald-600" />} title="Inserir Link" />
                 <ToolbarButton onClick={removeLink} icon={<Unlink className="w-4 h-4 text-rose-500" />} title="Remover Link" />
 
-                <div className="w-px h-4 bg-slate-300 mx-1 shrink-0" />
+                <div className="w-px h-4 bg-slate-300 dark:bg-zinc-700 mx-1 shrink-0" />
 
                 {/* Image Upload Button */}
                 <ToolbarButton
@@ -600,8 +604,8 @@ export function RichTextEditor({ value, onChange, placeholder, className, style,
                 {/* Image Resize Controls (show when image selected) */}
                 {selectedImage && (
                     <>
-                        <div className="w-px h-4 bg-slate-300 mx-1" />
-                        <div className="flex items-center gap-1 bg-emerald-50 rounded-md px-2 py-1">
+                        <div className="w-px h-4 bg-slate-300 dark:bg-zinc-700 mx-1" />
+                        <div className="flex items-center gap-1 bg-emerald-50 dark:bg-emerald-950/20 rounded-md px-2 py-1">
                             <span className="text-[10px] font-bold text-emerald-600 uppercase">Imagem:</span>
                             <ToolbarButton
                                 onClick={() => resizeImage(0.8)}
@@ -615,19 +619,19 @@ export function RichTextEditor({ value, onChange, placeholder, className, style,
                             />
                             <ToolbarButton
                                 onClick={floatImageLeft}
-                                className="w-auto px-2 bg-white border border-slate-200 rounded-md shadow-sm h-7 hover:border-emerald-500 hover:text-emerald-600 focus:outline-none"
+                                className="w-auto px-2 bg-white dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 rounded-md shadow-sm h-7 hover:border-emerald-500 hover:text-emerald-600 focus:outline-none"
                                 icon={<AlignLeft className="w-4 h-4" />}
                                 title="Alinhar à Esquerda (Texto à vista)"
                             />
                             <ToolbarButton
                                 onClick={centerImage}
-                                className="w-auto px-2 bg-white border border-slate-200 rounded-md shadow-sm h-7 hover:border-emerald-500 hover:text-emerald-600 focus:outline-none"
+                                className="w-auto px-2 bg-white dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 rounded-md shadow-sm h-7 hover:border-emerald-500 hover:text-emerald-600 focus:outline-none"
                                 icon={<AlignCenter className="w-4 h-4" />}
                                 title="Centralizar Imagem"
                             />
                             <ToolbarButton
                                 onClick={floatImageRight}
-                                className="w-auto px-2 bg-white border border-slate-200 rounded-md shadow-sm h-7 mr-2 hover:border-emerald-500 hover:text-emerald-600 focus:outline-none"
+                                className="w-auto px-2 bg-white dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 rounded-md shadow-sm h-7 mr-2 hover:border-emerald-500 hover:text-emerald-600 focus:outline-none"
                                 icon={<AlignRight className="w-4 h-4" />}
                                 title="Alinhar à Direita (Texto à vista)"
                             />
@@ -647,7 +651,10 @@ export function RichTextEditor({ value, onChange, placeholder, className, style,
             <div className="relative flex-1 flex flex-col">
                 {/* Placeholder Overlay */}
                 {!value && !isFocused && (
-                    <div className="absolute top-6 left-6 text-slate-400 text-sm pointer-events-none select-none italic font-medium opacity-60 z-10">
+                    <div className={cn(
+                        "absolute left-8 text-slate-400 dark:text-zinc-500 text-sm pointer-events-none select-none italic font-medium opacity-60 z-10",
+                        noTopPadding ? "top-2" : "top-6"
+                    )}>
                         {placeholder || "Escreva o corpo do seu email aqui..."}
                     </div>
                 )}
@@ -655,7 +662,10 @@ export function RichTextEditor({ value, onChange, placeholder, className, style,
                 <div
                     ref={editorRef}
                     contentEditable
-                    className="flex-1 px-[20px] py-[20px] min-h-[300px] outline-none text-slate-700 text-sm overflow-y-auto prose prose-sm max-w-none prose-headings:my-2 prose-headings:font-black [&_b]:font-black [&_strong]:font-black prose-ul:list-disc prose-ul:pl-5 prose-ol:list-decimal prose-ol:pl-5 marker:text-black [&_.rich-text-image-selected]:ring-4 [&_.rich-text-image-selected]:ring-orange-500 [&_.rich-text-image-selected]:ring-offset-2 [&_a]:cursor-pointer [&_a]:text-blue-600 [&_a]:underline hover:[&_a]:text-blue-800 transition-all relative z-0"
+                    className={cn(
+                        "flex-1 px-[32px] py-[20px] min-h-[300px] outline-none text-slate-700 dark:text-zinc-200 text-sm overflow-y-auto prose prose-sm dark:prose-invert max-w-none prose-headings:my-2 prose-headings:font-black [&_b]:font-black [&_strong]:font-black prose-ul:list-disc prose-ul:pl-5 prose-ol:list-decimal prose-ol:pl-5 marker:text-black dark:marker:text-zinc-300 [&_.rich-text-image-selected]:ring-4 [&_.rich-text-image-selected]:ring-orange-500 [&_.rich-text-image-selected]:ring-offset-2 [&_a]:cursor-pointer [&_a]:text-blue-600 [&_a]:underline hover:[&_a]:text-blue-800 transition-all relative z-0",
+                        noTopPadding && "pt-0"
+                    )}
                     onInput={handleInput}
                     onFocus={() => setIsFocused(true)}
                     onBlur={() => setIsFocused(false)}
@@ -688,8 +698,8 @@ export function RichTextEditor({ value, onChange, placeholder, className, style,
 
             {/* Upload Progress Overlay */}
             {isUploading && (
-                <div className="absolute inset-0 bg-white/80 flex items-center justify-center z-20">
-                    <div className="flex items-center gap-3 bg-emerald-50 px-6 py-3 rounded-lg border border-emerald-200 shadow-lg">
+                <div className="absolute inset-0 bg-white/80 dark:bg-zinc-900/80 flex items-center justify-center z-20">
+                    <div className="flex items-center gap-3 bg-emerald-50 dark:bg-emerald-950/30 px-6 py-3 rounded-lg border border-emerald-200 dark:border-emerald-900/40 shadow-lg">
                         <Spinner className="w-5 h-5" />
                         <span className="text-sm font-bold text-emerald-700">A carregar imagem...</span>
                     </div>

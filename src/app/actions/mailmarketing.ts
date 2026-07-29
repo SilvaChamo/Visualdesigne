@@ -105,6 +105,99 @@ export async function adminListarSubscritores(dominio?: string) {
     }
 }
 
+// Uma lista é um registo próprio em mailmarketing_lists — existe mesmo sem
+// nenhum email lá dentro. Também juntamos os nomes de lista já usados pelos
+// emails existentes (dados antigos, ou importações por CSV) e auto-registamos
+// os que ainda não têm linha própria, para nunca "perder" uma lista em uso.
+export async function adminListarListas(dominio?: string): Promise<string[]> {
+    const session = await resolveSession()
+    if (!session) return ['Contactos']
+
+    const requestedDomain = normalizeDomain(dominio)
+    if (!requestedDomain || !domainAllowed(session, requestedDomain)) return ['Contactos']
+
+    try {
+        const [{ data: listRows, error: listError }, subs] = await Promise.all([
+            supabaseAdmin.from('mailmarketing_lists').select('name').eq('domain', requestedDomain),
+            adminListarSubscritores(requestedDomain)
+        ])
+
+        if (listError) console.error('Erro ao listar mailmarketing_lists:', listError.message)
+
+        const namesFromTable = (listRows || []).map((r: any) => r.name as string)
+        const namesFromContacts = (subs || []).flatMap((s: any) => {
+            const lists = s?.metadata?.lists
+            if (Array.isArray(lists) && lists.length) return lists
+            if (s?.metadata?.list) return [s.metadata.list]
+            return []
+        }) as string[]
+
+        const missing = [...new Set(namesFromContacts)].filter(n => n && n !== 'Contactos' && !namesFromTable.includes(n))
+        if (missing.length > 0) {
+            supabaseAdmin
+                .from('mailmarketing_lists')
+                .upsert(missing.map(name => ({ domain: requestedDomain, name })), { onConflict: 'domain,name', ignoreDuplicates: true })
+                .then(({ error }) => { if (error) console.error('Erro ao auto-registar lista:', error.message) })
+        }
+
+        return [...new Set(['Contactos', ...namesFromTable, ...namesFromContacts])]
+    } catch (error) {
+        console.error('Erro no Server Action adminListarListas:', error)
+        return ['Contactos']
+    }
+}
+
+export async function adminCriarLista(dominio: string, nome: string): Promise<string[]> {
+    const session = await resolveSession()
+    if (!session) throw new Error('Não autorizado.')
+
+    const requestedDomain = normalizeDomain(dominio)
+    const name = (nome || '').trim()
+    if (!requestedDomain || !domainAllowed(session, requestedDomain)) throw new Error('Domínio fora do seu acesso.')
+    if (!name) throw new Error('Nome da lista em falta.')
+
+    const { error } = await supabaseAdmin
+        .from('mailmarketing_lists')
+        .upsert({ domain: requestedDomain, name }, { onConflict: 'domain,name', ignoreDuplicates: true })
+
+    if (error) {
+        console.error('Erro ao criar lista:', error.message)
+        throw new Error('Erro ao criar lista.')
+    }
+
+    return adminListarListas(requestedDomain)
+}
+
+export async function adminRemoverLista(dominio: string, nome: string): Promise<string[]> {
+    const session = await resolveSession()
+    if (!session) throw new Error('Não autorizado.')
+
+    const requestedDomain = normalizeDomain(dominio)
+    if (!requestedDomain || !domainAllowed(session, requestedDomain)) throw new Error('Domínio fora do seu acesso.')
+    if (nome === 'Contactos') throw new Error('Não é possível eliminar a lista por omissão.')
+
+    const subs = await adminListarSubscritores(requestedDomain)
+    const emEmUso = (subs || []).some((s: any) => {
+        const lists = s?.metadata?.lists
+        if (Array.isArray(lists)) return lists.includes(nome)
+        return s?.metadata?.list === nome
+    })
+    if (emEmUso) throw new Error('Esta lista ainda tem emails associados — remova-os primeiro.')
+
+    const { error } = await supabaseAdmin
+        .from('mailmarketing_lists')
+        .delete()
+        .eq('domain', requestedDomain)
+        .eq('name', nome)
+
+    if (error) {
+        console.error('Erro ao eliminar lista:', error.message)
+        throw new Error('Erro ao eliminar lista.')
+    }
+
+    return adminListarListas(requestedDomain)
+}
+
 export async function adminListarCampanhas(dominio?: string, ownerEmail?: string) {
     const session = await resolveSession()
     if (!session) return []

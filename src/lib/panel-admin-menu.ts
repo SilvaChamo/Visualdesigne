@@ -54,7 +54,7 @@ export const NEW_MENU_ITEM_DEFS: PanelMenuItemDef[] = [
     isNewMenu: true,
     subItems: [
       { id: 'newsletter-comp', label: 'Mailmarketing' },
-      { id: 'newsletter-subs', label: 'Gerir Contactos' },
+      { id: 'newsletter-subs', label: 'Gerir Emails' },
       { id: 'newsletter-camp', label: 'Histórico' },
     ],
   },
@@ -142,7 +142,7 @@ export const RESELLER_MAIN_MENU_DEFS: PanelMenuItemDef[] = [
     label: 'E-mail Marketing',
     subItems: [
       { id: 'newsletter-comp', label: 'Mailmarketing' },
-      { id: 'newsletter-subs', label: 'Gerir Contactos' },
+      { id: 'newsletter-subs', label: 'Gerir Emails' },
       { id: 'newsletter-camp', label: 'Histórico' },
     ],
   },

@@ -37,6 +37,18 @@ function extractEmail(input: string): string {
   return trimmed.toLowerCase();
 }
 
+// Nunca usar VERCEL_URL — geraria links visualdesigne-*.vercel.app no email.
+const SITE_ORIGIN = 'https://visualdesignmoz.com';
+
+// O conteúdo composto no painel pode ter imagens/links por caminho relativo
+// (ex.: /assets/logo.png) — resolve bem no preview do editor porque corre no
+// mesmo servidor, mas um cliente de email (Gmail, Outlook...) não tem
+// "origem" nenhuma para resolver isso. Torna absoluto mesmo antes de
+// despachar, sem tocar em URLs já absolutos (http(s)://, //, data:, mailto:).
+function absolutizeAssetUrls(html: string): string {
+  return html.replace(/((?:src|href)=["'])\/(?!\/)/g, `$1${SITE_ORIGIN}/`);
+}
+
 function sanitizeRecipientList(to: unknown): string[] {
   if (!Array.isArray(to)) return [];
   const emails = to
@@ -49,7 +61,7 @@ function normalizeQueuePayload(raw: unknown): QueuePayload {
   const base: QueuePayload = {
     recipients: [],
     domain: '',
-    senderName: 'VisualDesigne Marketing',
+    senderName: 'VisualDesign',
     senderEmail: getMarketingFromEmail(),
     batchSize: MAIL_BATCH_SIZE,
     retryCount: 0,
@@ -80,7 +92,7 @@ async function sendSingleBatchViaBrevo(
   subject: string,
   content: string,
   fromEmail: string,
-  fromName: string = 'VisualDesigne'
+  fromName: string = 'VisualDesign'
 ): Promise<{ success: boolean; sent: number; failed: number; errors: string[] }> {
   if (!isBrevoApiConfigured()) {
     return { success: false, sent: 0, failed: to.length, errors: ['BREVO_API_KEY não configurada.'] };
@@ -92,9 +104,9 @@ async function sendSingleBatchViaBrevo(
       from: `"${fromName}" <${cleanFromEmail}>`,
       bcc: to,
       subject,
-      html: content,
+      html: absolutizeAssetUrls(content),
       headers: {
-        'X-Mailer': 'VisualDesigne Marketing System',
+        'X-Mailer': 'VisualDesign Marketing System',
         'List-Unsubscribe': `<mailto:unsubscribe@${unsubscribeDomain}>`,
       },
     });
@@ -116,7 +128,7 @@ async function queueCampaign(params: {
     recipients: params.recipients,
     domain: params.domain,
     senderEmail: extractEmail(params.senderEmail),
-    senderName: params.senderName || 'VisualDesigne Marketing',
+    senderName: params.senderName || 'VisualDesign',
     batchSize: MAIL_BATCH_SIZE,
     retryCount: 0,
   };
@@ -186,7 +198,7 @@ async function processQueuedCampaigns() {
       String(campaign.subject || ''),
       String(campaign.content_html || ''),
       queue.senderEmail || String(campaign.sender_email || getMarketingFromEmail()),
-      queue.senderName || 'VisualDesigne Marketing'
+      queue.senderName || 'VisualDesign'
     );
 
     const nextSuccess = successfulSends + result.sent;
@@ -270,7 +282,7 @@ export async function POST(req: NextRequest) {
     const fromEmail = extractEmail(
       String(sender || domainFrom || getMarketingFromEmail() || `marketing@${clientDomain}`),
     );
-    const fromName = senderName || (domainFrom ? 'Osher Collective' : 'VisualDesigne Marketing');
+    const fromName = senderName || (domainFrom ? 'Osher Collective' : 'VisualDesign');
 
     console.log(`🚀 Campanha enfileirada para envio assíncrono:`, {
       from: fromEmail,

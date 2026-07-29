@@ -140,7 +140,7 @@ function ImpersonationExitBanner({ isCollapsed }: { isCollapsed: boolean }) {
         type="button"
         onClick={handleExit}
         title={`A impersonar ${daUsername} — clique para sair`}
-        className="mx-auto my-2 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-red-600 text-white transition-colors hover:bg-red-700"
+        className="mx-auto mb-2 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-red-600 text-white transition-colors hover:bg-red-700"
       >
         <LogOut size={14} className="-scale-x-100" />
       </button>
@@ -152,10 +152,13 @@ function ImpersonationExitBanner({ isCollapsed }: { isCollapsed: boolean }) {
       type="button"
       onClick={handleExit}
       title="Sair da impersonação"
-      className="mx-2 my-2 flex shrink-0 items-center justify-between gap-2 rounded-lg bg-red-600 px-3 py-2 text-left text-xs font-semibold text-white transition-colors hover:bg-red-700"
+      className="mb-2 flex w-full shrink-0 flex-col gap-0.5 rounded-lg border border-red-200 bg-red-50 px-2.5 py-2 text-left transition-colors hover:bg-red-100 dark:border-red-900/40 dark:bg-red-950/30 dark:hover:bg-red-950/50"
     >
-      <span className="truncate">A impersonar: {daUsername}</span>
-      <span className="shrink-0 underline">Sair</span>
+      <span className="text-[10px] font-semibold uppercase tracking-wide text-red-500">A impersonar</span>
+      <span className="flex items-center justify-between gap-2">
+        <span className="truncate text-xs font-medium text-red-700 dark:text-red-300">{daUsername}</span>
+        <span className="shrink-0 text-xs font-bold text-red-600 underline">Sair</span>
+      </span>
     </button>
   );
 }
@@ -283,8 +286,6 @@ export function AdminSidebar({
           </div>
         )}
       </div>
-
-      <ImpersonationExitBanner isCollapsed={isCollapsed} />
 
       <nav className="flex flex-1 flex-col overflow-y-auto px-2 py-2">
         <div className="flex flex-col space-y-0">
@@ -453,6 +454,7 @@ export function AdminSidebar({
       </nav>
 
       <div className="border-t border-zinc-200 p-3 dark:border-zinc-800">
+        <ImpersonationExitBanner isCollapsed={isCollapsed} />
         <SidebarAccount email={sessionUser} isCollapsed={isCollapsed} />
       </div>
     </div>

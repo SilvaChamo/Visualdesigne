@@ -49,6 +49,7 @@ import { RichTextEditor } from "@/components/RichTextEditor"
 import { MultiFileUpload } from "@/components/admin/MultiFileUpload"
 import { SenderEmailSelector } from "@/components/admin/SenderEmailSelector"
 import { EmailTemplates } from "@/components/admin/EmailTemplates"
+import { CompanyLogoUpload, fetchCompanyLogoUrl } from "@/components/admin/CompanyLogoUpload"
 import { toast } from "sonner"
 import { directAdminAPI as panelAPI } from '@/lib/directadmin-api'
 import {
@@ -68,6 +69,9 @@ import {
   adminAdicionarSubscritor as adicionarSubscritor,
   adminAtualizarSubscritor as atualizarSubscritor,
   adminRemoverSubscritor as removerSubscritor,
+  adminListarListas as listarListas,
+  adminCriarLista as criarLista,
+  adminRemoverLista as removerLista,
   adminListarCampanhas as listarCampanhas,
   adminSalvarCampanha as salvarCampanha,
   adminRemoverCampanha as removerCampanha,
@@ -701,6 +705,17 @@ function MailMarketingSection({ sites, currentUserEmail, activeTab, setActiveTab
     }
   }, [selectedSite, pureSites, currentUserEmail]);
 
+  // As listas são um registo próprio (mailmarketing_lists), não algo inferido só
+  // dos emails já guardados — por isso vêm sempre do servidor por domínio, em vez
+  // de partir do valor fictício ['Contactos', 'Clientes', 'Newsletter'] com que
+  // este estado nasce em ClientPageContent.
+  useEffect(() => {
+    if (!selectedSite) return;
+    let cancelled = false;
+    listarListas(selectedSite).then(names => { if (!cancelled) setListas(names); });
+    return () => { cancelled = true; };
+  }, [selectedSite]);
+
   return (
     <div className="space-y-5 h-full overflow-auto">
       <div className="relative min-h-full">
@@ -726,8 +741,13 @@ function MailMarketingComposer({ selectedSite, setSelectedSite, sites, onGoToCon
   const [attachments, setAttachments] = useState<string[]>([]);
   const [isSending, setIsSending] = useState(false);
   const [showTemplates, setShowTemplates] = useState(false);
+  const [companyLogoUrl, setCompanyLogoUrl] = useState<string | null>(null);
   const [showNewListPopup, setShowNewListPopup] = useState(false);
   const [newListTitle, setNewListTitle] = useState("");
+
+  useEffect(() => {
+    fetchCompanyLogoUrl().then(setCompanyLogoUrl);
+  }, []);
   const [showSuccessDialog, setShowSuccessDialog] = useState(false);
   const [showValidationError, setShowValidationError] = useState(false);
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
@@ -851,18 +871,22 @@ function MailMarketingComposer({ selectedSite, setSelectedSite, sites, onGoToCon
           domainEmailsList.push(currentUserEmail);
         }
 
-        // 🎯 Reordenar: priorizar email do utilizador logado, depois marketing@, depois ordem alfabética
+        // 🎯 Reordenar: priorizar mailmarketing@dominio, depois utilizador logado, depois marketing@, depois ordem alfabética
         const sortedEmails = domainEmailsList.sort((a: string, b: string) => {
           const aLower = a.toLowerCase();
           const bLower = b.toLowerCase();
           const userEmail = currentUserEmail?.toLowerCase();
           const selectedDomain = selectedSite.toLowerCase();
 
-          // Prioridade 1: email do utilizador logado
+          // Prioridade 1: remetente por defeito do Mailmarketing (mailmarketing@dominio)
+          if (aLower === `mailmarketing@${selectedDomain}`) return -1;
+          if (bLower === `mailmarketing@${selectedDomain}`) return 1;
+
+          // Prioridade 2: email do utilizador logado
           if (aLower === userEmail) return -1;
           if (bLower === userEmail) return 1;
 
-          // Prioridade 2: email marketing@dominio
+          // Prioridade 3: email marketing@dominio
           if (aLower === `marketing@${selectedDomain}`) return -1;
           if (bLower === `marketing@${selectedDomain}`) return 1;
 
@@ -954,6 +978,28 @@ function MailMarketingComposer({ selectedSite, setSelectedSite, sites, onGoToCon
     }
   };
 
+  const handleCriarLista = async () => {
+    if (!newListTitle) return;
+    try {
+      const updated = await criarLista(selectedSite, newListTitle);
+      setListas(updated);
+      setNewListTitle("");
+      setShowNewListPopup(false);
+    } catch (error: any) {
+      toast.error(error.message || "Erro ao criar lista");
+    }
+  };
+
+  const handleEliminarLista = async (plan: string) => {
+    try {
+      const updated = await removerLista(selectedSite, plan);
+      setListas(updated);
+      setSelectedPlans(selectedPlans.filter((p: string) => p !== plan));
+    } catch (error: any) {
+      toast.error(error.message || "Erro ao eliminar lista");
+    }
+  };
+
   const handleClearForm = () => {
     setSubject("");
     setContent("");
@@ -1025,7 +1071,7 @@ function MailMarketingComposer({ selectedSite, setSelectedSite, sites, onGoToCon
       }
 
       if (allRecipients.length === 0) {
-        toast.error("Nenhum destinatário encontrado na sua lista de contactos.");
+        toast.error("Nenhum destinatário encontrado na sua lista de emails.");
         setIsSending(false);
         return;
       }
@@ -1150,7 +1196,7 @@ function MailMarketingComposer({ selectedSite, setSelectedSite, sites, onGoToCon
     <div className="w-full space-y-5 animate-in fade-in duration-500">
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-5">
         <div className="lg:col-span-3 space-y-5">
-          <div className="bg-white rounded-lg border border-slate-100 shadow-sm overflow-hidden flex flex-col min-h-[600px]">
+          <div className="bg-white border border-slate-100 shadow-sm overflow-hidden flex flex-col min-h-[600px]">
             <div className="bg-slate-200 px-5 py-3 border-b border-slate-300 flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <Newspaper className="w-5 h-5 text-slate-600" />
@@ -1158,7 +1204,7 @@ function MailMarketingComposer({ selectedSite, setSelectedSite, sites, onGoToCon
               </div>
               <div className="flex items-center gap-3">
                 {/* 🚀 Seletor de Remetente - mostra emails do domínio */}
-                <div className="flex items-center gap-2 bg-white rounded-md border border-slate-300 px-2 h-8">
+                <div className="flex items-center gap-2 bg-white rounded-sm border border-slate-300 px-2 h-8">
                   <Mail className="w-4 h-4 text-slate-500 shrink-0" />
                   <select
                     value={senderEmail}
@@ -1180,7 +1226,7 @@ function MailMarketingComposer({ selectedSite, setSelectedSite, sites, onGoToCon
 
                 <Button
                   onClick={() => setShowTemplates(true)}
-                  className="!bg-slate-800 hover:!bg-red-600 text-white gap-2 font-black uppercase text-[10px] tracking-widest h-8 px-4 rounded-md transition-all shadow-xl shadow-gray-900/10 border-none !opacity-100 cursor-pointer"
+                  className="!bg-slate-800 hover:!bg-red-600 text-white gap-2 font-black uppercase text-[10px] tracking-widest h-8 px-4 rounded-sm transition-all shadow-xl shadow-gray-900/10 border-none !opacity-100 cursor-pointer"
                 >
                   <LayoutTemplate className="w-3 h-3" />
                   Templates
@@ -1188,7 +1234,7 @@ function MailMarketingComposer({ selectedSite, setSelectedSite, sites, onGoToCon
 
                 <Button
                   onClick={onGoToHistory}
-                  className="!bg-slate-800 hover:!bg-red-600 text-white gap-2 font-black uppercase text-[10px] tracking-widest h-8 px-4 rounded-md transition-all shadow-xl shadow-gray-900/10 border-none !opacity-100 cursor-pointer"
+                  className="!bg-slate-800 hover:!bg-red-600 text-white gap-2 font-black uppercase text-[10px] tracking-widest h-8 px-4 rounded-sm transition-all shadow-xl shadow-gray-900/10 border-none !opacity-100 cursor-pointer"
                 >
                   <HistoryIcon className="w-3 h-3" />
                   Histórico
@@ -1201,6 +1247,7 @@ function MailMarketingComposer({ selectedSite, setSelectedSite, sites, onGoToCon
                 onChange={setContent}
                 placeholder="Escreva o corpo do seu email aqui..."
                 className="min-h-[500px] border-none"
+                noTopPadding
               >
                 <div className="px-5 py-0 bg-white border-b border-slate-200 flex items-center gap-4">
                   <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest shrink-0 border-r border-slate-200 pr-4">Assunto</span>
@@ -1227,14 +1274,14 @@ function MailMarketingComposer({ selectedSite, setSelectedSite, sites, onGoToCon
                 type="button"
                 onClick={handleClearForm}
                 disabled={isSending}
-                className="!bg-slate-100 hover:!bg-red-600 hover:!text-white text-slate-700 gap-2 font-black uppercase text-[10px] tracking-widest h-8 px-4 rounded-md transition-all border border-slate-200"
+                className="!bg-slate-100 hover:!bg-red-600 hover:!text-white text-slate-700 gap-2 font-black uppercase text-[10px] tracking-widest h-8 px-4 rounded-sm transition-all border border-slate-200"
               >
                 Limpar
               </Button>
               <Button
                 onClick={handleSend}
                 disabled={isSending || !senderEmail}
-                className="!bg-emerald-600 hover:!bg-red-600 text-white gap-2 font-black uppercase text-[10px] tracking-widest h-8 px-4 rounded-md shadow-xl shadow-emerald-500/20 transition-all border-none !opacity-100 cursor-pointer"
+                className="!bg-emerald-600 hover:!bg-red-600 text-white gap-2 font-black uppercase text-[10px] tracking-widest h-8 px-4 rounded-sm shadow-xl shadow-emerald-500/20 transition-all border-none !opacity-100 cursor-pointer"
               >
                 {isSending ? <Spinner className="w-3 h-3" /> : <Send className="w-3 h-3" />}
                 Enviar
@@ -1286,10 +1333,7 @@ function MailMarketingComposer({ selectedSite, setSelectedSite, sites, onGoToCon
                     </button>
                     <button
                       type="button"
-                      onClick={() => {
-                        setListas(listas.filter(l => l !== plan));
-                        setSelectedPlans(selectedPlans.filter(p => p !== plan));
-                      }}
+                      onClick={() => handleEliminarLista(plan)}
                       className="p-1.5 text-slate-400 hover:text-red-600 transition-all"
                       title="Eliminar lista"
                     >
@@ -1305,7 +1349,7 @@ function MailMarketingComposer({ selectedSite, setSelectedSite, sites, onGoToCon
             </div>
             <div className="p-3 bg-blue-50/50 rounded-lg border border-blue-100/50 flex items-start gap-3">
               <Sparkles className="w-4 h-4 text-blue-500 shrink-0 mt-0.5" />
-              <p className="text-[10px] text-blue-800 font-medium leading-relaxed">Mensagens enviadas apenas para os contactos do domínio seleccionado.</p>
+              <p className="text-[10px] text-blue-800 font-medium leading-relaxed">Mensagens enviadas apenas para os emails do domínio seleccionado.</p>
             </div>
 
             {/* 🚀 STATUS DE REPUTAÇÃO - SIMPLIFICADO */}
@@ -1365,6 +1409,9 @@ function MailMarketingComposer({ selectedSite, setSelectedSite, sites, onGoToCon
               </div>
             )}
           </div>
+          <div className="bg-white p-5 rounded-lg border border-slate-100 shadow-sm">
+            <CompanyLogoUpload value={companyLogoUrl} onChange={setCompanyLogoUrl} />
+          </div>
         </div>
       </div>
 
@@ -1372,6 +1419,8 @@ function MailMarketingComposer({ selectedSite, setSelectedSite, sites, onGoToCon
         <EmailTemplates
           onSelect={(html: string) => { setContent(html); setShowTemplates(false); toast.success("Template aplicado!"); }}
           onClose={() => setShowTemplates(false)}
+          isAdminAccount={false}
+          brandLogoUrl={companyLogoUrl}
         />
       )}
       {showNewListPopup && (
@@ -1388,23 +1437,13 @@ function MailMarketingComposer({ selectedSite, setSelectedSite, sites, onGoToCon
               value={newListTitle}
               onChange={(e) => setNewListTitle(e.target.value)}
               onKeyDown={(e) => {
-                if (e.key === 'Enter' && newListTitle) {
-                  setListas([...listas, newListTitle]);
-                  setNewListTitle("");
-                  setShowNewListPopup(false);
-                }
+                if (e.key === 'Enter') handleCriarLista();
               }}
               className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-lg text-sm font-bold focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 outline-none transition-all mb-5"
             />
             <div className="flex gap-3">
               <button
-                onClick={() => {
-                  if (newListTitle) {
-                    setListas([...listas, newListTitle]);
-                    setNewListTitle("");
-                    setShowNewListPopup(false);
-                  }
-                }}
+                onClick={handleCriarLista}
                 disabled={!newListTitle}
                 className="flex-1 bg-black hover:bg-red-600 text-white py-3 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all disabled:opacity-50"
               >
@@ -1551,7 +1590,7 @@ function MailMarketingComposer({ selectedSite, setSelectedSite, sites, onGoToCon
 
               <div className="bg-amber-50 p-3 rounded-lg border border-amber-200">
                 <p className="text-xs text-amber-800">
-                  <strong>💡 Dica:</strong> Mantenha a sua lista de contactos limpa e actualizada para evitar bounces e manter a reputação alta.
+                  <strong>💡 Dica:</strong> Mantenha a sua lista de emails limpa e actualizada para evitar bounces e manter a reputação alta.
                 </p>
               </div>
             </div>
@@ -1789,7 +1828,7 @@ function MailMarketingContacts({ selectedSite, setSelectedSite, sites, listas, s
         if (newEmail?.trim().toLowerCase() !== email) {
           toast.success(`Email corrigido automaticamente para ${email}`);
         }
-        toast.success(editingSub ? "Contacto actualizado com sucesso!" : "Contacto adicionado com sucesso!");
+        toast.success(editingSub ? "Email actualizado com sucesso!" : "Email adicionado com sucesso!");
         setNewEmail('');
         setNewName('');
         setNewDomainLabel(selectedSite || '');
@@ -1833,7 +1872,7 @@ function MailMarketingContacts({ selectedSite, setSelectedSite, sites, listas, s
 
   const handleDeleteSelected = async () => {
     if (selectedSubscriberIds.length === 0) return;
-    if (!confirm(`Remover ${selectedSubscriberIds.length} contacto(s) seleccionado(s)?`)) return;
+    if (!confirm(`Remover ${selectedSubscriberIds.length} email(s) seleccionado(s)?`)) return;
     try {
       const selectedMap = new Set(selectedSubscriberIds);
       const selectedRows = subscribers.filter((s: any) => selectedMap.has(s.id));
@@ -1842,7 +1881,7 @@ function MailMarketingContacts({ selectedSite, setSelectedSite, sites, listas, s
       setSelectedSubscriberIds([]);
       fetchSubs();
     } catch (error) {
-      toast.error("Erro ao remover contactos seleccionados");
+      toast.error("Erro ao remover emails seleccionados");
     }
   };
 
@@ -1867,7 +1906,7 @@ function MailMarketingContacts({ selectedSite, setSelectedSite, sites, listas, s
             <Users className="w-6 h-6 text-orange-600" />
           </div>
           <div>
-            <h2 className="text-xl font-black text-slate-900 tracking-tight">Lista de Contactos</h2>
+            <h2 className="text-xl font-black text-slate-900 tracking-tight">Lista de Emails</h2>
             <p className="text-sm text-slate-500 font-medium tracking-tight">Gestão da base de dados para {selectedSite || 'o seu domínio'}.</p>
           </div>
         </div>
@@ -2041,7 +2080,7 @@ function MailMarketingContacts({ selectedSite, setSelectedSite, sites, listas, s
               <div className="flex items-start justify-between gap-2">
                 <div>
                   <p className="text-xs font-black text-slate-900 uppercase tracking-wider">{listName}</p>
-                  <p className="text-[10px] font-bold text-slate-400 mt-1">{count} contacto{count !== 1 ? 's' : ''}</p>
+                  <p className="text-[10px] font-bold text-slate-400 mt-1">{count} email{count !== 1 ? 's' : ''}</p>
                 </div>
                 <span className="text-[10px] font-black px-2 py-0.5 bg-orange-50 text-orange-600 rounded-full border border-orange-100">Lista</span>
               </div>
@@ -2068,10 +2107,10 @@ function MailMarketingContacts({ selectedSite, setSelectedSite, sites, listas, s
                     checked={currentItems.length > 0 && currentItems.every((sub: any) => selectedSubscriberIds.includes(sub.id))}
                     onChange={toggleSelectAllCurrentItems}
                     className="accent-orange-600"
-                    aria-label="Seleccionar todos os contactos visíveis"
+                    aria-label="Seleccionar todos os emails visíveis"
                   />
                 </th>
-                <th className="px-5 py-2 text-[10px] font-black text-slate-400 uppercase tracking-widest">Contacto</th>
+                <th className="px-5 py-2 text-[10px] font-black text-slate-400 uppercase tracking-widest">Email</th>
                 <th className="px-5 py-2 text-[10px] font-black text-slate-400 uppercase tracking-widest">Dominio</th>
                 <th className="px-5 py-2 text-[10px] font-black text-slate-400 uppercase tracking-widest">Lista</th>
                 <th className="px-5 py-2 text-[10px] font-black text-slate-400 uppercase tracking-widest">Status</th>
@@ -2197,7 +2236,7 @@ function MailMarketingContacts({ selectedSite, setSelectedSite, sites, listas, s
         <div className="fixed inset-0 h-screen bg-slate-900/40 z-[100] flex items-center justify-center p-4 sm:p-6 animate-in fade-in duration-200">
           <div className="bg-white rounded-lg w-full max-w-md shadow-2xl overflow-hidden max-h-[90vh] overflow-y-auto animate-in zoom-in-95 duration-300">
             <div className="p-5 border-b border-slate-100 flex items-center justify-between bg-white text-slate-900">
-              <h3 className="text-lg font-black tracking-tight">{editingSub ? 'Editar Contacto' : 'Novo Contacto'}</h3>
+              <h3 className="text-lg font-black tracking-tight">{editingSub ? 'Editar Email' : 'Novo Email'}</h3>
               <button
                 onClick={() => {
                   setShowAddForm(false);
@@ -2213,7 +2252,7 @@ function MailMarketingContacts({ selectedSite, setSelectedSite, sites, listas, s
             </div>
             <form onSubmit={handleAdd} className="p-5 space-y-5">
               <div className="space-y-2">
-                <Input type="email" required value={newEmail} onChange={(e) => setNewEmail(e.target.value)} className="rounded-lg h-10 border-slate-200 focus:ring-red-500 text-sm" placeholder="Email do contacto" />
+                <Input type="email" required value={newEmail} onChange={(e) => setNewEmail(e.target.value)} className="rounded-lg h-10 border-slate-200 focus:ring-red-500 text-sm" placeholder="Email" />
               </div>
               <div className="space-y-2">
                 <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest px-1">
@@ -2493,7 +2532,7 @@ function MailMarketingCampaigns({ selectedSite, currentUserEmail, onResend }: { 
                   </div>
                   <div className="flex items-center gap-6">
                     <div className="text-right">
-                      <p className="text-[9px] uppercase tracking-widest text-slate-400 font-black mb-0.5">Contactos</p>
+                      <p className="text-[9px] uppercase tracking-widest text-slate-400 font-black mb-0.5">Emails</p>
                       <p className="text-sm font-black text-slate-900">{camp.recipient_count || camp.total_recipients || 0}</p>
                     </div>
                     <div className="w-20 flex justify-end">
@@ -3456,7 +3495,7 @@ function ClientPageContent() {
   const [clientReadOnly, setClientReadOnly] = useState(true)
   const [mailMarketingTab, setMailMarketingTab] = useState<'comp' | 'subs' | 'camp'>('comp')
   const [mailMarketingSearchTerm, setMailMarketingSearchTerm] = useState('')
-  const [mailMarketingListas, setMailMarketingListas] = useState(['Contactos', 'Clientes', 'Newsletter'])
+  const [mailMarketingListas, setMailMarketingListas] = useState(['Contactos'])
   const [compondoEmail, setCompondoEmail] = useState(false)
   const { isCollapsed, setIsCollapsed, isMobile } = usePanelSidebarCollapsed()
   const [fileManagerDomain, setFileManagerDomain] = useState('')
@@ -3911,7 +3950,7 @@ function ClientPageContent() {
                   onClick={() => setMailMarketingTab('subs')}
                   className={`relative z-10 w-[95px] flex items-center justify-center py-1.5 rounded-md text-[10px] font-black uppercase tracking-widest transition-all ${mailMarketingTab === 'subs' ? 'text-orange-600' : 'text-slate-500 hover:text-slate-700 dark:text-zinc-400'}`}
                 >
-                  Contactos
+                  Emails
                 </button>
               </div>
             ) : chrome?.toolbar

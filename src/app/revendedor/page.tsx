@@ -1871,6 +1871,7 @@ function ResellerPageContent() {
             currentUserEmail={sessionUser || undefined}
             activeTab={derivedTab}
             onTabChange={setMailMarketingTab}
+            isAdminAccount={false}
           />
         )
 
