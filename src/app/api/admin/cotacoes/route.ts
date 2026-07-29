@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { requireAdminOrReseller } from '@/lib/panel-api-auth';
-import { notifyQuoteClientStatusChange } from '@/lib/notify-quote-client';
+import { notifyQuoteClientStatusChange, notifyQuoteClientPriceDefined } from '@/lib/notify-quote-client';
 import { computeBatchStatus } from '@/lib/quotation-status-labels';
 import { batchNumero } from '@/lib/quotation-batch';
 import { QUOTATION_ATTACHMENTS_BUCKET } from '@/lib/quotation-attachments-bucket';
@@ -122,7 +122,7 @@ export async function PATCH(request: Request) {
 
   try {
     const body = await request.json();
-    const { id, status, rejectionReason, batchId, dataLimiteEntrega } = body || {};
+    const { id, status, rejectionReason, batchId, dataLimiteEntrega, precoUnitarioMt } = body || {};
 
     // Alterar a data limite de entrega prevista — aplica-se a todos os itens da mesma
     // encomenda (batch), já que foram todos submetidos com o mesmo prazo original.
@@ -136,6 +136,51 @@ export async function PATCH(request: Request) {
 
       if (error) throw error;
       return NextResponse.json({ success: true, cotacoes: data });
+    }
+
+    // Definir o valor de um item "Sob Consulta" (catálogo sem preço fixo, ou
+    // pedido personalizado) — a equipa fecha o orçamento com o cliente por
+    // fora e regista aqui o valor final. Assim que a linha muda, o painel do
+    // cliente já mostra o preço (lê sempre ao vivo de quotation_requests); o
+    // email só avisa que há resposta à espera.
+    if (id && precoUnitarioMt !== undefined && status === undefined) {
+      const valor = Number(precoUnitarioMt);
+      if (!Number.isFinite(valor) || valor <= 0) {
+        return NextResponse.json({ success: false, error: 'Valor inválido.' }, { status: 400 });
+      }
+
+      const supabase = getSupabaseAdmin();
+      const { data: existing, error: existingError } = await supabase
+        .from('quotation_requests')
+        .select('quantidade, sob_consulta, produto, empresa, responsavel, email')
+        .eq('id', id)
+        .single();
+
+      if (existingError || !existing) {
+        return NextResponse.json({ success: false, error: 'Cotação não encontrada.' }, { status: 404 });
+      }
+      if (!existing.sob_consulta) {
+        return NextResponse.json({ success: false, error: 'Este item já tem um valor fixo — não é "Sob Consulta".' }, { status: 409 });
+      }
+
+      const totalMt = Math.round(valor * existing.quantidade * 100) / 100;
+      const { data, error } = await supabase
+        .from('quotation_requests')
+        .update({ preco_unitario_mt: valor, total_mt: totalMt, sob_consulta: false, updated_at: new Date().toISOString() })
+        .eq('id', id)
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      notifyQuoteClientPriceDefined({
+        to: existing.email,
+        clientName: existing.responsavel || existing.empresa,
+        produto: existing.produto,
+        valorMt: totalMt,
+      }).catch((err) => console.error('[admin/cotacoes] falha ao notificar cliente do valor definido:', err));
+
+      return NextResponse.json({ success: true, cotacao: data });
     }
 
     if (!id || !status) {

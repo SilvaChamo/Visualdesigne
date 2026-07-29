@@ -265,7 +265,7 @@ function PrecosContent() {
                           />
                           <span className="flex-1 text-sm font-medium text-zinc-800 dark:text-zinc-200">{item.name}</span>
                           <span className="text-sm font-bold text-red-600 dark:text-red-500 whitespace-nowrap">
-                            {item.sobConsulta ? 'Sob Consulta' : `${formatMt(item.price)} MT`}
+                            {item.sobConsulta ? 'Sob Consulta' : item.startingAt ? `A partir de ${formatMt(item.price)} MT` : `${formatMt(item.price)} MT`}
                           </span>
                         </label>
                       ))}

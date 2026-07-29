@@ -1,9 +1,10 @@
 'use client'
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
+import { motion } from 'framer-motion'
 import {
   RefreshCw, Building2, Phone, Mail, Calendar, ChevronDown, History,
-  Inbox, Clock, Factory, PackageCheck, XCircle, CheckCircle2, MessageCircle, X, Calculator,
+  Inbox, Clock, Factory, PackageCheck, XCircle, CheckCircle2, MessageCircle, X, Calculator, Check,
 } from 'lucide-react'
 import {
   panelBtnSecondary, panelField,
@@ -157,6 +158,15 @@ export function CotacoesSection() {
   const [expandedCompany, setExpandedCompany] = useState<string | null>(null)
   const numeros = useBatchNumeros()
 
+  // expandedBatchId é um único estado partilhado por todas as vistas — sem
+  // isto, uma encomenda aberta em "Recebidas" ou num balde continuava aberta
+  // "por arrasto" ao mudar para o Histórico (a mesma encomenda pode existir
+  // em ambas as vistas). Mudar de vista fecha sempre tudo outra vez.
+  useEffect(() => {
+    setExpandedBatchId(null)
+    setExpandedCompany(null)
+  }, [navMode, activeCategory, activeBucket])
+
   const fetchCotacoes = useCallback(async (opts?: { background?: boolean }) => {
     if (!opts?.background) setLoading(true)
     try {
@@ -293,6 +303,34 @@ export function CotacoesSection() {
     }
   }
 
+  // Define o valor final de um item submetido como "Sob Consulta" — usado
+  // pelo admin depois de fechar o orçamento com o cliente por fora. O
+  // servidor recalcula o total e avisa o cliente por email (ver
+  // notifyQuoteClientPriceDefined); o painel dele já lê o valor novo assim
+  // que recarregar, sem mais nenhuma acção aqui.
+  const setPrecoItem = async (itemId: string, precoUnitarioMt: number) => {
+    setUpdatingId(itemId)
+    try {
+      const res = await fetch('/api/admin/cotacoes', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: itemId, precoUnitarioMt }),
+      })
+      const data = await res.json()
+      if (data.success) {
+        setCotacoes((prev) => prev.map((c) => (c.id === itemId
+          ? { ...c, preco_unitario_mt: data.cotacao.preco_unitario_mt, total_mt: data.cotacao.total_mt, sob_consulta: false }
+          : c)))
+      } else {
+        window.alert(data.error || 'Não foi possível definir o valor.')
+      }
+    } catch (error) {
+      console.error('Erro ao definir valor:', error)
+    } finally {
+      setUpdatingId(null)
+    }
+  }
+
   const updateDeliveryDate = async (batchId: string, dataLimiteEntrega: string) => {
     try {
       const res = await fetch('/api/admin/cotacoes', {
@@ -338,16 +376,16 @@ export function CotacoesSection() {
   }
 
   const navBtnClass = (active: boolean) =>
-    `w-full flex items-center gap-2 px-2.5 py-2 rounded text-sm font-medium transition-colors text-left ${
+    `w-full flex items-center gap-2 px-2.5 py-2 rounded border-l-2 text-sm font-medium transition-colors text-left ${
       active
-        ? 'bg-red-50 text-red-600 dark:bg-red-950/20 dark:text-red-400'
-        : 'text-gray-600 hover:bg-gray-50 dark:text-zinc-400 dark:hover:bg-zinc-800/50'
+        ? 'border-red-600 bg-red-50 text-red-600 dark:border-red-500 dark:bg-red-950/20 dark:text-red-400'
+        : 'border-transparent text-gray-600 hover:bg-gray-50 dark:text-zinc-400 dark:hover:bg-zinc-800/50'
     }`
 
   return (
     <div>
       <div className="flex flex-col lg:flex-row gap-4 lg:gap-5 items-start">
-        <nav className={`${panelSectionCard} sticky top-0 h-[calc(100vh-116px)] w-full shrink-0 space-y-5 overflow-y-auto p-3 lg:w-[220px]`}>
+        <nav className={`${panelSectionCard} sticky top-0 h-[calc(100vh-116px)] w-full shrink-0 space-y-0.5 overflow-y-auto p-3 lg:w-[220px]`}>
           <div>
             <button
               type="button"
@@ -360,55 +398,65 @@ export function CotacoesSection() {
               <ChevronDown className={`w-3.5 h-3.5 shrink-0 opacity-60 transition-transform ${categoriesOpen ? '' : '-rotate-90'}`} />
             </button>
             {categoriesOpen && (
-              <div className="ml-3 mt-1 space-y-0.5 border-l border-gray-200 dark:border-zinc-800 pl-2">
-                {CATEGORY_LABELS.map((label) => (
-                  <button
-                    key={label}
-                    type="button"
-                    onClick={() => { setNavMode('categoria'); setActiveCategory(label) }}
-                    className={navBtnClass(navMode === 'categoria' && activeCategory === label) + ' text-xs py-1.5'}
-                  >
-                    {label}
-                  </button>
-                ))}
+              <div className="ml-3 mt-1 space-y-0.5 pl-2">
+                {CATEGORY_LABELS.map((label) => {
+                  const isActive = navMode === 'categoria' && activeCategory === label
+                  return (
+                    <button
+                      key={label}
+                      type="button"
+                      onClick={() => { setNavMode('categoria'); setActiveCategory(label) }}
+                      className={`relative w-full flex items-center gap-2 px-2.5 py-1.5 text-xs font-medium transition-colors text-left ${
+                        isActive
+                          ? 'text-red-600 dark:text-red-400'
+                          : 'text-gray-600 hover:bg-gray-50 dark:text-zinc-400 dark:hover:bg-zinc-800/50'
+                      }`}
+                    >
+                      {isActive && (
+                        <motion.span
+                          layoutId="submenu-categoria-active"
+                          className="absolute inset-0 border-l-2 border-red-600 bg-red-50 dark:border-red-500 dark:bg-red-950/20"
+                          transition={{ type: 'spring', bounce: 0.15, duration: 0.35 }}
+                        />
+                      )}
+                      <span className="relative z-10">{label}</span>
+                    </button>
+                  )
+                })}
               </div>
             )}
           </div>
 
-          <div className="space-y-0.5 pt-3 border-t border-gray-100 dark:border-zinc-800">
-            {BUCKET_ITEMS.map((b) => {
-              const Icon = b.icon
-              return (
-                <button
-                  key={b.value}
-                  type="button"
-                  onClick={() => { setNavMode('bucket'); setActiveBucket(b.value) }}
-                  className={navBtnClass(navMode === 'bucket' && activeBucket === b.value)}
-                >
-                  <Icon className="w-4 h-4 shrink-0" />
-                  <span className="flex-1">{b.label}</span>
-                  <span className="text-xs text-gray-400 dark:text-zinc-500">{bucketCounts[b.value]}</span>
-                </button>
-              )
-            })}
-          </div>
+          {BUCKET_ITEMS.map((b) => {
+            const Icon = b.icon
+            return (
+              <button
+                key={b.value}
+                type="button"
+                onClick={() => { setNavMode('bucket'); setActiveBucket(b.value) }}
+                className={navBtnClass(navMode === 'bucket' && activeBucket === b.value)}
+              >
+                <Icon className="w-4 h-4 shrink-0" />
+                <span className="flex-1">{b.label}</span>
+                <span className="text-xs text-gray-400 dark:text-zinc-500">{bucketCounts[b.value]}</span>
+              </button>
+            )
+          })}
 
-          <div className="space-y-0.5 pt-3 border-t border-gray-100 dark:border-zinc-800">
-            <button
-              type="button"
-              onClick={() => setNavMode('historico')}
-              className={navBtnClass(navMode === 'historico')}
-            >
-              <History className="w-4 h-4 shrink-0" /> Histórico
-            </button>
-            <button
-              type="button"
-              onClick={() => setNavMode('contabilidade')}
-              className={navBtnClass(navMode === 'contabilidade')}
-            >
-              <Calculator className="w-4 h-4 shrink-0" /> Contabilidade
-            </button>
-          </div>
+          <button
+            type="button"
+            onClick={() => setNavMode('historico')}
+            className={navBtnClass(navMode === 'historico')}
+          >
+            <History className="w-4 h-4 shrink-0" /> Histórico
+          </button>
+          <button
+            type="button"
+            onClick={() => setNavMode('contabilidade')}
+            className={navBtnClass(navMode === 'contabilidade')}
+          >
+            <Calculator className="w-4 h-4 shrink-0" /> Contabilidade
+          </button>
         </nav>
 
         <div className="min-w-0 flex-1 w-full">
@@ -458,6 +506,7 @@ export function CotacoesSection() {
                               onUpdateStatus={updateStatus}
                               onUpdateDeliveryDate={updateDeliveryDate}
                               onMarkDelivered={markBatchDelivered}
+                              onSetPreco={setPrecoItem}
                             />
                           ))}
                         </div>
@@ -499,6 +548,7 @@ export function CotacoesSection() {
                             onUpdateStatus={updateStatus}
                             onUpdateDeliveryDate={updateDeliveryDate}
                             onMarkDelivered={markBatchDelivered}
+                            onSetPreco={setPrecoItem}
                           />
                         )
                       })}
@@ -545,6 +595,7 @@ function BatchCard({
   onUpdateStatus,
   onUpdateDeliveryDate,
   onMarkDelivered,
+  onSetPreco,
 }: {
   number: number
   batch: QuotationBatch<QuotationRequest>
@@ -553,6 +604,7 @@ function BatchCard({
   onToggle: () => void
   updatingId: string | null
   onUpdateStatus: (itemId: string, status: QuotationRequest['status']) => void
+  onSetPreco: (itemId: string, precoUnitarioMt: number) => void
   onUpdateDeliveryDate: (batchId: string, dataLimiteEntrega: string) => void
   onMarkDelivered: (batch: QuotationBatch<QuotationRequest>) => void
 }) {
@@ -570,6 +622,19 @@ function BatchCard({
   const [chatMenuOpen, setChatMenuOpen] = useState(false)
   const [editingDate, setEditingDate] = useState(false)
   const [deliveryMenuOpen, setDeliveryMenuOpen] = useState(false)
+  const [editingPrecoItemId, setEditingPrecoItemId] = useState<string | null>(null)
+  const [precoDraft, setPrecoDraft] = useState('')
+
+  const startEditingPreco = (itemId: string) => {
+    setEditingPrecoItemId(itemId)
+    setPrecoDraft('')
+  }
+  const commitPreco = (itemId: string) => {
+    const valor = Number(precoDraft)
+    if (!Number.isFinite(valor) || valor <= 0) return
+    onSetPreco(itemId, valor)
+    setEditingPrecoItemId(null)
+  }
   const statusSelectRefs = useRef<Record<string, HTMLSelectElement | null>>({})
   const openStatusPicker = (itemId: string) => {
     const el = statusSelectRefs.current[itemId]
@@ -796,20 +861,57 @@ function BatchCard({
                               ))}
                             </select>
                           </div>
-                          <span className="w-24 shrink-0 text-right text-sm whitespace-nowrap">
-                            {item.sob_consulta ? (
-                              <span className="text-gray-300 dark:text-zinc-600">—</span>
-                            ) : (
-                              <span className="text-gray-500 dark:text-zinc-400">{formatMt(item.preco_unitario_mt)} MT</span>
-                            )}
-                          </span>
-                          <span className="w-24 shrink-0 text-right text-sm font-semibold whitespace-nowrap">
-                            {item.sob_consulta ? (
-                              <span className="text-red-600 dark:text-red-500 font-extrabold">Sob Consulta</span>
-                            ) : (
-                              <span className="text-gray-700 dark:text-zinc-300">{formatMt(item.preco_unitario_mt * item.quantidade)} MT</span>
-                            )}
-                          </span>
+                          {item.sob_consulta && editingPrecoItemId === item.id ? (
+                            <span className="flex shrink-0 items-center gap-1.5">
+                              <input
+                                autoFocus
+                                type="number"
+                                step="0.01"
+                                min="0"
+                                placeholder="Valor"
+                                value={precoDraft}
+                                onChange={(e) => setPrecoDraft(e.target.value)}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') commitPreco(item.id)
+                                  if (e.key === 'Escape') setEditingPrecoItemId(null)
+                                }}
+                                className={`${panelField} w-24 py-1 text-right text-sm`}
+                              />
+                              <button
+                                type="button"
+                                onClick={() => commitPreco(item.id)}
+                                disabled={updatingId === item.id}
+                                className="shrink-0 text-green-600 hover:text-green-700 dark:text-green-400 dark:hover:text-green-300 transition-colors disabled:opacity-50"
+                                title="Guardar valor"
+                              >
+                                <Check className="w-4 h-4" />
+                              </button>
+                            </span>
+                          ) : (
+                            <>
+                              <span className="w-24 shrink-0 text-right text-sm whitespace-nowrap">
+                                {item.sob_consulta ? (
+                                  <span className="text-gray-300 dark:text-zinc-600">—</span>
+                                ) : (
+                                  <span className="text-gray-500 dark:text-zinc-400">{formatMt(item.preco_unitario_mt)} MT</span>
+                                )}
+                              </span>
+                              <span className="w-24 shrink-0 text-right text-sm font-semibold whitespace-nowrap">
+                                {item.sob_consulta ? (
+                                  <button
+                                    type="button"
+                                    onClick={() => startEditingPreco(item.id)}
+                                    className="text-red-600 dark:text-red-500 font-extrabold hover:underline"
+                                    title="Clique para definir o valor"
+                                  >
+                                    Sob Consulta
+                                  </button>
+                                ) : (
+                                  <span className="text-gray-700 dark:text-zinc-300">{formatMt(item.preco_unitario_mt * item.quantidade)} MT</span>
+                                )}
+                              </span>
+                            </>
+                          )}
                           <span className="ml-2 w-3.5 shrink-0" aria-hidden="true" />
                         </div>
                       )

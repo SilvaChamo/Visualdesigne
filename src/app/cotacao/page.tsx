@@ -198,6 +198,7 @@ function CotacaoContent() {
       categoriaLabel: isCustom ? 'Pedido Personalizado' : (categoryFor(li.categoriaId)?.label ?? 'Seleccionar serviço'),
       qty: li.quantidade,
       precoUnitario: found?.item.price ?? 0,
+      startingAt: Boolean(found?.item.startingAt),
       sobConsultaItem,
       subtotal,
     };
@@ -701,7 +702,10 @@ function CotacaoContent() {
                               >
                                 {!li.produto && <option value="">Seleccionar especificação</option>}
                                 {(cat?.items ?? []).map((p) => (
-                                  <option key={p.name} value={p.name}>{p.name}{p.sobConsulta ? ' (Sob Consulta)' : ''}</option>
+                                  <option key={p.name} value={p.name}>
+                                    {p.name}
+                                    {p.sobConsulta ? ' (Sob Consulta)' : p.startingAt ? ` (a partir de ${formatMt(p.price)} MT)` : ''}
+                                  </option>
                                 ))}
                               </select>
                               <ChevronDown className="w-3.5 h-3.5 text-zinc-400 absolute right-1 top-1/2 -translate-y-1/2 pointer-events-none" />
@@ -858,7 +862,7 @@ function CotacaoContent() {
                 )}
 
                 <div className={`space-y-3 text-sm ${mostrarLinhaAntesServicos ? 'border-t border-zinc-300 dark:border-zinc-600 pt-4' : ''}`}>
-                  {multiItemsPriced.map(({ li, categoriaLabel, qty, sobConsultaItem, isCustom, precoUnitario }) => (
+                  {multiItemsPriced.map(({ li, categoriaLabel, qty, sobConsultaItem, isCustom, precoUnitario, startingAt }) => (
                     <div key={li.id}>
                       {isCustom ? (
                         <>
@@ -880,9 +884,14 @@ function CotacaoContent() {
                             <span className="text-zinc-800 dark:text-zinc-200">{qty}</span>
                           </div>
                           <div className="flex items-center justify-between">
-                            <span className="text-zinc-500 dark:text-zinc-400">V. Unitário</span>
-                            <span className="font-bold text-zinc-800 dark:text-zinc-200">{formatMt(precoUnitario)} MT</span>
+                            <span className="text-zinc-500 dark:text-zinc-400">V. Unitário{startingAt ? ' (estimativa)' : ''}</span>
+                            <span className="font-bold text-zinc-800 dark:text-zinc-200">{startingAt ? 'a partir de ' : ''}{formatMt(precoUnitario)} MT</span>
                           </div>
+                          {startingAt && (
+                            <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">
+                              Valor estimado — a equipa confirma o valor final consoante o âmbito do trabalho.
+                            </p>
+                          )}
                         </>
                       )}
                     </div>

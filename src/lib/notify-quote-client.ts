@@ -1,5 +1,6 @@
 import { sendEmail } from '@/lib/email-service';
 import { emailHeader, emailFooter, wrapContentInFrame } from '@/lib/renewal-templates';
+import { formatMt } from '@/lib/pricing-catalog';
 
 const SUPPORT_EMAIL = 'suporte@visualdesignmoz.com';
 const SUPPORT_PHONE = '+258 85 242 5525';
@@ -109,6 +110,34 @@ export async function notifyQuoteClientNewMessage(params: {
     });
   } catch (err) {
     console.error('[notify-quote-client] falha ao enviar email de nova mensagem:', err);
+  }
+}
+
+/**
+ * Avisa o cliente (email) quando a equipa define o valor de um item que
+ * tinha sido submetido como "Sob Consulta" (sem preço fixo no catálogo, ou
+ * pedido personalizado). O painel do cliente já mostra o valor assim que a
+ * linha é actualizada — este email só avisa que há resposta à espera.
+ */
+export async function notifyQuoteClientPriceDefined(params: {
+  to: string;
+  clientName: string;
+  produto: string;
+  valorMt: number;
+}) {
+  const { to, clientName, produto, valorMt } = params;
+  const title = 'Valor definido para o seu pedido sob consulta';
+  const message = `A equipa definiu o valor para o pedido "${produto}": ${formatMt(valorMt)} MT.\n\nAceda ao painel para ver os detalhes e avançar com o pagamento.`;
+
+  try {
+    await sendEmail({
+      to,
+      subject: title,
+      html: buildClientEmailHtml({ clientName, title, message }),
+      category: 'transactional',
+    });
+  } catch (err) {
+    console.error('[notify-quote-client] falha ao enviar email de valor definido:', err);
   }
 }
 

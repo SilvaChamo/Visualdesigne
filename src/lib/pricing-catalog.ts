@@ -3,6 +3,11 @@ export type PriceItem = {
   price: number
   // Sem preço fixo — mostrar "Sob Consulta" em vez de um valor calculado.
   sobConsulta?: boolean
+  // Preço variável consoante o âmbito do trabalho — `price` é o valor mínimo
+  // do intervalo aprovado, mostrado como "a partir de X MT". O calculador
+  // usa esse mínimo como estimativa automática; se o âmbito real for maior,
+  // o valor final ajusta-se depois na própria encomenda (ver painel admin).
+  startingAt?: boolean
 }
 
 export type Category = {
@@ -180,7 +185,13 @@ export const CATEGORIES: Category[] = [
     subtitle: 'Sites modernos, institucionais e landing pages responsivos, adaptados ao seu negócio.',
     minQty: '',
     brand: 'web',
-    items: [{ name: 'Website Institucional / Landing Page', price: 0, sobConsulta: true }],
+    items: [
+      { name: 'Site Básico — Mão de Obra (WordPress)', price: 5000 },
+      { name: 'Site Institucional, Domínio .com (WordPress/App)', price: 15000, startingAt: true },
+      { name: 'Site Simples, Domínio .co.mz (WordPress/App)', price: 20500, startingAt: true },
+      { name: 'Site Complexo com Painel Administrativo (App)', price: 35000, startingAt: true },
+      { name: 'E-commerce / Plataforma à Medida (App)', price: 35000, startingAt: true },
+    ],
   },
   {
     id: 'sistemas-web',
@@ -237,7 +248,7 @@ export const CATEGORIES: Category[] = [
     brand: 'transporte',
     items: [
       { name: 'Viatura para Evento Corporativo', price: 0, sobConsulta: true },
-      { name: 'Transfere Executivo com Motorista', price: 0, sobConsulta: true },
+      { name: 'Transfere Executivo com Motorista', price: 15000 },
     ],
   },
   {
