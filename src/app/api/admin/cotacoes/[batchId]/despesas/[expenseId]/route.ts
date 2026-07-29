@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { requireAdminOrReseller } from '@/lib/panel-api-auth';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { isYearClosed } from '@/lib/accounting-year-lock';
+import { refreshAccountingSnapshotCosts } from '@/lib/accounting-snapshot';
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ batchId: string; expenseId: string }> }) {
   const auth = await requireAdminOrReseller();
@@ -15,7 +16,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ ba
     return NextResponse.json({ success: false, error: 'Supabase Service Role não configurado.' }, { status: 503 });
   }
 
-  const { expenseId } = await params;
+  const { batchId, expenseId } = await params;
 
   try {
     const { data: existing, error: existingError } = await supabase
@@ -45,6 +46,8 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ ba
       .single();
     if (error) throw error;
 
+    await refreshAccountingSnapshotCosts(supabase, batchId);
+
     return NextResponse.json({ success: true, despesa: data });
   } catch (error: any) {
     console.error('[admin/cotacoes/despesas PATCH] error:', error);
@@ -64,7 +67,7 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ b
     return NextResponse.json({ success: false, error: 'Supabase Service Role não configurado.' }, { status: 503 });
   }
 
-  const { expenseId } = await params;
+  const { batchId, expenseId } = await params;
 
   try {
     const { data: existing, error: existingError } = await supabase
@@ -82,6 +85,8 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ b
 
     const { error } = await supabase.from('quotation_batch_expenses').delete().eq('id', expenseId);
     if (error) throw error;
+
+    await refreshAccountingSnapshotCosts(supabase, batchId);
 
     return NextResponse.json({ success: true });
   } catch (error: any) {

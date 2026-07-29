@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { requireAdminOrReseller } from '@/lib/panel-api-auth';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { isYearClosed } from '@/lib/accounting-year-lock';
+import { refreshAccountingSnapshotCosts } from '@/lib/accounting-snapshot';
 
 // Lista/regista despesas de produção (materiais, etc.) de uma encomenda —
 // o total alimenta "Custos de produção" na Contabilidade mensal.
@@ -60,6 +61,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ bat
       .select()
       .single();
     if (error) throw error;
+
+    await refreshAccountingSnapshotCosts(supabase, batchId);
 
     return NextResponse.json({ success: true, despesa: data });
   } catch (error: any) {
