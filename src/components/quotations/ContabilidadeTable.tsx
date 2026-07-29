@@ -236,15 +236,7 @@ function BalancoTable({ meses, registos }: { meses: MonthRow[]; registos: Regist
                         <td className="whitespace-nowrap px-4 py-1.5 text-right text-xs tabular-nums text-gray-500 dark:text-zinc-400">{formatMt(r.custos_producao_mt)} MT</td>
                         <td className="whitespace-nowrap px-4 py-1.5 text-right text-xs tabular-nums text-gray-500 dark:text-zinc-400">{formatMt(r.iva_mt)} MT</td>
                         <td className="whitespace-nowrap px-4 py-1.5 text-right text-xs tabular-nums text-gray-500 dark:text-zinc-400">{formatMt(r.lucro_mt)} MT</td>
-                        <td className="whitespace-nowrap px-4 py-1.5 text-right">
-                          <button
-                            type="button"
-                            onClick={(e) => { e.stopPropagation(); openDocumentPopup(r.primary_item_id) }}
-                            className="text-xs font-medium text-red-600 hover:underline dark:text-red-400"
-                          >
-                            Ver
-                          </button>
-                        </td>
+                        <td className="whitespace-nowrap px-4 py-1.5" />
                       </tr>
                     )),
                   )
