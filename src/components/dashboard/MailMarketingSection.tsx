@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { 
   Plus, Search, Download, Edit2, Trash2, RefreshCw, Send, Megaphone, Newspaper, 
   File as FileIcon, Loader2, LayoutTemplate, Sparkles, X as XLucide, 
@@ -99,7 +100,113 @@ function MailMarketingCampaignsSkeleton() {
   )
 }
 
-export function MailMarketingSection({ 
+// Os separadores (Compor/Contactos/Histórico) ficam dentro de wrappers com
+// `relative z-10` para o efeito de mostrar/esconder — isso cria um stacking
+// context próprio, e um popup "fixed" lá dentro fica preso a competir com o
+// z-50 da AdminSidebar só dentro desse contexto (nunca ganha, por mais alto
+// que seja o seu próprio z-index). Renderizar via portal directamente no
+// body escapa a esse contexto e garante que o fundo escuro cobre a página
+// toda, incluindo a barra lateral.
+function ModalPortal({ children }: { children: React.ReactNode }) {
+  if (typeof document === 'undefined') return null;
+  return createPortal(children, document.body);
+}
+
+// Popup partilhado de Adicionar/Editar Contacto — usado quer na página de
+// Contactos quer no botão "+" de cada lista no Editor de Mensagem, para que
+// haja um único popup em vez de duplicar o formulário em dois sítios.
+function getContactLists(sub: any): string[] {
+  const lists = sub?.metadata?.lists;
+  if (Array.isArray(lists) && lists.length) return lists;
+  if (sub?.metadata?.list) return [sub.metadata.list];
+  return ['Contactos'];
+}
+
+function ContactFormModal({
+  open,
+  onClose,
+  editingSub,
+  selectedSite,
+  listas,
+  defaultList,
+  onSaved,
+}: {
+  open: boolean;
+  onClose: () => void;
+  editingSub?: any;
+  selectedSite: string;
+  listas: string[];
+  defaultList?: string;
+  onSaved: (row: any, lists: string[]) => void;
+}) {
+  const [newEmail, setNewEmail] = useState('');
+  const [selectedLists, setSelectedLists] = useState<string[]>(['Contactos']);
+
+  useEffect(() => {
+    if (!open) return;
+    setNewEmail(editingSub?.email || '');
+    setSelectedLists(editingSub ? getContactLists(editingSub) : [defaultList || 'Contactos']);
+  }, [open, editingSub, defaultList]);
+
+  if (!open) return null;
+
+  const toggleList = (list: string) => {
+    setSelectedLists(prev => prev.includes(list) ? prev.filter(l => l !== list) : [...prev, list]);
+  };
+
+  const handleAdd = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newEmail || selectedLists.length === 0) return;
+    try {
+      const payload = { email: newEmail, domain: selectedSite, lists: selectedLists };
+      const row = editingSub
+        ? await atualizarSubscritor(editingSub.id, payload)
+        : (await adicionarSubscritor(payload))?.data;
+
+      if (row) {
+        toast.success("Contacto guardado!");
+        onSaved(row, selectedLists);
+        onClose();
+      }
+    } catch (error: any) {
+      toast.error(error.message || "Erro ao guardar");
+    }
+  };
+
+  return (
+    <ModalPortal>
+      <div className="fixed inset-0 bg-slate-900/20 z-[100] flex items-center justify-center p-4">
+        <div className="bg-white rounded-md w-full max-w-md shadow-2xl p-6">
+          <h3 className="text-lg font-black mb-5 text-gray-900">{editingSub ? 'Editar' : 'Novo'} Contacto</h3>
+          <form onSubmit={handleAdd} className="space-y-4">
+            <div>
+              <label className="text-xs font-bold text-gray-600 mb-1 block">Email *</label>
+              <Input value={newEmail} onChange={e => setNewEmail(e.target.value)} placeholder="exemplo@email.com" required className="rounded-md border-gray-200 focus-visible:ring-1 focus-visible:ring-gray-300" />
+            </div>
+            <div>
+              <label className="text-xs font-bold text-gray-600 mb-1 block">Listas * <span className="font-normal normal-case text-gray-400">(pode escolher mais que uma)</span></label>
+              <div className="space-y-1.5 max-h-40 overflow-y-auto border border-gray-200 rounded-md p-2">
+                {listas.map(l => (
+                  <label key={l} className="flex items-center gap-2 text-sm text-gray-700 px-1 py-1 rounded hover:bg-gray-50 cursor-pointer">
+                    <Checkbox checked={selectedLists.includes(l)} onCheckedChange={() => toggleList(l)} />
+                    {l}
+                  </label>
+                ))}
+              </div>
+              {selectedLists.length === 0 && <p className="text-[10px] text-red-500 mt-1">Escolhe pelo menos uma lista.</p>}
+            </div>
+            <div className="flex gap-3 pt-2">
+              <Button type="button" onClick={onClose} className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-md">Cancelar</Button>
+              <Button type="submit" disabled={selectedLists.length === 0} className="flex-1 bg-black hover:bg-red-600 text-white rounded-md disabled:opacity-50">Guardar</Button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </ModalPortal>
+  );
+}
+
+export function MailMarketingSection({
   sites, 
   currentUserEmail, 
   activeTab: externalActiveTab, 
@@ -116,7 +223,6 @@ export function MailMarketingSection({
 
   const [listas, setListas] = useState<string[]>(["Contactos"]);
   const [searchTerm, setSearchTerm] = useState('');
-  const [contactsListFocus, setContactsListFocus] = useState<string | null>(null);
 
   // Filtrar domínios reais
   const pureSites = sites.filter(s => !s.domain.toLowerCase().startsWith('mail.'));
@@ -153,20 +259,20 @@ export function MailMarketingSection({
     <div className="space-y-5 h-full overflow-auto">
       <div className="relative min-h-full">
         <div className={`transition-all duration-300 ${activeTab === 'comp' ? 'block opacity-100 relative z-10' : 'hidden opacity-0 absolute inset-0 z-0 pointer-events-none'}`}>
-          <MailMarketingComposer selectedSite={selectedSite} setSelectedSite={setSelectedSite} sites={pureSites} onGoToContacts={(listName) => { setContactsListFocus(listName || null); setActiveTab('subs'); }} onGoToHistory={() => setActiveTab('camp')} currentUserEmail={currentUserEmail} listas={listas} setListas={setListas} campaignToResend={campaignToResend} setCampaignToResend={setCampaignToResend} />
+          <MailMarketingComposer selectedSite={selectedSite} setSelectedSite={setSelectedSite} sites={pureSites} onGoToHistory={() => setActiveTab('camp')} currentUserEmail={currentUserEmail} listas={listas} setListas={setListas} campaignToResend={campaignToResend} setCampaignToResend={setCampaignToResend} />
         </div>
         <div className={`transition-all duration-300 ${activeTab === 'subs' ? 'block opacity-100 relative z-10' : 'hidden opacity-0 absolute inset-0 z-0 pointer-events-none'}`}>
-          <MailMarketingContacts selectedSite={selectedSite} setSelectedSite={setSelectedSite} sites={pureSites} listas={listas} setListas={setListas} searchTerm={searchTerm} setSearchTerm={setSearchTerm} listFocus={contactsListFocus} onClearListFocus={() => setContactsListFocus(null)} />
+          <MailMarketingContacts selectedSite={selectedSite} setSelectedSite={setSelectedSite} sites={pureSites} listas={listas} setListas={setListas} searchTerm={searchTerm} setSearchTerm={setSearchTerm} isActive={activeTab === 'subs'} />
         </div>
         <div className={`transition-all duration-300 ${activeTab === 'camp' ? 'block opacity-100 relative z-10' : 'hidden opacity-0 absolute inset-0 z-0 pointer-events-none'}`}>
-          <MailMarketingCampaigns selectedSite={selectedSite} currentUserEmail={currentUserEmail} onResend={(camp: any) => { setCampaignToResend(camp); setActiveTab('comp'); }} />
+          <MailMarketingCampaigns selectedSite={selectedSite} currentUserEmail={currentUserEmail} onResend={(camp: any) => { setCampaignToResend(camp); setActiveTab('comp'); }} isActive={activeTab === 'camp'} />
         </div>
       </div>
     </div>
   )
 }
 
-function MailMarketingComposer({ selectedSite, setSelectedSite, sites, onGoToContacts, onGoToHistory, currentUserEmail, listas, setListas, campaignToResend, setCampaignToResend }: { selectedSite: string, setSelectedSite: (s: string) => void, sites: any[], onGoToContacts: (listName?: string) => void, onGoToHistory: () => void, currentUserEmail?: string, listas: string[], setListas: (l: string[]) => void, campaignToResend?: any, setCampaignToResend?: (c: any) => void }) {
+function MailMarketingComposer({ selectedSite, setSelectedSite, sites, onGoToHistory, currentUserEmail, listas, setListas, campaignToResend, setCampaignToResend }: { selectedSite: string, setSelectedSite: (s: string) => void, sites: any[], onGoToHistory: () => void, currentUserEmail?: string, listas: string[], setListas: (l: string[]) => void, campaignToResend?: any, setCampaignToResend?: (c: any) => void }) {
   const { user } = useAuth();
   const [subject, setSubject] = useState("");
   const [content, setContent] = useState("");
@@ -177,6 +283,7 @@ function MailMarketingComposer({ selectedSite, setSelectedSite, sites, onGoToCon
   const [showTemplates, setShowTemplates] = useState(false);
   const [showNewListPopup, setShowNewListPopup] = useState(false);
   const [newListTitle, setNewListTitle] = useState("");
+  const [addContactList, setAddContactList] = useState<string | null>(null);
   const [showSuccessDialog, setShowSuccessDialog] = useState(false);
   const [showValidationError, setShowValidationError] = useState(false);
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
@@ -360,8 +467,7 @@ function MailMarketingComposer({ selectedSite, setSelectedSite, sites, onGoToCon
         if (data) {
           const filteredData = data.filter((s: any) => {
             const contactDomain = normalizeDomain(s?.metadata?.domain);
-            const listName = s.metadata?.list || 'Contactos';
-            if (!selectedPlans.includes(listName)) return false;
+            if (!getContactLists(s).some(l => selectedPlans.includes(l))) return false;
             if (!contactDomain || isPlatformDomain(contactDomain)) return true;
             return allowedDomains.size > 0 && allowedDomains.has(contactDomain);
           });
@@ -519,9 +625,9 @@ function MailMarketingComposer({ selectedSite, setSelectedSite, sites, onGoToCon
                     <div className="flex items-center gap-1 opacity-60 group-hover:opacity-100 transition-opacity">
                       <button
                         type="button"
-                        onClick={() => onGoToContacts()}
+                        onClick={() => setAddContactList(plan)}
                         className="p-1.5 text-orange-600 hover:bg-orange-100 rounded-md transition-all"
-                        title="Adicionar contactos a esta lista"
+                        title="Adicionar contacto a esta lista"
                       >
                         <Plus size={14} />
                       </button>
@@ -559,51 +665,63 @@ function MailMarketingComposer({ selectedSite, setSelectedSite, sites, onGoToCon
       </div>
       {showTemplates && <EmailTemplates onSelect={(html: string) => { setContent(html); setShowTemplates(false); }} onClose={() => setShowTemplates(false)} />}
       {showNewListPopup && (
-        <div className="fixed inset-0 bg-slate-900/60 flex items-center justify-center z-[100]">
-          <div className="bg-white rounded-xl p-8 w-full max-w-sm mx-4">
-            <h3 className="text-lg font-black text-slate-900 mb-5">Nova Lista</h3>
-            <input autoFocus type="text" placeholder="Ex: Clientes VIP..." value={newListTitle} onChange={(e) => setNewListTitle(e.target.value)} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-lg text-sm mb-5" />
-            <div className="flex gap-3">
-              <button onClick={() => { if (newListTitle) { setListas([...listas, newListTitle]); setNewListTitle(""); setShowNewListPopup(false); } }} className="flex-1 bg-black text-white py-3 rounded-lg text-[10px] font-black uppercase">Adicionar</button>
-              <button onClick={() => setShowNewListPopup(false)} className="flex-1 bg-slate-100 text-slate-600 py-3 rounded-lg text-[10px] font-black uppercase">Cancelar</button>
+        <ModalPortal>
+          <div className="fixed inset-0 bg-slate-900/20 flex items-center justify-center z-[100]">
+            <div className="bg-white rounded-xl p-8 w-full max-w-sm mx-4">
+              <h3 className="text-lg font-black text-slate-900 mb-5">Nova Lista</h3>
+              <input autoFocus type="text" placeholder="Ex: Clientes VIP..." value={newListTitle} onChange={(e) => setNewListTitle(e.target.value)} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-lg text-sm mb-5" />
+              <div className="flex gap-3">
+                <button onClick={() => { if (newListTitle) { setListas([...listas, newListTitle]); setNewListTitle(""); setShowNewListPopup(false); } }} className="flex-1 bg-black text-white py-3 rounded-lg text-[10px] font-black uppercase">Adicionar</button>
+                <button onClick={() => setShowNewListPopup(false)} className="flex-1 bg-slate-100 text-slate-600 py-3 rounded-lg text-[10px] font-black uppercase">Cancelar</button>
+              </div>
             </div>
           </div>
-        </div>
+        </ModalPortal>
       )}
+      <ContactFormModal
+        open={!!addContactList}
+        onClose={() => setAddContactList(null)}
+        editingSub={null}
+        selectedSite={selectedSite}
+        listas={listas}
+        defaultList={addContactList || undefined}
+        onSaved={() => {}}
+      />
       {showSuccessDialog && (
-        <div className="fixed inset-0 bg-slate-900/60 flex items-center justify-center z-[100]">
-          <div className="bg-white rounded-xl p-10 w-full max-w-sm mx-4 text-center">
-            <div className="w-16 h-16 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto mb-4"><Check className="w-8 h-8" /></div>
-            <h3 className="text-xl font-black text-slate-900 mb-6">Campanha Enviada!</h3>
-            <button onClick={() => { setShowSuccessDialog(false); setSubject(""); setContent(""); }} className="w-full bg-emerald-600 text-white py-3.5 rounded-lg text-[10px] font-black uppercase">OK, Fechar Editor</button>
+        <ModalPortal>
+          <div className="fixed inset-0 bg-slate-900/20 flex items-center justify-center z-[100]">
+            <div className="bg-white rounded-xl p-10 w-full max-w-sm mx-4 text-center">
+              <div className="w-16 h-16 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto mb-4"><Check className="w-8 h-8" /></div>
+              <h3 className="text-xl font-black text-slate-900 mb-6">Campanha Enviada!</h3>
+              <button onClick={() => { setShowSuccessDialog(false); setSubject(""); setContent(""); }} className="w-full bg-emerald-600 text-white py-3.5 rounded-lg text-[10px] font-black uppercase">OK, Fechar Editor</button>
+            </div>
           </div>
-        </div>
+        </ModalPortal>
       )}
       {showValidationError && (
-        <div className="fixed inset-0 bg-slate-900/60 flex items-center justify-center z-50">
-          <div className="bg-white rounded-xl p-8 max-w-sm w-full mx-4 shadow-2xl">
-            <div className="flex flex-col items-center gap-3 mb-3 text-center">
-              <AlertTriangle className="w-10 h-10 text-red-600" />
-              <h3 className="font-bold">Campos Obrigatórios</h3>
+        <ModalPortal>
+          <div className="fixed inset-0 bg-slate-900/20 flex items-center justify-center z-50">
+            <div className="bg-white rounded-xl p-8 max-w-sm w-full mx-4 shadow-2xl">
+              <div className="flex flex-col items-center gap-3 mb-3 text-center">
+                <AlertTriangle className="w-10 h-10 text-red-600" />
+                <h3 className="font-bold">Campos Obrigatórios</h3>
+              </div>
+              <div className="space-y-1.5 mb-4 text-center text-xs text-red-600">
+                {validationErrors.map((error, i) => <div key={i}>{error}</div>)}
+              </div>
+              <button onClick={() => setShowValidationError(false)} className="w-full bg-red-600 text-white py-3 rounded-lg font-black uppercase text-[10px]">Entendido</button>
             </div>
-            <div className="space-y-1.5 mb-4 text-center text-xs text-red-600">
-              {validationErrors.map((error, i) => <div key={i}>{error}</div>)}
-            </div>
-            <button onClick={() => setShowValidationError(false)} className="w-full bg-red-600 text-white py-3 rounded-lg font-black uppercase text-[10px]">Entendido</button>
           </div>
-        </div>
+        </ModalPortal>
       )}
     </div>
   );
 }
 
-function MailMarketingContacts({ selectedSite, setSelectedSite, sites, listas, setListas, searchTerm, setSearchTerm, listFocus, onClearListFocus }: { selectedSite: string, setSelectedSite: (s: string) => void, sites: any[], listas: string[], setListas?: React.Dispatch<React.SetStateAction<string[]>>, searchTerm: string, setSearchTerm: (value: string) => void, listFocus?: string | null, onClearListFocus?: () => void }) {
+function MailMarketingContacts({ selectedSite, setSelectedSite, sites, listas, setListas, searchTerm, setSearchTerm, isActive }: { selectedSite: string, setSelectedSite: (s: string) => void, sites: any[], listas: string[], setListas?: React.Dispatch<React.SetStateAction<string[]>>, searchTerm: string, setSearchTerm: (value: string) => void, isActive: boolean }) {
   const [subscribers, setSubscribers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAddForm, setShowAddForm] = useState(false);
-  const [newEmail, setNewEmail] = useState('');
-  const [newListLabel, setNewListLabel] = useState('Contactos');
-  const [newDomainLabel, setNewDomainLabel] = useState('');
   const [editingSub, setEditingSub] = useState<any>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedSubscriberIds, setSelectedSubscriberIds] = useState<string[]>([]);
@@ -684,7 +802,7 @@ function MailMarketingContacts({ selectedSite, setSelectedSite, sites, listas, s
       setSubscribers(data || []);
       
       if (data && data.length > 0 && setListas) {
-        const dbLists = [...new Set(data.map((s: any) => s.metadata?.list).filter(Boolean))] as string[];
+        const dbLists = [...new Set(data.flatMap((s: any) => getContactLists(s)))] as string[];
         if (dbLists.length > 0) {
           setListas((prev) => [...new Set([...prev, ...dbLists])]);
         }
@@ -698,56 +816,14 @@ function MailMarketingContacts({ selectedSite, setSelectedSite, sites, listas, s
   };
 
   // searchTerm filtra localmente (filteredSubscribers) — não precisa de recarregar do servidor a cada tecla.
-  useEffect(() => { fetchSubs(); }, [selectedSite]);
-
-  useEffect(() => {
-    if (!listFocus) return;
-    setNewListLabel(listFocus);
-    setShowAddForm(true);
-    onClearListFocus?.();
-  }, [listFocus]);
-
-  const openListEditor = (listName: string) => {
-    setNewListLabel(listName);
-    setEditingSub(null);
-    setNewEmail('');
-    setShowAddForm(true);
-  };
+  // Só busca quando esta aba está visível — evita carregar a lista toda em segundo plano
+  // enquanto o utilizador está noutra aba (Compor/Histórico).
+  useEffect(() => { if (isActive) fetchSubs(); }, [selectedSite, isActive]);
 
   const filteredSubscribers = subscribers.filter(s => !searchTerm || s.email.toLowerCase().includes(searchTerm.toLowerCase()));
   const totalPages = Math.ceil(filteredSubscribers.length / itemsPerPage);
   const startIndex = (currentPage - 1) * itemsPerPage;
   const currentItems = filteredSubscribers.slice(startIndex, startIndex + itemsPerPage);
-
-  const handleAdd = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newEmail) return;
-    try {
-      const payload = { email: newEmail, domain: newDomainLabel || selectedSite, list: newListLabel };
-      const row = editingSub
-        ? await atualizarSubscritor(editingSub.id, payload)
-        : (await adicionarSubscritor(payload))?.data;
-
-      if (row) {
-        // Actualiza a lista localmente com a resposta já recebida do servidor,
-        // em vez de recarregar tudo (fetchSubs) — evita mostrar o skeleton de
-        // loading sobre a tabela inteira outra vez só para reflectir 1 linha.
-        setSubscribers(prev => {
-          const exists = prev.some(s => s.id === row.id);
-          return exists ? prev.map(s => (s.id === row.id ? row : s)) : [row, ...prev];
-        });
-        if (setListas) {
-          setListas(prev => (prev.includes(newListLabel) ? prev : [...prev, newListLabel]));
-        }
-        toast.success("Contacto guardado!");
-        setShowAddForm(false);
-        setEditingSub(null);
-        setNewEmail('');
-      }
-    } catch (error: any) {
-      toast.error(error.message || "Erro ao guardar");
-    }
-  };
 
   const handleDelete = async (id: string) => {
     if (!confirm("Remover contacto?")) return;
@@ -771,7 +847,7 @@ function MailMarketingContacts({ selectedSite, setSelectedSite, sites, listas, s
             <Upload className="w-4 h-4 mr-2" />
             Importar CSV
           </Button>
-          <Button size="sm" onClick={() => { setEditingSub(null); setNewEmail(''); setShowAddForm(true); }} className="h-9 bg-black hover:bg-red-600 text-white rounded-md">
+          <Button size="sm" onClick={() => { setEditingSub(null); setShowAddForm(true); }} className="h-9 bg-black hover:bg-red-600 text-white rounded-md">
             <Plus className="w-4 h-4 sm:mr-2" />
             <span className="hidden sm:inline">Adicionar</span>
           </Button>
@@ -794,9 +870,15 @@ function MailMarketingContacts({ selectedSite, setSelectedSite, sites, listas, s
               <tr key={sub.id} className="hover:bg-gray-50/50 transition-colors border-b border-gray-100 last:border-0">
                 <td className="px-5 py-3 font-medium text-gray-900">{sub.email}</td>
                 <td className="px-5 py-3"><span className="px-2.5 py-1 bg-gray-100 text-gray-700 rounded-full text-xs font-medium">{sub.metadata?.domain || '-'}</span></td>
-                <td className="px-5 py-3"><span className="px-2.5 py-1 bg-gray-100 text-gray-700 rounded-full text-xs font-medium">{sub.metadata?.list || 'Contactos'}</span></td>
+                <td className="px-5 py-3">
+                  <div className="flex flex-wrap gap-1">
+                    {getContactLists(sub).map(l => (
+                      <span key={l} className="px-2.5 py-1 bg-gray-100 text-gray-700 rounded-full text-xs font-medium">{l}</span>
+                    ))}
+                  </div>
+                </td>
                 <td className="px-5 py-3 text-right flex justify-end gap-2">
-                  <button onClick={() => { setEditingSub(sub); setNewEmail(sub.email); setShowAddForm(true); }} className="p-2 hover:bg-gray-100 text-gray-500 hover:text-gray-900 rounded-md transition-colors"><Pencil size={14} /></button>
+                  <button onClick={() => { setEditingSub(sub); setShowAddForm(true); }} className="p-2 hover:bg-gray-100 text-gray-500 hover:text-gray-900 rounded-md transition-colors"><Pencil size={14} /></button>
                   <button onClick={() => handleDelete(sub.id)} className="p-2 hover:bg-red-50 text-gray-500 hover:text-red-600 rounded-md transition-colors"><Trash2 size={14} /></button>
                 </td>
               </tr>
@@ -804,35 +886,30 @@ function MailMarketingContacts({ selectedSite, setSelectedSite, sites, listas, s
           </tbody>
         </table>
       </div>
-      {showAddForm && (
-        <div className="fixed inset-0 bg-slate-900/40 z-[100] flex items-center justify-center p-4">
-          <div className="bg-white rounded-md w-full max-w-md shadow-2xl p-6">
-            <h3 className="text-lg font-black mb-5 text-gray-900">{editingSub ? 'Editar' : 'Novo'} Contacto</h3>
-            <form onSubmit={handleAdd} className="space-y-4">
-              <div>
-                <label className="text-xs font-bold text-gray-600 mb-1 block">Email *</label>
-                <Input value={newEmail} onChange={e => setNewEmail(e.target.value)} placeholder="exemplo@email.com" required className="rounded-md border-gray-200 focus-visible:ring-1 focus-visible:ring-gray-300" />
-              </div>
-              <div>
-                <label className="text-xs font-bold text-gray-600 mb-1 block">Lista de Destino *</label>
-                <Input value={newListLabel} onChange={e => setNewListLabel(e.target.value)} placeholder="Ex: Campanha Natal" list="listas-disponiveis" required className="rounded-md border-gray-200 focus-visible:ring-1 focus-visible:ring-gray-300" />
-                <datalist id="listas-disponiveis">
-                  {listas.map(l => <option key={l} value={l} />)}
-                </datalist>
-              </div>
-              <div className="flex gap-3 pt-2">
-                <Button type="button" onClick={() => setShowAddForm(false)} className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-md">Cancelar</Button>
-                <Button type="submit" className="flex-1 bg-black hover:bg-red-600 text-white rounded-md">Guardar</Button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+      <ContactFormModal
+        open={showAddForm}
+        onClose={() => { setShowAddForm(false); setEditingSub(null); }}
+        editingSub={editingSub}
+        selectedSite={selectedSite}
+        listas={listas}
+        onSaved={(row, lists) => {
+          // Actualiza a lista localmente com a resposta já recebida do servidor,
+          // em vez de recarregar tudo (fetchSubs) — evita mostrar o skeleton de
+          // loading sobre a tabela inteira outra vez só para reflectir 1 linha.
+          setSubscribers(prev => {
+            const exists = prev.some(s => s.id === row.id);
+            return exists ? prev.map(s => (s.id === row.id ? row : s)) : [row, ...prev];
+          });
+          if (setListas) {
+            setListas(prev => [...new Set([...prev, ...lists])]);
+          }
+        }}
+      />
     </div>
   );
 }
 
-function MailMarketingCampaigns({ selectedSite, currentUserEmail, onResend }: { selectedSite: string, currentUserEmail?: string, onResend?: (c: any) => void }) {
+function MailMarketingCampaigns({ selectedSite, currentUserEmail, onResend, isActive }: { selectedSite: string, currentUserEmail?: string, onResend?: (c: any) => void, isActive: boolean }) {
   const [campaigns, setCampaigns] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -850,7 +927,9 @@ function MailMarketingCampaigns({ selectedSite, currentUserEmail, onResend }: { 
     }
   };
 
-  useEffect(() => { fetchCampaigns(); }, [selectedSite]);
+  // Só busca quando esta aba está visível — evita carregar o histórico todo em
+  // segundo plano enquanto o utilizador está noutra aba.
+  useEffect(() => { if (isActive) fetchCampaigns(); }, [selectedSite, isActive]);
 
   const filteredCampaigns = campaigns.filter(c => !searchTerm || c.subject?.toLowerCase().includes(searchTerm.toLowerCase()));
 
@@ -863,19 +942,19 @@ function MailMarketingCampaigns({ selectedSite, currentUserEmail, onResend }: { 
         </div>
       </div>
       <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-        <div className="bg-white p-6 rounded-xl border shadow-sm">
+        <div className="bg-white p-6 rounded-xl border border-slate-100 shadow-sm">
           <span className="text-[10px] font-black text-slate-400 uppercase">Total Enviado</span>
           <p className="text-3xl font-black mt-2">{campaigns.reduce((a, b) => a + (b.recipient_count || 0), 0)}</p>
         </div>
-        <div className="bg-white p-6 rounded-xl border shadow-sm">
+        <div className="bg-white p-6 rounded-xl border border-slate-100 shadow-sm">
           <span className="text-[10px] font-black text-slate-400 uppercase">Campanhas</span>
           <p className="text-3xl font-black mt-2">{campaigns.length}</p>
         </div>
       </div>
-      <div className="bg-white rounded-xl border shadow-sm overflow-hidden p-5">
+      <div className="bg-white rounded-xl border border-slate-100 shadow-sm overflow-hidden p-5">
         <div className="space-y-4">
           {loading ? <MailMarketingCampaignsSkeleton /> : filteredCampaigns.map(camp => (
-            <div key={camp.id} className="flex items-center justify-between p-4 border rounded-xl hover:bg-slate-50">
+            <div key={camp.id} className="flex items-center justify-between p-4 border border-slate-100 rounded-xl hover:bg-slate-50">
               <div className="flex items-center gap-4">
                 <div className="w-10 h-10 bg-slate-100 rounded-lg flex items-center justify-center"><Mail className="w-5 h-5 text-slate-400" /></div>
                 <div><h4 className="font-bold">{camp.subject}</h4><p className="text-[10px] text-slate-400 uppercase font-black">{new Date(camp.created_at).toLocaleString()}</p></div>

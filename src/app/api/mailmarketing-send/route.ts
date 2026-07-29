@@ -6,6 +6,7 @@ import {
 } from '@/lib/warmup-service';
 import { getMarketingFromEmail } from '@/lib/smtp-mail';
 import { sendBrevoBulkEmail, isBrevoApiConfigured } from '@/lib/brevo-mail';
+import { cacheService } from '@/lib/cache-service';
 
 // Envio em lote via API REST da Brevo (não SMTP) — ver comentário em
 // sendBrevoBulkEmail (brevo-mail.ts) para o porquê. O SMTP_* continua só
@@ -137,6 +138,7 @@ async function queueCampaign(params: {
     .single();
 
   if (error) throw error;
+  cacheService.clearPattern('mailmarketing_camp_');
   return data as { id: string; status: string; total_recipients: number };
 }
 
@@ -228,6 +230,10 @@ async function processQueuedCampaigns() {
     if (MAIL_BATCH_PAUSE_MS > 0) {
       await new Promise((resolve) => setTimeout(resolve, MAIL_BATCH_PAUSE_MS));
     }
+  }
+
+  if (processed.length > 0) {
+    cacheService.clearPattern('mailmarketing_camp_');
   }
 
   return { processed, sentTotal, failedTotal };

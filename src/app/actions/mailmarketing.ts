@@ -1,10 +1,15 @@
 'use server'
 
 import { createClient } from '@supabase/supabase-js'
+import { cacheService } from '@/lib/cache-service'
+import { requirePanelBootstrapAccess } from '@/lib/panel-api-auth'
+import { listMirrorWebsites, listMirrorWebsitesForClientUser } from '@/lib/panel-mirror-read'
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
 const PANEL_SCOPE_CLIENT = 'client'
+const SUBS_CACHE_TTL_MS = 60_000
+const CAMP_CACHE_TTL_MS = 60_000
 
 // O Service Role Key ignora o RLS (Row Level Security), 
 // permitindo que os clientes acessem os seus próprios dados mesmo 
@@ -20,38 +25,80 @@ const normalizeDomain = (value?: string | null) =>
         .replace(/^mail\./, '')
         .replace(/\/.*$/, '');
 
+type MailmarketingSession = { email: string; isAdmin: boolean; allowedDomains: Set<string> }
+
+// Nunca confiar em domain/ownerEmail vindos do cliente — cada conta (admin,
+// revendedor, ou "manager"/conta profissional) só pode ver e alterar os seus
+// próprios contactos e campanhas. Resolve sempre a sessão autenticada e os
+// domínios que ela realmente possui antes de tocar em qualquer dado.
+async function resolveSession(): Promise<MailmarketingSession | null> {
+    // requirePanelBootstrapAccess() é o único helper que também reconhece o
+    // papel "client" (contas do portal em /cliente, distintas de "manager" —
+    // conta profissional) — requireAdminOrReseller()/requireAdminResellerOrManager()
+    // rejeitam "client" com 403, o que bloquearia o Mailmarketing dessas contas.
+    const auth = await requirePanelBootstrapAccess()
+    if ('error' in auth) return null
+
+    const email = (auth.user.email || '').toLowerCase().trim()
+    if (!email) return null
+
+    if (auth.user.role === 'admin') {
+        return { email, isAdmin: true, allowedDomains: new Set() }
+    }
+
+    const sites = auth.user.role === 'reseller'
+        ? await listMirrorWebsites({ role: 'reseller', userId: auth.user.id })
+        : await listMirrorWebsitesForClientUser(auth.user.id, email) // 'manager' e 'client'
+
+    const allowedDomains = new Set(
+        (sites || []).map((s: any) => normalizeDomain(s.domain)).filter(Boolean)
+    )
+    return { email, isAdmin: false, allowedDomains }
+}
+
+function domainAllowed(session: MailmarketingSession, domain: string): boolean {
+    if (session.isAdmin) return true
+    return session.allowedDomains.has(normalizeDomain(domain))
+}
+
 export async function adminListarSubscritores(dominio?: string) {
+    const session = await resolveSession()
+    if (!session) return []
+
+    const requestedDomain = normalizeDomain(dominio);
+    if (requestedDomain) {
+        if (!domainAllowed(session, requestedDomain)) return []
+    } else if (!session.isAdmin) {
+        // Sem domínio pedido, uma conta não-admin nunca pode receber "todos".
+        return []
+    }
+
+    const cacheKey = `mailmarketing_subs_${requestedDomain || 'all'}`;
+    const cached = cacheService.get(cacheKey);
+    if (cached) return cached as any[];
+
     try {
-        const query = supabaseAdmin
+        // Filtrar já na query (usa o índice idx_subscribers_email_unique_by_scope) em vez
+        // de trazer a tabela toda e filtrar em JS — reduz o tempo de resposta real.
+        let query = supabaseAdmin
             .from('newsletter_subscribers')
-            .select('*')
+            .select('id, email, full_name, metadata, created_at, updated_at')
+            .eq('metadata->>panel', PANEL_SCOPE_CLIENT)
             .order('created_at', { ascending: false })
 
+        if (requestedDomain) {
+            query = query.eq('metadata->>domain', requestedDomain);
+        }
+
         const { data, error } = await query;
-        
+
         if (error) {
             console.error('ERRO AO FILTRAR POR DOMINIO:', error.message);
             return [];
         }
 
-        const allData = (data || []).filter((row: any) => {
-            const rowPanel = row?.metadata?.panel;
-            const rowDomain = normalizeDomain(row?.metadata?.domain);
-            // Compatibilidade legada: contactos com domínio definido pertencem ao cliente.
-            return rowPanel === PANEL_SCOPE_CLIENT || (!rowPanel && !!rowDomain);
-        });
-        if (!dominio) return allData;
-
-        const requestedDomain = normalizeDomain(dominio);
-        if (!requestedDomain) return allData;
-
-        // Isolamento por painel + variações de domínio.
-        return allData.filter((row: any) => {
-            const rowDomain = normalizeDomain(row?.metadata?.domain);
-            const rowPanel = row?.metadata?.panel;
-            const isClientScoped = rowPanel === PANEL_SCOPE_CLIENT || (!rowPanel && !!rowDomain);
-            return isClientScoped && rowDomain === requestedDomain;
-        });
+        cacheService.set(cacheKey, data || [], SUBS_CACHE_TTL_MS);
+        return data || [];
     } catch (error) {
         console.error('Erro no Server Action adminListarSubscritores:', error);
         return [];
@@ -59,24 +106,28 @@ export async function adminListarSubscritores(dominio?: string) {
 }
 
 export async function adminListarCampanhas(dominio?: string, ownerEmail?: string) {
+    const session = await resolveSession()
+    if (!session) return []
+    // ownerEmail do cliente é ignorado de propósito — a sessão autenticada é
+    // a única fonte de verdade sobre "quais são as minhas campanhas".
+    const requestedOwner = session.email
+
+    const cacheKey = `mailmarketing_camp_${requestedOwner}`;
+    const cached = cacheService.get(cacheKey);
+    if (cached) return cached as any[];
+
     try {
-        const query = supabaseAdmin
+        // Filtrar já na query (usa o índice idx_email_campaigns_sender) em vez de
+        // trazer a tabela toda (de todos os clientes) e filtrar em JS.
+        const { data, error } = await supabaseAdmin
             .from('email_campaigns')
             .select('*')
+            .eq('sender_email', requestedOwner)
             .order('created_at', { ascending: false })
 
-        const { data, error } = await query
         if (error) throw error
-        const requestedOwner = (ownerEmail || '').toLowerCase().trim()
-
-        // Segurança: campanhas do cliente só visíveis para a própria conta.
-        return (data || []).filter((row: any) => {
-            const sender = (row?.sender_email || '').toLowerCase().trim()
-            if (!sender) return false
-            if (sender.startsWith('admin:')) return false
-            if (!requestedOwner || sender !== requestedOwner) return false
-            return true
-        })
+        cacheService.set(cacheKey, data || [], CAMP_CACHE_TTL_MS);
+        return data || []
     } catch (error) {
         console.error('Erro no Server Action adminListarCampanhas:', error)
         return []
@@ -85,16 +136,28 @@ export async function adminListarCampanhas(dominio?: string, ownerEmail?: string
 
 export async function adminSalvarCampanha(dados: { subject: string, content_html: string, total_recipients?: number, domain: string, status?: string, owner_email?: string }) {
     try {
-        const owner = (dados.owner_email || '').toLowerCase().trim()
-        if (!owner) return null
+        const session = await resolveSession()
+        if (!session) return null
+        // owner_email do cliente é ignorado — a campanha fica sempre associada à sessão autenticada.
+        const owner = session.email
 
+        // Chamada sempre depois de um envio bem sucedido (ver handleSend em
+        // MailMarketingSection.tsx) — por isso grava logo como 'sent', com os
+        // totais preenchidos. Sem isto, esta linha (usada pelo Histórico do
+        // cliente) ficava presa no 'draft' por omissão, mesmo com o envio
+        // real já concluído.
         const { data, error } = await supabaseAdmin
             .from('email_campaigns')
             .insert({
                 subject: dados.subject,
                 content: dados.content_html,
+                content_html: dados.content_html,
                 sender_email: owner,
-                recipient_count: dados.total_recipients || 0
+                recipient_count: dados.total_recipients || 0,
+                total_recipients: dados.total_recipients || 0,
+                successful_sends: dados.total_recipients || 0,
+                status: dados.status || 'sent',
+                sent_at: new Date().toISOString()
             })
             .select()
             .single()
@@ -105,6 +168,7 @@ export async function adminSalvarCampanha(dados: { subject: string, content_html
             return null;
         }
 
+        cacheService.clearPattern('mailmarketing_camp_');
         return data;
     } catch (error) {
         console.error('Erro no Server Action adminSalvarCampanha:', error)
@@ -115,8 +179,10 @@ export async function adminSalvarCampanha(dados: { subject: string, content_html
 
 export async function adminRemoverCampanha(id: string, ownerEmail: string) {
     try {
-        const owner = (ownerEmail || '').toLowerCase().trim()
-        if (!owner) throw new Error('Não autorizado.')
+        const session = await resolveSession()
+        if (!session) throw new Error('Não autorizado.')
+        // ownerEmail do cliente é ignorado — só a sessão autenticada conta.
+        const owner = session.email
 
         const { data: existing, error: fetchError } = await supabaseAdmin
             .from('email_campaigns')
@@ -134,6 +200,7 @@ export async function adminRemoverCampanha(id: string, ownerEmail: string) {
             .eq('id', id)
 
         if (error) throw error
+        cacheService.clearPattern('mailmarketing_camp_');
         return true
     } catch (error) {
         console.error('Erro no Server Action adminRemoverCampanha:', error)
@@ -147,15 +214,14 @@ export async function adminRemoverCampanha(id: string, ownerEmail: string) {
  */
 export async function adminLimparDadosCampanhas(ownerEmail?: string) {
     try {
-        // Buscar todas as campanhas (ou apenas do owner especificado)
-        let query = supabaseAdmin
+        const session = await resolveSession()
+        if (!session) throw new Error('Não autorizado.')
+        // ownerEmail do cliente é ignorado — nunca zera campanhas de outra conta.
+        const query = supabaseAdmin
             .from('email_campaigns')
-            .select('id, subject, recipient_count');
-        
-        if (ownerEmail) {
-            query = query.eq('sender_email', ownerEmail.toLowerCase().trim());
-        }
-        
+            .select('id, subject, recipient_count')
+            .eq('sender_email', session.email);
+
         const { data: campanhas, error: fetchError } = await query;
         
         if (fetchError) {
@@ -180,7 +246,7 @@ export async function adminLimparDadosCampanhas(ownerEmail?: string) {
         });
         
         const resultados = await Promise.all(updates);
-        
+        cacheService.clearPattern('mailmarketing_camp_');
         console.log('[adminLimparDadosCampanhas] Dados zerados:', resultados);
         return {
             success: true,
@@ -200,24 +266,23 @@ export async function adminLimparDadosCampanhas(ownerEmail?: string) {
  */
 export async function adminDeletarTodasCampanhas(ownerEmail?: string) {
     try {
-        let query = supabaseAdmin
+        const session = await resolveSession()
+        if (!session) throw new Error('Não autorizado.')
+        // ownerEmail do cliente é ignorado — nunca apaga campanhas de outra conta.
+        const { error, count } = await supabaseAdmin
             .from('email_campaigns')
-            .delete();
-        
-        if (ownerEmail) {
-            query = query.eq('sender_email', ownerEmail.toLowerCase().trim());
-        }
-        
-        const { error, count } = await query;
+            .delete()
+            .eq('sender_email', session.email);
         
         if (error) {
             console.error('Erro ao deletar campanhas:', error);
             throw error;
         }
-        
+
+        cacheService.clearPattern('mailmarketing_camp_');
         return {
             success: true,
-            message: `Todas as campanhas ${ownerEmail ? 'do usuário ' : ''}foram removidas`,
+            message: `Todas as campanhas do utilizador foram removidas`,
             deletedCount: count
         };
         
@@ -255,64 +320,85 @@ function isValidEmail(email: string): { valid: boolean; error?: string } {
     return { valid: true };
 }
 
-export async function adminAdicionarSubscritor(dados: { email: string, full_name?: string, domain: string, list?: string }) {
+// Um contacto pode pertencer a várias listas em simultâneo (como no Mailchimp) —
+// por isso "adicionar" faz sempre merge das listas pedidas com as que já
+// existem, nunca substitui. Para trocar o conjunto todo, usar adminAtualizarSubscritor.
+function mergeLists(existing: unknown, incoming: string[]): string[] {
+    const existingLists = Array.isArray(existing)
+        ? existing
+        : (typeof existing === 'string' && existing ? [existing] : []);
+    return [...new Set([...existingLists, ...incoming].filter(Boolean))];
+}
+
+export async function adminAdicionarSubscritor(dados: { email: string, full_name?: string, domain: string, list?: string, lists?: string[] }) {
     try {
         if (!supabaseUrl || !supabaseServiceKey) {
             throw new Error('Configuração do Supabase ausente no servidor.');
         }
 
+        const session = await resolveSession()
+        if (!session) throw new Error('Não autorizado.')
+
         const normalizedEmail = dados.email.toLowerCase().trim();
         const normalizedDomain = (dados.domain || 'default').toLowerCase();
-        
+        const requestedLists = (dados.lists?.length ? dados.lists : (dados.list ? [dados.list] : ['Contactos']));
+
+        if (!domainAllowed(session, normalizedDomain)) {
+            throw new Error('Domínio fora do seu acesso.')
+        }
+
         // VALIDAÇÃO DE EMAIL
         const validation = isValidEmail(normalizedEmail);
         if (!validation.valid) {
             throw new Error(validation.error || 'Email inválido');
         }
-        
+
         // Verificar se email já existe APENAS NESTE DOMÍNIO
         const { data: existingInDomain, error: checkError } = await supabaseAdmin
             .from('newsletter_subscribers')
-            .select('id, email')
+            .select('id, email, metadata')
             .eq('email', normalizedEmail)
             .eq('metadata->>domain', normalizedDomain)
             .eq('metadata->>panel', PANEL_SCOPE_CLIENT)
             .maybeSingle();
-        
+
         if (checkError) {
             console.error('[adminAdicionarSubscritor] Erro ao verificar duplicado:', checkError.message);
         }
-        
-        // Se já existe neste domínio → ACTUALIZAR
+
+        // Se já existe neste domínio → ACTUALIZAR (junta as listas, não substitui)
         if (existingInDomain) {
             console.log('[adminAdicionarSubscritor] Email exists in this domain, updating...');
-            
+
+            const mergedLists = mergeLists((existingInDomain.metadata as any)?.lists ?? (existingInDomain.metadata as any)?.list, requestedLists);
+
             const { data: updated, error: updateError } = await supabaseAdmin
                 .from('newsletter_subscribers')
                 .update({
                     metadata: {
                         panel: PANEL_SCOPE_CLIENT,
                         domain: normalizedDomain,
-                        list: dados.list || 'Contactos'
+                        lists: mergedLists
                     },
                     updated_at: new Date().toISOString()
                 })
                 .eq('id', existingInDomain.id)
                 .select()
                 .single();
-            
+
             if (updateError) {
                 console.error('ERRO SUPABASE UPDATE:', updateError.message);
                 throw new Error('Erro ao actualizar contacto existente.');
             }
-            
+
+            cacheService.clearPattern('mailmarketing_subs_');
             return { success: true, updated: true, data: updated, isRoleBased: validation.error === 'ROLE_BASED' };
         }
-        
+
         // Se não existe neste domínio → INSERIR NOVO
         // (pode existir noutros domínios, mas isso é permitido)
         console.log('[adminAdicionarSubscritor] New email for this domain, inserting...');
-        
+
         const { data: inserted, error: insertError } = await supabaseAdmin
             .from('newsletter_subscribers')
             .insert({
@@ -320,20 +406,21 @@ export async function adminAdicionarSubscritor(dados: { email: string, full_name
                 metadata: {
                     panel: PANEL_SCOPE_CLIENT,
                     domain: normalizedDomain,
-                    list: dados.list || 'Contactos'
+                    lists: [...new Set(requestedLists.filter(Boolean))]
                 },
                 updated_at: new Date().toISOString()
             })
             .select()
             .single();
-        
+
         if (insertError) {
             console.error('ERRO SUPABASE INSERT:', insertError.message);
             throw new Error(insertError.message);
         }
-        
+
+        cacheService.clearPattern('mailmarketing_subs_');
         return { success: true, updated: false, data: inserted, isRoleBased: validation.error === 'ROLE_BASED' };
-        
+
     } catch (error: any) {
         console.error('ERRO CRÍTICO NO SERVIDOR:', error.message);
         throw error;
@@ -342,8 +429,11 @@ export async function adminAdicionarSubscritor(dados: { email: string, full_name
 
 export async function adminRemoverSubscritor(id: string, dominio: string) {
     try {
+        const session = await resolveSession()
+        if (!session) throw new Error('Não autorizado.')
+
         const requestedDomain = normalizeDomain(dominio)
-        if (!requestedDomain) throw new Error('Não autorizado.')
+        if (!requestedDomain || !domainAllowed(session, requestedDomain)) throw new Error('Não autorizado.')
 
         const { data: existing, error: fetchError } = await supabaseAdmin
             .from('newsletter_subscribers')
@@ -362,6 +452,7 @@ export async function adminRemoverSubscritor(id: string, dominio: string) {
             .eq('id', id)
 
         if (error) throw error
+        cacheService.clearPattern('mailmarketing_subs_');
         return true
     } catch (error) {
         console.error('Erro no Server Action adminRemoverSubscritor:', error)
@@ -371,15 +462,26 @@ export async function adminRemoverSubscritor(id: string, dominio: string) {
 
 export async function adminAtualizarSubscritor(
     id: string,
-    dados: { email: string, full_name?: string, domain: string, list?: string }
+    dados: { email: string, full_name?: string, domain: string, list?: string, lists?: string[] }
 ) {
     try {
         if (!supabaseUrl || !supabaseServiceKey) {
             throw new Error('Configuração do Supabase ausente no servidor.');
         }
 
+        const session = await resolveSession()
+        if (!session) throw new Error('Não autorizado.')
+
         const normalizedEmail = dados.email.toLowerCase().trim();
         const normalizedDomain = (dados.domain || 'default').toLowerCase();
+        // Aqui substitui-se o conjunto todo (não é merge) — o popup de edição
+        // mostra sempre todas as listas do contacto, por isso reflecte
+        // exactamente o que o utilizador escolheu, incluindo remoções.
+        const requestedLists = (dados.lists?.length ? dados.lists : (dados.list ? [dados.list] : ['Contactos']));
+
+        if (!domainAllowed(session, normalizedDomain)) {
+            throw new Error('Domínio fora do seu acesso.')
+        }
 
         const { data, error } = await supabaseAdmin
             .from('newsletter_subscribers')
@@ -389,7 +491,7 @@ export async function adminAtualizarSubscritor(
                 metadata: {
                     panel: PANEL_SCOPE_CLIENT,
                     domain: normalizedDomain,
-                    list: dados.list || 'Contactos'
+                    lists: [...new Set(requestedLists.filter(Boolean))]
                 },
                 updated_at: new Date().toISOString()
             })
@@ -405,6 +507,7 @@ export async function adminAtualizarSubscritor(
             throw new Error(error.message);
         }
 
+        cacheService.clearPattern('mailmarketing_subs_');
         return data;
     } catch (error: any) {
         console.error('ERRO CRÍTICO NO UPDATE:', error.message);
