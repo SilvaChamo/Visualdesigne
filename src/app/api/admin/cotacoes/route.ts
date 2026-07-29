@@ -4,6 +4,7 @@ import { requireAdminOrReseller } from '@/lib/panel-api-auth';
 import { notifyQuoteClientStatusChange, notifyQuoteClientPriceDefined } from '@/lib/notify-quote-client';
 import { computeBatchStatus } from '@/lib/quotation-status-labels';
 import { batchNumero } from '@/lib/quotation-batch';
+import { computeNumeroMap } from '@/lib/quotation-numero';
 import { QUOTATION_ATTACHMENTS_BUCKET } from '@/lib/quotation-attachments-bucket';
 import { QUOTATION_LAYOUTS_BUCKET } from '@/lib/quotation-layouts-bucket';
 
@@ -37,6 +38,14 @@ async function saveAccountingSnapshot(
       .eq('batch_id', batchId);
     const custosProducaoMt = (expenses || []).reduce((sum: number, e: any) => sum + (Number(e.valor_mt) || 0) * (Number(e.quantidade) || 1), 0);
 
+    // Mesmo número prático mostrado em Recebidas/Entregues/no documento —
+    // batchNumero() aqui é só rede de segurança (nunca deve ser preciso).
+    const { data: allRequests } = await supabase
+      .from('quotation_requests')
+      .select('id, batch_id, categoria_id, created_at')
+      .order('created_at', { ascending: true });
+    const numero = computeNumeroMap(allRequests || []).get(batchId) ?? batchNumero(batchId);
+
     // IVA sai depois de retirar os custos de produção, nunca sobre a receita
     // bruta — e é sempre a taxa fixa de 16%, nunca editável.
     const ivaMt = ((receitaMt - custosProducaoMt) * IVA_PERCENT) / 100;
@@ -48,7 +57,7 @@ async function saveAccountingSnapshot(
         {
           batch_id: batchId,
           primary_item_id: primary.id,
-          numero: batchNumero(batchId),
+          numero,
           advance_invoice_number: (invoices || []).find((i: any) => i.phase === 'advance')?.invoice_number ?? null,
           remainder_invoice_number: (invoices || []).find((i: any) => i.phase === 'remainder')?.invoice_number ?? null,
           empresa: primary.empresa,

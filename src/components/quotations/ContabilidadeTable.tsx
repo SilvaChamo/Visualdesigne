@@ -450,6 +450,7 @@ function RegistosTable({ registos, variant }: { registos: RegistoRow[]; variant:
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-gray-200 text-xs font-bold uppercase tracking-wide text-gray-500 dark:border-zinc-700 dark:text-zinc-400">
+                <th className="px-4 py-2 text-right whitespace-nowrap">#</th>
                 <th className="px-4 py-2 text-left whitespace-nowrap">Factura Nº</th>
                 <th className="px-4 py-2 text-left whitespace-nowrap">Fase</th>
                 <th className="px-4 py-2 text-left">Empresa</th>
@@ -460,8 +461,9 @@ function RegistosTable({ registos, variant }: { registos: RegistoRow[]; variant:
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100 dark:divide-zinc-800">
-              {docs.map((d) => (
+              {docs.map((d, idx) => (
                 <tr key={d.key} className="hover:bg-gray-50 dark:hover:bg-zinc-800/30">
+                  <td className="whitespace-nowrap px-4 py-2.5 text-right tabular-nums text-gray-400 dark:text-zinc-500">{idx + 1}</td>
                   <td className="whitespace-nowrap px-4 py-2.5 font-mono text-xs font-bold text-red-600 dark:text-red-400">{d.numero}</td>
                   <td className="whitespace-nowrap px-4 py-2.5 text-gray-500 dark:text-zinc-400">
                     {d.fase === 'adiantamento' ? 'Adiantamento (70%)' : 'Remanescente (30%)'}
@@ -502,6 +504,7 @@ function RegistosTable({ registos, variant }: { registos: RegistoRow[]; variant:
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-gray-200 text-xs font-bold uppercase tracking-wide text-gray-500 dark:border-zinc-700 dark:text-zinc-400">
+              <th className="px-4 py-2 text-right whitespace-nowrap">#</th>
               <th className="px-4 py-2 text-left whitespace-nowrap">Cotação Nº</th>
               <th className="px-4 py-2 text-left">Empresa</th>
               <th className="px-4 py-2 text-left">Resumo</th>
@@ -511,8 +514,9 @@ function RegistosTable({ registos, variant }: { registos: RegistoRow[]; variant:
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100 dark:divide-zinc-800">
-            {registos.map((r) => (
+            {registos.map((r, idx) => (
               <tr key={r.batch_id} className="hover:bg-gray-50 dark:hover:bg-zinc-800/30">
+                <td className="whitespace-nowrap px-4 py-2.5 text-right tabular-nums text-gray-400 dark:text-zinc-500">{idx + 1}</td>
                 <td className="whitespace-nowrap px-4 py-2.5 font-mono text-xs font-bold text-red-600 dark:text-red-400">{r.numero}</td>
                 <td className="max-w-[14rem] truncate px-4 py-2.5 font-medium text-gray-900 dark:text-white">{r.empresa}</td>
                 <td className="max-w-[16rem] truncate px-4 py-2.5 text-gray-500 dark:text-zinc-400">{r.resumo}</td>
