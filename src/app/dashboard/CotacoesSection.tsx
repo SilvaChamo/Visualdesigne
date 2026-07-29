@@ -740,10 +740,10 @@ function BatchCard({
 
                 <div className="space-y-2">
                   <div className="rounded-lg border border-gray-100 dark:border-zinc-800 overflow-hidden divide-y divide-gray-100 dark:divide-zinc-800">
-                    <div className="flex items-center gap-3 px-3 py-1.5 bg-gray-50 dark:bg-zinc-800/60">
-                      <span className="min-w-0 flex-1 text-[10px] font-bold uppercase tracking-wide text-gray-400 dark:text-zinc-500">Descrição</span>
-                      <span className="w-24 shrink-0 text-right text-[10px] font-bold uppercase tracking-wide text-gray-400 dark:text-zinc-500 whitespace-nowrap">V. unitário</span>
-                      <span className="w-24 shrink-0 text-right text-[10px] font-bold uppercase tracking-wide text-gray-400 dark:text-zinc-500 whitespace-nowrap">V. total</span>
+                    <div className="flex items-center gap-3 px-3 py-2 bg-gray-50 dark:bg-zinc-800/60">
+                      <span className="min-w-0 flex-1 font-bold text-gray-900 dark:text-white">Descrição</span>
+                      <span className="w-24 shrink-0 text-right font-bold text-gray-900 dark:text-white whitespace-nowrap">V. unitário</span>
+                      <span className="w-24 shrink-0 text-right font-bold text-gray-900 dark:text-white whitespace-nowrap">V. total</span>
                       <span className="ml-2 w-3.5 shrink-0" aria-hidden="true" />
                     </div>
                     {batch.items.map((item, idx) => {

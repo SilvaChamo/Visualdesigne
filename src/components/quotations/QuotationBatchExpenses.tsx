@@ -256,7 +256,17 @@ export function QuotationBatchExpenses({ batchId, receitaMt }: { batchId: string
 
           {!collapsed && (
             <div className="flex items-center gap-3 px-3 py-3 bg-gray-50 dark:bg-zinc-800/60">
-              <span className="min-w-0 flex-1 truncate text-right text-sm font-bold text-gray-900 dark:text-white">
+              {saldoNegativo ? (
+                <span className="flex min-w-0 flex-1 items-start gap-1.5 text-left text-xs text-red-700 dark:text-red-400">
+                  <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+                  <span>
+                    Saldo negativo: as despesas de produção ({formatMt(total)} MT) ultrapassam o valor da encomenda ({formatMt(receitaMt as number)} MT).
+                  </span>
+                </span>
+              ) : (
+                <span className="min-w-0 flex-1" />
+              )}
+              <span className="shrink-0 whitespace-nowrap text-right text-sm font-bold text-gray-900 dark:text-white">
                 Total das despesas de produção
               </span>
               <span className="w-24 shrink-0 whitespace-nowrap text-right text-sm font-bold text-gray-900 dark:text-white">
@@ -270,16 +280,7 @@ export function QuotationBatchExpenses({ batchId, receitaMt }: { batchId: string
 
       {!collapsed && (
         <div className="flex items-center gap-3 pr-3">
-          {saldoNegativo ? (
-            <span className="flex min-w-0 flex-1 items-start gap-1.5 text-left text-xs text-red-700 dark:text-red-400">
-              <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
-              <span>
-                Saldo negativo: as despesas de produção ({formatMt(total)} MT) ultrapassam o valor da encomenda ({formatMt(receitaMt as number)} MT).
-              </span>
-            </span>
-          ) : (
-            <span className="flex-1" />
-          )}
+          <span className="flex-1" />
           <input
             type="text"
             placeholder="Material/gasto"

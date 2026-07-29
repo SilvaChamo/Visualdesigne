@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { ChevronDown, ChevronRight } from 'lucide-react'
 import {
   panelSectionCard,
   panelTabBar, panelTabBtn, panelTabBtnActive, panelTabBtnInactive,
@@ -52,6 +53,10 @@ function mesLabel(month: string): string {
 
 function anoLabel(month: string): string {
   return month.slice(0, 4)
+}
+
+function monthKey(dateStr: string): string {
+  return `${dateStr.slice(0, 7)}-01`
 }
 
 function openDocumentPopup(itemId: string, tipo?: 'factura', fase?: 'adiantamento' | 'remanescente') {
@@ -117,7 +122,7 @@ export function ContabilidadeTable() {
 
       {activeTab === 'balanco' && (
         <div className="space-y-4">
-          <BalancoTable meses={meses} />
+          <BalancoTable meses={meses} registos={registos} />
           <FechoAnualCard meses={meses} fechos={fechos} onClosed={load} />
         </div>
       )}
@@ -127,16 +132,29 @@ export function ContabilidadeTable() {
   )
 }
 
-function BalancoTable({ meses }: { meses: MonthRow[] }) {
+function BalancoTable({ meses, registos }: { meses: MonthRow[]; registos: RegistoRow[] }) {
+  // Aberto por omissão — o objectivo é ver logo as encomendas de cada mês,
+  // não escondê-las atrás de mais um clique.
+  const [collapsedMonths, setCollapsedMonths] = useState<Set<string>>(new Set())
+
   if (meses.length === 0) {
     return <div className={`${panelSectionCard} p-8 text-center text-sm text-gray-500 dark:text-zinc-400`}>Ainda não há dados de contabilidade.</div>
+  }
+
+  const toggleMonth = (month: string) => {
+    setCollapsedMonths((prev) => {
+      const next = new Set(prev)
+      if (next.has(month)) next.delete(month)
+      else next.add(month)
+      return next
+    })
   }
 
   return (
     <div className={`${panelSectionCard} overflow-hidden`}>
       <div className="border-b border-gray-200 bg-gray-50 px-4 py-3 dark:border-zinc-700 dark:bg-zinc-800/50">
         <p className="font-bold text-gray-900 dark:text-white">Balanço mensal</p>
-        <p className="text-xs text-gray-500 dark:text-zinc-400">Receita das encomendas entregues, menos custos e IVA.</p>
+        <p className="text-xs text-gray-500 dark:text-zinc-400">Receita das encomendas entregues, menos custos e IVA — actualiza-se sozinho assim que uma encomenda é concluída.</p>
       </div>
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
@@ -147,28 +165,87 @@ function BalancoTable({ meses }: { meses: MonthRow[] }) {
               <th className="px-4 py-2 text-right whitespace-nowrap">Custo de produção</th>
               <th className="px-4 py-2 text-right whitespace-nowrap">IVA (16%)</th>
               <th className="px-4 py-2 text-right whitespace-nowrap">Lucro</th>
+              <th className="px-4 py-2 text-right whitespace-nowrap"> </th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100 dark:divide-zinc-800">
-            {meses.map((m) => (
-              <tr key={m.month} className="hover:bg-gray-50 dark:hover:bg-zinc-800/30">
-                <td className="whitespace-nowrap px-4 py-2.5 font-bold text-gray-900 dark:text-white">
-                  {mesLabel(m.month)} de {anoLabel(m.month)}
-                </td>
-                <td className="whitespace-nowrap px-4 py-2.5 text-right font-bold tabular-nums text-gray-900 dark:text-white">
-                  {formatMt(m.receitaMt)} MT
-                </td>
-                <td className="whitespace-nowrap px-4 py-2.5 text-right tabular-nums text-gray-700 dark:text-zinc-300">
-                  {formatMt(m.custosProducaoMt)} MT
-                </td>
-                <td className="whitespace-nowrap px-4 py-2.5 text-right tabular-nums text-gray-700 dark:text-zinc-300">
-                  {formatMt(m.ivaMt)} MT
-                </td>
-                <td className="whitespace-nowrap px-4 py-2.5 text-right font-bold tabular-nums text-gray-900 dark:text-white">
-                  {formatMt(m.lucroMt)} MT
-                </td>
-              </tr>
-            ))}
+            {meses.flatMap((m) => {
+              const encomendasDoMes = registos.filter((r) => monthKey(r.done_at) === m.month)
+              const isCollapsed = collapsedMonths.has(m.month)
+
+              const rows = [
+                <tr
+                  key={m.month}
+                  className="cursor-pointer hover:bg-gray-50 dark:hover:bg-zinc-800/30"
+                  onClick={() => toggleMonth(m.month)}
+                >
+                  <td className="whitespace-nowrap px-4 py-2.5 font-bold text-gray-900 dark:text-white">
+                    <span className="inline-flex items-center gap-1.5">
+                      <span className="shrink-0 text-gray-400 dark:text-zinc-500">
+                        {isCollapsed ? <ChevronRight className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                      </span>
+                      {mesLabel(m.month)} de {anoLabel(m.month)}
+                    </span>
+                  </td>
+                  <td className="whitespace-nowrap px-4 py-2.5 text-right font-bold tabular-nums text-gray-900 dark:text-white">
+                    {formatMt(m.receitaMt)} MT
+                  </td>
+                  <td className="whitespace-nowrap px-4 py-2.5 text-right tabular-nums text-gray-700 dark:text-zinc-300">
+                    {formatMt(m.custosProducaoMt)} MT
+                  </td>
+                  <td className="whitespace-nowrap px-4 py-2.5 text-right tabular-nums text-gray-700 dark:text-zinc-300">
+                    {formatMt(m.ivaMt)} MT
+                  </td>
+                  <td className="whitespace-nowrap px-4 py-2.5 text-right font-bold tabular-nums text-gray-900 dark:text-white">
+                    {formatMt(m.lucroMt)} MT
+                  </td>
+                  <td className="whitespace-nowrap px-4 py-2.5 text-right text-xs text-gray-400 dark:text-zinc-500">
+                    {encomendasDoMes.length > 0 ? `${encomendasDoMes.length} encomenda${encomendasDoMes.length === 1 ? '' : 's'}` : '—'}
+                  </td>
+                </tr>,
+              ]
+
+              if (!isCollapsed) {
+                if (encomendasDoMes.length === 0) {
+                  rows.push(
+                    <tr key={`${m.month}-vazio`}>
+                      <td colSpan={6} className="px-4 py-2 pl-10 text-xs text-gray-400 dark:text-zinc-500">
+                        Nenhuma encomenda concluída neste mês.
+                      </td>
+                    </tr>,
+                  )
+                } else {
+                  rows.push(
+                    ...encomendasDoMes.map((r) => (
+                      <tr key={r.batch_id} className="hover:bg-gray-50 dark:hover:bg-zinc-800/30">
+                        <td className="px-4 py-1.5 pl-10 text-xs text-gray-500 dark:text-zinc-400">
+                          <span className="font-mono font-bold text-red-600 dark:text-red-400">{r.numero}</span>
+                          {' · '}
+                          <span className="font-medium text-gray-700 dark:text-zinc-300">{r.empresa}</span>
+                          {' — '}
+                          <span className="truncate">{r.resumo}</span>
+                        </td>
+                        <td className="whitespace-nowrap px-4 py-1.5 text-right text-xs tabular-nums text-gray-500 dark:text-zinc-400">{formatMt(r.receita_mt)} MT</td>
+                        <td className="whitespace-nowrap px-4 py-1.5 text-right text-xs tabular-nums text-gray-500 dark:text-zinc-400">{formatMt(r.custos_producao_mt)} MT</td>
+                        <td className="whitespace-nowrap px-4 py-1.5 text-right text-xs tabular-nums text-gray-500 dark:text-zinc-400">{formatMt(r.iva_mt)} MT</td>
+                        <td className="whitespace-nowrap px-4 py-1.5 text-right text-xs tabular-nums text-gray-500 dark:text-zinc-400">{formatMt(r.lucro_mt)} MT</td>
+                        <td className="whitespace-nowrap px-4 py-1.5 text-right">
+                          <button
+                            type="button"
+                            onClick={(e) => { e.stopPropagation(); openDocumentPopup(r.primary_item_id) }}
+                            className="text-xs font-medium text-red-600 hover:underline dark:text-red-400"
+                          >
+                            Ver
+                          </button>
+                        </td>
+                      </tr>
+                    )),
+                  )
+                }
+              }
+
+              return rows
+            })}
           </tbody>
         </table>
       </div>
