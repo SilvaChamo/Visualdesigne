@@ -648,6 +648,17 @@ function MailMarketingCampaignsSkeleton() {
   )
 }
 
+// Um contacto pode pertencer a várias listas em simultâneo — espelha a mesma
+// leitura usada em components/dashboard/MailMarketingSection.tsx (fonte de
+// verdade partilhada com o admin/revendedor), com fallback para o campo
+// antigo `metadata.list` (contactos criados antes do modelo de várias listas).
+function getContactLists(sub: any): string[] {
+  const lists = sub?.metadata?.lists;
+  if (Array.isArray(lists) && lists.length) return lists;
+  if (sub?.metadata?.list) return [sub.metadata.list];
+  return ['Contactos'];
+}
+
 function MailMarketingSection({ sites, currentUserEmail, activeTab, setActiveTab, listas, setListas, searchTerm, setSearchTerm }: { sites: any[], currentUserEmail?: string, activeTab: string, setActiveTab: (tab: any) => void, listas: string[], setListas: (l: string[]) => void, searchTerm: string, setSearchTerm: (value: string) => void }) {
   const [contactsListFocus, setContactsListFocus] = useState<string | null>(null);
   // Filtrar domínios reais
@@ -995,10 +1006,10 @@ function MailMarketingComposer({ selectedSite, setSelectedSite, sites, onGoToCon
         if (data) {
           const filteredData = data.filter((s: any) => {
             const contactDomain = normalizeDomain(s?.metadata?.domain);
-            const listName = s.metadata?.list || 'Contactos';
 
-            // 1. Verificar se a lista está seleccionada
-            if (!selectedPlans.includes(listName)) return false;
+            // 1. Verificar se o contacto pertence a alguma das listas seleccionadas
+            // (um contacto pode estar em várias listas ao mesmo tempo)
+            if (!getContactLists(s).some((l: string) => selectedPlans.includes(l))) return false;
 
             // 2. Se não tem domínio ou é domínio da plataforma, permitir (são contactos genéricos do cliente)
             if (!contactDomain || isPlatformDomain(contactDomain)) return true;
@@ -1566,6 +1577,7 @@ function MailMarketingContacts({ selectedSite, setSelectedSite, sites, listas, s
   const [newEmail, setNewEmail] = useState('');
   const [newName, setNewName] = useState('');
   const [newListLabel, setNewListLabel] = useState('Contactos');
+  const [selectedLists, setSelectedLists] = useState<string[]>(['Contactos']);
   const [newDomainLabel, setNewDomainLabel] = useState('');
   const [editingSub, setEditingSub] = useState<any>(null);
   const [currentPage, setCurrentPage] = useState(1);
@@ -1686,12 +1698,14 @@ function MailMarketingContacts({ selectedSite, setSelectedSite, sites, listas, s
   useEffect(() => {
     if (!listFocus) return;
     setNewListLabel(listFocus);
+    setSelectedLists([listFocus]);
     setShowAddForm(true);
     onClearListFocus?.();
   }, [listFocus]);
 
   const openListEditor = (listName: string) => {
     setNewListLabel(listName);
+    setSelectedLists([listName]);
     setEditingSub(null);
     setNewEmail('');
     setNewName('');
@@ -1703,6 +1717,7 @@ function MailMarketingContacts({ selectedSite, setSelectedSite, sites, listas, s
     setEditingSub(sub);
     setNewEmail(sub.email);
     setNewListLabel(sub.metadata?.list || 'Contactos');
+    setSelectedLists(getContactLists(sub));
     setNewDomainLabel(sub.metadata?.domain || selectedSite || '');
     setShowAddForm(true);
   };
@@ -1711,6 +1726,10 @@ function MailMarketingContacts({ selectedSite, setSelectedSite, sites, listas, s
     e.preventDefault();
     const email = normalizeEmailDomainTypos(newEmail?.trim() || '');
     if (!email) return;
+    if (selectedLists.length === 0) {
+      toast.error('Escolhe pelo menos uma lista.');
+      return;
+    }
 
     try {
       // 🆕 VALIDAÇÃO DE EMAIL ANTES DE ADICIONAR
@@ -1758,7 +1777,7 @@ function MailMarketingContacts({ selectedSite, setSelectedSite, sites, listas, s
         email: email,
         full_name: newName || '',
         domain: newDomainLabel || selectedSite || '',
-        list: newListLabel
+        lists: selectedLists
       };
 
       // Em modo edição, atualiza o registo existente em vez de inserir novo.
@@ -1774,6 +1793,7 @@ function MailMarketingContacts({ selectedSite, setSelectedSite, sites, listas, s
         setNewEmail('');
         setNewName('');
         setNewDomainLabel(selectedSite || '');
+        setSelectedLists(['Contactos']);
         setShowAddForm(false);
         setEditingSub(null);
         fetchSubs();
@@ -2015,7 +2035,7 @@ function MailMarketingContacts({ selectedSite, setSelectedSite, sites, listas, s
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
         {listas.map((listName) => {
-          const count = subscribers.filter((s) => (s.metadata?.list || 'Contactos') === listName).length;
+          const count = subscribers.filter((s) => getContactLists(s).includes(listName)).length;
           return (
             <div key={listName} className="bg-white p-4 rounded-lg border border-slate-100 shadow-sm flex flex-col gap-3">
               <div className="flex items-start justify-between gap-2">
@@ -2085,9 +2105,13 @@ function MailMarketingContacts({ selectedSite, setSelectedSite, sites, listas, s
                     </span>
                   </td>
                   <td className="px-5 py-[5px]">
-                    <span className="text-[10px] font-black px-2 py-0.5 bg-orange-50 text-orange-600 rounded-full border border-orange-100 uppercase tracking-widest">
-                      {sub.metadata?.list || 'Contactos'}
-                    </span>
+                    <div className="flex flex-wrap gap-1">
+                      {getContactLists(sub).map((l: string) => (
+                        <span key={l} className="text-[10px] font-black px-2 py-0.5 bg-orange-50 text-orange-600 rounded-full border border-orange-100 uppercase tracking-widest">
+                          {l}
+                        </span>
+                      ))}
+                    </div>
                   </td>
                   <td className="px-5 py-[5px]">
                     <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider bg-emerald-50 text-emerald-600 border border-emerald-100">
@@ -2180,6 +2204,7 @@ function MailMarketingContacts({ selectedSite, setSelectedSite, sites, listas, s
                   setEditingSub(null);
                   setNewEmail('');
                   setNewDomainLabel(selectedSite || '');
+                  setSelectedLists(['Contactos']);
                 }}
                 className="p-2 hover:bg-slate-100 rounded-full transition-colors"
               >
@@ -2191,14 +2216,23 @@ function MailMarketingContacts({ selectedSite, setSelectedSite, sites, listas, s
                 <Input type="email" required value={newEmail} onChange={(e) => setNewEmail(e.target.value)} className="rounded-lg h-10 border-slate-200 focus:ring-red-500 text-sm" placeholder="Email do contacto" />
               </div>
               <div className="space-y-2">
-                <select
-                  value={newListLabel}
-                  onChange={(e) => setNewListLabel(e.target.value)}
-                  className="w-full rounded-lg h-10 border-slate-200 focus:ring-red-500 bg-slate-50 text-sm outline-none px-3 border shadow-sm cursor-pointer font-bold text-slate-700 hover:bg-white transition-colors"
-                >
-                  <option value="" disabled>Seleccionar lista</option>
-                  {listas.map(l => <option key={l} value={l}>{l}</option>)}
-                </select>
+                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest px-1">
+                  Listas <span className="font-normal normal-case text-slate-400">(pode escolher mais que uma)</span>
+                </label>
+                <div className="space-y-1.5 max-h-40 overflow-y-auto border border-slate-200 rounded-lg p-2 bg-slate-50">
+                  {listas.map(l => (
+                    <label key={l} className="flex items-center gap-2 text-sm font-bold text-slate-700 px-1 py-1 rounded hover:bg-white cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={selectedLists.includes(l)}
+                        onChange={() => setSelectedLists(prev => prev.includes(l) ? prev.filter(x => x !== l) : [...prev, l])}
+                        className="accent-orange-600"
+                      />
+                      {l}
+                    </label>
+                  ))}
+                </div>
+                {selectedLists.length === 0 && <p className="text-[10px] text-red-500 px-1">Escolhe pelo menos uma lista.</p>}
               </div>
               <div className="space-y-2">
                 <select
@@ -2214,7 +2248,7 @@ function MailMarketingContacts({ selectedSite, setSelectedSite, sites, listas, s
               </div>
               <div className="pt-2">
                 <div className="grid grid-cols-2 gap-3">
-                  <Button type="submit" className="h-11 !bg-slate-900 hover:!bg-red-600 text-white font-black uppercase text-[11px] tracking-widest rounded-lg shadow-lg shadow-slate-900/10 transition-all border-none !opacity-100">
+                  <Button type="submit" disabled={selectedLists.length === 0} className="h-11 !bg-slate-900 hover:!bg-red-600 text-white font-black uppercase text-[11px] tracking-widest rounded-lg shadow-lg shadow-slate-900/10 transition-all border-none !opacity-100 disabled:opacity-50">
                     {editingSub ? 'Guardar Alteracoes' : (
                       <><Plus size={16} /> Adicionar</>
                     )}
@@ -2227,6 +2261,7 @@ function MailMarketingContacts({ selectedSite, setSelectedSite, sites, listas, s
                       setNewEmail('');
                       setNewName('');
                       setNewDomainLabel(selectedSite || '');
+                      setSelectedLists(['Contactos']);
                     }}
                     className="h-11 !bg-red-600 hover:!bg-red-700 text-white font-black uppercase text-[11px] tracking-widest rounded-lg transition-all border-none !opacity-100"
                   >
