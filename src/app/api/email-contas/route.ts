@@ -477,7 +477,15 @@ export async function DELETE(req: NextRequest) {
   const session = { user: sessionUser };
 
   try {
-    const { email } = await req.json()
+    // Todos os chamadores (HostingSections, EmailDeleteSection, etc.) enviam
+    // `?email=` na query string sem body — ler só de req.json() rebentava sempre
+    // (JSON vazio) e o apagar era engolido pelo catch, deixando o registo espelho
+    // órfão para sempre nesta tabela.
+    const email = req.nextUrl.searchParams.get('email') || (await req.json().catch(() => ({})))?.email
+
+    if (!email) {
+      return NextResponse.json({ error: 'Email em falta' }, { status: 400 });
+    }
 
     // Primeiro verificar se a conta pertence ao utilizador ou se é admin
     const { data: conta } = await supabaseAdmin.from('email_contas').select('cliente_id').eq('email', email).single();

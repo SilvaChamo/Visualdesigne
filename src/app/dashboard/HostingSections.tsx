@@ -6584,6 +6584,10 @@ export function EmailDeleteSection({ sites }: { sites: DirectAdminWebsite[] }) {
     if (!confirm(`Delete ${email}?`)) return
     setDeleting(email); setMsg('')
     const ok = await directAdminAPI.deleteEmail({ domain: selectedDomain, email })
+    // Sem isto, a conta some do DirectAdmin mas o registo espelho em `email_contas`
+    // fica órfão e continua a aparecer noutros ecrãs que leem essa tabela (ex: o
+    // selector de remetente do Mailmarketing) — nunca é limpo porque nada mais o refaz.
+    if (ok) await fetch(`/api/email-contas?email=${encodeURIComponent(email)}`, { method: 'DELETE' }).catch(() => {})
     setMsg(ok ? `${email} deleted!` : 'Error deleting email.')
     setDeleting('')
     if (ok) loadEmails(selectedDomain)
