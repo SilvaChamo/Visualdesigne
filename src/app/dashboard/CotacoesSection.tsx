@@ -167,6 +167,15 @@ export function CotacoesSection() {
     setExpandedCompany(null)
   }, [navMode, activeCategory, activeBucket])
 
+  // A cache (sessionStorage) só ficava sincronizada quando a lista inteira
+  // recarregava — qualquer alteração local (ex.: definir o valor de um item
+  // "Sob Consulta") actualizava o estado mas não a cache, por isso a próxima
+  // entrada na encomenda mostrava por instantes o valor antigo guardado.
+  // Manter a cache sempre em linha com o estado ao vivo resolve isso de vez.
+  useEffect(() => {
+    writeCotacoesCache(cotacoes)
+  }, [cotacoes])
+
   const fetchCotacoes = useCallback(async (opts?: { background?: boolean }) => {
     if (!opts?.background) setLoading(true)
     try {
@@ -174,7 +183,6 @@ export function CotacoesSection() {
       const data = await res.json()
       if (data.success) {
         setCotacoes(data.cotacoes)
-        writeCotacoesCache(data.cotacoes)
       }
     } catch (error) {
       console.error('Erro ao carregar cotações:', error)
