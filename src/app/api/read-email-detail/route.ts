@@ -72,6 +72,9 @@ export async function POST(req: NextRequest) {
       }
 
       const parsed = await simpleParser(msg.source)
+      const fromAddr = Array.isArray(parsed.from) ? parsed.from[0] : parsed.from
+      const toAddr = Array.isArray(parsed.to) ? parsed.to[0] : parsed.to
+      const ccAddr = Array.isArray(parsed.cc) ? parsed.cc[0] : parsed.cc
       return NextResponse.json({
         success: true,
         corpo: parsed.html || parsed.text || '',
@@ -80,6 +83,12 @@ export async function POST(req: NextRequest) {
           contentType: a.contentType,
           size: a.size,
         })),
+        de: fromAddr?.text || '',
+        para: toAddr?.text || '',
+        cc: ccAddr?.text || '',
+        assunto: parsed.subject || '',
+        data: parsed.date ? parsed.date.toISOString() : '',
+        messageId: parsed.messageId || '',
       })
     } finally {
       lock.release()

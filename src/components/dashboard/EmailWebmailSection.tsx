@@ -46,6 +46,7 @@ export function EmailWebmailSection({
   emailOrigem: propEmailOrigem,
   sites = [],
   defaultCompose = false,
+  composeSeed,
   onCloseCompose,
   onComposeStateChange,
   hideSidebar = false,
@@ -65,6 +66,15 @@ export function EmailWebmailSection({
   emailOrigem?: string | null
   sites?: any[]
   defaultCompose?: boolean
+  composeSeed?: {
+    mode: 'reply' | 'reply-all' | 'forward' | 'draft'
+    to: string
+    cc?: string
+    subject: string
+    quotedHtml: string
+    originalUid?: number
+    originalFolder?: string
+  } | null
   onCloseCompose?: () => void
   onComposeStateChange?: (isActive: boolean) => void
   hideSidebar?: boolean
@@ -83,9 +93,6 @@ export function EmailWebmailSection({
   const [modalEmail, setModalEmail] = useState<any>(null)
   const [pesquisa, setPesquisa] = useState('')
   const [searchTerm, setSearchTerm] = useState('') // Termo real enviado à API
-  const [rascunhos, setRascunhos] = useState([])
-  const [rascunhoAtual, setRascunhoAtual] = useState(null)
-  const [modoResposta, setModoResposta] = useState<'none' | 'reply' | 'forward'>('none')
   const [compose, setCompose] = useState({ para: '', cc: '', bcc: '', assunto: '', corpo: '' })
   const [mostrarCompose, setMostrarCompose] = useState(defaultCompose)
 
@@ -93,6 +100,21 @@ export function EmailWebmailSection({
   useEffect(() => {
     if (defaultCompose) setMostrarCompose(true)
   }, [defaultCompose])
+
+  // Pré-preenche o compositor quando WebmailSection abre Responder/Responder
+  // a todos/Reencaminhar com dados do email seleccionado (composeSeed). Sem
+  // isto, o compositor fica sempre em branco — era o bug original.
+  useEffect(() => {
+    if (!composeSeed) return
+    setCompose({
+      para: composeSeed.to,
+      cc: composeSeed.cc || '',
+      bcc: '',
+      assunto: composeSeed.subject,
+      corpo: composeSeed.quotedHtml,
+    })
+    if (composeSeed.cc) setMostrarCc(true)
+  }, [composeSeed])
 
   useEffect(() => {
     onComposeStateChange?.(mostrarCompose)
@@ -658,25 +680,33 @@ export function EmailWebmailSection({
     // Só executar quando acabou de abrir o compositor (mudou de false para true)
     if (mostrarCompose && !jaInseriuAssinaturaRef.current) {
       jaInseriuAssinaturaRef.current = true
-      
+
       // Aguardar o editor estar montado no DOM
       setTimeout(() => {
         if (!editorRef.current) return
-        
+
         // Verificar se há uma assinatura activa para a conta actual
         const assinaturaAtivaObj = assinaturas.find((a, i) => i === assinaturaAtiva && (a.texto || a.imagemUrl))
-        
+        let assinaturaHtml = ''
         if (assinaturaAtivaObj) {
           if (assinaturaAtivaObj.imagemUrl) {
             // Se for imagem, inserir no editor alinhado à esquerda com 2 linhas vazias acima
-            editorRef.current.innerHTML = `<div><br><br></div><div style="text-align:left;"><img src="${assinaturaAtivaObj.imagemUrl}" style="max-width:100%; max-height:200px; display:block; margin:0;" /></div>`
+            assinaturaHtml = `<div><br><br></div><div style="text-align:left;"><img src="${assinaturaAtivaObj.imagemUrl}" style="max-width:100%; max-height:200px; display:block; margin:0;" /></div>`
           } else if (assinaturaAtivaObj.texto) {
             // Se for texto, inserir no editor alinhado à esquerda com 2 linhas vazias acima
             const textoFormatado = assinaturaAtivaObj.texto.replace(/\n/g, '<br>')
-            editorRef.current.innerHTML = `<div><br><br></div><div style="text-align:left;">--<br>${textoFormatado}</div>`
+            assinaturaHtml = `<div><br><br></div><div style="text-align:left;">--<br>${textoFormatado}</div>`
           }
-          
-          // Focar no editor e posicionar cursor no inicio (antes da assinatura)
+        }
+
+        // Citação do email original (Responder/Responder a todos/Reencaminhar) —
+        // vem como HTML pronto de WebmailSection via composeSeed.
+        const quotedHtml = composeSeed?.quotedHtml || ''
+
+        if (quotedHtml || assinaturaHtml) {
+          editorRef.current.innerHTML = `<div><br></div>${quotedHtml}${assinaturaHtml}`
+
+          // Focar no editor e posicionar cursor no inicio (antes da citação/assinatura)
           editorRef.current.focus()
           const range = document.createRange()
           const sel = window.getSelection()
@@ -689,12 +719,12 @@ export function EmailWebmailSection({
         }
       }, 200) // Delay para garantir que o DOM está pronto
     }
-    
+
     // Resetar quando fecha o compositor para permitir inserir novamente na proxima vez
     if (!mostrarCompose) {
       jaInseriuAssinaturaRef.current = false
     }
-  }, [mostrarCompose, assinaturas, assinaturaAtiva])
+  }, [mostrarCompose, assinaturas, assinaturaAtiva, composeSeed])
 
   const execCmd = (cmd: string, value?: string) => {
     editorRef.current?.focus()
@@ -731,29 +761,6 @@ export function EmailWebmailSection({
     setMostrarPopupLink(false)
     setUrlLinkTemp('')
     setRangeLink(null)
-  }
-
-  const guardarRascunho = async () => {
-    try {
-      await fetch('/api/save-draft', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          email: emailOrigem,
-          password: emailOrigemPassword,
-          to: compose.para,
-          subject: compose.assunto,
-          html: editorRef.current?.innerHTML || ''
-        })
-      })
-    } catch (e) {
-      console.error('Erro ao guardar rascunho:', e)
-    }
-    setMostrarPopupFechar(false)
-    setMostrarCompose(false)
-    setCompose({ para: '', cc: '', bcc: '', assunto: '', corpo: '' })
-    setAnexos([])
-    if (editorRef.current) editorRef.current.innerHTML = ''
   }
 
   const inserirImagem = () => {
@@ -875,7 +882,7 @@ export function EmailWebmailSection({
   const [mostrarPopupTabela, setMostrarPopupTabela] = useState(false)
   const [tabelaConfig, setTabelaConfig] = useState({ linhas: 3, colunas: 3 })
 
-  const handleCloseModal = () => { setModalEmail(null); setModoResposta('none'); setCompose({ para: '', cc: '', bcc: '', assunto: '', corpo: '' }); setEnviado(false); setAnexos([]) }
+  const handleCloseModal = () => { setModalEmail(null); setCompose({ para: '', cc: '', bcc: '', assunto: '', corpo: '' }); setEnviado(false); setAnexos([]) }
 
   // ✅ DELETAR EMAIL
   const handleDeleteEmail = async (emailIdParam = null) => {
@@ -907,41 +914,6 @@ export function EmailWebmailSection({
         setEmails(prev => prev.filter(e => e.id !== emailId))
       } else {
         alert('Erro ao deletar: ' + data.error)
-      }
-    } catch (e: any) {
-      alert('Erro: ' + e.message)
-    }
-  }
-
-  // ✅ ENCAMINHAR EMAIL
-  const handleForwardEmail = async () => {
-    if (!modalEmail || !emailOrigem) return
-    const forwardTo = prompt('Encaminhar para qual email?')
-    if (!forwardTo) return
-    const senha = await garantirSenhaOrigem(emailOrigem)
-    if (!senha) {
-      alert('Não foi possível obter credenciais para esta conta.')
-      return
-    }
-    try {
-      const res = await fetch('/api/forward-email', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({
-          email: emailOrigem,
-          password: senha,
-          emailId: modalEmail.id,
-          forwardTo,
-          folder: pastaActiva
-        })
-      })
-      const data = await res.json()
-      if (data.success) {
-        alert('Email reenviado com sucesso!')
-        setModalEmail(null)
-      } else {
-        alert('Erro ao encaminhar: ' + data.error)
       }
     } catch (e: any) {
       alert('Erro: ' + e.message)
@@ -1021,75 +993,67 @@ export function EmailWebmailSection({
     }
   }
 
-  // ✅ SALVAR RASCUNHO
+  // Guarda o rascunho a sério na pasta Drafts do próprio servidor de email
+  // (via /api/save-draft) — chamado a partir do popup "Guardar rascunho?" ao
+  // fechar o compositor. Se se estava a editar um rascunho já existente
+  // (composeSeed.mode === 'draft'), apaga a cópia antiga depois de gravar a
+  // nova, para não acumular duplicados a cada edição.
   const handleDraftSave = async () => {
+    if (!emailOrigem) {
+      alert('Selecciona uma conta de email.')
+      return
+    }
+    const senha = await garantirSenhaOrigem(emailOrigem)
+    if (!senha) {
+      alert('Não foi possível obter credenciais para esta conta.')
+      return
+    }
     const htmlCorpo = editorRef.current?.innerHTML || compose.corpo || ''
-    
-    // Rascunho permite salvar vazio
     try {
-      const res = await fetch('/api/draft-save', {
+      const res = await fetch('/api/save-draft', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          email: emailOrigem || 'admin@your-domain.com',
-          para: compose.para || '',
+          email: emailOrigem,
+          password: senha,
+          to: compose.para || '',
           cc: compose.cc || '',
           bcc: compose.bcc || '',
-          assunto: compose.assunto || '(Sem Assunto)',
-          corpo: htmlCorpo || '(Vazio)'
-        })
+          subject: compose.assunto || '(Sem Assunto)',
+          html: htmlCorpo,
+        }),
       })
       const data = await res.json()
-      if (data.success) {
-        alert('Rascunho salvo!')
-        setRascunhoAtual(data.draftId)
-      } else {
-        alert('Erro: ' + data.error)
+      if (!data.success) {
+        alert('Erro ao guardar rascunho: ' + (data.error || 'erro desconhecido'))
+        return
       }
-    } catch (e: any) {
-      alert('Erro: ' + e.message)
-    }
-  }
 
-  // ✅ CARREGAR RASCUNHO
-  const handleDraftLoad = async () => {
-    try {
-      const res = await fetch('/api/draft-load', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          email: emailOrigem || 'admin@your-domain.com'
-        })
-      })
-      const data = await res.json()
-      if (data.success) {
-        setRascunhos(data.drafts)
-        alert(`${data.drafts.length} rascunho(s) carregado(s)`)
-      } else {
-        alert('Erro: ' + data.error)
+      if (composeSeed?.mode === 'draft' && composeSeed.originalUid != null && composeSeed.originalFolder) {
+        try {
+          await fetch('/api/delete-email', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              email: emailOrigem,
+              password: senha,
+              emailId: composeSeed.originalUid,
+              folder: composeSeed.originalFolder,
+            }),
+          })
+        } catch {
+          /* a cópia antiga do rascunho fica órfã, mas a gravação da nova já foi confirmada acima */
+        }
       }
-    } catch (e: any) {
-      alert('Erro: ' + e.message)
-    }
-  }
 
-  // ✅ DELETAR RASCUNHO
-  const handleDraftDelete = async (draftId: any) => {
-    try {
-      const res = await fetch('/api/draft-delete', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ draftId })
-      })
-      const data = await res.json()
-      if (data.success) {
-        setRascunhos(rascunhos.filter((r: any) => r.id !== draftId))
-        alert('Rascunho deletado')
-      } else {
-        alert('Erro: ' + data.error)
-      }
+      setMostrarPopupFechar(false)
+      setMostrarCompose(false)
+      setCompose({ para: '', cc: '', bcc: '', assunto: '', corpo: '' })
+      setAnexos([])
+      if (editorRef.current) editorRef.current.innerHTML = ''
+      onCloseCompose?.()
     } catch (e: any) {
-      alert('Erro: ' + e.message)
+      alert('Erro ao guardar rascunho: ' + e.message)
     }
   }
 
@@ -1711,17 +1675,6 @@ export function EmailWebmailSection({
           <div className="flex items-center gap-2 px-4 py-2 border-b border-gray-200 bg-gray-50">
             {modalEmail && (
               <button
-                onClick={() => setModoResposta('reply')}
-                className="flex items-center gap-1 text-xs text-gray-600 hover:text-gray-900 px-3 py-1.5 rounded border border-gray-300 hover:bg-gray-100 transition-colors"
-              >
-                ↩️ Responder
-              </button>
-            )}
-            {modalEmail && (
-              <button onClick={handleForwardEmail} className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-900 px-3 py-1.5 rounded border border-blue-300 hover:bg-blue-50 transition-colors">↪️ Fwd</button>
-            )}
-            {modalEmail && (
-              <button
                 onClick={() => handleArchiveEmail(modalEmail.id)}
                 className="flex items-center gap-1 text-xs text-orange-600 hover:text-orange-900 px-3 py-1.5 rounded border border-orange-300 hover:bg-orange-50 transition-colors"
                 title="Arquivar"
@@ -1806,7 +1759,6 @@ export function EmailWebmailSection({
                                   const email = emails.find(e => e.id === emailsSelecionados[0])
                                   if (email) {
                                     setModalEmail(email)
-                                    setModoResposta('forward')
                                     setEmailsSelecionados([])
                                   }
                                 }
@@ -1938,7 +1890,7 @@ export function EmailWebmailSection({
                       <p className="text-xs text-gray-500">{modalEmail.data}</p>
                     </div>
                     <button
-                      onClick={() => { setModalEmail(null); setModoResposta('none'); setCompose({ para: '', cc: '', bcc: '', assunto: '', corpo: '' }) }}
+                      onClick={() => { setModalEmail(null); setCompose({ para: '', cc: '', bcc: '', assunto: '', corpo: '' }) }}
                       className="text-gray-400 hover:text-gray-600 text-xl"
                     >
                       ✕
@@ -1950,62 +1902,6 @@ export function EmailWebmailSection({
                   {modalEmail.corpo || (carregandoEmails ? '⌛ Carregando conteúdo...' : '(sem conteúdo)')}
                 </div>
 
-                {modoResposta !== 'none' && (
-                  <div className="border-t border-gray-200 pt-4 mt-6 space-y-3">
-                    <h3 className="text-sm font-bold text-gray-600">
-                      {modoResposta === 'reply' ? '↩️ Respondendo a:' : '↪️ Reenviando:'}
-                    </h3>
-
-                    <div>
-                      <label className="text-xs text-gray-500 block mb-1">Para:</label>
-                      <input
-                        value={compose.para}
-                        onChange={e => setCompose({ ...compose, para: e.target.value })}
-                        className="w-full border border-gray-200 rounded px-3 py-2 text-sm outline-none focus:border-blue-400"
-                        placeholder="email@exemplo.com"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="text-xs text-gray-500 block mb-1">Assunto:</label>
-                      <input
-                        value={compose.assunto}
-                        onChange={e => setCompose({ ...compose, assunto: e.target.value })}
-                        className="w-full border border-gray-200 rounded px-3 py-2 text-sm outline-none focus:border-blue-400"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="text-xs text-gray-500 block mb-1">Mensagem:</label>
-                      <textarea
-                        value={compose.corpo}
-                        onChange={e => setCompose({ ...compose, corpo: e.target.value })}
-                        rows={6}
-                        className="w-full border border-gray-200 rounded px-3 py-2 text-sm outline-none focus:border-blue-400 resize-none"
-                        placeholder="Escreve a tua resposta..."
-                      />
-                    </div>
-
-                    <div className="flex gap-2">
-                      <button
-                        onClick={handleSend}
-                        disabled={enviando || !compose.para}
-                        className="bg-green-600 hover:bg-green-700 disabled:bg-gray-400  px-4 py-2 rounded text-sm font-bold transition"
-                      >
-                        {enviando ? '⏳ Enviando...' : '✈️ Enviar'}
-                      </button>
-                      <button
-                        onClick={() => { setModoResposta('none'); setCompose({ para: '', cc: '', bcc: '', assunto: '', corpo: '' }) }}
-                        className="bg-gray-300 hover:bg-gray-400 text-gray-700 px-4 py-2 rounded text-sm font-bold"
-                      >
-                        Cancelar
-                      </button>
-                      <button onClick={handleDraftSave} className="bg-gray-300 hover:bg-gray-400 text-gray-700 px-4 py-2 rounded text-sm font-bold">💾 Salvar Rascunho</button>
-                      <button onClick={handleDraftLoad} className="bg-gray-300 hover:bg-gray-400 text-gray-700 px-4 py-2 rounded text-sm font-bold">📂 Carregar Rascunhos</button>
-
-                    </div>
-                  </div>
-                )}
               </div>
             )}
           </div>

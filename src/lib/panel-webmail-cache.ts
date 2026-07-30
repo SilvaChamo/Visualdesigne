@@ -165,7 +165,7 @@ const listCacheKey = (account: string, folder: string) =>
 type ListCacheEntry = { emails: any[]; folderTotals?: Record<string, number>; ts: number }
 const listMemoryCache: Record<string, ListCacheEntry> = {}
 const totalsMemoryCache: Record<string, { totals: Record<string, number>; ts: number }> = {}
-const bodyMemoryCache: Record<string, { corpo: string; anexos?: unknown[]; ts: number }> = {}
+const bodyMemoryCache: Record<string, { corpo: string; anexos?: unknown[]; ts: number; paraTodos?: string; cc?: string; messageId?: string }> = {}
 
 function isListCacheFresh(entry: ListCacheEntry, allowStale: boolean) {
   return allowStale || Date.now() - entry.ts <= LIST_CACHE_MS
@@ -437,24 +437,28 @@ export function clearWebmailListCache(account: string, folder?: string) {
 const bodyCacheKey = (account: string, folder: string, uid: string | number) =>
   `${BODY_PREFIX}:${account}:${folder}:${uid}`
 
+type WebmailBodyMeta = { paraTodos?: string; cc?: string; messageId?: string }
+
 export function readWebmailBodyCache(
   account: string,
   folder: string,
   uid: string | number,
-): { corpo: string; anexos?: unknown[] } | null {
+): ({ corpo: string; anexos?: unknown[] } & WebmailBodyMeta) | null {
   const key = bodyCacheKey(account, folder, uid)
   const mem = bodyMemoryCache[key]
   if (mem && Date.now() - mem.ts <= BODY_CACHE_MS) {
-    return { corpo: mem.corpo, anexos: mem.anexos }
+    const { ts, ...rest } = mem
+    return rest
   }
   if (typeof window === 'undefined') return null
   try {
     const raw = sessionStorage.getItem(key)
     if (!raw) return null
-    const parsed = JSON.parse(raw) as { corpo: string; anexos?: unknown[]; ts: number }
+    const parsed = JSON.parse(raw) as { corpo: string; anexos?: unknown[]; ts: number } & WebmailBodyMeta
     if (Date.now() - parsed.ts > BODY_CACHE_MS) return null
     bodyMemoryCache[key] = parsed
-    return { corpo: parsed.corpo, anexos: parsed.anexos }
+    const { ts, ...rest } = parsed
+    return rest
   } catch {
     return null
   }
@@ -466,9 +470,10 @@ export function writeWebmailBodyCache(
   uid: string | number,
   corpo: string,
   anexos?: unknown[],
+  meta?: WebmailBodyMeta,
 ) {
   const key = bodyCacheKey(account, folder, uid)
-  const entry = { corpo, anexos, ts: Date.now() }
+  const entry = { corpo, anexos, ts: Date.now(), ...meta }
   bodyMemoryCache[key] = entry
   if (typeof window === 'undefined') return
   try {

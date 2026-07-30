@@ -1,45 +1,50 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { ImapFlow } from 'imapflow'
-import { getServerHost, getHestiaUrl } from '@/lib/server-config'
-import { resolvePanelImapHost } from '@/lib/imap-host'
+import { connectImapClient, getCachedFolderList, resolveFolder } from '@/lib/imap-panel-shared'
 
 export async function POST(req: NextRequest) {
+  let client: Awaited<ReturnType<typeof connectImapClient>> = null
   try {
-    const { email, password, to, subject, html } = await req.json()
+    const { email, password, to, cc, bcc, subject, html } = await req.json()
 
     if (!email || !password) {
       return NextResponse.json({ error: 'Credenciais em falta' }, { status: 400 })
     }
 
-    const client = new ImapFlow({
-      host: resolvePanelImapHost(),
-      port: 993,
-      secure: true,
-      auth: { user: email, pass: password },
-      tls: { rejectUnauthorized: false },
-      logger: false
-    })
+    client = await connectImapClient(email, password)
+    if (!client) {
+      return NextResponse.json({ error: 'Falha na ligação IMAP.' }, { status: 502 })
+    }
 
-    // Sem isto, um erro tardio no socket derruba o processo Node inteiro e
-    // tira o site do ar para todos os utilizadores (ver imap-panel-shared.ts).
-    client.on('error', (err) => console.error('[save-draft] erro tardio no socket IMAP:', err))
-    await client.connect()
+    const folderList = await getCachedFolderList(client, email)
+    const draftsFolder = resolveFolder('drafts', folderList) || 'Drafts'
 
     const mensagem = [
       `From: ${email}`,
       `To: ${to || ''}`,
+      cc ? `Cc: ${cc}` : null,
+      bcc ? `Bcc: ${bcc}` : null,
       `Subject: ${subject || '(sem assunto)'}`,
+      `Date: ${new Date().toUTCString()}`,
       `MIME-Version: 1.0`,
       `Content-Type: text/html; charset=UTF-8`,
       ``,
-      html || ''
-    ].join('\r\n')
+      html || '',
+    ]
+      .filter((line) => line !== null)
+      .join('\r\n')
 
-    await client.append('Drafts', mensagem, ['\\Draft', '\\Seen'])
-    await client.logout()
+    await client.append(draftsFolder, mensagem, ['\\Draft', '\\Seen'])
 
     return NextResponse.json({ success: true })
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 })
+  } finally {
+    if (client) {
+      try {
+        await client.logout()
+      } catch {
+        /* ignore */
+      }
+    }
   }
 }

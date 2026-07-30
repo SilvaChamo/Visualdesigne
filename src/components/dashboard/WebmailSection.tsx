@@ -112,6 +112,15 @@ export function WebmailSection({
   const [syncing, setSyncing] = useState(false)
   const [selectedEmail, setSelectedEmail] = useState<any>(null)
   const [selectedEmails, setSelectedEmails] = useState<Set<string>>(new Set())
+  const [composeSeed, setComposeSeed] = useState<{
+    mode: 'reply' | 'reply-all' | 'forward' | 'draft'
+    to: string
+    cc?: string
+    subject: string
+    quotedHtml: string
+    originalUid?: number
+    originalFolder?: string
+  } | null>(null)
   const [showCompose, setShowCompose] = useState(false)
   const [showImportGmail, setShowImportGmail] = useState(false)
   const [showPasswordHelp, setShowPasswordHelp] = useState(false)
@@ -419,9 +428,7 @@ export function WebmailSection({
 
     const cachedBody = readWebmailBodyCache(selectedAccount, activeFolder, msgId)
     if (cachedBody?.corpo) {
-      setSelectedEmail((prev: any) =>
-        prev ? { ...prev, corpo: cachedBody.corpo, anexos: cachedBody.anexos } : prev,
-      )
+      setSelectedEmail((prev: any) => (prev ? { ...prev, ...cachedBody } : prev))
       setLoadingEmailBody(false)
       if (!selectedEmail.lido) {
         markWebmailEmailReadOnServer(
@@ -463,9 +470,17 @@ export function WebmailSection({
         if (loadEmailBodyRequestRef.current !== requestId) return
 
         if (data.success) {
-          writeWebmailBodyCache(selectedAccount, activeFolder, msgId, data.corpo || '', data.anexos)
+          // Não sobrescreve `de`/`para` (já usados na UI com o endereço simples
+          // vindo da lista) — só acrescenta o que falta para Responder a
+          // todos/citação: lista completa de destinatários, CC e Message-ID.
+          const meta = {
+            paraTodos: data.para || undefined,
+            cc: data.cc || undefined,
+            messageId: data.messageId || undefined,
+          }
+          writeWebmailBodyCache(selectedAccount, activeFolder, msgId, data.corpo || '', data.anexos, meta)
           setSelectedEmail((prev: any) =>
-            prev ? { ...prev, corpo: data.corpo || '', anexos: data.anexos } : prev,
+            prev ? { ...prev, corpo: data.corpo || '', anexos: data.anexos, ...meta } : prev,
           )
         } else {
           setEmailBodyError(data.error || 'Não foi possível carregar o conteúdo.')
@@ -1150,6 +1165,83 @@ export function WebmailSection({
   }
 
   // 📦 Arquivar email
+  const buildQuotedReplyHtml = (email: any): string => {
+    const dataStr = email.data ? new Date(email.data).toLocaleString('pt-PT') : ''
+    const remetente = email.de || ''
+    return `<br/><br/><blockquote style="border-left:2px solid #ccc;padding-left:12px;margin-left:0;color:#555;">Em ${dataStr}, ${remetente} escreveu:<br/>${email.corpo || ''}</blockquote>`
+  }
+
+  const addSubjectPrefix = (subject: string, prefix: string): string => {
+    const s = subject || ''
+    return new RegExp(`^${prefix}`, 'i').test(s) ? s : `${prefix}${s}`
+  }
+
+  const handleReply = () => {
+    if (!selectedEmail) return
+    setComposeSeed({
+      mode: 'reply',
+      to: selectedEmail.de || '',
+      subject: addSubjectPrefix(selectedEmail.assunto, 'Re: '),
+      quotedHtml: buildQuotedReplyHtml(selectedEmail),
+    })
+    setShowAdvancedCompose(true)
+  }
+
+  const handleReplyAll = () => {
+    if (!selectedEmail) return
+    const accountLower = (selectedAccount || '').toLowerCase()
+    const deLower = (selectedEmail.de || '').toLowerCase()
+    const splitAddresses = (value?: string) =>
+      (value || '')
+        .split(',')
+        .map((s: string) => s.trim())
+        .filter(Boolean)
+    const ccCandidates = [
+      ...splitAddresses(selectedEmail.paraTodos || selectedEmail.para),
+      ...splitAddresses(selectedEmail.cc),
+    ]
+    const cc = [...new Set(ccCandidates)]
+      .filter((addr) => {
+        const l = addr.toLowerCase()
+        return l !== accountLower && l !== deLower
+      })
+      .join(', ')
+    setComposeSeed({
+      mode: 'reply-all',
+      to: selectedEmail.de || '',
+      cc: cc || undefined,
+      subject: addSubjectPrefix(selectedEmail.assunto, 'Re: '),
+      quotedHtml: buildQuotedReplyHtml(selectedEmail),
+    })
+    setShowAdvancedCompose(true)
+  }
+
+  const handleForward = () => {
+    if (!selectedEmail) return
+    setComposeSeed({
+      mode: 'forward',
+      to: '',
+      subject: addSubjectPrefix(selectedEmail.assunto, 'Fwd: '),
+      quotedHtml: buildQuotedReplyHtml(selectedEmail),
+    })
+    setShowAdvancedCompose(true)
+  }
+
+  const handleEditDraft = () => {
+    if (!selectedEmail) return
+    const uid = getWebmailMessageId(selectedEmail)
+    setComposeSeed({
+      mode: 'draft',
+      to: selectedEmail.paraTodos || selectedEmail.para || '',
+      cc: selectedEmail.cc || undefined,
+      subject: selectedEmail.assunto || '',
+      quotedHtml: selectedEmail.corpo || '',
+      originalUid: uid != null ? Number(uid) : undefined,
+      originalFolder: activeFolder,
+    })
+    setShowAdvancedCompose(true)
+  }
+
   const handleArchiveEmail = async (emailId?: string) => {
     if (!emailId) return
     
@@ -1332,7 +1424,7 @@ export function WebmailSection({
           <div className="bg-white border-r border-gray-200 flex flex-col shrink-0 w-56">
             <div className="p-4 border-b border-gray-100">
               <button
-                onClick={() => setShowAdvancedCompose(true)}
+                onClick={() => { setComposeSeed(null); setShowAdvancedCompose(true) }}
                 disabled={accounts.length === 0}
                 className={`${panelBtnPrimary} w-full`}
               >
@@ -1403,9 +1495,10 @@ export function WebmailSection({
                 sites={sites}
                 defaultCompose={true}
                 emailOrigem={selectedAccount || undefined}
-                onCloseCompose={() => setShowAdvancedCompose(false)}
+                composeSeed={composeSeed}
+                onCloseCompose={() => { setShowAdvancedCompose(false); setComposeSeed(null) }}
                 onComposeStateChange={(isActive) => {
-                  if (!isActive && showAdvancedCompose) setShowAdvancedCompose(false)
+                  if (!isActive && showAdvancedCompose) { setShowAdvancedCompose(false); setComposeSeed(null) }
                 }}
                 hideSidebar={true}
                 externalAssinaturas={assinaturas}
@@ -1468,13 +1561,13 @@ export function WebmailSection({
                   <div className="flex items-center gap-1 bg-gray-50 px-2 py-1 rounded border border-gray-200">
                     {selectedEmail && (
                       <>
-                        <button onClick={() => setShowAdvancedCompose(true)} className="p-1.5 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors" title="Responder">
+                        <button onClick={handleReply} className="p-1.5 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors" title="Responder">
                           <Reply className="w-3.5 h-3.5" />
                         </button>
-                        <button onClick={() => setShowAdvancedCompose(true)} className="p-1.5 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors" title="Responder a todos">
+                        <button onClick={handleReplyAll} className="p-1.5 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors" title="Responder a todos">
                           <ReplyAll className="w-3.5 h-3.5" />
                         </button>
-                        <button onClick={() => setShowAdvancedCompose(true)} className="p-1.5 text-gray-500 hover:text-green-600 hover:bg-green-50 rounded transition-colors" title="Reencaminhar">
+                        <button onClick={handleForward} className="p-1.5 text-gray-500 hover:text-green-600 hover:bg-green-50 rounded transition-colors" title="Reencaminhar">
                           <Forward className="w-3.5 h-3.5" />
                         </button>
                       </>
@@ -1619,17 +1712,14 @@ export function WebmailSection({
                               setSelectedEmail({
                                 ...email,
                                 lido: true,
-                                corpo: cachedBody?.corpo,
-                                anexos: cachedBody?.anexos,
+                                ...(cachedBody || {}),
                               })
                             } else {
                               const cachedBody = msgId
                                 ? readWebmailBodyCache(selectedAccount, activeFolder, msgId)
                                 : null
                               setSelectedEmail(
-                                cachedBody?.corpo
-                                  ? { ...email, corpo: cachedBody.corpo, anexos: cachedBody.anexos }
-                                  : email,
+                                cachedBody?.corpo ? { ...email, ...cachedBody } : email,
                               )
                             }
                           }}
@@ -1739,12 +1829,21 @@ export function WebmailSection({
                           <h2 className="text-xl font-bold text-gray-900">{selectedEmail.assunto}</h2>
                         </div>
                         <div className="flex items-center gap-2">
-                          <button onClick={() => setShowAdvancedCompose(true)} className="p-1.5 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors" title="Responder">
-                            <Reply className="w-4 h-4" />
-                          </button>
-                          <button onClick={() => setShowAdvancedCompose(true)} className="p-1.5 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors" title="Encaminhar">
-                            <Forward className="w-4 h-4" />
-                          </button>
+                          {activeFolder === 'Drafts' ? (
+                            <button onClick={handleEditDraft} className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-blue-600 border border-blue-300 hover:bg-blue-50 rounded transition-colors" title="Continuar a editar rascunho">
+                              <Reply className="w-3.5 h-3.5" />
+                              Continuar a editar
+                            </button>
+                          ) : (
+                            <>
+                              <button onClick={handleReply} className="p-1.5 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors" title="Responder">
+                                <Reply className="w-4 h-4" />
+                              </button>
+                              <button onClick={handleForward} className="p-1.5 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors" title="Encaminhar">
+                                <Forward className="w-4 h-4" />
+                              </button>
+                            </>
+                          )}
                           <div className="w-px h-4 bg-gray-300 mx-1" />
                           <button onClick={() => handleDeleteEmail(selectedEmail?.id)} className="p-1.5 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded transition-colors" title="Apagar">
                             <Trash2 className="w-4 h-4" />
