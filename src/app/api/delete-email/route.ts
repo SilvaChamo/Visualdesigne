@@ -94,8 +94,9 @@ export async function POST(req: NextRequest) {
 
       if (trashFolders.includes(actualPath) || trashFolders.includes(folder)) {
         await client.messageFlagsAdd([emailId], ['\\Deleted'], { uid: true })
-        // Tentar expunge explícito se a biblioteca suportar, senão fechar a caixa
-        try { await (client as { expunge?: () => Promise<void> }).expunge?.() } catch (e) {}
+        // messageDelete corre o UID EXPUNGE real — `client.expunge` não existe
+        // no ImapFlow, por isso ficava só marcado \Deleted e reaparecia na lista.
+        await client.messageDelete([emailId], { uid: true })
         console.log('3. Deletado permanentemente da lixeira')
       } else {
         let movedToTrash = false

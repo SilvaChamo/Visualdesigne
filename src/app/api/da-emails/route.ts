@@ -6,6 +6,8 @@ import { resolvePanelDaContext } from '@/lib/panel-api-context';
 import { loadResellerCredentialsByDaUsername, loadResellerCredentialsByUserId } from '@/lib/da-credential-store';
 import { resolveDirectAdminCredentials, type DirectAdminCredentials } from '@/lib/directadmin-credentials';
 import { getMirrorSiteOwner } from '@/lib/panel-mirror-read';
+import { getDaSyncAdmin } from '@/lib/da-sync-schema';
+import { encryptStoredPassword } from '@/lib/panel-access-credentials';
 
 /**
  * GET  ?action=list&domain=visualdesignmoz.com  → lista emails
@@ -214,6 +216,18 @@ export async function PATCH(req: NextRequest) {
 
     if (res.error) {
       return NextResponse.json({ success: false, error: res.details || res.text || 'Erro ao alterar password' });
+    }
+
+    // Mantém a cópia usada pelo webmail (IMAP) em sincronia com a password
+    // real que acabou de ser definida no servidor de correio — sem isto,
+    // `email_contas.senha_servidor` fica desactualizada e o login IMAP passa
+    // a falhar de forma intermitente consoante o que o browser tem em cache.
+    const sb = getDaSyncAdmin();
+    if (sb) {
+      await sb
+        .from('email_contas')
+        .update({ senha_servidor: encryptStoredPassword(password) })
+        .eq('email', `${username}@${domain}`);
     }
 
     return NextResponse.json({ success: true, message: `Password de ${username}@${domain} alterada.` });

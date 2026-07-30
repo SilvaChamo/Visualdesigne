@@ -22,6 +22,7 @@ import {
   writeCachedMailboxPassword,
   readWebmailListCache,
   writeWebmailListCache,
+  removeEmailFromListCache,
 } from '@/lib/panel-webmail-cache'
 const CORES_PALETA = [
   '#000000', '#434343', '#666666', '#999999', '#b7b7b7', '#cccccc', '#d9d9d9', '#ffffff',
@@ -912,6 +913,10 @@ export function EmailWebmailSection({
 
         // Optimistic update: remove apenas o email apagado da lista local
         setEmails(prev => prev.filter(e => e.id !== emailId))
+        // Purga a cache partilhada (sessionStorage + memória) — sem isto o
+        // email eliminado reaparecia ("piscava") assim que outra leitura
+        // (mudança de pasta/conta, WebmailSection) devolvia a lista em cache.
+        removeEmailFromListCache(emailOrigem, pastaParaIMAP(pastaActiva), emailId)
       } else {
         alert('Erro ao deletar: ' + data.error)
       }
@@ -948,6 +953,7 @@ export function EmailWebmailSection({
 
         // Optimistic update: remove apenas o email arquivado da lista local
         setEmails(prev => prev.filter(e => e.id !== emailId))
+        removeEmailFromListCache(emailOrigem, pastaParaIMAP(pastaActiva), emailId)
       } else {
         alert('Erro ao arquivar: ' + data.error)
       }
@@ -985,6 +991,7 @@ export function EmailWebmailSection({
 
         // Optimistic update: remove apenas o email marcado como spam da lista local
         setEmails(prev => prev.filter(e => e.id !== emailId))
+        removeEmailFromListCache(emailOrigem, pastaParaIMAP(pastaActiva), emailId)
       } else {
         alert('Erro ao mover para Spam: ' + data.error)
       }

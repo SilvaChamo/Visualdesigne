@@ -181,43 +181,30 @@ export async function GET(req: NextRequest) {
         }
       }
     }
-    // 🚀 CLIENTE NORMAL: Busca por domínio ou cliente_id
+    // 🚀 CLIENTE / REVENDEDOR: só contas próprias (cliente_id) ou de domínios
+    // que realmente lhes pertencem no DirectAdmin — nunca por correspondência
+    // de string do domínio do próprio email de login (isso deixava a conta de
+    // um tenant aparecer no selector de outro só por partilharem sufixo de domínio).
     else {
-      // Busca por domínio do utilizador
-      if (session.user?.email) {
-        const userDomain = session.user.email.split('@')[1];
-        console.log(`📧 [API] Buscando emails do domínio: ${userDomain}`);
-        
-        if (userDomain) {
-          const { data: byDomain, error } = await supabaseAdmin
-            .from('email_contas')
-            .select('*')
-            .ilike('email', `%@${userDomain}`)
-            .limit(50);
-          
-          if (error) {
-            console.error('📧 [API] Erro na query por domínio:', error);
-          }
-          
-          if (byDomain && byDomain.length > 0) {
-            allEmails = byDomain;
-            console.log(`📧 [API] Encontrados ${byDomain.length} emails para ${userDomain}`);
-          }
-        }
-      }
-      
-      // Se não encontrou nada, tentar por cliente_id como fallback
-      if (allEmails.length === 0) {
-        const { data: byClient, error } = await supabaseAdmin
-          .from('email_contas')
-          .select('*')
-          .eq('cliente_id', clienteId)
-          .limit(50);
-        
-        if (!error && byClient) {
-          allEmails = byClient;
-          console.log(`📧 [API] Encontrados ${byClient.length} emails por cliente_id`);
-        }
+      const { listMirrorWebsitesForClientUser } = await import('@/lib/panel-mirror-read');
+      const ownedSites = await listMirrorWebsitesForClientUser(session.user.id, session.user?.email || undefined);
+      const ownedDomains = new Set(ownedSites.map((s) => s.domain.toLowerCase()));
+
+      const { data: activeContas, error } = await supabaseAdmin
+        .from('email_contas')
+        .select('*')
+        .or('status.eq.active,status.eq.activo')
+        .limit(200);
+
+      if (error) {
+        console.error('📧 [API] Erro ao buscar contas para filtrar por cliente/domínio:', error);
+      } else if (activeContas) {
+        allEmails = activeContas.filter((c: any) => {
+          if (c.cliente_id === clienteId) return true;
+          const domain = String(c.email || '').split('@')[1]?.toLowerCase();
+          return domain ? ownedDomains.has(domain) : false;
+        });
+        console.log(`📧 [API] Modo CLIENTE/REVENDEDOR - ${allEmails.length} contas (domínios próprios: ${[...ownedDomains].join(', ') || 'nenhum'})`);
       }
     }
 
