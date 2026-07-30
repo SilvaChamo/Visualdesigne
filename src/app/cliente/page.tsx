@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef, Suspense, lazy, useMemo } from 'react'
+import { useState, useEffect, useRef, Suspense, useMemo } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/utils/supabase/server'
 import { supabase } from '@/lib/supabase-client'
@@ -8,7 +8,6 @@ import { Spinner } from '@/components/ui/spinner'
 
 // 🚀 Componente de carregamento direto para seções principais
 import { WebmailSection } from '@/components/dashboard/WebmailSection'
-const EmailWebmailSection = lazy(() => import('@/components/dashboard/EmailWebmailSection').then(m => ({ default: m.EmailWebmailSection })))
 
 import {
   Home, Globe, Users, Mail, Shield, Database, Settings, Target,
@@ -3650,18 +3649,6 @@ function ClientPageContent() {
       case 'dashboard':
       case 'meus-produtos':
         return <ClientProductsHub onNavigate={setActiveSection} />
-      case 'emails-new':
-        return <EmailWebmailSection
-          mostrarAdicionarConta={mostrarAdicionarConta}
-          setMostrarAdicionarConta={setMostrarAdicionarConta}
-          modalAdicionarPasso={modalAdicionarPasso}
-          setModalAdicionarPasso={setModalAdicionarPasso}
-          emailOrigem={sessionUser}
-          sites={directAdminSites}
-          defaultCompose={compondoEmail}
-          onCloseCompose={() => setCompondoEmail(false)}
-          onComposeStateChange={setIsComposeActive}
-        />
       case 'domains':
         return <ListWebsitesSection
           sites={directAdminSites}
@@ -3723,11 +3710,12 @@ function ClientPageContent() {
           <WebmailSection
             sites={directAdminSites}
             userEmail={sessionUser}
-            onBack={() => setActiveSection('emails-new')}
+            onBack={() => setActiveSection('meus-produtos')}
             mostrarAdicionarConta={mostrarAdicionarConta}
             setMostrarAdicionarConta={setMostrarAdicionarConta}
             modalAdicionarPasso={modalAdicionarPasso}
             setModalAdicionarPasso={setModalAdicionarPasso}
+            onComposeStateChange={setIsComposeActive}
           />
         )
       case 'domains-new':
@@ -3838,7 +3826,7 @@ function ClientPageContent() {
           <DomainManagerSection
             sites={directAdminSites}
             packages={directAdminPackages}
-            onCreateEmail={() => setActiveSection('emails-new')}
+            onCreateEmail={() => { setActiveSection('webmail'); setMostrarAdicionarConta(true) }}
             onNavigate={(section, opts) => {
               if (opts?.domain) setSelectedDNSDomain(opts.domain)
               setActiveSection(section)
@@ -3906,7 +3894,7 @@ function ClientPageContent() {
         <PanelHeader
           title={clientSectionLabel(activeSection)}
           description="Gestão de Serviços"
-          hidden={isComposeActive && activeSection === 'emails-new'}
+          hidden={isComposeActive && activeSection === 'webmail'}
           search={
             activeSection === 'mailmarketing' && mailMarketingTab === 'subs'
               ? {
@@ -3957,7 +3945,7 @@ function ClientPageContent() {
           }
           actions={
             <>
-              {activeSection === 'emails-new' ? (
+              {activeSection === 'webmail' ? (
                 <button
                   type="button"
                   onClick={() => {
@@ -3988,8 +3976,8 @@ function ClientPageContent() {
         />
 
         {/* Content Area */}
-        <main className={`flex-1 ${isComposeActive && activeSection === 'emails-new' ? 'overflow-hidden p-0' : 'overflow-y-auto'} ${['dashboard', 'webmail', 'emails-new', 'email-new'].includes(activeSection) ? 'p-0' : 'p-5'} bg-slate-50/50 dark:bg-zinc-950`}>
-          <div className={`${isComposeActive && activeSection === 'emails-new' ? 'h-full min-h-0' : 'min-h-full'}`}>
+        <main className={`flex-1 ${isComposeActive && activeSection === 'webmail' ? 'overflow-hidden p-0' : 'overflow-y-auto'} ${['dashboard', 'webmail', 'email-new'].includes(activeSection) ? 'p-0' : 'p-5'} bg-slate-50/50 dark:bg-zinc-950`}>
+          <div className={`${isComposeActive && activeSection === 'webmail' ? 'h-full min-h-0' : 'min-h-full'}`}>
             {renderSection()}
           </div>
         </main>

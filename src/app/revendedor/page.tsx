@@ -14,7 +14,6 @@ import { panelDashboardGrid, panelDashboardToolCard, panelDashboardToolLabel, pa
 import { usePanelSidebarCollapsed } from '@/hooks/usePanelSidebarCollapsed'
 import { ResellerDirectAccessSection } from '@/components/revendedor/ResellerDirectAccessSection'
 import { ResellerDashboard } from '@/components/revendedor/ResellerDashboard'
-import { EmailWebmailSection } from '@/components/dashboard/EmailWebmailSection'
 import { WebmailSection } from '@/components/dashboard/WebmailSection'
 import {
   DatabasesSection, FTPSection, EmailManagementSection,

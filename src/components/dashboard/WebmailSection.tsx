@@ -212,7 +212,7 @@ export function WebmailSection({
   })
 
   // Domínios permitidos no painel admin
-  const ALLOWED_DOMAINS = ['visualdesignmoz.com', 'visualdesignmoz.com', 'anap.co.mz', 'entrecampos.co.mz']
+  const ALLOWED_DOMAINS = ['visualdesignmoz.com', 'anap.co.mz', 'entrecampos.co.mz']
 
   // Credenciais devem vir do Supabase ou do formulário de importação.
   const CREDENCIAIS_PADRAO: Record<string, string> = {}

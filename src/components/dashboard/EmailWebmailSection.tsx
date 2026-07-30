@@ -33,6 +33,11 @@ const CORES_PALETA = [
 
 
 
+// Motor de composição/resposta/reencaminhamento embutido em WebmailSection.tsx
+// (que o importa e renderiza em modo hideSidebar) — não é um ecrã alternativo
+// de webmail. Já existiu uma segunda entrada de página inteira (painel
+// cliente, secção 'emails-new') que foi removida por ser um duplicado do
+// mesmo cliente de email — não recriar sem ligar primeiro a WebmailSection.
 export function EmailWebmailSection({
   mostrarAdicionarConta: propMostrarAdicionarConta,
   setMostrarAdicionarConta: propSetMostrarAdicionarConta,
@@ -448,11 +453,10 @@ export function EmailWebmailSection({
       console.log(`📧 [Contacts] Total contactos carregados: ${allEmails.length}`)
       setEmailsOrigem(allEmails)
       
-      // Seleccionar o email automaticamente (preferência para silva.chamo@visualdesignmoz.com)
+      // Seleccionar o email automaticamente (primeira conta disponível)
       if (allEmails.length > 0 && !emailOrigem) {
-        const silvaAccount = allEmails.find(a => a.email === 'silva.chamo@visualdesignmoz.com')
-        const defaultAccount = silvaAccount || allEmails[0]
-        
+        const defaultAccount = allEmails[0]
+
         console.log(`📧 [Contacts] Selecionando contacto padrão: ${defaultAccount.email}`)
         setEmailOrigem(defaultAccount.email)
         const senha = CREDENCIAIS_PADRAO[defaultAccount.email] || ''

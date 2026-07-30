@@ -23,7 +23,6 @@ import { ListWebsitesSection, sortSitesPrimaryFirst } from '@/components/panel/L
 import { panelBtnSecondary, panelDashboardGrid, panelDashboardToolCard, panelDashboardToolLabel, panelSectionPadding } from '@/lib/panel-ui'
 import { usePanelSidebarCollapsed } from '@/hooks/usePanelSidebarCollapsed'
 import { CpanelDashboard } from './CpanelDashboard'
-import { EmailWebmailSection } from '@/components/dashboard/EmailWebmailSection'
 import { WebmailSection } from '@/components/dashboard/WebmailSection'
 import { NativeHostingSection } from './NativeHostingSection'
 import {
