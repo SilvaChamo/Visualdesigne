@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { Globe, List, Plus, Search as SearchIcon, ShoppingCart } from 'lucide-react';
+import { Globe, Plus, Search as SearchIcon, ShoppingCart } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { panelField, panelBtnSecondary, panelTabList, panelTabBtn } from '@/lib/panel-ui';
 import { DomainManagerSection } from '@/app/dashboard/HostingSections';
@@ -24,7 +24,6 @@ type TabDef = {
 
 const ADMIN_TABS: TabDef[] = [
   { id: 'meus', label: 'Meus domínios', icon: Globe },
-  { id: 'registados', label: 'Domínios registados', icon: List },
   { id: 'registar', label: 'Registar domínio', icon: ShoppingCart },
 ];
 

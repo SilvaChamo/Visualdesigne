@@ -2,7 +2,6 @@
 
 import React, { useState, useEffect } from 'react';
 import { User, Lock, Save, CheckCircle, AlertCircle, Building2, Phone, Mail } from 'lucide-react';
-import { supabase } from '@/lib/supabase-client';
 
 export function ResellerProfileSection() {
   const [userData, setUserData] = useState({
@@ -23,15 +22,19 @@ export function ResellerProfileSection() {
 
   useEffect(() => {
     async function loadUser() {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
+      try {
+        const res = await fetch('/api/revendedor/perfil', { credentials: 'include' });
+        const data = await res.json();
+        if (!res.ok) return;
         setUserData({
-          email: user.email || '',
-          nome: user.user_metadata?.nome || user.user_metadata?.full_name || user.email?.split('@')[0] || '',
-          telefone: user.user_metadata?.telefone || '',
-          empresa: user.user_metadata?.empresa || ''
+          email: data.email || '',
+          nome: data.nome || data.email?.split('@')[0] || '',
+          telefone: data.telefone || '',
+          empresa: data.empresa || ''
         });
-        setOriginalEmail(user.email || '');
+        setOriginalEmail(data.email || '');
+      } catch {
+        /* mantém campos vazios */
       }
     }
     loadUser();
@@ -55,22 +58,22 @@ export function ResellerProfileSection() {
       const newEmail = userData.email.trim();
       const emailChanged = newEmail.toLowerCase() !== originalEmail.trim().toLowerCase();
 
-      const { error } = await supabase.auth.updateUser({
-        data: {
+      const res = await fetch('/api/revendedor/perfil', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
           nome: userData.nome,
           telefone: userData.telefone,
-          empresa: userData.empresa
-        },
-        ...(emailChanged ? { email: newEmail } : {})
+          empresa: userData.empresa,
+          ...(emailChanged ? { email: newEmail } : {}),
+        }),
       });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Não foi possível guardar o perfil.');
 
-      if (error) throw error;
-      setMessage({
-        type: 'success',
-        text: emailChanged
-          ? 'Perfil actualizado! Foi enviado um email de confirmação para o novo endereço — a alteração de email só é aplicada depois de confirmar.'
-          : 'Perfil actualizado com sucesso!'
-      });
+      if (emailChanged) setOriginalEmail(data.email || newEmail);
+      setMessage({ type: 'success', text: 'Perfil actualizado com sucesso!' });
     } catch (error: any) {
       setMessage({ type: 'error', text: error.message });
     } finally {
@@ -89,11 +92,15 @@ export function ResellerProfileSection() {
     setMessage({ type: '', text: '' });
 
     try {
-      const { error } = await supabase.auth.updateUser({
-        password: passwords.new
+      const res = await fetch('/api/revendedor/perfil', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ password: passwords.new }),
       });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Não foi possível alterar a senha.');
 
-      if (error) throw error;
       setMessage({ type: 'success', text: 'Senha alterada com sucesso!' });
       setPasswords({ current: '', new: '', confirm: '' });
     } catch (error: any) {

@@ -33,9 +33,8 @@ export const NEW_MENU_ITEM_DEFS: PanelMenuItemDef[] = [
     isNewMenu: true,
     subItems: [
       { id: 'hospedagem-contas', label: 'Contas' },
-      { id: 'hospedagem-mover-revenda', label: 'Mover contas' },
       { id: 'packages-list', label: 'Pacotes' },
-      { id: 'revendedores', label: 'Revendedores' },
+      { id: 'hospedagem-mover-revenda', label: 'Mover contas' },
     ],
   },
   {
