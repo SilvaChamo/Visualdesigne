@@ -5,8 +5,8 @@ import { Smartphone, Landmark, CheckCircle2, Wallet, FileText } from 'lucide-rea
 import { formatMt } from '@/lib/pricing-catalog';
 import { MPESA_NUMBER, BANK_NAME, BANK_ACCOUNT, BANK_NIB, metodoPagamentoLabel } from '@/lib/quotation-payment-info';
 import { panelCard, panelBtnPrimary, panelBtnSecondary } from '@/lib/panel-ui';
-import { groupIntoBatches, batchNumero, type BatchItem } from '@/lib/quotation-batch';
-import { useBatchNumeros } from '@/lib/use-batch-numeros';
+import { groupIntoBatches, type BatchItem } from '@/lib/quotation-batch';
+import { useBatchNumeros, displayNumero } from '@/lib/use-batch-numeros';
 
 const FACTURA_STATUSES = ['approved', 'delivered', 'done'];
 
@@ -95,7 +95,7 @@ export function EncomendasPagamentosSection() {
             <div className="flex-1 min-w-0">
               <div className="flex items-center justify-between gap-3 mb-2">
                 <div>
-                  <p className="font-bold text-black dark:text-white">Encomenda Nº {numeros[batch.batchId] ?? batchNumero(batch.batchId)}</p>
+                  <p className="font-bold text-black dark:text-white">Encomenda Nº {displayNumero(numeros, batch.batchId)}</p>
                   <p className="text-sm text-gray-500 dark:text-zinc-400">{resumo}</p>
                   <p className="text-sm text-gray-500 dark:text-zinc-400">
                     {batch.sobConsulta ? 'Sob Consulta' : `${formatMt(batch.totalMt)} MT`}

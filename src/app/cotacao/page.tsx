@@ -52,6 +52,10 @@ function CotacaoContent() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [status, setStatus] = useState<'idle' | 'registering' | 'submitting' | 'error'>('idle');
   const [errorMessage, setErrorMessage] = useState('');
+  // Distingue o erro "já tem conta" dos restantes só para poder mostrar um
+  // link directo para "Entrar" na faixa de erro, em vez de só o texto a dizer
+  // para fazer login — mais rápido do que ter de encontrar o link sozinho.
+  const [accountExists, setAccountExists] = useState(false);
 
   // Dados da Empresa (ou pessoa singular)
   const [tipoCliente, setTipoCliente] = useState<'empresa' | 'individual'>('empresa');
@@ -306,6 +310,7 @@ function CotacaoContent() {
     }
     setIsSubmitting(true);
     setErrorMessage('');
+    setAccountExists(false);
     setStatus('idle');
 
     try {
@@ -320,12 +325,18 @@ function CotacaoContent() {
         throw new Error('A sua sessão expirou enquanto preenchia o formulário. Por favor, inicie sessão novamente e volte a submeter o pedido.');
       }
 
+      // Para pessoa singular, o passo "Responsável" nem chega a aparecer —
+      // usa os próprios dados do passo "Os Seus Dados" como contacto. Calculado
+      // aqui (e não só mais abaixo) porque o registo da conta também precisa
+      // do telefone — a API exige-o desde a reestruturação do /auth/register.
+      const telefoneParaConta = tipoCliente === 'individual' ? telefoneInstitucional : telefoneResponsavel;
+
       if (!stillAuthenticated) {
         setStatus('registering');
         const res = await fetch('/api/auth/register', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email: accountEmail, password, nome, honeypot }),
+          body: JSON.stringify({ email: accountEmail, password, nome, telefone: telefoneParaConta, honeypot }),
         });
         const data = await res.json();
 
@@ -334,7 +345,8 @@ function CotacaoContent() {
             try {
               await supabase.auth.signInWithPassword({ email: accountEmail, password });
             } catch (loginErr) {
-              throw new Error('Já existe uma conta com este email. Por favor, faça login para continuar.');
+              setAccountExists(true);
+              throw new Error('Já tem uma conta criada com este email — faça login para acompanhar a sua encomenda, em vez de criar uma conta nova.');
             }
           } else {
             throw new Error(data.error || 'Erro ao criar a sua conta.');
@@ -355,7 +367,7 @@ function CotacaoContent() {
       // usa os próprios dados do passo "Os Seus Dados" como contacto.
       const finalResponsavel = tipoCliente === 'individual' ? empresa : responsavel;
       const finalCargo = tipoCliente === 'individual' ? '' : cargo;
-      const finalTelefoneResponsavel = tipoCliente === 'individual' ? telefoneInstitucional : telefoneResponsavel;
+      const finalTelefoneResponsavel = telefoneParaConta;
       const finalEmailResponsavel = tipoCliente === 'individual' ? emailInstitucional : emailResponsavel;
 
       const itens = lineItems.map((li) => ({
@@ -470,7 +482,17 @@ function CotacaoContent() {
             {status === 'error' && errorMessage && (
               <div className="mb-6 bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-900/50 rounded-lg p-4 flex items-start gap-3">
                 <AlertCircle className="w-5 h-5 text-red-600 dark:text-red-500 mt-0.5 shrink-0" />
-                <p className="text-sm text-red-800 dark:text-red-300">{errorMessage}</p>
+                <div className="text-sm text-red-800 dark:text-red-300">
+                  <p>{errorMessage}</p>
+                  {accountExists && (
+                    <Link
+                      href={`/login?redirect=${encodeURIComponent('/encomendas')}`}
+                      className="inline-flex items-center gap-1 mt-2 font-bold underline hover:no-underline"
+                    >
+                      Entrar na minha conta <ArrowRight className="w-3.5 h-3.5" />
+                    </Link>
+                  )}
+                </div>
               </div>
             )}
 
@@ -871,8 +893,8 @@ function CotacaoContent() {
                         </>
                       ) : (
                         <>
-                          <p className="text-xs text-zinc-500 dark:text-zinc-400">{categoriaLabel}</p>
-                          <p className="font-semibold text-zinc-900 dark:text-white">{li.produto}</p>
+                          <p className="font-semibold text-zinc-900 dark:text-white">{categoriaLabel}</p>
+                          <p className="text-xs text-zinc-500 dark:text-zinc-400">{li.produto}</p>
                         </>
                       )}
                       {isCustom ? null : sobConsultaItem ? (

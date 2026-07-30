@@ -47,14 +47,18 @@ export function computeBatchStatus(items: { status: string }[]): string {
 }
 
 /** Atalho de estado do menu admin em que uma encomenda deve aparecer. */
-export type StatusBucket = 'pending' | 'approved' | 'delivered' | 'cancelled' | 'done';
+export type StatusBucket = 'pending' | 'approved' | 'delivered' | 'rejected' | 'cancelled' | 'done';
 
+// 'rejected' (a equipa recusou a negociação) e 'cancelled' (o cliente
+// desistiu) são coisas diferentes — antes ficavam juntas no mesmo balde
+// "Canceladas", confundindo quem precisa de acompanhar rejeições. Agora cada
+// uma tem o seu próprio menu na barra lateral.
 const BUCKET_ALIAS: Record<string, StatusBucket> = {
   pending: 'pending',
   payment_selected: 'pending',
   approved: 'approved',
   delivered: 'delivered',
-  rejected: 'cancelled',
+  rejected: 'rejected',
   cancelled: 'cancelled',
   done: 'done',
 };

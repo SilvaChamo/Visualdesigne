@@ -4,8 +4,8 @@ import { useEffect, useState, useMemo } from 'react';
 import { FileText } from 'lucide-react';
 import { formatMt } from '@/lib/pricing-catalog';
 import { statusMeta } from '@/lib/quotation-status-labels';
-import { groupIntoBatches, batchNumero, type BatchItem } from '@/lib/quotation-batch';
-import { useBatchNumeros } from '@/lib/use-batch-numeros';
+import { groupIntoBatches, type BatchItem } from '@/lib/quotation-batch';
+import { useBatchNumeros, displayNumero } from '@/lib/use-batch-numeros';
 import { QuotationLayoutsList } from '@/components/quotations/QuotationLayoutsList';
 
 type Quotation = BatchItem & {
@@ -70,7 +70,7 @@ export function EncomendasLayoutsSection() {
                 <FileText className="w-4 h-4 text-red-600 dark:text-red-500" />
               </div>
               <div className="min-w-0 flex-1">
-                <p className="font-bold text-base text-black dark:text-white truncate">Encomenda Nº {numeros[batch.batchId] ?? batchNumero(batch.batchId)}</p>
+                <p className="font-bold text-base text-black dark:text-white truncate">Encomenda Nº {displayNumero(numeros, batch.batchId)}</p>
                 <p className="text-sm text-gray-500 dark:text-zinc-400 mt-0.5 truncate">{resumo}</p>
                 <p className="text-sm text-gray-500 dark:text-zinc-400 mt-0.5">
                   {batch.sobConsulta ? 'Sob Consulta' : `${formatMt(batch.totalMt)} MT`}

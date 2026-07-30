@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { motion } from 'framer-motion'
 import {
   RefreshCw, Building2, Phone, Mail, Calendar, ChevronDown, History,
-  Inbox, Clock, Factory, PackageCheck, XCircle, CheckCircle2, MessageCircle, X, Calculator, Check,
+  Inbox, Clock, Factory, PackageCheck, XCircle, CheckCircle2, MessageCircle, X, Calculator, Check, Ban,
 } from 'lucide-react'
 import {
   panelBtnSecondary, panelField,
@@ -12,8 +12,8 @@ import {
 } from '@/lib/panel-ui'
 import { formatMt, BRANDS } from '@/lib/pricing-catalog'
 import { statusMeta, statusBucket, type StatusBucket } from '@/lib/quotation-status-labels'
-import { groupIntoBatches, groupBatchesByBrand, filterBatchesByBucket, batchNumero, type BatchItem, type QuotationBatch } from '@/lib/quotation-batch'
-import { useBatchNumeros } from '@/lib/use-batch-numeros'
+import { groupIntoBatches, groupBatchesByBrand, filterBatchesByBucket, type BatchItem, type QuotationBatch } from '@/lib/quotation-batch'
+import { useBatchNumeros, displayNumero } from '@/lib/use-batch-numeros'
 import { QuotationHistoryTimeline } from '@/components/quotations/QuotationHistoryTimeline'
 import { QuotationAttachmentsList } from '@/components/quotations/QuotationAttachmentsList'
 import { QuotationMessagesThread } from '@/components/quotations/QuotationMessagesThread'
@@ -57,7 +57,11 @@ const STATUS_OPTIONS: { value: QuotationRequest['status']; label: string; badge:
   { value: 'cancelled', label: 'Cancelada', badge: 'bg-gray-200 text-gray-600 dark:bg-zinc-800 dark:text-zinc-400' },
 ]
 
-const SELECTABLE_STATUS_OPTIONS = STATUS_OPTIONS.filter((s) => s.value !== 'done')
+// 'cancelled' também fica de fora — só o cliente pode cancelar (ver botão no
+// painel dele); a equipa só tem a opção de rejeitar quando a negociação não
+// avança. 'cancelled' continua em STATUS_OPTIONS só para o badge, nunca
+// seleccionável aqui.
+const SELECTABLE_STATUS_OPTIONS = STATUS_OPTIONS.filter((s) => s.value !== 'done' && s.value !== 'cancelled')
 
 const displayStatusValue = (status: QuotationRequest['status']) => (status === 'payment_selected' ? 'pending' : status)
 
@@ -107,12 +111,15 @@ function deliveryCountdown(dateStr: string, createdAtStr: string): { label: stri
 
 // Ordem = fluxo real da encomenda: Pendentes -> Em produção -> Concluídas (pronta,
 // falta o cliente pagar o remanescente de 30%) -> Entregues (tudo terminado, incl.
-// pagamento). Canceladas fica fora do fluxo principal, por isso vai no fim.
+// pagamento). Rejeitadas (a equipa recusou) e Canceladas (o cliente desistiu)
+// ficam fora do fluxo principal, por isso vão no fim — e são baldes distintos,
+// para não misturar as duas origens diferentes.
 const BUCKET_ITEMS: { value: StatusBucket; label: string; icon: React.ElementType }[] = [
   { value: 'pending', label: 'Pendentes', icon: Clock },
   { value: 'approved', label: 'Em produção', icon: Factory },
   { value: 'delivered', label: 'Concluídas', icon: PackageCheck },
   { value: 'done', label: 'Entregues', icon: CheckCircle2 },
+  { value: 'rejected', label: 'Rejeitadas', icon: Ban },
   { value: 'cancelled', label: 'Canceladas', icon: XCircle },
 ]
 
@@ -156,6 +163,10 @@ export function CotacoesSection() {
   const [expandedBatchId, setExpandedBatchId] = useState<string | null>(null)
   const [categoriesOpen, setCategoriesOpen] = useState(true)
   const [expandedCompany, setExpandedCompany] = useState<string | null>(null)
+  const [unreadByBatch, setUnreadByBatch] = useState<Record<string, number>>({})
+  // Cards cuja bolinha de mensagens já foi vista nesta sessão (ao abrir o chat)
+  // — some de imediato, sem esperar por um refetch da lista inteira.
+  const [dismissedUnread, setDismissedUnread] = useState<Set<string>>(new Set())
   const numeros = useBatchNumeros()
 
   // expandedBatchId é um único estado partilhado por todas as vistas — sem
@@ -183,6 +194,7 @@ export function CotacoesSection() {
       const data = await res.json()
       if (data.success) {
         setCotacoes(data.cotacoes)
+        setUnreadByBatch(data.unreadByBatch || {})
       }
     } catch (error) {
       console.error('Erro ao carregar cotações:', error)
@@ -242,7 +254,7 @@ export function CotacoesSection() {
     return map
   }, [batches])
   const bucketCounts = useMemo(() => {
-    const counts: Record<StatusBucket, number> = { pending: 0, approved: 0, delivered: 0, cancelled: 0, done: 0 }
+    const counts: Record<StatusBucket, number> = { pending: 0, approved: 0, delivered: 0, rejected: 0, cancelled: 0, done: 0 }
     for (const b of BUCKET_ITEMS) counts[b.value] = bucketBatches[b.value].length
     return counts
   }, [bucketBatches])
@@ -507,7 +519,7 @@ export function CotacoesSection() {
                               key={batch.batchId}
                               number={idx + 1}
                               batch={batch}
-                              numero={numeros[batch.batchId] ?? batchNumero(batch.batchId)}
+                              numero={displayNumero(numeros, batch.batchId)}
                               isExpanded={expandedBatchId === batch.batchId}
                               onToggle={() => setExpandedBatchId(expandedBatchId === batch.batchId ? null : batch.batchId)}
                               updatingId={updatingId}
@@ -515,6 +527,8 @@ export function CotacoesSection() {
                               onUpdateDeliveryDate={updateDeliveryDate}
                               onMarkDelivered={markBatchDelivered}
                               onSetPreco={setPrecoItem}
+                              unreadCount={dismissedUnread.has(batch.batchId) ? 0 : (unreadByBatch[batch.batchId] ?? 0)}
+                              onDismissUnread={() => setDismissedUnread((prev) => new Set(prev).add(batch.batchId))}
                             />
                           ))}
                         </div>
@@ -549,7 +563,7 @@ export function CotacoesSection() {
                             key={batch.batchId}
                             number={cardNumber}
                             batch={batch}
-                            numero={numeros[batch.batchId] ?? batchNumero(batch.batchId)}
+                            numero={displayNumero(numeros, batch.batchId)}
                             isExpanded={expandedBatchId === batch.batchId}
                             onToggle={() => setExpandedBatchId(expandedBatchId === batch.batchId ? null : batch.batchId)}
                             updatingId={updatingId}
@@ -557,6 +571,8 @@ export function CotacoesSection() {
                             onUpdateDeliveryDate={updateDeliveryDate}
                             onMarkDelivered={markBatchDelivered}
                             onSetPreco={setPrecoItem}
+                            unreadCount={dismissedUnread.has(batch.batchId) ? 0 : (unreadByBatch[batch.batchId] ?? 0)}
+                            onDismissUnread={() => setDismissedUnread((prev) => new Set(prev).add(batch.batchId))}
                           />
                         )
                       })}
@@ -604,6 +620,8 @@ function BatchCard({
   onUpdateDeliveryDate,
   onMarkDelivered,
   onSetPreco,
+  unreadCount = 0,
+  onDismissUnread,
 }: {
   number: number
   batch: QuotationBatch<QuotationRequest>
@@ -615,6 +633,8 @@ function BatchCard({
   onSetPreco: (itemId: string, precoUnitarioMt: number) => void
   onUpdateDeliveryDate: (batchId: string, dataLimiteEntrega: string) => void
   onMarkDelivered: (batch: QuotationBatch<QuotationRequest>) => void
+  unreadCount?: number
+  onDismissUnread?: () => void
 }) {
   const [activeTab, setActiveTab] = useState<BatchTab>('itens')
   // Cotação/Factura só arrancam a carregar quando a aba é aberta pela primeira
@@ -705,6 +725,14 @@ function BatchCard({
               {hasFactura && invoiceNumber && (
                 <span className="w-fit shrink-0 rounded border border-red-200 bg-red-50 px-1.5 py-0.5 font-mono text-xs font-bold text-red-700 whitespace-nowrap dark:border-red-900/40 dark:bg-red-950/20 dark:text-red-400">
                   {invoiceNumber}
+                </span>
+              )}
+              {unreadCount > 0 && (
+                <span
+                  className="w-fit shrink-0 flex items-center gap-1 rounded-full bg-red-600 px-2 py-0.5 text-xs font-bold text-white whitespace-nowrap"
+                  title={`${unreadCount} mensagem${unreadCount === 1 ? '' : 's'} do cliente por responder`}
+                >
+                  <MessageCircle className="w-3 h-3" /> {unreadCount}
                 </span>
               )}
             </div>
@@ -1035,7 +1063,7 @@ function BatchCard({
               <div className="w-48 rounded-lg border border-gray-200 bg-white shadow-xl overflow-hidden dark:border-zinc-700 dark:bg-zinc-900">
                 <button
                   type="button"
-                  onClick={() => { setShowMessages(true); setChatMenuOpen(false) }}
+                  onClick={() => { setShowMessages(true); setChatMenuOpen(false); onDismissUnread?.() }}
                   className="flex w-full items-center gap-2 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 dark:text-zinc-300 dark:hover:bg-zinc-800"
                 >
                   <MessageCircle className="w-4 h-4 text-red-600" /> Mensagens

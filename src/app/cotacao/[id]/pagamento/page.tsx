@@ -8,8 +8,8 @@ import { AlertCircle, CheckCircle2, Smartphone, Landmark, Paperclip, Clock } fro
 import { MPESA_NUMBER, BANK_NAME, BANK_ACCOUNT, BANK_NIB } from '@/lib/quotation-payment-info';
 import { formatMt } from '@/lib/pricing-catalog';
 import { Spinner } from '@/components/ui/spinner';
-import { groupIntoBatches, batchNumero, type BatchItem, type QuotationBatch } from '@/lib/quotation-batch';
-import { useBatchNumeros } from '@/lib/use-batch-numeros';
+import { groupIntoBatches, type BatchItem, type QuotationBatch } from '@/lib/quotation-batch';
+import { useBatchNumeros, displayNumero } from '@/lib/use-batch-numeros';
 
 const IVA_RATE = 0.16;
 
@@ -136,7 +136,7 @@ function CotacaoPagamentoContent() {
           <div className="space-y-2">
             {pendentes.map((p) => {
               const isSelected = p.batch.batchId === selectedBatchId;
-              const numero = numeros[p.batch.batchId] ?? batchNumero(p.batch.batchId);
+              const numero = displayNumero(numeros, p.batch.batchId);
               return (
                 <button
                   key={p.batch.batchId}

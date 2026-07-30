@@ -1,13 +1,11 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
-import { XCircle, Pencil, CreditCard, AlertCircle, Loader2, Trash2 } from 'lucide-react';
+import { useEffect, useState, useCallback, useRef } from 'react';
+import { XCircle, Pencil, CreditCard, AlertCircle, Loader2, Trash2, CheckCircle2 } from 'lucide-react';
 import { supabase } from '@/lib/supabase-client';
 import { Spinner } from '@/components/ui/spinner';
 import { formatMt } from '@/lib/pricing-catalog';
 import { statusMeta, computeBatchStatus } from '@/lib/quotation-status-labels';
-import { batchNumero } from '@/lib/quotation-batch';
-import { useBatchNumeros } from '@/lib/use-batch-numeros';
 import { panelTabBar, panelTabBtn, panelTabBtnActive, panelTabBtnInactive, panelBtnPrimary, panelBtnSecondary } from '@/lib/panel-ui';
 import { QuotationHistoryTimeline } from '@/components/quotations/QuotationHistoryTimeline';
 import { QuotationAttachmentsList } from '@/components/quotations/QuotationAttachmentsList';
@@ -32,19 +30,57 @@ type QuotationRow = {
   created_at: string;
 };
 
-type Tab = 'detalhes' | 'historico' | 'facturas';
-type FacturaView = 'cotacoes' | 'facturas';
+type Tab = 'detalhes' | 'historico' | 'anexos' | 'cotacao' | 'facturas';
 
 const TABS: { id: Tab; label: string }[] = [
   { id: 'detalhes', label: 'Detalhes da Encomenda' },
   { id: 'historico', label: 'Histórico' },
+  { id: 'anexos', label: 'Anexos' },
+  { id: 'cotacao', label: 'Cotação' },
   { id: 'facturas', label: 'Facturas' },
 ];
 
-const FACTURA_VIEWS: { id: FacturaView; label: string }[] = [
-  { id: 'cotacoes', label: 'Cotações' },
-  { id: 'facturas', label: 'Facturas' },
-];
+// Altura dinâmica em vez de um valor fixo — um iframe normal não cresce com o
+// conteúdo, por isso ou sobra espaço em branco (valor alto de mais para uma
+// factura curta) ou corta o documento (valor baixo de mais). O documento
+// embutido (/cotacao) mostra primeiro um spinner e só depois busca os dados —
+// medir apenas uma vez no onLoad apanhava sempre o spinner (pequeno) e nunca
+// mais actualizava. Um ResizeObserver no próprio documento (mesma origem)
+// acompanha a altura real em contínuo, incluindo quando o conteúdo aparece
+// depois, e ajusta o iframe exactamente ao que existe.
+//
+// Importante: mede `body.scrollHeight`, nunca `documentElement.scrollHeight`
+// — este último nunca é menor do que o próprio iframe (é assim que os
+// browsers o definem: inclui sempre a área visível), por isso nunca
+// encolhia de volta para facturas curtas depois de crescer uma vez.
+function AutoHeightIframe({ src, title }: { src: string; title: string }) {
+  const ref = useRef<HTMLIFrameElement>(null);
+  const [height, setHeight] = useState<number>(400);
+
+  const handleLoad = useCallback(() => {
+    try {
+      const doc = ref.current?.contentWindow?.document;
+      if (!doc) return;
+      const update = () => setHeight(doc.body.scrollHeight);
+      update();
+      const observer = new ResizeObserver(update);
+      observer.observe(doc.body);
+    } catch {
+      /* cross-origin — fica com a altura por omissão */
+    }
+  }, []);
+
+  return (
+    <iframe
+      ref={ref}
+      src={src}
+      title={title}
+      onLoad={handleLoad}
+      className="w-full border-0"
+      style={{ height }}
+    />
+  );
+}
 
 export function EncomendaDetalhe({
   quotationId,
@@ -58,8 +94,6 @@ export function EncomendaDetalhe({
   const [items, setItems] = useState<QuotationRow[] | null>(null);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<Tab>('detalhes');
-  const [facturaView, setFacturaView] = useState<FacturaView>('cotacoes');
-  const numeros = useBatchNumeros();
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
   const [cancelling, setCancelling] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -84,7 +118,6 @@ export function EncomendaDetalhe({
 
   useEffect(() => {
     setTab('detalhes');
-    setFacturaView('cotacoes');
     setEditingItemId(null);
     setActionError('');
     fetchQuotation();
@@ -146,7 +179,6 @@ export function EncomendaDetalhe({
 
   const primary = items[0];
   const status = computeBatchStatus(items);
-  const totalMt = items.reduce((sum, i) => sum + (i.sob_consulta ? 0 : i.total_mt), 0);
   const allSobConsulta = items.every((i) => i.sob_consulta);
   const meta = statusMeta(status, allSobConsulta);
   const rejectionReason = items.find((i) => i.rejection_reason)?.rejection_reason;
@@ -158,73 +190,13 @@ export function EncomendaDetalhe({
   const canPayRemainder = status === 'delivered';
   const canDelete = status === 'done';
 
+  const hasStatusStrip = canPayRemainder || Boolean(rejectionReason) || Boolean(cancellationReason) || Boolean(actionError) || canDelete;
+
   return (
     <div className="flex flex-col h-full">
-      <div className="p-4 border-b border-gray-100 dark:border-zinc-800">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <h3 className="font-bold text-black dark:text-white">
-              Encomenda Nº <span className="font-mono">{numeros[primary.batch_id] ?? batchNumero(primary.batch_id)}</span>
-            </h3>
-            <p className="text-sm text-gray-500 dark:text-zinc-400 mt-0.5">
-              {allSobConsulta ? 'Sob Consulta' : `${formatMt(totalMt)} MT`}
-            </p>
-          </div>
-
-          {/* Quando há uma ação disponível (pagar/cancelar), mostra os
-              botões aqui em vez do badge passivo — o badge só aparece
-              quando não há nada para o cliente fazer agora. */}
-          {canPay || canPayRemainder || canEditOrCancel || canCancelOnly ? (
-            <div className="flex flex-wrap items-center gap-2 shrink-0">
-              {canPay && (
-                <a href={`/cotacao/${primary.id}/pagamento`} className={panelBtnPrimary}>
-                  <CreditCard className="w-4 h-4" /> Continuar para Pagamento
-                </a>
-              )}
-              {canPayRemainder && (
-                <a href={`/cotacao/${primary.id}/pagamento`} className={panelBtnPrimary}>
-                  <CreditCard className="w-4 h-4" /> Pagar Remanescente
-                </a>
-              )}
-              {(canEditOrCancel || canCancelOnly) && (
-                <button type="button" className={panelBtnSecondary} onClick={handleCancelar} disabled={cancelling}>
-                  {cancelling ? <Spinner className="w-4 h-4" /> : <XCircle className="w-4 h-4" />}
-                  Cancelar
-                </button>
-              )}
-            </div>
-          ) : (
-            <span className={`px-2.5 py-1 rounded-full text-xs font-bold border shrink-0 ${meta.color}`}>{meta.label}</span>
-          )}
-        </div>
-
-        {rejectionReason && (
-          <p className="text-sm text-rose-600 dark:text-rose-400 mt-2">Motivo da rejeição: {rejectionReason}</p>
-        )}
-        {cancellationReason && (
-          <p className="text-sm text-gray-500 dark:text-zinc-400 mt-2">Motivo do cancelamento: {cancellationReason}</p>
-        )}
-
-        {actionError && (
-          <div className="flex items-start gap-2 mt-3 p-2.5 rounded-lg bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-900/50 text-xs text-red-800 dark:text-red-300">
-            <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
-            <p>{actionError}</p>
-          </div>
-        )}
-
-        {canDelete && (
-          <div className="mt-3">
-            <button type="button" className={panelBtnSecondary} onClick={handleEliminar} disabled={deleting}>
-              {deleting ? <Spinner className="w-4 h-4" /> : <Trash2 className="w-4 h-4" />}
-              Eliminar
-            </button>
-          </div>
-        )}
-      </div>
-
       <div className={`${panelTabBar} px-4 pt-3`}>
-        <div className="flex items-end justify-between gap-3">
-          <div className="flex gap-5">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex flex-wrap gap-5">
             {TABS.map((t) => (
               <button
                 key={t.id}
@@ -236,26 +208,55 @@ export function EncomendaDetalhe({
               </button>
             ))}
           </div>
-        </div>
-        {tab === 'facturas' && (
-          <div className="flex gap-4 pb-2 pt-1">
-            {FACTURA_VIEWS.map((v) => (
-              <button
-                key={v.id}
-                type="button"
-                onClick={() => setFacturaView(v.id)}
-                className={`text-xs font-bold pb-1 border-b-2 transition-colors ${
-                  facturaView === v.id
-                    ? 'border-red-600 text-red-600 dark:border-red-500 dark:text-red-400'
-                    : 'border-transparent text-gray-400 hover:text-gray-600 dark:text-zinc-500 dark:hover:text-zinc-300'
-                }`}
-              >
-                {v.label}
+
+          <div className="flex flex-wrap items-center gap-2 shrink-0 pb-2.5">
+            {/* Quando há uma ação disponível (cancelar), mostra o botão aqui
+                em vez do badge passivo — o badge só aparece quando não há
+                nada para o cliente fazer agora. Pagar fica junto aos itens,
+                não aqui (ver fim da lista na aba "Detalhes da Encomenda"). */}
+            {canEditOrCancel || canCancelOnly ? (
+              <button type="button" className={panelBtnSecondary} onClick={handleCancelar} disabled={cancelling}>
+                {cancelling ? <Spinner className="w-4 h-4" /> : <XCircle className="w-4 h-4" />}
+                Cancelar
               </button>
-            ))}
+            ) : (
+              <span className={`px-2.5 py-1 rounded-full text-xs font-bold border shrink-0 ${meta.color}`}>{meta.label}</span>
+            )}
           </div>
-        )}
+        </div>
       </div>
+
+      {hasStatusStrip && (
+        <div className="px-4 py-3 border-b border-gray-100 dark:border-zinc-800 space-y-2">
+          {canPayRemainder && (
+            <div className="flex items-start gap-2 p-2.5 rounded-lg bg-indigo-50 dark:bg-indigo-950/20 border border-indigo-200 dark:border-indigo-900/50 text-xs text-indigo-800 dark:text-indigo-300">
+              <CheckCircle2 className="w-4 h-4 shrink-0 mt-0.5" />
+              <p>Todos os itens desta encomenda estão concluídos. Para a levantar, falta efectuar o pagamento do remanescente.</p>
+            </div>
+          )}
+
+          {rejectionReason && (
+            <p className="text-sm text-rose-600 dark:text-rose-400">Motivo da rejeição: {rejectionReason}</p>
+          )}
+          {cancellationReason && (
+            <p className="text-sm text-gray-500 dark:text-zinc-400">Motivo do cancelamento: {cancellationReason}</p>
+          )}
+
+          {actionError && (
+            <div className="flex items-start gap-2 p-2.5 rounded-lg bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-900/50 text-xs text-red-800 dark:text-red-300">
+              <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+              <p>{actionError}</p>
+            </div>
+          )}
+
+          {canDelete && (
+            <button type="button" className={panelBtnSecondary} onClick={handleEliminar} disabled={deleting}>
+              {deleting ? <Spinner className="w-4 h-4" /> : <Trash2 className="w-4 h-4" />}
+              Eliminar
+            </button>
+          )}
+        </div>
+      )}
 
       <div className="flex-1 overflow-y-auto">
         {tab === 'detalhes' && (
@@ -280,6 +281,11 @@ export function EncomendaDetalhe({
                         <Pencil className="w-4 h-4" /> Editar
                       </button>
                     )}
+                    {(item.status === 'delivered' || item.status === 'done') && (
+                      <span className={`px-2 py-0.5 rounded-full text-xs font-bold border shrink-0 ${statusMeta(item.status).color}`}>
+                        {statusMeta(item.status).label}
+                      </span>
+                    )}
                   </div>
 
                   {isEditing && (
@@ -298,10 +304,25 @@ export function EncomendaDetalhe({
                 </div>
               );
             })}
+            {(canPay || canPayRemainder) && (
+              <div className="pt-2">
+                {canPay && (
+                  <a href={`/cotacao/${primary.id}/pagamento`} className={panelBtnPrimary}>
+                    <CreditCard className="w-4 h-4" /> Continuar para Pagamento
+                  </a>
+                )}
+                {canPayRemainder && (
+                  <a href={`/cotacao/${primary.id}/pagamento`} className={panelBtnPrimary}>
+                    <CreditCard className="w-4 h-4" /> Pagar Remanescente
+                  </a>
+                )}
+              </div>
+            )}
           </div>
         )}
         {tab === 'historico' && <div className="p-4"><QuotationHistoryTimeline quotationId={primary.id} /></div>}
-        {tab === 'facturas' && facturaView === 'cotacoes' && (
+        {tab === 'anexos' && <div className="p-4"><QuotationAttachmentsList quotationId={primary.id} viewerRole="client" /></div>}
+        {tab === 'cotacao' && (
           <iframe
             key={primary.id}
             src={`/cotacao/${primary.id}?embed=1&payment=1`}
@@ -309,15 +330,14 @@ export function EncomendaDetalhe({
             title="Cotação"
           />
         )}
-        {tab === 'facturas' && facturaView === 'facturas' && (
+        {tab === 'facturas' && (
           <div className="p-4 space-y-4">
             <div>
               <p className="text-xs font-bold uppercase text-gray-400 dark:text-zinc-500 mb-2">Factura do adiantamento</p>
               {['approved', 'delivered', 'done'].includes(status) ? (
-                <iframe
+                <AutoHeightIframe
                   key={`${primary.id}-factura-adiantamento`}
                   src={`/cotacao/${primary.id}?embed=1&tipo=factura&fase=adiantamento`}
-                  className="w-full h-full min-h-[500px] border-0"
                   title="Factura do adiantamento"
                 />
               ) : (
@@ -326,25 +346,16 @@ export function EncomendaDetalhe({
                 </div>
               )}
             </div>
-            <div>
-              <p className="text-xs font-bold uppercase text-gray-400 dark:text-zinc-500 mb-2">Factura do remanescente</p>
-              {status === 'done' ? (
-                <iframe
+            {status === 'done' && (
+              <div>
+                <p className="text-xs font-bold uppercase text-gray-400 dark:text-zinc-500 mb-2">Factura do remanescente</p>
+                <AutoHeightIframe
                   key={`${primary.id}-factura-remanescente`}
                   src={`/cotacao/${primary.id}?embed=1&tipo=factura&fase=remanescente`}
-                  className="w-full h-full min-h-[500px] border-0"
                   title="Factura do remanescente"
                 />
-              ) : (
-                <div className="rounded-lg border border-gray-200 dark:border-zinc-800 p-4 text-sm text-gray-500 dark:text-zinc-400">
-                  Fica disponível aqui assim que pagar o remanescente e a encomenda ficar concluída.
-                </div>
-              )}
-            </div>
-            <div>
-              <p className="text-xs font-bold uppercase text-gray-400 dark:text-zinc-500 mb-2">Outros anexos</p>
-              <QuotationAttachmentsList quotationId={primary.id} viewerRole="client" />
-            </div>
+              </div>
+            )}
           </div>
         )}
       </div>

@@ -7,7 +7,7 @@ import { formatMt } from '@/lib/pricing-catalog';
 import { NotchSection } from '@/components/home/NotchSection';
 import { Loader2, AlertCircle, Printer, ArrowRight } from 'lucide-react';
 import { Spinner } from '@/components/ui/spinner';
-import { useBatchNumeros } from '@/lib/use-batch-numeros';
+import { useBatchNumeros, displayNumero } from '@/lib/use-batch-numeros';
 
 type QuotationRow = {
   id: string;
@@ -137,7 +137,7 @@ function CotacaoDocumentContent() {
   const totalComIvaMt = totalMt + ivaMt;
   const adiantamento = Math.round(totalComIvaMt * 0.7 * 100) / 100;
   const remanescenteValor = Math.round((totalComIvaMt - adiantamento) * 100) / 100;
-  const numeroCotacao = numeros[quotation.batch_id] ?? quotation.batch_id.split('-')[0].toUpperCase();
+  const numeroCotacao = displayNumero(numeros, quotation.batch_id);
   const facturaInvoiceNumber = facturaPhase === 'remainder' ? remainderInvoiceNumber : advanceInvoiceNumber;
   const valorDestaFactura = facturaPhase === 'remainder' ? remanescenteValor : adiantamento;
   const phasePayment = payments.find((p) => p.phase === facturaPhase) ?? null;
@@ -323,7 +323,7 @@ function CotacaoDocumentContent() {
   // o cabeçalho do site nem a navegação, só a barra de acções e o documento.
   if (embed) {
     return (
-      <div className="min-h-screen bg-white">
+      <div className="bg-white">
         <div className="max-w-3xl mx-auto px-4 py-4">
           <div className="flex justify-end gap-3 no-print">
             <button
