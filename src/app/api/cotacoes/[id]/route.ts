@@ -352,38 +352,49 @@ export async function DELETE(_request: NextRequest, { params }: { params: Promis
       return NextResponse.json({ error: 'Não tem permissão para eliminar esta encomenda.' }, { status: 403 });
     }
 
-    // Só se elimina a encomenda toda quando TODOS os itens do lote (menos os
-    // cancelados) estiverem concluídos — usa a mesma regra de agregação das
-    // listas (computeBatchStatus).
+    // Só se elimina uma encomenda que já chegou a um estado final — concluída
+    // (todos os itens entregues), cancelada pelo cliente ou rejeitada pela
+    // equipa — nunca uma que ainda esteja em curso. Usa a mesma regra de
+    // agregação das listas (computeBatchStatus).
     const { data: batchItems, error: batchError } = await admin
       .from('quotation_requests')
-      .select('id, status')
+      .select('id, status, total_mt, sob_consulta')
       .eq('batch_id', quotation.batch_id);
 
     if (batchError || !batchItems) {
       return NextResponse.json({ error: 'Não foi possível verificar a encomenda.' }, { status: 500 });
     }
 
-    if (computeBatchStatus(batchItems) !== 'done') {
+    if (!['done', 'cancelled', 'rejected'].includes(computeBatchStatus(batchItems))) {
       return NextResponse.json(
-        { error: 'Só é possível eliminar encomendas já concluídas.' },
+        { error: 'Só é possível eliminar encomendas concluídas, canceladas ou rejeitadas.' },
         { status: 409 },
       );
     }
 
-    // Uma factura emitida (número sequencial imutável) nunca pode desaparecer
-    // silenciosamente — bloqueia a eliminação em vez de apagar o registo.
+    const batchTotal = batchItems.reduce((sum, row) => sum + (row.sob_consulta ? 0 : Number(row.total_mt) || 0), 0);
+
+    // Uma factura emitida com valor real (número sequencial imutável) nunca
+    // pode desaparecer silenciosamente — bloqueia a eliminação em vez de
+    // apagar o registo. Mas uma factura sem valor (0 MT ou negativo) nunca
+    // devia ter sido emitida (ver guarda em PATCH /api/admin/cotacoes) —
+    // essa é lixo, não um documento fiscal real, por isso sai junto com a
+    // encomenda em vez de a bloquear para sempre.
     const { data: existingInvoice } = await admin
       .from('quotation_invoices')
       .select('invoice_number')
       .eq('batch_id', quotation.batch_id)
       .maybeSingle();
 
-    if (existingInvoice) {
+    if (existingInvoice && batchTotal > 0) {
       return NextResponse.json(
         { error: `Não é possível eliminar: já tem a factura ${existingInvoice.invoice_number} emitida. Contacte o suporte.` },
         { status: 409 },
       );
+    }
+
+    if (existingInvoice && batchTotal <= 0) {
+      await admin.from('quotation_invoices').delete().eq('batch_id', quotation.batch_id);
     }
 
     const batchIds = batchItems.map((i) => i.id);

@@ -277,16 +277,37 @@ export async function PATCH(request: Request) {
     // primeira vez que a encomenda é aprovada — é o momento em que a aba
     // "Factura" passa a ficar visível para o cliente. Idempotente: chamadas
     // repetidas devolvem sempre o mesmo número, nunca criam outro.
+    //
+    // Nunca emite factura para uma encomenda sem valor definido (0 MT ou
+    // negativo — ex.: ainda só tem itens "Sob Consulta" por preçar). Por
+    // isso o total do lote (mesma fórmula do livro de pagamentos, abaixo) é
+    // calculado ANTES de decidir se há factura a emitir, não depois.
     let invoiceNumber: string | null = null;
+    let siblings: { id: string; status: string; categoria_label: string; produto: string; total_mt: number; sob_consulta: boolean; empresa: string; nif: string | null }[] = [];
+    let batchTotal = 0;
+    if (status === 'approved' || status === 'done') {
+      const { data: sib, error: siblingsError } = await supabase
+        .from('quotation_requests')
+        .select('id, status, categoria_label, produto, total_mt, sob_consulta, empresa, nif')
+        .eq('batch_id', data.batch_id);
+      if (siblingsError) throw siblingsError;
+      siblings = sib || [];
+      batchTotal = siblings.reduce((sum, row) => sum + (row.sob_consulta ? 0 : Number(row.total_mt) || 0), 0);
+    }
+
     if (status === 'approved') {
-      try {
-        const { data: rpcData, error: rpcError } = await supabase.rpc('assign_quotation_invoice_number', {
-          p_batch_id: data.batch_id,
-        });
-        if (rpcError) throw rpcError;
-        invoiceNumber = rpcData as string;
-      } catch (invoiceError) {
-        console.error('[admin/cotacoes] falha ao emitir número de factura:', invoiceError);
+      if (batchTotal > 0) {
+        try {
+          const { data: rpcData, error: rpcError } = await supabase.rpc('assign_quotation_invoice_number', {
+            p_batch_id: data.batch_id,
+          });
+          if (rpcError) throw rpcError;
+          invoiceNumber = rpcData as string;
+        } catch (invoiceError) {
+          console.error('[admin/cotacoes] falha ao emitir número de factura:', invoiceError);
+        }
+      } else {
+        console.warn('[admin/cotacoes] encomenda aprovada sem valor definido — factura não emitida:', data.batch_id);
       }
     }
 
@@ -299,16 +320,6 @@ export async function PATCH(request: Request) {
     // um valor já confirmado/corrigido manualmente.
     if (status === 'approved' || status === 'done') {
       try {
-        const { data: siblings, error: siblingsError } = await supabase
-          .from('quotation_requests')
-          .select('id, status, categoria_label, produto, total_mt, sob_consulta, empresa, nif')
-          .eq('batch_id', data.batch_id);
-        if (siblingsError) throw siblingsError;
-
-        const batchTotal = (siblings || []).reduce(
-          (sum, row) => sum + (row.sob_consulta ? 0 : Number(row.total_mt) || 0),
-          0,
-        );
         const phase = status === 'approved' ? 'advance' : 'remainder';
         const valorMt = Math.round(batchTotal * (phase === 'advance' ? 0.7 : 0.3) * 100) / 100;
         const metodo = phase === 'advance' ? data.metodo_pagamento : data.remanescente_metodo_pagamento;
@@ -321,22 +332,27 @@ export async function PATCH(request: Request) {
           );
         if (paymentError) throw paymentError;
 
-        if (status === 'done' && computeBatchStatus(siblings || []) === 'done') {
+        if (status === 'done' && computeBatchStatus(siblings) === 'done') {
           // Segunda factura da encomenda — remanescente, só emitida quando a
           // encomenda fica mesmo paga na totalidade (a do adiantamento já foi
-          // emitida em 'approved', mais acima). Mesma função RPC, agora com
-          // fase 'remainder'; idempotente como a primeira.
-          try {
-            const { error: rpcError } = await supabase.rpc('assign_quotation_invoice_number', {
-              p_batch_id: data.batch_id,
-              p_phase: 'remainder',
-            });
-            if (rpcError) throw rpcError;
-          } catch (invoiceError) {
-            console.error('[admin/cotacoes] falha ao emitir factura do remanescente:', invoiceError);
+          // emitida em 'approved', mais acima) e só se houver valor real.
+          // Mesma função RPC, agora com fase 'remainder'; idempotente como a
+          // primeira.
+          if (batchTotal > 0) {
+            try {
+              const { error: rpcError } = await supabase.rpc('assign_quotation_invoice_number', {
+                p_batch_id: data.batch_id,
+                p_phase: 'remainder',
+              });
+              if (rpcError) throw rpcError;
+            } catch (invoiceError) {
+              console.error('[admin/cotacoes] falha ao emitir factura do remanescente:', invoiceError);
+            }
+          } else {
+            console.warn('[admin/cotacoes] encomenda concluída sem valor definido — factura do remanescente não emitida:', data.batch_id);
           }
 
-          await saveAccountingSnapshot(supabase, data.batch_id, siblings || []);
+          await saveAccountingSnapshot(supabase, data.batch_id, siblings);
         }
       } catch (paymentError) {
         console.error('[admin/cotacoes] falha ao registar pagamento:', paymentError);
@@ -382,7 +398,7 @@ export async function DELETE(request: Request) {
 
     const { data: batchItems, error: batchError } = await supabase
       .from('quotation_requests')
-      .select('id, status')
+      .select('id, status, total_mt, sob_consulta')
       .eq('batch_id', batchId);
 
     if (batchError || !batchItems || batchItems.length === 0) {
@@ -396,19 +412,29 @@ export async function DELETE(request: Request) {
       );
     }
 
-    // Uma factura emitida (número sequencial imutável) nunca pode desaparecer
-    // silenciosamente — bloqueia a eliminação em vez de apagar o registo.
+    const batchTotal = batchItems.reduce((sum, row) => sum + (row.sob_consulta ? 0 : Number(row.total_mt) || 0), 0);
+
+    // Uma factura emitida com valor real (número sequencial imutável) nunca
+    // pode desaparecer silenciosamente — bloqueia a eliminação em vez de
+    // apagar o registo. Mas uma factura sem valor (0 MT ou negativo) nunca
+    // devia ter sido emitida (ver guarda em PATCH) — essa é lixo, não um
+    // documento fiscal real, por isso sai junto com a encomenda em vez de a
+    // bloquear para sempre.
     const { data: existingInvoice } = await supabase
       .from('quotation_invoices')
       .select('invoice_number')
       .eq('batch_id', batchId)
       .maybeSingle();
 
-    if (existingInvoice) {
+    if (existingInvoice && batchTotal > 0) {
       return NextResponse.json(
         { success: false, error: `Não é possível eliminar: já tem a factura ${existingInvoice.invoice_number} emitida.` },
         { status: 409 },
       );
+    }
+
+    if (existingInvoice && batchTotal <= 0) {
+      await supabase.from('quotation_invoices').delete().eq('batch_id', batchId);
     }
 
     const ids = batchItems.map((i) => i.id);

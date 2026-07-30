@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, useCallback, useRef } from 'react';
-import { XCircle, Pencil, CreditCard, AlertCircle, Loader2, Trash2, CheckCircle2 } from 'lucide-react';
+import { XCircle, Pencil, CreditCard, AlertCircle, Loader2, CheckCircle2 } from 'lucide-react';
 import { supabase } from '@/lib/supabase-client';
 import { Spinner } from '@/components/ui/spinner';
 import { formatMt } from '@/lib/pricing-catalog';
@@ -85,18 +85,15 @@ function AutoHeightIframe({ src, title }: { src: string; title: string }) {
 export function EncomendaDetalhe({
   quotationId,
   onChanged,
-  onDeleted,
 }: {
   quotationId: string;
   onChanged: () => void;
-  onDeleted?: () => void;
 }) {
   const [items, setItems] = useState<QuotationRow[] | null>(null);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<Tab>('detalhes');
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
   const [cancelling, setCancelling] = useState(false);
-  const [deleting, setDeleting] = useState(false);
   const [actionError, setActionError] = useState('');
 
   const fetchQuotation = useCallback(async () => {
@@ -145,22 +142,6 @@ export function EncomendaDetalhe({
     }
   };
 
-  const handleEliminar = async () => {
-    if (!window.confirm('Eliminar esta encomenda concluída? Esta ação não pode ser desfeita.')) return;
-    setDeleting(true);
-    setActionError('');
-    try {
-      const res = await fetch(`/api/cotacoes/${quotationId}`, { method: 'DELETE' });
-      const data = await res.json();
-      if (!res.ok || !data.success) throw new Error(data.error || 'Não foi possível eliminar a encomenda.');
-      onChanged();
-      onDeleted?.();
-    } catch (err: any) {
-      setActionError(err.message || 'Falha ao comunicar com o servidor.');
-      setDeleting(false);
-    }
-  };
-
   if (loading) {
     return (
       <div className="flex items-center justify-center h-full min-h-[400px]">
@@ -188,9 +169,8 @@ export function EncomendaDetalhe({
   const canCancelOnly = status === 'payment_selected';
   const canPay = status === 'pending' && !allSobConsulta;
   const canPayRemainder = status === 'delivered';
-  const canDelete = status === 'done';
 
-  const hasStatusStrip = canPayRemainder || Boolean(rejectionReason) || Boolean(cancellationReason) || Boolean(actionError) || canDelete;
+  const hasStatusStrip = canPayRemainder || Boolean(rejectionReason) || Boolean(cancellationReason) || Boolean(actionError);
 
   return (
     <div className="flex flex-col h-full">
@@ -247,13 +227,6 @@ export function EncomendaDetalhe({
               <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
               <p>{actionError}</p>
             </div>
-          )}
-
-          {canDelete && (
-            <button type="button" className={panelBtnSecondary} onClick={handleEliminar} disabled={deleting}>
-              {deleting ? <Spinner className="w-4 h-4" /> : <Trash2 className="w-4 h-4" />}
-              Eliminar
-            </button>
           )}
         </div>
       )}

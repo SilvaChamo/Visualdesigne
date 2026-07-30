@@ -1,13 +1,12 @@
 'use client';
 
 import { useEffect, useState, useCallback, useMemo } from 'react';
-import { FileText, Trash2, Loader2, ChevronDown, XCircle, Plus } from 'lucide-react';
+import { FileText, Trash2, Loader2, XCircle, Plus, X } from 'lucide-react';
 import { formatMt } from '@/lib/pricing-catalog';
 import { statusMeta } from '@/lib/quotation-status-labels';
 import { groupIntoBatches, type BatchItem } from '@/lib/quotation-batch';
 import { useBatchNumeros, displayNumero } from '@/lib/use-batch-numeros';
 import { EncomendaDetalhe } from '@/components/quotations/EncomendaDetalhe';
-import { QuotationMessagesThread } from '@/components/quotations/QuotationMessagesThread';
 import { Spinner } from '@/components/ui/spinner';
 import { panelBtnPrimary } from '@/lib/panel-ui';
 
@@ -23,7 +22,7 @@ export function EncomendasListSection() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [deletingBatchId, setDeletingBatchId] = useState<string | null>(null);
   const [cancellingBatchId, setCancellingBatchId] = useState<string | null>(null);
-  const [expandedSobConsultaId, setExpandedSobConsultaId] = useState<string | null>(null);
+  const [creatingNew, setCreatingNew] = useState(false);
 
   const fetchQuotations = useCallback(async () => {
     try {
@@ -44,6 +43,21 @@ export function EncomendasListSection() {
     fetchQuotations();
   }, [fetchQuotations]);
 
+  // O formulário de "Nova Encomenda" corre num iframe (reaproveita /cotacao
+  // tal como já acontece na aba "Cotação"/"Facturas") — ao submeter, o
+  // próprio iframe não pode navegar para si mesmo, por isso avisa esta janela
+  // por postMessage para voltar à lista e mostrar a encomenda recém-criada.
+  useEffect(() => {
+    const handleMessage = (event: MessageEvent) => {
+      if (event.origin !== window.location.origin) return;
+      if (event.data?.type !== 'visualdesign:cotacao-submitted') return;
+      setCreatingNew(false);
+      fetchQuotations();
+    };
+    window.addEventListener('message', handleMessage);
+    return () => window.removeEventListener('message', handleMessage);
+  }, [fetchQuotations]);
+
   // Cada encomenda é um lote (batch_id) — pode ter vários serviços de
   // categorias diferentes, tal como foi submetida. Uma lista só, uma vez
   // cada encomenda — nunca repetida por categoria (isso confundia quando a
@@ -55,7 +69,7 @@ export function EncomendasListSection() {
 
   const handleDeleteFromCard = async (e: React.MouseEvent, anchorId: string) => {
     e.stopPropagation();
-    if (!window.confirm('Eliminar esta encomenda concluída? Esta ação não pode ser desfeita.')) return;
+    if (!window.confirm('Eliminar esta encomenda? Esta ação não pode ser desfeita.')) return;
     const batch = batches.find((b) => b.items.some((i) => i.id === anchorId));
     setDeletingBatchId(batch?.batchId ?? anchorId);
     try {
@@ -65,9 +79,11 @@ export function EncomendasListSection() {
         const removedIds = new Set(batch?.items.map((i) => i.id) ?? [anchorId]);
         setQuotations((prev) => prev.filter((q) => !removedIds.has(q.id)));
         setSelectedId((prev) => (prev && removedIds.has(prev) ? null : prev));
+      } else {
+        window.alert(data.error || 'Não foi possível eliminar a encomenda.');
       }
     } catch {
-      /* silencioso — o botão dentro do painel de detalhe dá o erro completo */
+      window.alert('Não foi possível eliminar a encomenda.');
     } finally {
       setDeletingBatchId(null);
     }
@@ -96,9 +112,9 @@ export function EncomendasListSection() {
   return (
     <div className="grid grid-cols-1 lg:grid-cols-[400px_1fr] gap-4 lg:gap-6 min-h-0 h-full">
       <div className="space-y-3 lg:overflow-y-auto">
-        <a href="/cotacao" className={`${panelBtnPrimary} w-full justify-center`}>
+        <button type="button" onClick={() => setCreatingNew(true)} className={`${panelBtnPrimary} w-full justify-center`}>
           <Plus className="w-4 h-4" /> Nova Encomenda
-        </a>
+        </button>
 
         {loading && (
           <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg p-5 text-base text-gray-500 dark:text-zinc-400">
@@ -120,7 +136,6 @@ export function EncomendasListSection() {
             batch.items.length === 1
               ? `${anchor.categoria_label} — ${anchor.produto}`
               : `${batch.items.length} serviços`;
-          const isSobConsultaExpanded = expandedSobConsultaId === batch.batchId;
           return (
             <div
               key={batch.batchId}
@@ -163,17 +178,7 @@ export function EncomendasListSection() {
                     )}
                   </div>
                 </div>
-                {batch.hasSobConsultaItem && (
-                  <button
-                    type="button"
-                    onClick={(e) => { e.stopPropagation(); setExpandedSobConsultaId(isSobConsultaExpanded ? null : batch.batchId) }}
-                    className="shrink-0 text-gray-400 hover:text-red-600 dark:text-zinc-500 dark:hover:text-red-500 transition-colors p-1"
-                    title={isSobConsultaExpanded ? 'Fechar detalhes' : 'Ver preço e conversar sobre o valor'}
-                  >
-                    <ChevronDown className={`w-4 h-4 transition-transform ${isSobConsultaExpanded ? 'rotate-180' : ''}`} />
-                  </button>
-                )}
-                {batch.status === 'done' && (
+                {(batch.status === 'done' || batch.status === 'cancelled' || batch.status === 'rejected') && (
                   <button
                     type="button"
                     onClick={(e) => handleDeleteFromCard(e, anchor.id)}
@@ -185,38 +190,31 @@ export function EncomendasListSection() {
                   </button>
                 )}
               </div>
-
-              {isSobConsultaExpanded && (
-                <div className="border-t border-gray-100 dark:border-zinc-800 p-4 space-y-3" onClick={(e) => e.stopPropagation()}>
-                  <div className="space-y-1.5">
-                    {batch.items.map((item) => (
-                      <div key={item.id} className="flex items-center justify-between gap-3 text-sm">
-                        <span className="min-w-0 truncate text-gray-700 dark:text-zinc-300">{item.categoria_label} — {item.produto}</span>
-                        <span className={`shrink-0 font-semibold ${item.sob_consulta ? 'text-red-600 dark:text-red-500' : 'text-gray-900 dark:text-white'}`}>
-                          {item.sob_consulta ? 'Sob Consulta' : `${formatMt(item.total_mt)} MT`}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                  <div>
-                    <p className="text-xs font-bold uppercase text-gray-400 dark:text-zinc-500 mb-2">Converse com a equipa sobre o valor</p>
-                    <div className="rounded-lg border border-gray-200 dark:border-zinc-800 p-2 h-[280px]">
-                      <QuotationMessagesThread quotationId={anchor.id} viewerRole="client" />
-                    </div>
-                  </div>
-                </div>
-              )}
             </div>
           );
         })}
       </div>
 
       <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg overflow-hidden min-h-[500px]">
-        {selectedBatch ? (
+        {creatingNew ? (
+          <div className="flex flex-col h-full min-h-[500px]">
+            <div className="flex items-center justify-between px-4 py-2.5 border-b border-gray-100 dark:border-zinc-800 shrink-0">
+              <p className="text-sm font-bold text-gray-900 dark:text-white">Nova Encomenda</p>
+              <button
+                type="button"
+                onClick={() => setCreatingNew(false)}
+                className="text-gray-400 hover:text-gray-700 dark:hover:text-zinc-200"
+                title="Cancelar e voltar à lista"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <iframe src="/cotacao?panel=1&embed=1" className="w-full flex-1 border-0" title="Nova Encomenda" />
+          </div>
+        ) : selectedBatch ? (
           <EncomendaDetalhe
             quotationId={selectedBatch.primaryItem.id}
             onChanged={fetchQuotations}
-            onDeleted={() => setSelectedId(null)}
           />
         ) : (
           !loading && (

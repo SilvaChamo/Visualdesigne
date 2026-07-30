@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { motion } from 'framer-motion'
 import {
   RefreshCw, Building2, Phone, Mail, Calendar, ChevronDown, History,
-  Inbox, Clock, Factory, PackageCheck, XCircle, CheckCircle2, MessageCircle, X, Calculator, Check, Ban,
+  Inbox, Clock, Factory, PackageCheck, XCircle, CheckCircle2, MessageCircle, X, Calculator, Check, Ban, Trash2,
 } from 'lucide-react'
 import {
   panelBtnSecondary, panelField,
@@ -231,10 +231,11 @@ export function CotacoesSection() {
       return aPaid ? -1 : 1
     })
   }, [cotacoes])
-  // "Recebidas"/categorias nunca mostram encomendas já entregues — uma vez marcada
-  // "Entregue", a encomenda sai da caixa de entrada (só continua visível em Entregues,
-  // durante DELIVERED_BUCKET_DAYS, e no Histórico da equipa, para sempre).
-  const activeBatches = useMemo(() => batches.filter((b) => statusBucket(b.status) !== 'done'), [batches])
+  // "Recebidas"/categorias só mostram o que ainda precisa de triagem (pendente,
+  // por aprovar/rejeitar) — assim que uma encomenda é aprovada ("Em produção"),
+  // rejeitada, entregue ou concluída, já foi tramitada e sai daqui, só continua
+  // visível no balde correspondente (Em produção/Rejeitadas/Entregues/Concluídas).
+  const activeBatches = useMemo(() => batches.filter((b) => statusBucket(b.status) === 'pending'), [batches])
   const categoryGroups = useMemo(() => groupBatchesByBrand(activeBatches), [activeBatches])
 
   // O balde "Entregues" só mostra o que foi entregue há até DELIVERED_BUCKET_DAYS —
@@ -395,6 +396,33 @@ export function CotacoesSection() {
     }
   }
 
+  // Só encomendas "Entregue" (done) podem ser eliminadas — mesma regra do
+  // servidor (ver DELETE /api/admin/cotacoes), que também bloqueia se já
+  // houver factura emitida.
+  const deleteBatch = async (batch: QuotationBatch<QuotationRequest>) => {
+    if (!window.confirm(`Eliminar definitivamente a encomenda de ${batch.primaryItem.empresa}? Esta acção não pode ser desfeita.`)) return
+    setUpdatingId(batch.batchId)
+    try {
+      const res = await fetch('/api/admin/cotacoes', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ batchId: batch.batchId }),
+      })
+      const data = await res.json()
+      if (data.success) {
+        const itemIds = new Set(batch.items.map((i) => i.id))
+        setCotacoes((prev) => prev.filter((c) => !itemIds.has(c.id)))
+      } else {
+        window.alert(data.error || 'Não foi possível eliminar a encomenda.')
+      }
+    } catch (error) {
+      console.error('Erro ao eliminar encomenda:', error)
+      window.alert('Não foi possível eliminar a encomenda.')
+    } finally {
+      setUpdatingId(null)
+    }
+  }
+
   const navBtnClass = (active: boolean) =>
     `w-full flex items-center gap-2 px-2.5 py-2 rounded border-l-2 text-sm font-medium transition-colors text-left ${
       active
@@ -526,6 +554,7 @@ export function CotacoesSection() {
                               onUpdateStatus={updateStatus}
                               onUpdateDeliveryDate={updateDeliveryDate}
                               onMarkDelivered={markBatchDelivered}
+                              onDeleteBatch={deleteBatch}
                               onSetPreco={setPrecoItem}
                               unreadCount={dismissedUnread.has(batch.batchId) ? 0 : (unreadByBatch[batch.batchId] ?? 0)}
                               onDismissUnread={() => setDismissedUnread((prev) => new Set(prev).add(batch.batchId))}
@@ -570,6 +599,7 @@ export function CotacoesSection() {
                             onUpdateStatus={updateStatus}
                             onUpdateDeliveryDate={updateDeliveryDate}
                             onMarkDelivered={markBatchDelivered}
+                            onDeleteBatch={deleteBatch}
                             onSetPreco={setPrecoItem}
                             unreadCount={dismissedUnread.has(batch.batchId) ? 0 : (unreadByBatch[batch.batchId] ?? 0)}
                             onDismissUnread={() => setDismissedUnread((prev) => new Set(prev).add(batch.batchId))}
@@ -619,6 +649,7 @@ function BatchCard({
   onUpdateStatus,
   onUpdateDeliveryDate,
   onMarkDelivered,
+  onDeleteBatch,
   onSetPreco,
   unreadCount = 0,
   onDismissUnread,
@@ -633,6 +664,7 @@ function BatchCard({
   onSetPreco: (itemId: string, precoUnitarioMt: number) => void
   onUpdateDeliveryDate: (batchId: string, dataLimiteEntrega: string) => void
   onMarkDelivered: (batch: QuotationBatch<QuotationRequest>) => void
+  onDeleteBatch: (batch: QuotationBatch<QuotationRequest>) => void
   unreadCount?: number
   onDismissUnread?: () => void
 }) {
@@ -790,9 +822,28 @@ function BatchCard({
                   </button>
                 )}
                 {batch.status === 'done' ? (
-                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-bold whitespace-nowrap bg-green-100 text-green-700 dark:bg-green-950/30 dark:text-green-400">
-                    <CheckCircle2 className="w-3.5 h-3.5" /> Entregue
-                  </span>
+                  <div className="relative">
+                    <button
+                      type="button"
+                      onClick={() => setDeliveryMenuOpen((v) => !v)}
+                      className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-bold whitespace-nowrap bg-green-100 text-green-700 dark:bg-green-950/30 dark:text-green-400 hover:brightness-95 transition"
+                      title="Clique para mais opções"
+                    >
+                      <CheckCircle2 className="w-3.5 h-3.5" /> Entregue
+                    </button>
+                    {deliveryMenuOpen && (
+                      <div className="absolute right-0 top-full z-20 mt-1 w-52 overflow-hidden rounded-lg border border-gray-200 bg-white shadow-xl dark:border-zinc-700 dark:bg-zinc-900">
+                        <button
+                          type="button"
+                          onClick={() => { setDeliveryMenuOpen(false); onDeleteBatch(batch) }}
+                          disabled={updatingId === batch.batchId}
+                          className="flex w-full items-center gap-2 px-3 py-2 text-sm text-red-600 transition-colors hover:bg-red-50 disabled:opacity-40 dark:text-red-400 dark:hover:bg-red-950/20"
+                        >
+                          <Trash2 className="w-4 h-4" /> Eliminar encomenda
+                        </button>
+                      </div>
+                    )}
+                  </div>
                 ) : (
                   <div className="relative">
                     {(() => {
