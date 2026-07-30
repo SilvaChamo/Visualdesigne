@@ -1,9 +1,43 @@
 import { getResellerDaUsername } from '@/lib/directadmin-credentials';
 import { loadResellerCredentialsByDaUsername, loadResellerCredentialsByUserId } from '@/lib/da-credential-store';
-import { resolvePanelDaContext } from '@/lib/panel-api-context';
+import { resolvePanelDaContext, readImpersonateDaUsername } from '@/lib/panel-api-context';
 import type { PanelStaffAuthSuccess } from '@/lib/panel-api-auth';
 import { getDaSyncAdmin } from '@/lib/da-sync-schema';
 import { OSHER_DOMAIN } from '@/lib/email-domains';
+
+/**
+ * Contas Supabase (logo, "Meu Perfil", etc.) são identificadas por `auth.user.id` —
+ * mas quando um admin está a impersonar um revendedor, `auth.user.id` continua a
+ * ser o ID do PRÓPRIO ADMIN (a sessão do browser nunca muda). Sem isto, qualquer
+ * escrita "escopada ao utilizador actual" feita durante impersonação acaba a
+ * gravar/ler na conta do admin em vez de na do revendedor impersonado.
+ */
+export async function resolveEffectivePanelUserId(auth: { id: string; role: string }): Promise<string> {
+  if (auth.role !== 'admin') return auth.id;
+
+  const daUsername = await readImpersonateDaUsername();
+  if (!daUsername) return auth.id;
+
+  const admin = getDaSyncAdmin();
+  if (!admin) return auth.id;
+
+  const { data: profile } = await admin
+    .from('profiles')
+    .select('user_id, id')
+    .ilike('da_username', daUsername)
+    .maybeSingle();
+  if (profile?.user_id) return profile.user_id as string;
+  if (profile?.id) return profile.id as string;
+
+  const { data: panelUser } = await admin
+    .from('panel_users')
+    .select('auth_user_id')
+    .eq('username', daUsername)
+    .maybeSingle();
+  if (panelUser?.auth_user_id) return panelUser.auth_user_id as string;
+
+  return auth.id;
+}
 
 export type ResellerPanelContext = {
   daUsername: string;

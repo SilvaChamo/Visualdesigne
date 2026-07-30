@@ -5,7 +5,7 @@ import { PANEL_SLUG } from '@/lib/panel-tenant';
 
 export async function POST(request: NextRequest) {
   try {
-    const { email, password, nome, honeypot } = await request.json();
+    const { email, password, nome, telefone, empresa, endereco, provincia, pais, emailEmpresa, contacto, honeypot } = await request.json();
 
     // Campo-armadilha: só bots que preenchem todos os campos do formulário
     // (incluindo os escondidos) chegam a mandar isto preenchido.
@@ -13,8 +13,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Não foi possível concluir o registo.' }, { status: 400 });
     }
 
-    if (!email || !password || !nome) {
-      return NextResponse.json({ error: 'Preencha nome, email e password.' }, { status: 400 });
+    if (!email || !password || !nome || !telefone) {
+      return NextResponse.json({ error: 'Preencha nome, telefone, email e password.' }, { status: 400 });
     }
 
     if (String(password).length < 6) {
@@ -41,6 +41,13 @@ export async function POST(request: NextRequest) {
       user_metadata: {
         role: 'guest',
         nome: String(nome).trim(),
+        telefone: String(telefone).trim(),
+        empresa: empresa ? String(empresa).trim() : '',
+        endereco: endereco ? String(endereco).trim() : '',
+        provincia: provincia ? String(provincia).trim() : '',
+        pais: pais ? String(pais).trim() : '',
+        email_empresa: emailEmpresa ? String(emailEmpresa).trim() : '',
+        contacto: contacto ? String(contacto).trim() : '',
         site: PANEL_SLUG,
       },
     });
@@ -50,9 +57,7 @@ export async function POST(request: NextRequest) {
       if (msg.includes('already') || msg.includes('registered') || msg.includes('exists')) {
         return NextResponse.json(
           {
-            error:
-              'Já existe uma conta com este email. Use «Entrar» em vez de «Criar conta». ' +
-              'Se criou com Google antes, use o botão Google.',
+            error: 'Já existe uma conta com este email. Use «Entrar» em vez de «Criar conta».',
           },
           { status: 409 },
         );

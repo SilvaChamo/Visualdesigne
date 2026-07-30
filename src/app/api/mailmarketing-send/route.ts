@@ -49,6 +49,15 @@ function absolutizeAssetUrls(html: string): string {
   return html.replace(/((?:src|href)=["'])\/(?!\/)/g, `$1${SITE_ORIGIN}/`);
 }
 
+// O placeholder "[O seu logótipo aqui]" (EmailTemplates.tsx) existe para o
+// revendedor ver, no editor do painel, que ainda não enviou o seu logo — mas
+// não pode sair num email real para os clientes dele. Remove o span inteiro
+// (fica só o espaço vazio no cabeçalho) em vez de bloquear o envio, para não
+// travar quem simplesmente ainda não configurou o logo.
+function stripLogoPlaceholder(html: string): string {
+  return html.replace(/<span[^>]*>\s*\[O seu logótipo aqui\]\s*<\/span>/g, '');
+}
+
 function sanitizeRecipientList(to: unknown): string[] {
   if (!Array.isArray(to)) return [];
   const emails = to
@@ -104,7 +113,7 @@ async function sendSingleBatchViaBrevo(
       from: `"${fromName}" <${cleanFromEmail}>`,
       bcc: to,
       subject,
-      html: absolutizeAssetUrls(content),
+      html: absolutizeAssetUrls(stripLogoPlaceholder(content)),
       headers: {
         'X-Mailer': 'VisualDesign Marketing System',
         'List-Unsubscribe': `<mailto:unsubscribe@${unsubscribeDomain}>`,

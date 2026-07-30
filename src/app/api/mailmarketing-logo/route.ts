@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { requirePanelBootstrapAccess } from '@/lib/panel-api-auth';
 import { ensureCompanyLogoBucket, COMPANY_LOGO_BUCKET } from '@/lib/company-logo-bucket';
+import { resolveEffectivePanelUserId } from '@/lib/panel-reseller-context';
 
 const MAX_SIZE_BYTES = 2 * 1024 * 1024; // 2MB — é só um logótipo, não um anexo
 
@@ -17,11 +18,12 @@ function admin() {
 export async function GET() {
   const auth = await requirePanelBootstrapAccess();
   if ('error' in auth) return NextResponse.json({ error: 'Não autorizado.' }, { status: 401 });
+  const userId = await resolveEffectivePanelUserId(auth.user);
 
   const { data } = await admin()
     .from('profiles')
     .select('logo_url')
-    .eq('user_id', auth.user.id)
+    .eq('user_id', userId)
     .maybeSingle();
 
   return NextResponse.json({ url: data?.logo_url || null });
@@ -30,6 +32,7 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   const auth = await requirePanelBootstrapAccess();
   if ('error' in auth) return NextResponse.json({ error: 'Não autorizado.' }, { status: 401 });
+  const userId = await resolveEffectivePanelUserId(auth.user);
 
   const form = await request.formData();
   const file = form.get('file') as File | null;
@@ -41,7 +44,7 @@ export async function POST(request: NextRequest) {
 
   const supabaseAdmin = admin();
   const ext = (file.name.split('.').pop() || 'png').toLowerCase().replace(/[^a-z0-9]/g, '') || 'png';
-  const path = `${auth.user.id}/${Date.now()}.${ext}`;
+  const path = `${userId}/${Date.now()}.${ext}`;
 
   const bytes = await file.arrayBuffer();
   const { data: uploadData, error: uploadError } = await supabaseAdmin.storage
@@ -58,12 +61,12 @@ export async function POST(request: NextRequest) {
   const { data: existing } = await supabaseAdmin
     .from('profiles')
     .select('id')
-    .eq('user_id', auth.user.id)
+    .eq('user_id', userId)
     .maybeSingle();
 
   const { error: saveError } = existing?.id
     ? await supabaseAdmin.from('profiles').update({ logo_url: publicData.publicUrl, updated_at: new Date().toISOString() }).eq('id', existing.id)
-    : await supabaseAdmin.from('profiles').insert({ user_id: auth.user.id, email: auth.user.email, logo_url: publicData.publicUrl, updated_at: new Date().toISOString() });
+    : await supabaseAdmin.from('profiles').insert({ user_id: userId, email: userId === auth.user.id ? auth.user.email : undefined, logo_url: publicData.publicUrl, updated_at: new Date().toISOString() });
 
   if (saveError) {
     console.error('[mailmarketing-logo] save error:', saveError);
@@ -76,11 +79,12 @@ export async function POST(request: NextRequest) {
 export async function DELETE() {
   const auth = await requirePanelBootstrapAccess();
   if ('error' in auth) return NextResponse.json({ error: 'Não autorizado.' }, { status: 401 });
+  const userId = await resolveEffectivePanelUserId(auth.user);
 
   const { error } = await admin()
     .from('profiles')
     .update({ logo_url: null, updated_at: new Date().toISOString() })
-    .eq('user_id', auth.user.id);
+    .eq('user_id', userId);
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ success: true });

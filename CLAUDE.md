@@ -10,8 +10,7 @@ O download automático do Chromium do Playwright falha aqui (`ERROR: Playwright 
 not support chromium on mac13` — parece um bug da versão que o `npx playwright`
 instala por defeito). Em vez disso:
 
-1. Instala uma versão fixa mais antiga (não faz download de browser, só a lib):
-   `npm install -D playwright@1.48.0 --no-save`
+1. O Playwright (`playwright@1.48.0`) já está instalado como devDependency permanente do projecto — não precisa reinstalar nem desinstalar a cada vez.
 2. Usa o Google Chrome já instalado no Mac em vez do Chromium do Playwright
    (evita o download que falha): `chromium.launch({ channel: 'chrome' })`.
 3. O servidor de dev já costuma estar a correr — confirma com
@@ -31,7 +30,7 @@ instala por defeito). Em vez disso:
    ```
    ou tira o screenshot de um elemento específico (`locator(...).screenshot()`)
    em vez da página inteira.
-6. Limpa tudo no fim: página de preview, script `.mjs` temporário, e
-   `npm uninstall playwright --no-save` (não fica como dependência do projecto).
+6. Limpa no fim apenas a página de preview e o script `.mjs` temporário — o
+   Playwright em si fica instalado (devDependency permanente, não desinstalar).
 
 Repete isto para cada secção/UI em que trabalhares — não só para esta funcionalidade.
