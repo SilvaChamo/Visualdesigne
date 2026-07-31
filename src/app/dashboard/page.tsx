@@ -78,6 +78,7 @@ import type { DirectAdminWebsite, DirectAdminUser, DirectAdminPackage } from '@/
 import { removeWebsiteFromSupabase, syncWebsiteToSupabase } from '@/lib/supabase-sync'
 import { cn } from '@/lib/utils'
 import { MailMarketingSection } from '@/components/dashboard/MailMarketingSection'
+import { EncomendasClientesSection } from '@/components/dashboard/EncomendasClientesSection'
 import { DirectAdminEmailsSection } from './DirectAdminEmailsSection'
 import {
   fetchPanelBootstrap,
@@ -1414,6 +1415,8 @@ function AdminPageContent() {
         return <RenewalsSection initialTab="add" hideTabs={true} />
       case 'cotacoes':
         return <CotacoesSection />
+      case 'cotacoes-contas':
+        return <EncomendasClientesSection isActive={isActive} />
       case 'nextjs-sites':
         return (
           <NextJsSitesSection
@@ -1846,7 +1849,9 @@ function AdminPageContent() {
             ? 'overflow-hidden p-0'
             : ['file-manager', 'cp-file-manager'].includes(activeSection)
               ? 'overflow-y-auto pt-0 px-4 pb-4 lg:px-5 lg:pb-5'
-              : 'overflow-y-auto p-4 lg:p-5'
+              : activeSection === 'cotacoes'
+                ? 'overflow-y-auto pt-0 pl-0 pr-4 pb-4 lg:pr-5 lg:pb-5'
+                : 'overflow-y-auto p-4 lg:p-5'
         }`}>
           <div className={`${activeSection === 'webmail' ? 'h-full min-h-0' : 'min-h-full'}`}>
             <PanelSectionKeepAlive activeSection={activeSection} renderSection={renderSectionFor} />

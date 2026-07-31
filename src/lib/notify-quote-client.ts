@@ -1,10 +1,11 @@
 import { sendEmail } from '@/lib/email-service';
-import { emailHeader, emailFooter, wrapContentInFrame } from '@/lib/renewal-templates';
+import { emailHeader, emailGreeting, emailFooter, wrapContentInFrame } from '@/lib/renewal-templates';
 import { formatMt } from '@/lib/pricing-catalog';
 
 const SUPPORT_EMAIL = 'suporte@visualdesignmoz.com';
 const SUPPORT_PHONE = '+258 85 242 5525';
 const COMPANY_NAME = 'VisualDesign';
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'https://visualdesignmoz.com';
 
 const APPROVAL_NOTICE =
   'Brevemente irá receber layouts de design para aprovação, de forma a avançarmos com a produção. ' +
@@ -15,12 +16,15 @@ function buildClientEmailHtml(params: {
   clientName: string;
   title: string;
   message: string;
+  ctaLink?: string;
+  ctaText?: string;
 }) {
-  const { clientName, title, message } = params;
+  const { clientName, title, message, ctaLink, ctaText } = params;
 
   const body = `
     <h2 style="margin: 0 0 12px 0; color: #111827; font-size: 18px;">${title}</h2>
     <p style="margin: 0; color: #374151; font-size: 14px; line-height: 1.6; white-space: pre-line;">${message}</p>
+    ${ctaLink ? `<p style="margin: 20px 0 0 0;"><a href="${ctaLink}" style="display: inline-block; padding: 10px 20px; background: #dc2626; color: #ffffff; text-decoration: none; border-radius: 6px; font-size: 14px;">${ctaText || 'Aceder à plataforma'}</a></p>` : ''}
   `;
 
   return `
@@ -31,17 +35,12 @@ function buildClientEmailHtml(params: {
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>${title}</title>
 </head>
-<body style="margin: 0; padding: 0; font-family: 'Exo 2', sans-serif; background: #f3f4f6;">
-  <table width="100%" cellpadding="0" cellspacing="0" border="0">
-    <tr>
-      <td align="center" style="padding: 10px 0; background: #f3f4f6;">
-        <table width="600" cellpadding="0" cellspacing="0" border="0" style="max-width: 600px; width: 100%; background: white; border-radius: 10px; overflow: hidden; box-shadow: 0 4px 12px rgba(0,0,0,0.15);">
-          <tr><td>${emailHeader(clientName, COMPANY_NAME)}</td></tr>
-          <tr><td style="padding: 20px;">${wrapContentInFrame(body, 'low')}</td></tr>
-          <tr><td>${emailFooter(SUPPORT_EMAIL, SUPPORT_PHONE, COMPANY_NAME)}</td></tr>
-        </table>
-      </td>
-    </tr>
+<body style="margin: 0; padding: 0; font-family: 'Exo 2', sans-serif; background: #ffffff;">
+  <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background: #ffffff;">
+    ${emailHeader(COMPANY_NAME)}
+    ${emailGreeting(clientName)}
+    <tr><td style="padding: 20px 24px;">${wrapContentInFrame(body, 'low')}</td></tr>
+    ${emailFooter(SUPPORT_EMAIL, SUPPORT_PHONE, COMPANY_NAME)}
   </table>
 </body>
 </html>
@@ -95,17 +94,18 @@ export async function notifyQuoteClientNewMessage(params: {
   to: string;
   clientName: string;
   produto: string;
-  message: string;
+  quotationId: string;
 }) {
-  const { to, clientName, produto, message } = params;
+  const { to, clientName, produto, quotationId } = params;
   const title = 'Nova mensagem sobre a sua encomenda';
-  const body = `A equipa respondeu sobre a sua encomenda "${produto}":\n\n"${message}"`;
+  const body = `A equipa respondeu sobre a sua encomenda "${produto}". Aceda à plataforma para ver a conversa completa e responder.`;
+  const ctaLink = `${SITE_URL}/encomendas?section=mensagens&quotationId=${quotationId}`;
 
   try {
     await sendEmail({
       to,
       subject: title,
-      html: buildClientEmailHtml({ clientName, title, message: body }),
+      html: buildClientEmailHtml({ clientName, title, message: body, ctaLink, ctaText: 'Ver conversa' }),
       category: 'transactional',
     });
   } catch (err) {

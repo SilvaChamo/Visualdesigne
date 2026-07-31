@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/utils/supabase/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
 import { sendEmail as sendTransactionalEmail } from '@/lib/email-service'
-import { emailHeader, emailFooter, wrapContentInFrame } from '@/lib/renewal-templates'
+import { emailHeader, emailGreeting, emailFooter, wrapContentInFrame } from '@/lib/renewal-templates'
 
 // Verificar se é admin
 async function isAdmin(supabase: any): Promise<boolean> {
@@ -52,17 +52,12 @@ function buildNotificationEmailHtml(params: {
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>${title}</title>
 </head>
-<body style="margin: 0; padding: 0; font-family: 'Exo 2', sans-serif; background: #f3f4f6;">
-  <table width="100%" cellpadding="0" cellspacing="0" border="0" style="font-family: 'Exo 2', sans-serif;">
-    <tr>
-      <td align="center" style="padding: 10px 0; background: #f3f4f6; font-family: 'Exo 2', sans-serif;">
-        <table width="600" cellpadding="0" cellspacing="0" border="0" style="max-width: 600px; width: 100%; background: white; border-radius: 10px; overflow: hidden; box-shadow: 0 4px 12px rgba(0,0,0,0.15); font-family: 'Exo 2', sans-serif;">
-          <tr><td>${emailHeader(clientName, COMPANY_NAME)}</td></tr>
-          <tr><td style="padding: 20px;">${wrapContentInFrame(body, urgencyForType(type))}</td></tr>
-          <tr><td>${emailFooter(SUPPORT_EMAIL, SUPPORT_PHONE, COMPANY_NAME)}</td></tr>
-        </table>
-      </td>
-    </tr>
+<body style="margin: 0; padding: 0; font-family: 'Exo 2', sans-serif; background: #ffffff;">
+  <table width="100%" cellpadding="0" cellspacing="0" border="0" style="font-family: 'Exo 2', sans-serif; background: #ffffff;">
+    ${emailHeader(COMPANY_NAME)}
+    ${emailGreeting(clientName)}
+    <tr><td style="padding: 20px 24px;">${wrapContentInFrame(body, urgencyForType(type))}</td></tr>
+    ${emailFooter(SUPPORT_EMAIL, SUPPORT_PHONE, COMPANY_NAME)}
   </table>
 </body>
 </html>

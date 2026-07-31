@@ -3,6 +3,8 @@ import { createClient } from '@/utils/supabase/server';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { findItem, formatMt, CUSTOM_CATEGORIA_ID } from '@/lib/pricing-catalog';
 import { notifyQuoteTeam } from '@/lib/notify-quote-team';
+import { resolveRoleForAuthUser } from '@/lib/server-auth-role';
+import { resolveEffectiveClientUserId } from '@/lib/client-impersonation';
 
 // Lista as cotações do próprio utilizador autenticado — usada no painel da
 // conta para mostrar o que já foi submetido, sem expor cotações de outros clientes.
@@ -16,6 +18,13 @@ export async function GET() {
     if (!user) {
       return NextResponse.json({ error: 'Faça login para ver as suas cotações.' }, { status: 401 });
     }
+
+    // Um admin a "entrar" como cliente (ver src/lib/client-impersonation.ts)
+    // continua autenticado como si próprio — só troca o user_id usado neste
+    // filtro, nunca a sessão. Por isso o papel tem de vir sempre da conta
+    // real, nunca confiar só na presença da cookie.
+    const role = await resolveRoleForAuthUser(supabase, user);
+    const effectiveUserId = await resolveEffectiveClientUserId(user.id, role === 'admin');
 
     const admin = getSupabaseAdmin();
     if (!admin) {
@@ -31,7 +40,7 @@ export async function GET() {
       .select(
         'id, batch_id, categoria_id, categoria_label, produto, quantidade, total_mt, sob_consulta, status, data_limite_entrega, metodo_pagamento, remanescente_metodo_pagamento, created_at, empresa, nif, endereco, telefone_institucional, email_institucional, website, responsavel, cargo, telefone, email',
       )
-      .eq('user_id', user.id)
+      .eq('user_id', effectiveUserId)
       .order('created_at', { ascending: false });
 
     if (error) {

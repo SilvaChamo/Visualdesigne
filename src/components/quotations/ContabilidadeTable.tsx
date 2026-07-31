@@ -1,12 +1,18 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { ChevronDown, ChevronRight, Trash2, RotateCcw } from 'lucide-react'
+import { ChevronDown, ChevronRight, RotateCcw } from 'lucide-react'
 import {
   panelSectionCard,
   panelTabBar, panelTabBtn, panelTabBtnActive, panelTabBtnInactive,
 } from '@/lib/panel-ui'
 import { formatMt } from '@/lib/pricing-catalog'
+
+// Valores negativos (lucro pode ficar negativo quando os custos ultrapassam
+// a receita) saem sempre a vermelho, seja qual for a tabela/linha.
+function moneyClass(value: number, positiveClass: string): string {
+  return value < 0 ? 'text-red-600 dark:text-red-500' : positiveClass
+}
 
 type MonthRow = {
   month: string
@@ -143,7 +149,7 @@ export function ContabilidadeTable() {
 
       {activeTab === 'balanco' && (
         <div className="space-y-4">
-          <BalancoTable meses={meses} registos={registos} onChanged={load} />
+          <BalancoTable meses={meses} registos={registos} />
           <FechoAnualCard meses={meses} fechos={fechos} onClosed={load} />
         </div>
       )}
@@ -303,20 +309,10 @@ function ResellerCreditsTable() {
   )
 }
 
-function BalancoTable({ meses, registos, onChanged }: { meses: MonthRow[]; registos: RegistoRow[]; onChanged: () => void }) {
+function BalancoTable({ meses, registos }: { meses: MonthRow[]; registos: RegistoRow[] }) {
   // Aberto por omissão — o objectivo é ver logo as encomendas de cada mês,
   // não escondê-las atrás de mais um clique.
   const [collapsedMonths, setCollapsedMonths] = useState<Set<string>>(new Set())
-  const [removingId, setRemovingId] = useState<string | null>(null)
-
-  const removeRegisto = async (r: RegistoRow) => {
-    if (!window.confirm(`Eliminar o registo de "${r.empresa} — ${r.resumo}" da Contabilidade? Passa para a aba "Eliminadas".`)) return
-    setRemovingId(r.batch_id)
-    const ok = await setRegistoDeleted(r.batch_id, true)
-    setRemovingId(null)
-    if (ok) onChanged()
-    else window.alert('Não foi possível eliminar este registo.')
-  }
 
   if (meses.length === 0) {
     return <div className={`${panelSectionCard} p-8 text-center text-sm text-gray-500 dark:text-zinc-400`}>Ainda não há dados de contabilidade.</div>
@@ -346,7 +342,6 @@ function BalancoTable({ meses, registos, onChanged }: { meses: MonthRow[]; regis
               <th className="px-4 py-2 text-right whitespace-nowrap">Custo de produção</th>
               <th className="px-4 py-2 text-right whitespace-nowrap">IVA (16%)</th>
               <th className="px-4 py-2 text-right whitespace-nowrap">Lucro</th>
-              <th className="px-4 py-2 text-right whitespace-nowrap"> </th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100 dark:divide-zinc-800">
@@ -379,10 +374,9 @@ function BalancoTable({ meses, registos, onChanged }: { meses: MonthRow[]; regis
                   <td className="whitespace-nowrap px-4 py-2.5 text-right tabular-nums text-gray-700 dark:text-zinc-300">
                     {formatMt(m.ivaMt)} MT
                   </td>
-                  <td className="whitespace-nowrap px-4 py-2.5 text-right font-bold tabular-nums text-gray-900 dark:text-white">
+                  <td className={`whitespace-nowrap px-4 py-2.5 text-right font-bold tabular-nums ${moneyClass(m.lucroMt, 'text-gray-900 dark:text-white')}`}>
                     {formatMt(m.lucroMt)} MT
                   </td>
-                  <td className="whitespace-nowrap px-4 py-2.5" />
                 </tr>,
               ]
 
@@ -390,7 +384,7 @@ function BalancoTable({ meses, registos, onChanged }: { meses: MonthRow[]; regis
                 if (encomendasDoMes.length === 0) {
                   rows.push(
                     <tr key={`${m.month}-vazio`}>
-                      <td colSpan={6} className="px-4 py-2 pl-10 text-xs text-gray-400 dark:text-zinc-500">
+                      <td colSpan={5} className="px-4 py-2 pl-10 text-xs text-gray-400 dark:text-zinc-500">
                         Nenhuma encomenda concluída neste mês.
                       </td>
                     </tr>,
@@ -399,7 +393,7 @@ function BalancoTable({ meses, registos, onChanged }: { meses: MonthRow[]; regis
                   rows.push(
                     ...encomendasDoMes.map((r, idx) => (
                       <tr key={r.batch_id} className="hover:bg-gray-50 dark:hover:bg-zinc-800/30">
-                        <td className="px-4 py-1.5 text-xs text-gray-500 dark:text-zinc-400">
+                        <td className="px-4 py-2.5 text-xs text-gray-500 dark:text-zinc-400">
                           <span className="inline-flex items-baseline gap-2">
                             <span className="w-3.5 shrink-0 text-right tabular-nums text-gray-400 dark:text-zinc-500">{idx + 1}</span>
                             <span className="min-w-0">
@@ -411,21 +405,10 @@ function BalancoTable({ meses, registos, onChanged }: { meses: MonthRow[]; regis
                             </span>
                           </span>
                         </td>
-                        <td className="whitespace-nowrap px-4 py-1.5 text-right text-xs tabular-nums text-gray-500 dark:text-zinc-400">{formatMt(r.receita_mt)} MT</td>
-                        <td className="whitespace-nowrap px-4 py-1.5 text-right text-xs tabular-nums text-gray-500 dark:text-zinc-400">{formatMt(r.custos_producao_mt)} MT</td>
-                        <td className="whitespace-nowrap px-4 py-1.5 text-right text-xs tabular-nums text-gray-500 dark:text-zinc-400">{formatMt(r.iva_mt)} MT</td>
-                        <td className="whitespace-nowrap px-4 py-1.5 text-right text-xs tabular-nums text-gray-500 dark:text-zinc-400">{formatMt(r.lucro_mt)} MT</td>
-                        <td className="whitespace-nowrap px-4 py-1.5 text-right">
-                          <button
-                            type="button"
-                            onClick={() => removeRegisto(r)}
-                            disabled={removingId === r.batch_id}
-                            className="text-gray-300 hover:text-red-600 dark:text-zinc-600 dark:hover:text-red-400 transition-colors disabled:opacity-40"
-                            title="Eliminar este registo (passa para a aba Eliminadas)"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                        </td>
+                        <td className="whitespace-nowrap px-4 py-2.5 text-right text-xs tabular-nums text-gray-500 dark:text-zinc-400">{formatMt(r.receita_mt)} MT</td>
+                        <td className="whitespace-nowrap px-4 py-2.5 text-right text-xs tabular-nums text-gray-500 dark:text-zinc-400">{formatMt(r.custos_producao_mt)} MT</td>
+                        <td className="whitespace-nowrap px-4 py-2.5 text-right text-xs tabular-nums text-gray-500 dark:text-zinc-400">{formatMt(r.iva_mt)} MT</td>
+                        <td className={`whitespace-nowrap px-4 py-2.5 text-right text-xs tabular-nums ${moneyClass(r.lucro_mt, 'text-gray-500 dark:text-zinc-400')}`}>{formatMt(r.lucro_mt)} MT</td>
                       </tr>
                     )),
                   )
@@ -543,7 +526,7 @@ function FechoAnualCard({
                       <td className="whitespace-nowrap px-4 py-2.5 text-right font-bold tabular-nums text-gray-900 dark:text-white">{formatMt(receitaMt)} MT</td>
                       <td className="whitespace-nowrap px-4 py-2.5 text-right tabular-nums text-gray-700 dark:text-zinc-300">{formatMt(custosProducaoMt)} MT</td>
                       <td className="whitespace-nowrap px-4 py-2.5 text-right tabular-nums text-gray-700 dark:text-zinc-300">{formatMt(ivaMt)} MT</td>
-                      <td className="whitespace-nowrap px-4 py-2.5 text-right font-bold tabular-nums text-gray-900 dark:text-white">{formatMt(lucroMt)} MT</td>
+                      <td className={`whitespace-nowrap px-4 py-2.5 text-right font-bold tabular-nums ${moneyClass(lucroMt, 'text-gray-900 dark:text-white')}`}>{formatMt(lucroMt)} MT</td>
                     </tr>,
                     ...monthsInYear.map((m) => (
                       <tr key={m.month}>
@@ -551,7 +534,7 @@ function FechoAnualCard({
                         <td className="whitespace-nowrap px-4 py-1.5 text-right text-xs tabular-nums text-gray-500 dark:text-zinc-400">{formatMt(m.receitaMt)} MT</td>
                         <td className="whitespace-nowrap px-4 py-1.5 text-right text-xs tabular-nums text-gray-500 dark:text-zinc-400">{formatMt(m.custosProducaoMt)} MT</td>
                         <td className="whitespace-nowrap px-4 py-1.5 text-right text-xs tabular-nums text-gray-500 dark:text-zinc-400">{formatMt(m.ivaMt)} MT</td>
-                        <td className="whitespace-nowrap px-4 py-1.5 text-right text-xs tabular-nums text-gray-500 dark:text-zinc-400">{formatMt(m.lucroMt)} MT</td>
+                        <td className={`whitespace-nowrap px-4 py-1.5 text-right text-xs tabular-nums ${moneyClass(m.lucroMt, 'text-gray-500 dark:text-zinc-400')}`}>{formatMt(m.lucroMt)} MT</td>
                       </tr>
                     )),
                   ]

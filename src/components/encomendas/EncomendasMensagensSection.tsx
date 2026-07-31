@@ -13,10 +13,10 @@ type Quotation = BatchItem & {
   produto: string;
 };
 
-export function EncomendasMensagensSection() {
+export function EncomendasMensagensSection({ initialQuotationId }: { initialQuotationId?: string | null }) {
   const [quotations, setQuotations] = useState<Quotation[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(initialQuotationId ?? null);
 
   useEffect(() => {
     fetch('/api/cotacoes')

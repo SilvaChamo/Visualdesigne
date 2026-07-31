@@ -373,7 +373,7 @@ export function CotacoesSection() {
   return (
     <div>
       <div className="flex flex-col lg:flex-row gap-4 lg:gap-5 items-start">
-        <nav className={`${panelSectionCard} sticky top-0 h-[calc(100vh-116px)] w-full shrink-0 space-y-0.5 overflow-y-auto p-3 lg:w-[220px]`}>
+        <nav className="w-full shrink-0 space-y-0.5 overflow-y-auto border-b border-gray-200 bg-white p-3 shadow-sm dark:border-zinc-700 dark:bg-zinc-900 lg:sticky lg:top-0 lg:h-[calc(100vh-76px)] lg:w-[220px] lg:border-b-0 lg:border-r lg:rounded-br">
           <div>
             <button
               type="button"
@@ -447,7 +447,7 @@ export function CotacoesSection() {
           </button>
         </nav>
 
-        <div className="min-w-0 flex-1 w-full">
+        <div className="min-w-0 flex-1 w-full mt-4 lg:mt-5">
           {navMode === 'contabilidade' ? (
             <ContabilidadeTable />
           ) : navMode === 'historico' ? (
@@ -886,7 +886,7 @@ function BatchCard({
                                   <span className="text-gray-500 dark:text-zinc-400">{formatMt(item.preco_unitario_mt)} MT</span>
                                 )}
                               </span>
-                              <span className="w-24 shrink-0 flex items-center justify-end gap-1 text-right text-sm font-semibold whitespace-nowrap">
+                              <span className="w-24 shrink-0 text-right text-sm font-semibold whitespace-nowrap">
                                 {item.sob_consulta ? (
                                   <button
                                     type="button"
@@ -896,26 +896,25 @@ function BatchCard({
                                   >
                                     Sob Consulta
                                   </button>
-                                ) : item.sob_consulta_original ? (
-                                  <>
-                                    <span className="text-gray-700 dark:text-zinc-300">{formatMt(item.preco_unitario_mt * item.quantidade)} MT</span>
-                                    <button
-                                      type="button"
-                                      onClick={() => startEditingPreco(item)}
-                                      disabled={updatingId === item.id}
-                                      className="shrink-0 text-gray-400 hover:text-red-600 dark:text-zinc-500 dark:hover:text-red-500 transition-colors disabled:opacity-50"
-                                      title="Reeditar o valor (item Sob Consulta)"
-                                    >
-                                      <Pencil className="w-3.5 h-3.5" />
-                                    </button>
-                                  </>
                                 ) : (
                                   <span className="text-gray-700 dark:text-zinc-300">{formatMt(item.preco_unitario_mt * item.quantidade)} MT</span>
                                 )}
                               </span>
                             </>
                           )}
-                          <span className="ml-2 w-3.5 shrink-0" aria-hidden="true" />
+                          <span className="ml-2 w-3.5 shrink-0 flex items-center justify-center">
+                            {editingPrecoItemId !== item.id && !item.sob_consulta && item.sob_consulta_original && (
+                              <button
+                                type="button"
+                                onClick={() => startEditingPreco(item)}
+                                disabled={updatingId === item.id}
+                                className="shrink-0 text-gray-400 hover:text-red-600 dark:text-zinc-500 dark:hover:text-red-500 transition-colors disabled:opacity-50"
+                                title="Reeditar o valor (item Sob Consulta)"
+                              >
+                                <Pencil className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+                          </span>
                         </div>
                       )
                     })}
@@ -923,7 +922,6 @@ function BatchCard({
                       <div className="min-w-0 flex-1 text-right">
                         <span className="text-xs font-bold uppercase tracking-wide text-gray-400 dark:text-zinc-500">Total da encomenda</span>
                       </div>
-                      <span className="w-24 shrink-0" aria-hidden="true" />
                       <span className="w-24 shrink-0 text-right text-sm font-bold whitespace-nowrap">
                         {batch.sobConsulta ? (
                           <span className="text-red-600 dark:text-red-500 font-extrabold">Sob Consulta</span>

@@ -42,8 +42,8 @@ export const NEW_MENU_ITEM_DEFS: PanelMenuItemDef[] = [
     label: 'E-mail',
     isNewMenu: true,
     subItems: [
-      { id: 'emails-new', label: 'Contas de e-mail' },
       { id: 'webmail', label: 'Webmail' },
+      { id: 'emails-new', label: 'Contas de e-mail' },
       { id: 'setup-smtp', label: 'Configurar SMTP' },
     ],
   },
@@ -84,6 +84,10 @@ export const NEW_MENU_ITEM_DEFS: PanelMenuItemDef[] = [
     id: 'cotacoes',
     label: 'Encomendas',
     isNewMenu: true,
+    subItems: [
+      { id: 'cotacoes-lista', label: 'Encomendas' },
+      { id: 'cotacoes-contas', label: 'Contas' },
+    ],
   },
   {
     id: 'nov-wordpress',
@@ -261,6 +265,7 @@ export const LEGACY_ALIAS: Record<string, string> = {
   'domains-new': 'domain-manager',
   'cp-api': 'infrastructure',
   notifications: 'renewals',
+  'cotacoes-lista': 'cotacoes',
 };
 
 /** Rotas internas fora do sistema de secções do painel (sidebar / dashboard). */
@@ -304,6 +309,8 @@ export const NEW_SECTION_TO_PARENT: Record<string, string> = {
   'utilizadores-revendedores': 'nov-hospedagem',
   'utilizadores-visitantes': 'utilizadores',
   'utilizadores-gestao': 'utilizadores',
+  cotacoes: 'cotacoes',
+  'cotacoes-contas': 'cotacoes',
   'wp-users': 'nov-wordpress',
   'provision-client': 'nov-hospedagem',
   'provision-reseller': 'nov-hospedagem',

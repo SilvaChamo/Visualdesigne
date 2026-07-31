@@ -60,11 +60,12 @@ function buildSocialIconsHtml(accent: string): string {
               </tr></table>`;
 }
 
-// Cabeçalho partilhado por todos os templates: fundo esticado à largura total
-// do email (sem margens laterais nem por cima — a cor ocupa a linha toda),
-// com logótipo à esquerda e redes sociais no canto superior direito alinhados
-// aos 600px do cartão de conteúdo (width/height explícitos na imagem,
-// necessário para o Outlook reservar o espaço certo antes de a imagem carregar).
+// Cabeçalho partilhado por todos os templates: estilo "chapado" — fundo e
+// conteúdo esticados à largura total do email (sem margens laterais nem por
+// cima, sem cartão flutuante nem cantos arredondados mais abaixo), logótipo
+// à esquerda e redes sociais no canto superior direito (width/height
+// explícitos na imagem, necessário para o Outlook reservar o espaço certo
+// antes de a imagem carregar).
 function buildHeaderHtml(background: string, logoUrl: string | null | undefined, logoAlt: string): string {
     const accent = accentFor(background);
     const logoCell = logoUrl
@@ -72,10 +73,10 @@ function buildHeaderHtml(background: string, logoUrl: string | null | undefined,
         : `<span style="color:#ffffff;opacity:0.7;font-size:13px;font-weight:600;">[O seu logótipo aqui]</span>`;
 
     return `
-  <!-- Cabeçalho: fundo à largura total, logótipo/redes sociais alinhados aos 600px do conteúdo. -->
+  <!-- Cabeçalho: fundo e conteúdo à largura total, sem cartão nem margens. -->
   <tr>
-    <td align="center" style="background:${background};">
-      <table width="600" cellpadding="0" cellspacing="0" border="0" style="max-width:600px;width:100%;">
+    <td style="background:${background};">
+      <table width="100%" cellpadding="0" cellspacing="0" border="0">
         <tr>
           <td align="left" valign="middle" style="padding:16px 20px;">${logoCell}</td>
           <td align="right" valign="middle" style="padding:16px 20px;">${buildSocialIconsHtml(accent)}</td>
@@ -116,48 +117,39 @@ function buildTemplates(brand: BrandInfo) {
   - Cor de destaque (linha, botões, ícones): ${accent} (vermelho)
   - Cor texto secundário dos blocos: #64748b (cinza)
 -->
-<table width="100%" cellpadding="0" cellspacing="0" border="0" style="font-family:'Exo 2',sans-serif;background-color:#f1f5f9;">
+<table width="100%" cellpadding="0" cellspacing="0" border="0" style="font-family:'Exo 2',sans-serif;background-color:#ffffff;">
 ${buildHeaderHtml(COLOR_BLACK, brand.logoUrl, brand.logoAlt)}
 
-  <!-- Cartão: desligado do cabeçalho, com linha de destaque no topo -->
+  <!-- Body: à largura total, sem cartão nem cantos arredondados -->
   <tr>
-    <td align="center" style="padding:28px 16px;">
-      <table width="600" cellpadding="0" cellspacing="0" border="0" style="max-width:600px;width:100%;background-color:#ffffff;border-top:4px solid ${accent};border-radius:10px;overflow:hidden;box-shadow:0 1px 4px rgba(15,23,42,0.06);">
+    <td style="padding:32px 24px;border-top:4px solid ${accent};">
+      <h2 style="color:#1e293b;font-size:20px;font-weight:800;margin:0 0 8px 0;">Destaques</h2>
+      <p style="color:#64748b;font-size:14px;line-height:1.6;margin:0 0 24px 0;">
+        Confira as últimas actualizações, novidades e informações relevantes.
+      </p>
 
-        <!-- Body -->
-        <tr>
-          <td style="padding:32px 24px;">
-            <h2 style="color:#1e293b;font-size:20px;font-weight:800;margin:0 0 8px 0;">Destaques</h2>
-            <p style="color:#64748b;font-size:14px;line-height:1.6;margin:0 0 24px 0;">
-              Confira as últimas actualizações, novidades e informações relevantes.
-            </p>
+      <!-- Article Block -->
+      <div style="border:1px solid #e2e8f0;border-radius:12px;padding:20px;margin-bottom:16px;">
+        <h3 style="color:#0f172a;font-size:16px;font-weight:700;margin:0 0 8px 0;">[Título da Notícia]</h3>
+        <p style="color:#64748b;font-size:13px;line-height:1.5;margin:0 0 12px 0;">[Resumo da notícia ou informação aqui...]</p>
+        <a href="#" style="display:inline-block;background:${accent};color:#fff;text-decoration:none;padding:8px 20px;border-radius:6px;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:1px;">Ler Mais</a>
+      </div>
 
-            <!-- Article Block -->
-            <div style="border:1px solid #e2e8f0;border-radius:12px;padding:20px;margin-bottom:16px;">
-              <h3 style="color:#0f172a;font-size:16px;font-weight:700;margin:0 0 8px 0;">[Título da Notícia]</h3>
-              <p style="color:#64748b;font-size:13px;line-height:1.5;margin:0 0 12px 0;">[Resumo da notícia ou informação aqui...]</p>
-              <a href="#" style="display:inline-block;background:${accent};color:#fff;text-decoration:none;padding:8px 20px;border-radius:6px;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:1px;">Ler Mais</a>
-            </div>
+      <!-- Another Block -->
+      <div style="border:1px solid #e2e8f0;border-radius:12px;padding:20px;margin-bottom:16px;">
+        <h3 style="color:#0f172a;font-size:16px;font-weight:700;margin:0 0 8px 0;">[Outra Informação]</h3>
+        <p style="color:#64748b;font-size:13px;line-height:1.5;margin:0;">[Detalhes adicionais ou segunda notícia aqui...]</p>
+      </div>
+    </td>
+  </tr>
 
-            <!-- Another Block -->
-            <div style="border:1px solid #e2e8f0;border-radius:12px;padding:20px;margin-bottom:16px;">
-              <h3 style="color:#0f172a;font-size:16px;font-weight:700;margin:0 0 8px 0;">[Outra Informação]</h3>
-              <p style="color:#64748b;font-size:13px;line-height:1.5;margin:0;">[Detalhes adicionais ou segunda notícia aqui...]</p>
-            </div>
-          </td>
-        </tr>
-
-        <!-- Footer -->
-        <tr>
-          <td style="background:#f8fafc;padding:14px 24px;text-align:center;border-top:1px solid #e2e8f0;">
-            ${footerCompanyLinesHtml(brand, '#64748b', '#94a3b8')}
-            <p style="color:#94a3b8;font-size:11px;margin:3px 0 0 0 !important;line-height:1.2;">
-              <a href="#" style="color:#64748b;text-decoration:underline;">Desinscrever-se</a>
-            </p>
-          </td>
-        </tr>
-
-      </table>
+  <!-- Footer -->
+  <tr>
+    <td style="background:#f8fafc;padding:14px 24px;text-align:center;border-top:1px solid #e2e8f0;">
+      ${footerCompanyLinesHtml(brand, '#64748b', '#94a3b8')}
+      <p style="color:#94a3b8;font-size:11px;margin:3px 0 0 0 !important;line-height:1.2;">
+        <a href="#" style="color:#64748b;text-decoration:underline;">Desinscrever-se</a>
+      </p>
     </td>
   </tr>
 </table>`;
@@ -177,57 +169,47 @@ ${buildHeaderHtml(COLOR_BLACK, brand.logoUrl, brand.logoAlt)}
   - Cor do cabeçalho e de destaque (bordas, botões): ${COLOR_DARK_GREY} (cinza escuro)
   - Cor de fundo info box: #f4f4f5 (cinza muito claro)
 -->
-<table width="100%" cellpadding="0" cellspacing="0" border="0" style="font-family:'Exo 2',sans-serif;background-color:#f1f5f9;">
+<table width="100%" cellpadding="0" cellspacing="0" border="0" style="font-family:'Exo 2',sans-serif;background-color:#ffffff;">
 ${buildHeaderHtml(COLOR_DARK_GREY, brand.logoUrl, brand.logoAlt)}
 
-  <!-- Cartão: desligado do cabeçalho, com linha de destaque no topo -->
+  <!-- Body: à largura total, sem cartão nem cantos arredondados -->
   <tr>
-    <td align="center" style="padding:28px 16px;">
-      <!-- Container principal: 600px largura (padrão email) = ~50% em telas grandes -->
-      <table width="600" cellpadding="0" cellspacing="0" border="0" style="max-width:600px;width:100%;background-color:#ffffff;border-top:4px solid ${accent};border-radius:10px;overflow:hidden;box-shadow:0 1px 4px rgba(15,23,42,0.06);">
+    <td style="padding:32px 24px;border-top:4px solid ${accent};background-color:#ffffff !important;mso-background-color:#ffffff;">
+      <h2 style="color:#0f172a;font-size:20px;font-weight:600;margin:0 0 16px 0;">[Título da mensagem]</h2>
+      <p style="color:#475569;font-size:15px;line-height:1.7;margin:0 0 24px 0;">
+        [Escreva aqui uma descrição natural do produto, serviço ou informação relevante. Use linguagem profissional e evite palavras como "grátis", "urgente", "limitado" ou muitos emojis.]
+      </p>
 
-        <!-- Body -->
+      <!-- CTA simplificado -->
+      <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:32px 0;">
         <tr>
-          <td style="padding:32px 24px;background-color:#ffffff !important;mso-background-color:#ffffff;">
-            <h2 style="color:#0f172a;font-size:20px;font-weight:600;margin:0 0 16px 0;">[Título da mensagem]</h2>
-            <p style="color:#475569;font-size:15px;line-height:1.7;margin:0 0 24px 0;">
-              [Escreva aqui uma descrição natural do produto, serviço ou informação relevante. Use linguagem profissional e evite palavras como "grátis", "urgente", "limitado" ou muitos emojis.]
-            </p>
-
-            <!-- CTA simplificado -->
-            <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:32px 0;">
-              <tr>
-                <td align="center">
-                  <a href="#" style="display:inline-block;background-color:${accent} !important;color:#ffffff;text-decoration:none;padding:12px 32px;border-radius:6px;font-size:14px;font-weight:500;mso-background-color:${accent};">Saber mais</a>
-                </td>
-              </tr>
-            </table>
-
-            <!-- Info adicional -->
-            <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-top:24px;">
-              <tr>
-                <td style="padding:20px;background-color:#f4f4f5 !important;border-radius:8px;border-left:4px solid ${accent};mso-background-color:#f4f4f5;">
-                  <p style="color:#475569;font-size:13px;line-height:1.5;margin:0;">
-                    <strong style="color:#0f172a;">Informação:</strong> [Adicione detalhes relevantes aqui de forma clara e profissional]
-                  </p>
-                </td>
-              </tr>
-            </table>
+          <td align="center">
+            <a href="#" style="display:inline-block;background-color:${accent} !important;color:#ffffff;text-decoration:none;padding:12px 32px;border-radius:6px;font-size:14px;font-weight:500;mso-background-color:${accent};">Saber mais</a>
           </td>
         </tr>
-
-        <!-- Footer -->
-        <tr>
-          <td style="background:#f8fafc;padding:14px 24px;text-align:center;border-top:1px solid #e2e8f0;">
-            ${footerCompanyLinesHtml(brand, '#64748b', '#94a3b8')}
-            <p style="color:#94a3b8;font-size:11px;margin:3px 0 0 0 !important;line-height:1.2;">
-              Se não deseja receber estas mensagens, pode <a href="#" style="color:#64748b;text-decoration:underline;">remover subscrição aqui</a>
-            </p>
-            ${brand.isAdmin ? '' : '<p style="color:#94a3b8;font-size:10px;margin:2px 0 0 0 !important;line-height:1.2;">[Morada da empresa] | NIF: [NIF]</p>'}
-          </td>
-        </tr>
-
       </table>
+
+      <!-- Info adicional -->
+      <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-top:24px;">
+        <tr>
+          <td style="padding:20px;background-color:#f4f4f5 !important;border-radius:8px;border-left:4px solid ${accent};mso-background-color:#f4f4f5;">
+            <p style="color:#475569;font-size:13px;line-height:1.5;margin:0;">
+              <strong style="color:#0f172a;">Informação:</strong> [Adicione detalhes relevantes aqui de forma clara e profissional]
+            </p>
+          </td>
+        </tr>
+      </table>
+    </td>
+  </tr>
+
+  <!-- Footer -->
+  <tr>
+    <td style="background:#f8fafc;padding:14px 24px;text-align:center;border-top:1px solid #e2e8f0;">
+      ${footerCompanyLinesHtml(brand, '#64748b', '#94a3b8')}
+      <p style="color:#94a3b8;font-size:11px;margin:3px 0 0 0 !important;line-height:1.2;">
+        Se não deseja receber estas mensagens, pode <a href="#" style="color:#64748b;text-decoration:underline;">remover subscrição aqui</a>
+      </p>
+      ${brand.isAdmin ? '' : '<p style="color:#94a3b8;font-size:10px;margin:2px 0 0 0 !important;line-height:1.2;">[Morada da empresa] | NIF: [NIF]</p>'}
     </td>
   </tr>
 </table>`;
@@ -247,47 +229,38 @@ ${buildHeaderHtml(COLOR_DARK_GREY, brand.logoUrl, brand.logoAlt)}
   - Cor do cabeçalho e de destaque (linha, botão): ${COLOR_LIGHT_GREY} (cinza claro)
   - Cor de fundo da caixa de resumo: #f4f4f5 (cinza muito claro)
 -->
-<table width="100%" cellpadding="0" cellspacing="0" border="0" style="font-family:'Exo 2',sans-serif;background-color:#f1f5f9;">
+<table width="100%" cellpadding="0" cellspacing="0" border="0" style="font-family:'Exo 2',sans-serif;background-color:#ffffff;">
 ${buildHeaderHtml(COLOR_LIGHT_GREY, brand.logoUrl, brand.logoAlt)}
 
-  <!-- Cartão: desligado do cabeçalho, com linha de destaque no topo -->
+  <!-- Body: à largura total, sem cartão nem cantos arredondados -->
   <tr>
-    <td align="center" style="padding:28px 16px;">
-      <table width="600" cellpadding="0" cellspacing="0" border="0" style="max-width:600px;width:100%;background-color:#ffffff;border-top:4px solid ${accent};border-radius:10px;overflow:hidden;box-shadow:0 1px 4px rgba(15,23,42,0.06);">
+    <td style="padding:32px 24px;border-top:4px solid ${accent};">
+      <p style="color:${accent};font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:2px;margin:0 0 12px 0;">ℹ️ Comunicado Importante</p>
+      <div style="background:#f4f4f5;border-left:4px solid ${accent};padding:16px 20px;border-radius:0 8px 8px 0;margin-bottom:24px;">
+        <p style="color:#3f3f46;font-size:14px;font-weight:700;margin:0;">Resumo</p>
+        <p style="color:#52525b;font-size:13px;line-height:1.6;margin:8px 0 0 0;">[Breve descrição do objectivo deste comunicado.]</p>
+      </div>
 
-        <!-- Body -->
-        <tr>
-          <td style="padding:32px 24px;">
-            <p style="color:${accent};font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:2px;margin:0 0 12px 0;">ℹ️ Comunicado Importante</p>
-            <div style="background:#f4f4f5;border-left:4px solid ${accent};padding:16px 20px;border-radius:0 8px 8px 0;margin-bottom:24px;">
-              <p style="color:#3f3f46;font-size:14px;font-weight:700;margin:0;">Resumo</p>
-              <p style="color:#52525b;font-size:13px;line-height:1.6;margin:8px 0 0 0;">[Breve descrição do objectivo deste comunicado.]</p>
-            </div>
+      <h3 style="color:#0f172a;font-size:16px;font-weight:700;margin:0 0 12px 0;">[Título do Assunto]</h3>
+      <p style="color:#475569;font-size:14px;line-height:1.7;margin:0 0 16px 0;">
+        [Conteúdo detalhado da comunicação. Explique o que mudou, o que o destinatário precisa de saber ou que acção tomar.]
+      </p>
 
-            <h3 style="color:#0f172a;font-size:16px;font-weight:700;margin:0 0 12px 0;">[Título do Assunto]</h3>
-            <p style="color:#475569;font-size:14px;line-height:1.7;margin:0 0 16px 0;">
-              [Conteúdo detalhado da comunicação. Explique o que mudou, o que o destinatário precisa de saber ou que acção tomar.]
-            </p>
+      <p style="color:#475569;font-size:14px;line-height:1.7;margin:0 0 24px 0;">
+        [Segundo parágrafo com informações adicionais, se necessário.]
+      </p>
 
-            <p style="color:#475569;font-size:14px;line-height:1.7;margin:0 0 24px 0;">
-              [Segundo parágrafo com informações adicionais, se necessário.]
-            </p>
+      <a href="#" style="display:inline-block;background:${accent};color:#fff;text-decoration:none;padding:10px 28px;border-radius:6px;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:1px;">Saber Mais</a>
+    </td>
+  </tr>
 
-            <a href="#" style="display:inline-block;background:${accent};color:#fff;text-decoration:none;padding:10px 28px;border-radius:6px;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:1px;">Saber Mais</a>
-          </td>
-        </tr>
-
-        <!-- Footer -->
-        <tr>
-          <td style="background:#f8fafc;padding:14px 24px;text-align:center;border-top:1px solid #e2e8f0;">
-            ${footerCompanyLinesHtml(brand, '#64748b', '#94a3b8')}
-            <p style="color:#94a3b8;font-size:11px;margin:3px 0 0 0 !important;line-height:1.2;">
-              <a href="#" style="color:#64748b;text-decoration:underline;">Desinscrever-se</a>
-            </p>
-          </td>
-        </tr>
-
-      </table>
+  <!-- Footer -->
+  <tr>
+    <td style="background:#f8fafc;padding:14px 24px;text-align:center;border-top:1px solid #e2e8f0;">
+      ${footerCompanyLinesHtml(brand, '#64748b', '#94a3b8')}
+      <p style="color:#94a3b8;font-size:11px;margin:3px 0 0 0 !important;line-height:1.2;">
+        <a href="#" style="color:#64748b;text-decoration:underline;">Desinscrever-se</a>
+      </p>
     </td>
   </tr>
 </table>`;
@@ -308,33 +281,24 @@ ${buildHeaderHtml(COLOR_LIGHT_GREY, brand.logoUrl, brand.logoAlt)}
   - Cor de destaque (linha): ${accent} (vermelho)
   - Cor de fundo do rodapé: #e4e4e7 (cinza)
 -->
-<table width="100%" cellpadding="0" cellspacing="0" border="0" style="font-family:'Exo 2',sans-serif;background-color:#f1f5f9;">
+<table width="100%" cellpadding="0" cellspacing="0" border="0" style="font-family:'Exo 2',sans-serif;background-color:#ffffff;">
 ${buildHeaderHtml(COLOR_BLACK, brand.logoUrl, brand.logoAlt)}
 
-  <!-- Cartão: desligado do cabeçalho, com linha de destaque no topo -->
+  <!-- Body: em branco, para escrever a mensagem do zero -->
   <tr>
-    <td align="center" style="padding:28px 16px;">
-      <table width="600" cellpadding="0" cellspacing="0" border="0" style="max-width:600px;width:100%;background-color:#ffffff;border-top:4px solid ${accent};border-radius:10px;overflow:hidden;box-shadow:0 1px 4px rgba(15,23,42,0.06);">
+    <td style="padding:32px 24px;border-top:4px solid ${accent};">
+      <h2 style="color:#1e293b;font-size:20px;font-weight:800;margin:0 0 8px 0;">[Título]</h2>
+      <p style="color:#64748b;font-size:14px;line-height:1.6;margin:0;">[Escreva aqui o conteúdo da sua mensagem...]</p>
+    </td>
+  </tr>
 
-        <!-- Body: em branco, para escrever a mensagem do zero -->
-        <tr>
-          <td style="padding:32px 24px;">
-            <h2 style="color:#1e293b;font-size:20px;font-weight:800;margin:0 0 8px 0;">[Título]</h2>
-            <p style="color:#64748b;font-size:14px;line-height:1.6;margin:0;">[Escreva aqui o conteúdo da sua mensagem...]</p>
-          </td>
-        </tr>
-
-        <!-- Footer: cinza, editável -->
-        <tr>
-          <td style="background:#e4e4e7;padding:14px 24px;text-align:center;border-top:1px solid #d4d4d8;">
-            ${footerCompanyLinesHtml(brand, '#3f3f46', '#52525b')}
-            <p style="color:#52525b;font-size:11px;margin:3px 0 0 0 !important;line-height:1.2;">
-              <a href="#" style="color:#3f3f46;text-decoration:underline;">Desinscrever-se</a>
-            </p>
-          </td>
-        </tr>
-
-      </table>
+  <!-- Footer: cinza, editável -->
+  <tr>
+    <td style="background:#e4e4e7;padding:14px 24px;text-align:center;border-top:1px solid #d4d4d8;">
+      ${footerCompanyLinesHtml(brand, '#3f3f46', '#52525b')}
+      <p style="color:#52525b;font-size:11px;margin:3px 0 0 0 !important;line-height:1.2;">
+        <a href="#" style="color:#3f3f46;text-decoration:underline;">Desinscrever-se</a>
+      </p>
     </td>
   </tr>
 </table>`;

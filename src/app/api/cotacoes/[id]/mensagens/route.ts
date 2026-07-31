@@ -79,7 +79,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       to: quotation.email,
       clientName: quotation.responsavel || quotation.empresa,
       produto: quotation.produto,
-      message,
+      quotationId: id,
     }).catch((err) => console.error('[cotacoes/[id]/mensagens] falha ao notificar cliente:', err));
   }
 

@@ -1,6 +1,6 @@
 import { createClient as createAdminClient } from '@supabase/supabase-js';
 import { sendEmail } from '@/lib/email-service';
-import { emailHeader, emailFooter, wrapContentInFrame } from '@/lib/renewal-templates';
+import { emailHeader, emailGreeting, emailFooter, wrapContentInFrame } from '@/lib/renewal-templates';
 
 const TEAM_EMAIL = 'geral@visualdesignmoz.com';
 const SUPPORT_EMAIL = 'suporte@visualdesignmoz.com';
@@ -22,17 +22,12 @@ function buildTeamEmailHtml(title: string, message: string, link?: string) {
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>${title}</title>
 </head>
-<body style="margin: 0; padding: 0; font-family: 'Exo 2', sans-serif; background: #f3f4f6;">
-  <table width="100%" cellpadding="0" cellspacing="0" border="0">
-    <tr>
-      <td align="center" style="padding: 10px 0; background: #f3f4f6;">
-        <table width="600" cellpadding="0" cellspacing="0" border="0" style="max-width: 600px; width: 100%; background: white; border-radius: 10px; overflow: hidden; box-shadow: 0 4px 12px rgba(0,0,0,0.15);">
-          <tr><td>${emailHeader('Equipa', COMPANY_NAME)}</td></tr>
-          <tr><td style="padding: 20px;">${wrapContentInFrame(body, 'medium')}</td></tr>
-          <tr><td>${emailFooter(SUPPORT_EMAIL, SUPPORT_PHONE, COMPANY_NAME)}</td></tr>
-        </table>
-      </td>
-    </tr>
+<body style="margin: 0; padding: 0; font-family: 'Exo 2', sans-serif; background: #ffffff;">
+  <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background: #ffffff;">
+    ${emailHeader(COMPANY_NAME)}
+    ${emailGreeting('Equipa')}
+    <tr><td style="padding: 20px 24px;">${wrapContentInFrame(body, 'medium')}</td></tr>
+    ${emailFooter(SUPPORT_EMAIL, SUPPORT_PHONE, COMPANY_NAME)}
   </table>
 </body>
 </html>
