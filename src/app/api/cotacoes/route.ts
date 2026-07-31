@@ -5,6 +5,7 @@ import { findItem, formatMt, CUSTOM_CATEGORIA_ID } from '@/lib/pricing-catalog';
 import { notifyQuoteTeam } from '@/lib/notify-quote-team';
 import { resolveRoleForAuthUser } from '@/lib/server-auth-role';
 import { resolveEffectiveClientUserId } from '@/lib/client-impersonation';
+import { computeUnreadByBatch } from '@/lib/quotation-unread';
 
 // Lista as cotações do próprio utilizador autenticado — usada no painel da
 // conta para mostrar o que já foi submetido, sem expor cotações de outros clientes.
@@ -48,7 +49,12 @@ export async function GET() {
       return NextResponse.json({ error: 'Não foi possível carregar as cotações.' }, { status: 500 });
     }
 
-    return NextResponse.json({ success: true, quotations: quotations || [] });
+    // Quantas mensagens da equipa ficaram por responder, por encomenda —
+    // alimenta a bolinha vermelha na aba "Mensagens" do painel do cliente.
+    const unreadByBatch = await computeUnreadByBatch(admin, quotations || [], 'admin');
+    const unreadTotal = Object.values(unreadByBatch).reduce((sum, n) => sum + n, 0);
+
+    return NextResponse.json({ success: true, quotations: quotations || [], unreadByBatch, unreadTotal });
   } catch (error: unknown) {
     console.error('[cotacoes] list error:', error);
     return NextResponse.json({ error: 'Erro interno' }, { status: 500 });

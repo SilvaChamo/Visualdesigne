@@ -1,15 +1,16 @@
 'use client';
 
-import { FileText, MessageSquare, Wallet, Layers, ChevronRight, LogOut } from 'lucide-react';
+import { FileText, MessageSquare, Wallet, ChevronRight, LogOut } from 'lucide-react';
 import { SidebarAccount } from '@/components/panel/SidebarAccount';
 import { panelShellHeaderHeight } from '@/lib/panel-ui';
 import { cn } from '@/lib/utils';
 
-export type EncomendasSection = 'encomendas' | 'layouts' | 'mensagens' | 'pagamentos';
+// Layouts deixou de ser secção própria — layouts e anexos vivem dentro da
+// conversa em "Mensagens" (QuotationMessagesThread mostra tudo inline).
+export type EncomendasSection = 'encomendas' | 'mensagens' | 'pagamentos';
 
 const ITEMS: { id: EncomendasSection; label: string; icon: React.ElementType }[] = [
   { id: 'encomendas', label: 'Encomendas', icon: FileText },
-  { id: 'layouts', label: 'Layouts', icon: Layers },
   { id: 'mensagens', label: 'Mensagens', icon: MessageSquare },
   { id: 'pagamentos', label: 'Pagamentos', icon: Wallet },
 ];
@@ -20,6 +21,7 @@ interface EncomendasSidebarProps {
   isCollapsed: boolean;
   setIsCollapsed: (collapsed: boolean) => void;
   sessionUser: string | null;
+  unreadCounts?: Partial<Record<EncomendasSection, number>>;
 }
 
 export function EncomendasSidebar({
@@ -28,6 +30,7 @@ export function EncomendasSidebar({
   isCollapsed,
   setIsCollapsed,
   sessionUser,
+  unreadCounts,
 }: EncomendasSidebarProps) {
   const currentSidebarWidth = isCollapsed ? 64 : 242;
 
@@ -86,6 +89,7 @@ export function EncomendasSidebar({
           {ITEMS.map((item) => {
             const Icon = item.icon;
             const isActive = activeSection === item.id;
+            const unread = unreadCounts?.[item.id] || 0;
             return (
               <button
                 key={item.id}
@@ -100,8 +104,20 @@ export function EncomendasSidebar({
                 }`}
                 title={isCollapsed ? item.label : ''}
               >
-                <Icon size={20} className={`shrink-0 ${isActive ? 'text-red-600' : 'text-gray-500 group-hover:text-red-600'}`} />
+                <span className="relative shrink-0">
+                  <Icon size={20} className={isActive ? 'text-red-600' : 'text-gray-500 group-hover:text-red-600'} />
+                  {unread > 0 && isCollapsed && (
+                    <span className="absolute -top-1.5 -right-1.5 inline-flex min-w-[16px] items-center justify-center rounded-full bg-red-600 px-1 text-[9px] font-bold leading-none text-white">
+                      {unread > 9 ? '9+' : unread}
+                    </span>
+                  )}
+                </span>
                 {!isCollapsed && <span className="ml-3 truncate text-base leading-none">{item.label}</span>}
+                {!isCollapsed && unread > 0 && (
+                  <span className="ml-auto inline-flex min-w-[18px] items-center justify-center rounded-full bg-red-600 px-1.5 py-0.5 text-[10px] font-bold leading-none text-white">
+                    {unread > 99 ? '99+' : unread}
+                  </span>
+                )}
               </button>
             );
           })}

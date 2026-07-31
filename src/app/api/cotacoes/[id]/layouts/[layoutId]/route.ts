@@ -22,10 +22,10 @@ export async function PATCH(
   const status = body?.status;
   const feedback = String(body?.feedback || '').trim();
 
-  if (status !== 'approved' && status !== 'rejected') {
+  if (status !== 'approved' && status !== 'rejected' && status !== 'changes_requested') {
     return NextResponse.json({ error: 'Estado inválido.' }, { status: 400 });
   }
-  if (status === 'rejected' && !feedback) {
+  if ((status === 'rejected' || status === 'changes_requested') && !feedback) {
     return NextResponse.json({ error: 'Descreva o que precisa de ser corrigido.' }, { status: 400 });
   }
 
@@ -49,7 +49,7 @@ export async function PATCH(
     .from('quotation_layouts')
     .update({
       status,
-      client_feedback: status === 'rejected' ? feedback : null,
+      client_feedback: status !== 'approved' ? feedback : null,
       reviewed_at: new Date().toISOString(),
     })
     .eq('id', layoutId)
@@ -73,7 +73,9 @@ export async function PATCH(
   const historyNote =
     status === 'approved'
       ? `Layout Fase ${layout.fase} ("${layout.descricao}") aprovado pelo cliente.`
-      : `Layout Fase ${layout.fase} ("${layout.descricao}") rejeitado pelo cliente: ${feedback}`;
+      : status === 'changes_requested'
+        ? `Layout Fase ${layout.fase} ("${layout.descricao}") — cliente pediu correcções: ${feedback}`
+        : `Layout Fase ${layout.fase} ("${layout.descricao}") rejeitado pelo cliente: ${feedback}`;
 
   try {
     await admin.from('quotation_status_history').insert({
@@ -89,11 +91,13 @@ export async function PATCH(
   const title =
     status === 'approved'
       ? `Layout aprovado — Fase ${layout.fase}`
-      : `Layout rejeitado — Fase ${layout.fase}, precisa de correcção`;
+      : status === 'changes_requested'
+        ? `Correcções pedidas — Fase ${layout.fase}`
+        : `Layout rejeitado — Fase ${layout.fase}`;
   const message =
     status === 'approved'
       ? `${quotation.empresa} (${quotation.responsavel}) aprovou a Fase ${layout.fase} ("${layout.descricao}") da encomenda "${quotation.produto}". Pode avançar com a produção.`
-      : `${quotation.empresa} (${quotation.responsavel}) rejeitou a Fase ${layout.fase} ("${layout.descricao}") da encomenda "${quotation.produto}".\n\nCorrecções pedidas: ${feedback}`;
+      : `${quotation.empresa} (${quotation.responsavel}) ${status === 'changes_requested' ? 'pediu correcções' : 'rejeitou'} a Fase ${layout.fase} ("${layout.descricao}") da encomenda "${quotation.produto}".\n\nCorrecções pedidas: ${feedback}`;
 
   notifyQuoteTeam({
     title,

@@ -7,6 +7,7 @@ import { batchNumero } from '@/lib/quotation-batch';
 import { computeNumeroMap } from '@/lib/quotation-numero';
 import { QUOTATION_ATTACHMENTS_BUCKET } from '@/lib/quotation-attachments-bucket';
 import { QUOTATION_LAYOUTS_BUCKET } from '@/lib/quotation-layouts-bucket';
+import { computeUnreadByBatch } from '@/lib/quotation-unread';
 
 const IVA_PERCENT = 16;
 
@@ -94,45 +95,6 @@ const VALID_STATUS = ['pending', 'payment_selected', 'approved', 'delivered', 'r
 
 // Conta, por encomenda (batch), quantas mensagens do cliente ficaram "por
 // responder" — as que vieram depois da última mensagem da equipa (ou todas,
-// se a equipa nunca respondeu). Não há uma tabela de "lido/não lido"; esta
-// heurística evita ter de a criar só para mostrar a bolinha no card.
-async function computeUnreadByBatch(
-  supabase: ReturnType<typeof getSupabaseAdmin>,
-  rows: { id: string; batch_id: string }[],
-): Promise<Record<string, number>> {
-  const idToBatch = new Map(rows.map((r) => [r.id, r.batch_id]));
-  const allIds = rows.map((r) => r.id);
-  if (allIds.length === 0) return {};
-
-  const { data: messages, error } = await supabase
-    .from('quotation_messages')
-    .select('quotation_id, sender_role, created_at')
-    .in('quotation_id', allIds)
-    .order('created_at', { ascending: true });
-
-  if (error || !messages) return {};
-
-  const byBatch = new Map<string, { sender_role: string; created_at: string }[]>();
-  for (const m of messages) {
-    const batchId = idToBatch.get(m.quotation_id);
-    if (!batchId) continue;
-    const list = byBatch.get(batchId) ?? [];
-    list.push(m);
-    byBatch.set(batchId, list);
-  }
-
-  const unread: Record<string, number> = {};
-  for (const [batchId, list] of byBatch) {
-    let count = 0;
-    for (let i = list.length - 1; i >= 0; i -= 1) {
-      if (list[i].sender_role !== 'client') break;
-      count += 1;
-    }
-    if (count > 0) unread[batchId] = count;
-  }
-  return unread;
-}
-
 // Lista todos os pedidos de cotação recebidos, para a equipa acompanhar no dashboard.
 export async function GET(request: Request) {
   const auth = await requireAdminOrReseller();
@@ -158,7 +120,7 @@ export async function GET(request: Request) {
     const { data, error } = await query;
     if (error) throw error;
 
-    const unreadByBatch = await computeUnreadByBatch(supabase, data || []);
+    const unreadByBatch = await computeUnreadByBatch(supabase, data || [], 'client');
 
     return NextResponse.json({ success: true, cotacoes: data || [], unreadByBatch });
   } catch (error: any) {

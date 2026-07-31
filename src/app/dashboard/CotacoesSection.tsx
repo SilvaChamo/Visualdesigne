@@ -15,9 +15,7 @@ import { statusMeta, statusBucket, type StatusBucket } from '@/lib/quotation-sta
 import { groupIntoBatches, groupBatchesByBrand, filterBatchesByBucket, type BatchItem, type QuotationBatch } from '@/lib/quotation-batch'
 import { useBatchNumeros, displayNumero } from '@/lib/use-batch-numeros'
 import { QuotationHistoryTimeline } from '@/components/quotations/QuotationHistoryTimeline'
-import { QuotationAttachmentsList } from '@/components/quotations/QuotationAttachmentsList'
 import { QuotationMessagesThread } from '@/components/quotations/QuotationMessagesThread'
-import { QuotationLayoutsList } from '@/components/quotations/QuotationLayoutsList'
 import { QuotationBatchExpenses } from '@/components/quotations/QuotationBatchExpenses'
 import { ContabilidadeTable } from '@/components/quotations/ContabilidadeTable'
 import { useAdminSectionChrome } from '@/components/admin/AdminSectionChrome'
@@ -554,16 +552,16 @@ export function CotacoesSection() {
   )
 }
 
-type BatchTab = 'itens' | 'mensagem' | 'cotacao' | 'factura' | 'historico' | 'anexos' | 'layouts' | 'empresa'
+type BatchTab = 'itens' | 'mensagem' | 'cotacao' | 'factura' | 'historico' | 'empresa'
 
 // 'factura' só entra na lista quando a encomenda já tem factura emitida (ver
 // hasFactura em BatchCard) — antes de 'approved' não há número nenhum.
+// Anexos e Layouts deixaram de ser abas — vivem dentro da própria conversa
+// em "Mensagem" (QuotationMessagesThread já mostra layouts + anexos inline).
 const BATCH_TABS: { id: BatchTab; label: string }[] = [
   { id: 'itens', label: 'Itens da encomenda' },
   { id: 'mensagem', label: 'Mensagem' },
   { id: 'historico', label: 'Histórico' },
-  { id: 'anexos', label: 'Anexos' },
-  { id: 'layouts', label: 'Layouts' },
   { id: 'empresa', label: 'Dados da empresa' },
   { id: 'cotacao', label: 'Cotação' },
   { id: 'factura', label: 'Factura' },
@@ -978,8 +976,6 @@ function BatchCard({
               </div>
             )}
             {activeTab === 'historico' && <QuotationHistoryTimeline quotationId={anchor.id} />}
-            {activeTab === 'anexos' && <QuotationAttachmentsList quotationId={anchor.id} viewerRole="admin" />}
-            {activeTab === 'layouts' && <QuotationLayoutsList quotationId={anchor.id} viewerRole="admin" />}
 
             {activeTab === 'empresa' && (
               <div className="space-y-1.5">

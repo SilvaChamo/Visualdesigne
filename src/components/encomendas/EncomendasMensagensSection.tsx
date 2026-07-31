@@ -13,7 +13,13 @@ type Quotation = BatchItem & {
   produto: string;
 };
 
-export function EncomendasMensagensSection({ initialQuotationId }: { initialQuotationId?: string | null }) {
+export function EncomendasMensagensSection({
+  initialQuotationId,
+  onMessageSent,
+}: {
+  initialQuotationId?: string | null;
+  onMessageSent?: () => void;
+}) {
   const [quotations, setQuotations] = useState<Quotation[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedId, setSelectedId] = useState<string | null>(initialQuotationId ?? null);
@@ -51,10 +57,6 @@ export function EncomendasMensagensSection({ initialQuotationId }: { initialQuot
           const meta = statusMeta(batch.status, batch.sobConsulta);
           const anchor = batch.primaryItem;
           const isSelected = batch.items.some((i) => i.id === selectedId);
-          const resumo =
-            batch.items.length === 1
-              ? `${anchor.categoria_label} — ${anchor.produto}`
-              : `${batch.items.length} serviços`;
           return (
             <button
               key={batch.batchId}
@@ -70,8 +72,7 @@ export function EncomendasMensagensSection({ initialQuotationId }: { initialQuot
                 <FileText className="w-4 h-4 text-red-600 dark:text-red-500" />
               </div>
               <div className="min-w-0 flex-1">
-                <p className="font-bold text-base text-black dark:text-white truncate">Encomenda Nº {displayNumero(numeros, batch.batchId)}</p>
-                <p className="text-sm text-gray-500 dark:text-zinc-400 mt-0.5 truncate">{resumo}</p>
+                <p className="font-bold text-base text-black dark:text-white truncate">Encomenda: Nº {displayNumero(numeros, batch.batchId)}</p>
                 <p className="text-sm text-gray-500 dark:text-zinc-400 mt-0.5">
                   {batch.sobConsulta ? 'Sob Consulta' : `${formatMt(batch.totalMt)} MT`}
                 </p>
@@ -86,7 +87,9 @@ export function EncomendasMensagensSection({ initialQuotationId }: { initialQuot
 
       <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg overflow-hidden min-h-[500px] p-4">
         {selectedId ? (
-          <QuotationMessagesThread quotationId={selectedId} viewerRole="client" />
+          <div className="mx-auto max-w-xl h-full">
+            <QuotationMessagesThread quotationId={selectedId} viewerRole="client" onSent={onMessageSent} />
+          </div>
         ) : (
           !loading && (
             <div className="flex items-center justify-center h-full min-h-[460px] text-sm text-gray-400 dark:text-zinc-500">

@@ -115,6 +115,20 @@ export async function POST(request: NextRequest) {
     const supabase = getSupabaseAdmin();
     const displayName = `${nome} ${apelido}`.trim() || email.split('@')[0];
 
+    // Nunca criar uma segunda conta para o mesmo email — verifica primeiro.
+    // Sem isto, uma pessoa que já pediu uma cotação (com conta criada nesse
+    // fluxo) fica com duas contas no admin: a mesma pessoa a mostrar
+    // "encomendas" divididas entre as duas.
+    const { data: existingUsers, error: listError } = await supabase.auth.admin.listUsers({ page: 1, perPage: 1000 });
+    if (listError) throw listError;
+    const existing = existingUsers.users.find((u) => u.email?.toLowerCase() === email);
+    if (existing) {
+      return NextResponse.json({
+        success: false,
+        error: `Já existe uma conta com este email (${email}). Use "Editar" na conta existente em vez de criar uma nova.`,
+      }, { status: 409 });
+    }
+
     const { data: created, error: createError } = await supabase.auth.admin.createUser({
       email,
       password,

@@ -38,26 +38,24 @@ export const emailHeader = (companyName: string) => `
 </tr>
 `.trim()
 
-// Saudação pessoal — linha directa na tabela, sem barra/fundo destacado.
+// Saudação pessoal — fica dentro do cartão de conteúdo (primeira linha),
+// não no cabeçalho de largura total.
 export const emailGreeting = (clientName: string) => `
-<tr>
-  <td style="padding: 20px 24px 0 24px; font-family: 'Exo 2', sans-serif;">
-    <p style="margin: 0; font-size: 14px; color: #1f2937; font-weight: normal; font-family: 'Exo 2', sans-serif;">
-      <strong style="color: #000000;">Prezado(a) Sr(a). ${clientName}</strong>,
-    </p>
-  </td>
-</tr>
+<div style="padding: 20px 24px 0 24px; font-family: 'Exo 2', sans-serif;">
+  <p style="margin: 0; font-size: 14px; color: #1f2937; font-weight: normal; font-family: 'Exo 2', sans-serif;">
+    <strong style="color: #000000;">Prezado(a) Sr(a). ${clientName}</strong>,
+  </p>
+</div>
 `.trim()
 
+// Tom suave — fundo claro em vez do cinza-escuro anterior, mais discreto.
 export const emailFooter = (supportEmail: string, supportPhone: string, companyName: string) => `
-<tr>
-  <td style="padding: 20px 24px; background: #374151; text-align: center; font-family: 'Exo 2', sans-serif;">
-    <p style="margin: 0; color: #f3f4f6; font-size: 13px; font-weight: 600; letter-spacing: 1px; font-family: 'Exo 2', sans-serif;">${companyName.toUpperCase()}</p>
-    <p style="margin: 8px 0 0 0; color: #d1d5db; font-size: 10px; font-family: 'Exo 2', sans-serif;">
-      © ${new Date().getFullYear()} Todos os direitos reservados
-    </p>
-  </td>
-</tr>
+<div style="padding: 18px 24px; background: #f8fafc; text-align: center; border-top: 1px solid #e2e8f0; font-family: 'Exo 2', sans-serif;">
+  <p style="margin: 0; color: #64748b; font-size: 12px; font-weight: 600; letter-spacing: 1px; font-family: 'Exo 2', sans-serif;">${companyName.toUpperCase()}</p>
+  <p style="margin: 6px 0 0 0; color: #94a3b8; font-size: 10px; font-family: 'Exo 2', sans-serif;">
+    © ${new Date().getFullYear()} Todos os direitos reservados
+  </p>
+</div>
 `.trim()
 
 export const emailAttentionCard = (supportEmail: string, dashboardLink?: string, clientAreaLink?: string) => `
@@ -569,16 +567,22 @@ export function processTemplate(
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>${processed.emailSubject}</title>
 </head>
-<body style="margin: 0; padding: 0; font-family: 'Exo 2', sans-serif; background: #ffffff;">
-  <table width="100%" cellpadding="0" cellspacing="0" border="0" style="font-family: 'Exo 2', sans-serif; background: #ffffff;">
+<body style="margin: 0; padding: 0; font-family: 'Exo 2', sans-serif; background: #f3f4f6;">
+  <table width="100%" cellpadding="0" cellspacing="0" border="0" style="font-family: 'Exo 2', sans-serif;">
     ${header}
-    ${greeting}
     <tr>
-      <td style="padding: 20px 24px;">
-        ${fullContent}
+      <td align="center" style="padding: 24px 12px; background: #f3f4f6; font-family: 'Exo 2', sans-serif;">
+        <table width="600" cellpadding="0" cellspacing="0" border="0" style="max-width: 600px; width: 100%; background: #ffffff; border: 1px solid #e5e7eb; font-family: 'Exo 2', sans-serif;">
+          <tr><td>${greeting}</td></tr>
+          <tr>
+            <td style="padding: 20px 24px;">
+              ${fullContent}
+            </td>
+          </tr>
+          <tr><td>${footer}</td></tr>
+        </table>
       </td>
     </tr>
-    ${footer}
   </table>
 </body>
 </html>

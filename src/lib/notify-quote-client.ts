@@ -6,6 +6,9 @@ const SUPPORT_EMAIL = 'suporte@visualdesignmoz.com';
 const SUPPORT_PHONE = '+258 85 242 5525';
 const COMPANY_NAME = 'VisualDesign';
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'https://visualdesignmoz.com';
+// noreply propositado — estas notificações nunca esperam resposta por email,
+// só servem para levar o cliente de volta ao painel (conversa/estado ficam lá).
+const NOREPLY_EMAIL = 'noreply@visualdesignmoz.com';
 
 const APPROVAL_NOTICE =
   'Brevemente irá receber layouts de design para aprovação, de forma a avançarmos com a produção. ' +
@@ -35,12 +38,18 @@ function buildClientEmailHtml(params: {
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>${title}</title>
 </head>
-<body style="margin: 0; padding: 0; font-family: 'Exo 2', sans-serif; background: #ffffff;">
-  <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background: #ffffff;">
+<body style="margin: 0; padding: 0; font-family: 'Exo 2', sans-serif; background: #f3f4f6;">
+  <table width="100%" cellpadding="0" cellspacing="0" border="0">
     ${emailHeader(COMPANY_NAME)}
-    ${emailGreeting(clientName)}
-    <tr><td style="padding: 20px 24px;">${wrapContentInFrame(body, 'low')}</td></tr>
-    ${emailFooter(SUPPORT_EMAIL, SUPPORT_PHONE, COMPANY_NAME)}
+    <tr>
+      <td align="center" style="padding: 24px 12px; background: #f3f4f6;">
+        <table width="600" cellpadding="0" cellspacing="0" border="0" style="max-width: 600px; width: 100%; background: #ffffff; border: 1px solid #e5e7eb;">
+          <tr><td>${emailGreeting(clientName)}</td></tr>
+          <tr><td style="padding: 20px 24px;">${wrapContentInFrame(body, 'low')}</td></tr>
+          <tr><td>${emailFooter(SUPPORT_EMAIL, SUPPORT_PHONE, COMPANY_NAME)}</td></tr>
+        </table>
+      </td>
+    </tr>
   </table>
 </body>
 </html>
@@ -78,6 +87,7 @@ export async function notifyQuoteClientStatusChange(params: {
       to,
       subject: title,
       html: buildClientEmailHtml({ clientName, title, message }),
+      from: NOREPLY_EMAIL,
       category: 'transactional',
     });
   } catch (err) {
@@ -106,6 +116,7 @@ export async function notifyQuoteClientNewMessage(params: {
       to,
       subject: title,
       html: buildClientEmailHtml({ clientName, title, message: body, ctaLink, ctaText: 'Ver conversa' }),
+      from: NOREPLY_EMAIL,
       category: 'transactional',
     });
   } catch (err) {
@@ -134,6 +145,7 @@ export async function notifyQuoteClientPriceDefined(params: {
       to,
       subject: title,
       html: buildClientEmailHtml({ clientName, title, message }),
+      from: NOREPLY_EMAIL,
       category: 'transactional',
     });
   } catch (err) {
@@ -162,6 +174,7 @@ export async function notifyQuoteClientNewLayout(params: {
       to,
       subject: title,
       html: buildClientEmailHtml({ clientName, title, message: body }),
+      from: NOREPLY_EMAIL,
       category: 'transactional',
     });
   } catch (err) {

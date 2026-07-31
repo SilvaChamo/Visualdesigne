@@ -1,6 +1,6 @@
 import { createClient as createAdminClient } from '@supabase/supabase-js';
 import { sendEmail } from '@/lib/email-service';
-import { emailHeader, emailGreeting, emailFooter, wrapContentInFrame } from '@/lib/renewal-templates';
+import { emailHeader, emailGreeting, emailFooter } from '@/lib/renewal-templates';
 
 const TEAM_EMAIL = 'geral@visualdesignmoz.com';
 const SUPPORT_EMAIL = 'suporte@visualdesignmoz.com';
@@ -8,10 +8,15 @@ const SUPPORT_PHONE = '+258 85 242 5525';
 const COMPANY_NAME = 'VisualDesign';
 
 function buildTeamEmailHtml(title: string, message: string, link?: string) {
+  // Cartão suave, sem linha de destaque colorida — arredondamento pequeno,
+  // igual ao dos cartões do painel/site (não o "quadro" com barra de urgência
+  // usado noutros emails).
   const body = `
-    <h2 style="margin: 0 0 12px 0; color: #111827; font-size: 18px;">${title}</h2>
-    <p style="margin: 0; color: #374151; font-size: 14px; line-height: 1.6; white-space: pre-line;">${message}</p>
-    ${link ? `<p style="margin: 20px 0 0 0;"><a href="${link}" style="display: inline-block; padding: 10px 20px; background: #dc2626; color: #ffffff; text-decoration: none; border-radius: 6px; font-size: 14px;">Ver no painel</a></p>` : ''}
+    <div style="background: #f9fafb; border-radius: 8px; padding: 20px; font-family: 'Exo 2', sans-serif;">
+      <h2 style="margin: 0 0 12px 0; color: #111827; font-size: 18px;">${title}</h2>
+      <p style="margin: 0; color: #374151; font-size: 14px; line-height: 1.6; white-space: pre-line;">${message}</p>
+      ${link ? `<p style="margin: 20px 0 0 0;"><a href="${link}" style="display: inline-block; padding: 10px 20px; background: #dc2626; color: #ffffff; text-decoration: none; border-radius: 6px; font-size: 14px;">Ver no painel</a></p>` : ''}
+    </div>
   `;
 
   return `
@@ -22,12 +27,18 @@ function buildTeamEmailHtml(title: string, message: string, link?: string) {
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>${title}</title>
 </head>
-<body style="margin: 0; padding: 0; font-family: 'Exo 2', sans-serif; background: #ffffff;">
-  <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background: #ffffff;">
+<body style="margin: 0; padding: 0; font-family: 'Exo 2', sans-serif; background: #f3f4f6;">
+  <table width="100%" cellpadding="0" cellspacing="0" border="0">
     ${emailHeader(COMPANY_NAME)}
-    ${emailGreeting('Equipa')}
-    <tr><td style="padding: 20px 24px;">${wrapContentInFrame(body, 'medium')}</td></tr>
-    ${emailFooter(SUPPORT_EMAIL, SUPPORT_PHONE, COMPANY_NAME)}
+    <tr>
+      <td align="center" style="padding: 24px 12px; background: #f3f4f6;">
+        <table width="600" cellpadding="0" cellspacing="0" border="0" style="max-width: 600px; width: 100%; background: #ffffff; border: 1px solid #e5e7eb;">
+          <tr><td>${emailGreeting('VisualDesign')}</td></tr>
+          <tr><td style="padding: 20px 24px;">${body}</td></tr>
+          <tr><td>${emailFooter(SUPPORT_EMAIL, SUPPORT_PHONE, COMPANY_NAME)}</td></tr>
+        </table>
+      </td>
+    </tr>
   </table>
 </body>
 </html>

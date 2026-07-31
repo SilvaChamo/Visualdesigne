@@ -52,12 +52,18 @@ function buildNotificationEmailHtml(params: {
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>${title}</title>
 </head>
-<body style="margin: 0; padding: 0; font-family: 'Exo 2', sans-serif; background: #ffffff;">
-  <table width="100%" cellpadding="0" cellspacing="0" border="0" style="font-family: 'Exo 2', sans-serif; background: #ffffff;">
+<body style="margin: 0; padding: 0; font-family: 'Exo 2', sans-serif; background: #f3f4f6;">
+  <table width="100%" cellpadding="0" cellspacing="0" border="0" style="font-family: 'Exo 2', sans-serif;">
     ${emailHeader(COMPANY_NAME)}
-    ${emailGreeting(clientName)}
-    <tr><td style="padding: 20px 24px;">${wrapContentInFrame(body, urgencyForType(type))}</td></tr>
-    ${emailFooter(SUPPORT_EMAIL, SUPPORT_PHONE, COMPANY_NAME)}
+    <tr>
+      <td align="center" style="padding: 24px 12px; background: #f3f4f6; font-family: 'Exo 2', sans-serif;">
+        <table width="600" cellpadding="0" cellspacing="0" border="0" style="max-width: 600px; width: 100%; background: #ffffff; border: 1px solid #e5e7eb; font-family: 'Exo 2', sans-serif;">
+          <tr><td>${emailGreeting(clientName)}</td></tr>
+          <tr><td style="padding: 20px 24px;">${wrapContentInFrame(body, urgencyForType(type))}</td></tr>
+          <tr><td>${emailFooter(SUPPORT_EMAIL, SUPPORT_PHONE, COMPANY_NAME)}</td></tr>
+        </table>
+      </td>
+    </tr>
   </table>
 </body>
 </html>

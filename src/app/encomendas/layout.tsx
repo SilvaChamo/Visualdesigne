@@ -37,7 +37,13 @@ export default async function EncomendasLayout({ children }: { children: React.R
 
   return (
     <div className="flex h-screen flex-col">
-      {impersonatedLabel && <ImpersonationBanner label={impersonatedLabel} />}
+      {impersonatedLabel && (
+        <ImpersonationBanner
+          label={impersonatedLabel}
+          exitEndpoint="/api/admin/cotacoes/clientes/entrar"
+          exitRedirect="/dashboard?section=cotacoes-contas"
+        />
+      )}
       <div className="flex-1 min-h-0">{children}</div>
     </div>
   );

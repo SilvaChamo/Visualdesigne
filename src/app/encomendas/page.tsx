@@ -9,18 +9,16 @@ import { panelBtnSecondary } from '@/lib/panel-ui';
 import { usePanelSidebarCollapsed } from '@/hooks/usePanelSidebarCollapsed';
 import { EncomendasSidebar, type EncomendasSection } from '@/components/encomendas/EncomendasSidebar';
 import { EncomendasListSection } from '@/components/encomendas/EncomendasListSection';
-import { EncomendasLayoutsSection } from '@/components/encomendas/EncomendasLayoutsSection';
 import { EncomendasMensagensSection } from '@/components/encomendas/EncomendasMensagensSection';
 import { EncomendasPagamentosSection } from '@/components/encomendas/EncomendasPagamentosSection';
 
 const SECTION_META: Record<EncomendasSection, { title: string; description: string }> = {
   encomendas: { title: 'Encomendas', description: 'Painel VisualDesign — acompanhamento de pedidos e aprovação de layouts' },
-  layouts: { title: 'Layouts', description: 'Layouts de design enviados pela equipa, por fase, para sua aprovação' },
-  mensagens: { title: 'Mensagens', description: 'Fale com a equipa sobre uma encomenda específica' },
+  mensagens: { title: 'Mensagens', description: 'Fale com a equipa, veja layouts e anexos de uma encomenda específica' },
   pagamentos: { title: 'Pagamentos', description: 'Estado e instruções de pagamento das suas encomendas' },
 };
 
-const VALID_SECTIONS: EncomendasSection[] = ['encomendas', 'layouts', 'mensagens', 'pagamentos'];
+const VALID_SECTIONS: EncomendasSection[] = ['encomendas', 'mensagens', 'pagamentos'];
 
 export default function EncomendasPage() {
   const searchParams = useSearchParams();
@@ -32,6 +30,7 @@ export default function EncomendasPage() {
 
   const [activeSection, setActiveSection] = useState<EncomendasSection>(initialSection);
   const [sessionEmail, setSessionEmail] = useState<string | null>(null);
+  const [unreadMensagens, setUnreadMensagens] = useState(0);
   const { isCollapsed, setIsCollapsed } = usePanelSidebarCollapsed();
 
   useEffect(() => {
@@ -40,6 +39,15 @@ export default function EncomendasPage() {
       setSessionEmail(data.user?.email ?? null);
     })();
   }, []);
+
+  const refreshUnreadMensagens = () => {
+    fetch('/api/cotacoes')
+      .then((r) => r.json())
+      .then((data) => { if (data.success) setUnreadMensagens(data.unreadTotal || 0); })
+      .catch(() => {});
+  };
+
+  useEffect(() => { refreshUnreadMensagens(); }, []);
 
   const handleSignOut = async () => {
     await supabase.auth.signOut();
@@ -56,6 +64,7 @@ export default function EncomendasPage() {
         isCollapsed={isCollapsed}
         setIsCollapsed={setIsCollapsed}
         sessionUser={sessionEmail}
+        unreadCounts={{ mensagens: unreadMensagens }}
       />
       <div className="flex-1 flex flex-col min-w-0">
         <PanelHeader
@@ -70,8 +79,7 @@ export default function EncomendasPage() {
         />
         <main className="flex-1 overflow-y-auto p-4 lg:p-6">
           {activeSection === 'encomendas' && <EncomendasListSection />}
-          {activeSection === 'layouts' && <EncomendasLayoutsSection />}
-          {activeSection === 'mensagens' && <EncomendasMensagensSection initialQuotationId={initialQuotationId} />}
+          {activeSection === 'mensagens' && <EncomendasMensagensSection initialQuotationId={initialQuotationId} onMessageSent={refreshUnreadMensagens} />}
           {activeSection === 'pagamentos' && <EncomendasPagamentosSection />}
         </main>
       </div>

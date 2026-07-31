@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { RefreshCw, Search, Send, LayoutTemplate, X, MoreVertical, Plus, Eye, EyeOff, RotateCcw, Check } from 'lucide-react';
+import { RefreshCw, Search, Send, LayoutTemplate, X, MoreVertical, Plus, Eye, EyeOff, RotateCcw, Check, Merge } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -40,6 +40,7 @@ export function EncomendasClientesSection({ isActive }: { isActive: boolean }) {
   const [showComposer, setShowComposer] = useState(false);
   const [openMenu, setOpenMenu] = useState<{ userId: string; rect: DOMRect } | null>(null);
   const [accountModal, setAccountModal] = useState<{ mode: 'create' | 'edit'; cliente: EncomendaCliente | null } | null>(null);
+  const [mergeModal, setMergeModal] = useState<[EncomendaCliente, EncomendaCliente] | null>(null);
 
   const { setChrome } = useAdminSectionChrome();
   useEffect(() => {
@@ -112,6 +113,24 @@ export function EncomendasClientesSection({ isActive }: { isActive: boolean }) {
     }
   };
 
+  const handleMerge = async (keep: EncomendaCliente, merge: EncomendaCliente) => {
+    try {
+      const res = await fetch('/api/admin/cotacoes/clientes/fundir', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ keepUserId: keep.userId, mergeUserId: merge.userId }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) throw new Error(data.error || 'Erro ao fundir contas');
+      toast.success('Contas fundidas.');
+      setMergeModal(null);
+      setSelectedIds([]);
+      fetchClientes();
+    } catch (err: any) {
+      toast.error(err?.message || 'Erro ao fundir contas');
+    }
+  };
+
   const handleEntrar = async (cliente: EncomendaCliente) => {
     try {
       const res = await fetch('/api/admin/cotacoes/clientes/entrar', {
@@ -140,6 +159,20 @@ export function EncomendasClientesSection({ isActive }: { isActive: boolean }) {
           />
         </div>
         <div className="flex items-center gap-2">
+          {selectedIds.length === 2 && (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => {
+                const [a, b] = clientes.filter((c) => selectedIds.includes(c.userId));
+                if (a && b) setMergeModal([a, b]);
+              }}
+              className="h-9 border-amber-300 text-amber-700 hover:bg-amber-50 dark:border-amber-900/50 dark:text-amber-400 dark:hover:bg-amber-950/30 rounded-md"
+            >
+              <Merge className="w-4 h-4 mr-2" />
+              Fundir contas
+            </Button>
+          )}
           {selectedIds.length > 0 && (
             <Button
               size="sm"
@@ -269,7 +302,81 @@ export function EncomendasClientesSection({ isActive }: { isActive: boolean }) {
           onClose={() => setShowComposer(false)}
         />
       )}
+
+      {mergeModal && (
+        <MergeAccountsModal
+          accounts={mergeModal}
+          onClose={() => setMergeModal(null)}
+          onConfirm={handleMerge}
+        />
+      )}
     </div>
+  );
+}
+
+// Duas contas duplicadas da mesma pessoa — o admin escolhe qual fica; a
+// outra é eliminada e as suas encomendas passam para a que ficou.
+function MergeAccountsModal({
+  accounts,
+  onClose,
+  onConfirm,
+}: {
+  accounts: [EncomendaCliente, EncomendaCliente];
+  onClose: () => void;
+  onConfirm: (keep: EncomendaCliente, merge: EncomendaCliente) => void;
+}) {
+  const [keepId, setKeepId] = useState(accounts[0].userId);
+  const [confirming, setConfirming] = useState(false);
+  const keep = accounts.find((c) => c.userId === keepId)!;
+  const merge = accounts.find((c) => c.userId !== keepId)!;
+
+  return createPortal(
+    <div className="fixed inset-0 bg-gray-900/40 dark:bg-black/60 z-[100] flex items-center justify-center p-4">
+      <div className="bg-white dark:bg-zinc-900 rounded-lg shadow-xl border border-gray-200 dark:border-zinc-800 w-full max-w-md overflow-hidden">
+        <div className="px-6 py-4 border-b border-gray-200 dark:border-zinc-800">
+          <h2 className="text-base font-bold text-gray-800 dark:text-white">Fundir contas duplicadas</h2>
+          <p className="text-xs text-gray-500 dark:text-zinc-400 mt-0.5">Escolha qual conta fica — a outra é eliminada e as suas encomendas passam para a que ficar.</p>
+        </div>
+
+        <div className="p-6 space-y-2">
+          {accounts.map((c) => (
+            <button
+              key={c.userId}
+              type="button"
+              onClick={() => setKeepId(c.userId)}
+              className={`w-full text-left flex items-center gap-3 p-3 rounded-lg border transition-all ${
+                keepId === c.userId
+                  ? 'border-teal-400 bg-teal-50/50 dark:bg-teal-950/10 dark:border-teal-900/50'
+                  : 'border-zinc-200 dark:border-zinc-800 hover:border-zinc-300'
+              }`}
+            >
+              <div className={`w-4 h-4 rounded-full border-2 shrink-0 flex items-center justify-center ${keepId === c.userId ? 'border-teal-500' : 'border-zinc-300'}`}>
+                {keepId === c.userId && <div className="w-2 h-2 rounded-full bg-teal-500" />}
+              </div>
+              <div className="min-w-0">
+                <p className="font-medium text-sm text-gray-900 dark:text-white truncate">{c.responsavel || c.email}</p>
+                <p className="text-xs text-gray-500 dark:text-zinc-400 truncate">{c.email} · {c.encomendas} encomenda{c.encomendas === 1 ? '' : 's'}</p>
+              </div>
+              {keepId === c.userId && <span className="ml-auto shrink-0 text-[10px] font-bold text-teal-600 dark:text-teal-400 uppercase">Fica</span>}
+            </button>
+          ))}
+        </div>
+
+        <div className="px-6 py-4 bg-gray-50 dark:bg-zinc-800/50 border-t border-gray-100 dark:border-zinc-800 flex items-center justify-end gap-2">
+          <button type="button" onClick={onClose} className={panelBtnSecondary} disabled={confirming}>Cancelar</button>
+          <button
+            type="button"
+            onClick={async () => { setConfirming(true); await onConfirm(keep, merge); setConfirming(false); }}
+            disabled={confirming}
+            className="inline-flex items-center gap-2 bg-amber-600 hover:bg-amber-700 text-white font-bold px-4 py-2 rounded-md text-sm transition-colors disabled:opacity-60"
+          >
+            {confirming ? <Spinner className="w-3.5 h-3.5" /> : <Merge className="w-3.5 h-3.5" />}
+            Fundir — eliminar "{merge.responsavel || merge.email}"
+          </button>
+        </div>
+      </div>
+    </div>,
+    document.body,
   );
 }
 
@@ -302,9 +409,9 @@ function RowActionsMenu({
     top = Math.min(Math.max(8, top), window.innerHeight - estimatedH - 8);
   }
 
-  let left = anchorRect.left - menuW - 4;
+  let left = anchorRect.left - menuW;
   if (typeof window !== 'undefined' && left < 8) {
-    left = anchorRect.right + 4;
+    left = anchorRect.right;
   }
 
   useEffect(() => {
@@ -333,7 +440,7 @@ function RowActionsMenu({
           key={item.id}
           type="button"
           onClick={() => { onAction(item.id); onClose(); }}
-          className={`block w-full whitespace-nowrap text-left px-3 py-1.5 transition-colors hover:text-red-600 dark:hover:bg-transparent dark:hover:text-red-400 ${
+          className={`block w-full whitespace-nowrap text-left px-[15px] py-1.5 transition-colors hover:text-red-600 dark:hover:bg-transparent dark:hover:text-red-400 ${
             item.danger ? 'text-red-600 dark:text-red-400' : 'text-zinc-700 dark:text-zinc-200'
           }`}
         >

@@ -8,7 +8,7 @@ import { formatMt } from '@/lib/pricing-catalog';
 import { statusMeta, computeBatchStatus } from '@/lib/quotation-status-labels';
 import { panelTabBar, panelTabBtn, panelTabBtnActive, panelTabBtnInactive, panelBtnPrimary, panelBtnSecondary } from '@/lib/panel-ui';
 import { QuotationHistoryTimeline } from '@/components/quotations/QuotationHistoryTimeline';
-import { QuotationAttachmentsList } from '@/components/quotations/QuotationAttachmentsList';
+import { QuotationMessagesThread } from '@/components/quotations/QuotationMessagesThread';
 import { EncomendaEditForm } from '@/components/quotations/EncomendaEditForm';
 
 type QuotationRow = {
@@ -30,12 +30,14 @@ type QuotationRow = {
   created_at: string;
 };
 
-type Tab = 'detalhes' | 'historico' | 'anexos' | 'cotacao' | 'facturas';
+type Tab = 'detalhes' | 'historico' | 'mensagens' | 'cotacao' | 'facturas';
 
+// Anexos e Layouts deixaram de ser abas — vivem dentro da conversa em
+// "Mensagens" (QuotationMessagesThread mostra tudo inline).
 const TABS: { id: Tab; label: string }[] = [
   { id: 'detalhes', label: 'Detalhes da Encomenda' },
   { id: 'historico', label: 'Histórico' },
-  { id: 'anexos', label: 'Anexos' },
+  { id: 'mensagens', label: 'Mensagens' },
   { id: 'cotacao', label: 'Cotação' },
   { id: 'facturas', label: 'Facturas' },
 ];
@@ -294,7 +296,7 @@ export function EncomendaDetalhe({
           </div>
         )}
         {tab === 'historico' && <div className="p-4"><QuotationHistoryTimeline quotationId={primary.id} /></div>}
-        {tab === 'anexos' && <div className="p-4"><QuotationAttachmentsList quotationId={primary.id} viewerRole="client" /></div>}
+        {tab === 'mensagens' && <div className="p-4 h-[520px] mx-auto max-w-xl"><QuotationMessagesThread quotationId={primary.id} viewerRole="client" /></div>}
         {tab === 'cotacao' && (
           <iframe
             key={primary.id}
