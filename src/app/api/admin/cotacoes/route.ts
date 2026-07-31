@@ -192,11 +192,15 @@ export async function PATCH(request: Request) {
       return NextResponse.json({ success: true, cotacoes: data });
     }
 
-    // Definir o valor de um item "Sob Consulta" (catálogo sem preço fixo, ou
-    // pedido personalizado) — a equipa fecha o orçamento com o cliente por
-    // fora e regista aqui o valor final. Assim que a linha muda, o painel do
-    // cliente já mostra o preço (lê sempre ao vivo de quotation_requests); o
-    // email só avisa que há resposta à espera.
+    // Define/edita o valor unitário de um item "Sob Consulta" — tanto para o
+    // fechar pela primeira vez como para o reeditar mais tarde, se for
+    // preciso corrigir. Restrito a itens que nasceram Sob Consulta
+    // (sob_consulta_original) — a equipa não tem o direito de alterar o preço
+    // de um item de catálogo com valor fixo, só de negociar e registar o
+    // valor dos pedidos personalizados/sem preço de tabela. Assim que a linha
+    // muda, o painel do cliente já mostra o preço (lê sempre ao vivo de
+    // quotation_requests); o email de "valor definido" só sai da primeira vez
+    // (transição sob_consulta -> com preço), não em reedições seguintes.
     if (id && precoUnitarioMt !== undefined && status === undefined) {
       const valor = Number(precoUnitarioMt);
       if (!Number.isFinite(valor) || valor <= 0) {
@@ -206,16 +210,17 @@ export async function PATCH(request: Request) {
       const supabase = getSupabaseAdmin();
       const { data: existing, error: existingError } = await supabase
         .from('quotation_requests')
-        .select('quantidade, sob_consulta, produto, empresa, responsavel, email')
+        .select('quantidade, sob_consulta, sob_consulta_original, produto, empresa, responsavel, email')
         .eq('id', id)
         .single();
 
       if (existingError || !existing) {
         return NextResponse.json({ success: false, error: 'Cotação não encontrada.' }, { status: 404 });
       }
-      if (!existing.sob_consulta) {
-        return NextResponse.json({ success: false, error: 'Este item já tem um valor fixo — não é "Sob Consulta".' }, { status: 409 });
+      if (!existing.sob_consulta_original) {
+        return NextResponse.json({ success: false, error: 'Este item tem valor de catálogo — só itens "Sob Consulta" podem ter o preço definido pela equipa.' }, { status: 409 });
       }
+      const wasSobConsulta = existing.sob_consulta;
 
       const totalMt = Math.round(valor * existing.quantidade * 100) / 100;
       const { data, error } = await supabase
@@ -227,12 +232,14 @@ export async function PATCH(request: Request) {
 
       if (error) throw error;
 
-      notifyQuoteClientPriceDefined({
-        to: existing.email,
-        clientName: existing.responsavel || existing.empresa,
-        produto: existing.produto,
-        valorMt: totalMt,
-      }).catch((err) => console.error('[admin/cotacoes] falha ao notificar cliente do valor definido:', err));
+      if (wasSobConsulta) {
+        notifyQuoteClientPriceDefined({
+          to: existing.email,
+          clientName: existing.responsavel || existing.empresa,
+          produto: existing.produto,
+          valorMt: totalMt,
+        }).catch((err) => console.error('[admin/cotacoes] falha ao notificar cliente do valor definido:', err));
+      }
 
       return NextResponse.json({ success: true, cotacao: data });
     }
@@ -317,8 +324,12 @@ export async function PATCH(request: Request) {
     // actualizado item-a-item (uma encomenda com vários serviços pode
     // disparar este PATCH várias vezes para o mesmo lote), o upsert com
     // `ignoreDuplicates` garante um único registo por fase, sem sobrescrever
-    // um valor já confirmado/corrigido manualmente.
-    if (status === 'approved' || status === 'done') {
+    // um valor já confirmado/corrigido manualmente. O remanescente só pode
+    // ser registado quando TODOS os itens do lote já estão 'done' — caso
+    // contrário, marcar um único item como "Entregue" (agora possível
+    // directamente no dropdown de estado por item) registaria o remanescente
+    // como recebido antes de a encomenda estar mesmo concluída.
+    if (status === 'approved' || (status === 'done' && computeBatchStatus(siblings) === 'done')) {
       try {
         const phase = status === 'approved' ? 'advance' : 'remainder';
         const valorMt = Math.round(batchTotal * (phase === 'advance' ? 0.7 : 0.3) * 100) / 100;
@@ -332,7 +343,7 @@ export async function PATCH(request: Request) {
           );
         if (paymentError) throw paymentError;
 
-        if (status === 'done' && computeBatchStatus(siblings) === 'done') {
+        if (status === 'done') {
           // Segunda factura da encomenda — remanescente, só emitida quando a
           // encomenda fica mesmo paga na totalidade (a do adiantamento já foi
           // emitida em 'approved', mais acima) e só se houver valor real.
@@ -389,12 +400,74 @@ export async function DELETE(request: Request) {
   }
 
   try {
-    const { batchId } = (await request.json()) || {};
-    if (!batchId) {
-      return NextResponse.json({ success: false, error: 'batchId é obrigatório.' }, { status: 400 });
+    const { batchId, itemId } = (await request.json()) || {};
+    if (!batchId && !itemId) {
+      return NextResponse.json({ success: false, error: 'batchId ou itemId é obrigatório.' }, { status: 400 });
     }
 
     const supabase = getSupabaseAdmin();
+
+    // Elimina um único item (linha) da encomenda — só antes de a encomenda
+    // ter factura emitida (ainda 'pending'/'payment_selected'), para não
+    // desalinhar uma factura já gerada com os itens que a compõem. Anexos,
+    // layouts, mensagens e histórico desse item saem via ON DELETE CASCADE
+    // (mensagens/histórico) ou são removidos do storage aqui (anexos/layouts).
+    if (itemId) {
+      const { data: item, error: itemError } = await supabase
+        .from('quotation_requests')
+        .select('id, batch_id, status')
+        .eq('id', itemId)
+        .single();
+
+      if (itemError || !item) {
+        return NextResponse.json({ success: false, error: 'Item não encontrado.' }, { status: 404 });
+      }
+      if (item.status !== 'pending' && item.status !== 'payment_selected') {
+        return NextResponse.json(
+          { success: false, error: 'Só é possível eliminar itens antes de a encomenda ser aprovada.' },
+          { status: 409 },
+        );
+      }
+
+      const { count } = await supabase
+        .from('quotation_requests')
+        .select('id', { count: 'exact', head: true })
+        .eq('batch_id', item.batch_id);
+
+      if ((count ?? 0) <= 1) {
+        return NextResponse.json(
+          { success: false, error: 'É o único item da encomenda — elimine a encomenda inteira.' },
+          { status: 409 },
+        );
+      }
+
+      const { data: attachments } = await supabase
+        .from('quotation_attachments')
+        .select('file_url')
+        .eq('quotation_id', itemId);
+      if (attachments && attachments.length > 0) {
+        const paths = attachments
+          .map((a) => a.file_url.split(`${QUOTATION_ATTACHMENTS_BUCKET}/`)[1])
+          .filter((p): p is string => Boolean(p));
+        if (paths.length > 0) await supabase.storage.from(QUOTATION_ATTACHMENTS_BUCKET).remove(paths);
+      }
+
+      const { data: layouts } = await supabase
+        .from('quotation_layouts')
+        .select('file_url')
+        .eq('quotation_id', itemId);
+      if (layouts && layouts.length > 0) {
+        const paths = layouts
+          .map((l) => l.file_url.split(`${QUOTATION_LAYOUTS_BUCKET}/`)[1])
+          .filter((p): p is string => Boolean(p));
+        if (paths.length > 0) await supabase.storage.from(QUOTATION_LAYOUTS_BUCKET).remove(paths);
+      }
+
+      const { error: itemDeleteError } = await supabase.from('quotation_requests').delete().eq('id', itemId);
+      if (itemDeleteError) throw itemDeleteError;
+
+      return NextResponse.json({ success: true });
+    }
 
     const { data: batchItems, error: batchError } = await supabase
       .from('quotation_requests')
@@ -469,6 +542,15 @@ export async function DELETE(request: Request) {
 
     const { error: deleteError } = await supabase.from('quotation_requests').delete().in('id', ids);
     if (deleteError) throw deleteError;
+
+    // A encomenda pode já ter um registo fixo na Contabilidade (ver
+    // saveAccountingSnapshot, em PATCH) — marca-o como eliminado em vez de o
+    // apagar, para sair do Balanço mas continuar disponível na aba
+    // "Eliminadas". Sem efeito (0 linhas afectadas) se nunca chegou a existir.
+    await supabase
+      .from('accounting_batch_snapshots')
+      .update({ deleted_at: new Date().toISOString() })
+      .eq('batch_id', batchId);
 
     return NextResponse.json({ success: true });
   } catch (error: any) {

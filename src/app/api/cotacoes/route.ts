@@ -22,9 +22,15 @@ export async function GET() {
       return NextResponse.json({ error: 'Não foi possível carregar as cotações.' }, { status: 503 });
     }
 
+    // Os campos de empresa/responsável vão incluídos (são só do próprio
+    // utilizador, filtrado por user_id) para permitir reaproveitar os dados
+    // da última encomenda ao pedir uma nova a partir do painel — sem ter de
+    // preencher tudo outra vez.
     const { data: quotations, error } = await admin
       .from('quotation_requests')
-      .select('id, batch_id, categoria_id, categoria_label, produto, quantidade, total_mt, sob_consulta, status, data_limite_entrega, metodo_pagamento, remanescente_metodo_pagamento, created_at')
+      .select(
+        'id, batch_id, categoria_id, categoria_label, produto, quantidade, total_mt, sob_consulta, status, data_limite_entrega, metodo_pagamento, remanescente_metodo_pagamento, created_at, empresa, nif, endereco, telefone_institucional, email_institucional, website, responsavel, cargo, telefone, email',
+      )
       .eq('user_id', user.id)
       .order('created_at', { ascending: false });
 
@@ -183,6 +189,7 @@ export async function POST(request: NextRequest) {
       data_limite_entrega: dataLimiteEntrega,
       total_mt: totalMt,
       sob_consulta: sobConsulta,
+      sob_consulta_original: sobConsulta,
       notas: notas || null,
       status: 'pending',
     }));

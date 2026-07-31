@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { ChevronDown, ChevronRight } from 'lucide-react'
+import { ChevronDown, ChevronRight, Trash2, RotateCcw } from 'lucide-react'
 import {
   panelSectionCard,
   panelTabBar, panelTabBtn, panelTabBtnActive, panelTabBtnInactive,
@@ -42,6 +42,22 @@ type RegistoRow = {
   iva_mt: number
   lucro_mt: number
   done_at: string
+  deleted_at?: string | null
+}
+
+async function setRegistoDeleted(batchId: string, deleted: boolean): Promise<boolean> {
+  try {
+    const res = await fetch('/api/admin/contabilidade', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ batchId, deleted }),
+    })
+    const data = await res.json()
+    return Boolean(data.success)
+  } catch (error) {
+    console.error('Erro ao actualizar registo de contabilidade:', error)
+    return false
+  }
 }
 
 const MES_LABEL = new Intl.DateTimeFormat('pt-PT', { month: 'long', timeZone: 'UTC' })
@@ -68,7 +84,7 @@ function openDocumentPopup(itemId: string, tipo?: 'factura', fase?: 'adiantament
   window.open(`/cotacao/${itemId}${query}`, `documento-${itemId}-${tipo ?? 'cotacao'}-${fase ?? ''}`, `width=${w},height=${h},left=${left},top=${top},resizable=yes,scrollbars=yes`)
 }
 
-type ContabilidadeTab = 'balanco' | 'cotacoes' | 'facturas' | 'creditos' | 'renovacoes'
+type ContabilidadeTab = 'balanco' | 'cotacoes' | 'facturas' | 'creditos' | 'renovacoes' | 'eliminadas'
 
 const TABS: { id: ContabilidadeTab; label: string }[] = [
   { id: 'balanco', label: 'Balanço' },
@@ -76,11 +92,13 @@ const TABS: { id: ContabilidadeTab; label: string }[] = [
   { id: 'facturas', label: 'Facturas' },
   { id: 'creditos', label: 'Créditos' },
   { id: 'renovacoes', label: 'Renovações' },
+  { id: 'eliminadas', label: 'Eliminadas' },
 ]
 
 export function ContabilidadeTable() {
   const [meses, setMeses] = useState<MonthRow[] | null>(null)
   const [registos, setRegistos] = useState<RegistoRow[] | null>(null)
+  const [eliminados, setEliminados] = useState<RegistoRow[] | null>(null)
   const [fechos, setFechos] = useState<FechoRow[] | null>(null)
   const [activeTab, setActiveTab] = useState<ContabilidadeTab>('balanco')
 
@@ -91,6 +109,7 @@ export function ContabilidadeTable() {
         if (data.success) {
           setMeses(data.meses)
           setRegistos(data.registos ?? [])
+          setEliminados(data.eliminados ?? [])
           setFechos(data.fechos ?? [])
         }
       })
@@ -101,7 +120,7 @@ export function ContabilidadeTable() {
     load()
   }, [])
 
-  if (!meses || !registos || !fechos) {
+  if (!meses || !registos || !eliminados || !fechos) {
     return <div className="text-center py-12 text-sm text-gray-400 dark:text-zinc-500">A carregar contabilidade...</div>
   }
 
@@ -124,7 +143,7 @@ export function ContabilidadeTable() {
 
       {activeTab === 'balanco' && (
         <div className="space-y-4">
-          <BalancoTable meses={meses} registos={registos} />
+          <BalancoTable meses={meses} registos={registos} onChanged={load} />
           <FechoAnualCard meses={meses} fechos={fechos} onClosed={load} />
         </div>
       )}
@@ -132,6 +151,7 @@ export function ContabilidadeTable() {
       {activeTab === 'facturas' && <RegistosTable registos={registos} variant="factura" />}
       {activeTab === 'creditos' && <ResellerCreditsTable />}
       {activeTab === 'renovacoes' && <RenewalPaymentsTable />}
+      {activeTab === 'eliminadas' && <EliminadasTable registos={eliminados} onChanged={load} />}
     </div>
   )
 }
@@ -283,10 +303,20 @@ function ResellerCreditsTable() {
   )
 }
 
-function BalancoTable({ meses, registos }: { meses: MonthRow[]; registos: RegistoRow[] }) {
+function BalancoTable({ meses, registos, onChanged }: { meses: MonthRow[]; registos: RegistoRow[]; onChanged: () => void }) {
   // Aberto por omissão — o objectivo é ver logo as encomendas de cada mês,
   // não escondê-las atrás de mais um clique.
   const [collapsedMonths, setCollapsedMonths] = useState<Set<string>>(new Set())
+  const [removingId, setRemovingId] = useState<string | null>(null)
+
+  const removeRegisto = async (r: RegistoRow) => {
+    if (!window.confirm(`Eliminar o registo de "${r.empresa} — ${r.resumo}" da Contabilidade? Passa para a aba "Eliminadas".`)) return
+    setRemovingId(r.batch_id)
+    const ok = await setRegistoDeleted(r.batch_id, true)
+    setRemovingId(null)
+    if (ok) onChanged()
+    else window.alert('Não foi possível eliminar este registo.')
+  }
 
   if (meses.length === 0) {
     return <div className={`${panelSectionCard} p-8 text-center text-sm text-gray-500 dark:text-zinc-400`}>Ainda não há dados de contabilidade.</div>
@@ -316,6 +346,7 @@ function BalancoTable({ meses, registos }: { meses: MonthRow[]; registos: Regist
               <th className="px-4 py-2 text-right whitespace-nowrap">Custo de produção</th>
               <th className="px-4 py-2 text-right whitespace-nowrap">IVA (16%)</th>
               <th className="px-4 py-2 text-right whitespace-nowrap">Lucro</th>
+              <th className="px-4 py-2 text-right whitespace-nowrap"> </th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100 dark:divide-zinc-800">
@@ -351,6 +382,7 @@ function BalancoTable({ meses, registos }: { meses: MonthRow[]; registos: Regist
                   <td className="whitespace-nowrap px-4 py-2.5 text-right font-bold tabular-nums text-gray-900 dark:text-white">
                     {formatMt(m.lucroMt)} MT
                   </td>
+                  <td className="whitespace-nowrap px-4 py-2.5" />
                 </tr>,
               ]
 
@@ -358,7 +390,7 @@ function BalancoTable({ meses, registos }: { meses: MonthRow[]; registos: Regist
                 if (encomendasDoMes.length === 0) {
                   rows.push(
                     <tr key={`${m.month}-vazio`}>
-                      <td colSpan={5} className="px-4 py-2 pl-10 text-xs text-gray-400 dark:text-zinc-500">
+                      <td colSpan={6} className="px-4 py-2 pl-10 text-xs text-gray-400 dark:text-zinc-500">
                         Nenhuma encomenda concluída neste mês.
                       </td>
                     </tr>,
@@ -383,6 +415,17 @@ function BalancoTable({ meses, registos }: { meses: MonthRow[]; registos: Regist
                         <td className="whitespace-nowrap px-4 py-1.5 text-right text-xs tabular-nums text-gray-500 dark:text-zinc-400">{formatMt(r.custos_producao_mt)} MT</td>
                         <td className="whitespace-nowrap px-4 py-1.5 text-right text-xs tabular-nums text-gray-500 dark:text-zinc-400">{formatMt(r.iva_mt)} MT</td>
                         <td className="whitespace-nowrap px-4 py-1.5 text-right text-xs tabular-nums text-gray-500 dark:text-zinc-400">{formatMt(r.lucro_mt)} MT</td>
+                        <td className="whitespace-nowrap px-4 py-1.5 text-right">
+                          <button
+                            type="button"
+                            onClick={() => removeRegisto(r)}
+                            disabled={removingId === r.batch_id}
+                            className="text-gray-300 hover:text-red-600 dark:text-zinc-600 dark:hover:text-red-400 transition-colors disabled:opacity-40"
+                            title="Eliminar este registo (passa para a aba Eliminadas)"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </td>
                       </tr>
                     )),
                   )
@@ -678,6 +721,74 @@ function RegistosTable({ registos, variant }: { registos: RegistoRow[]; variant:
                     className="text-xs font-medium text-red-600 hover:underline dark:text-red-400"
                   >
                     Ver cotação
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  )
+}
+
+function EliminadasTable({ registos, onChanged }: { registos: RegistoRow[]; onChanged: () => void }) {
+  const [restoringId, setRestoringId] = useState<string | null>(null)
+
+  const restore = async (r: RegistoRow) => {
+    if (!window.confirm(`Restaurar o registo de "${r.empresa} — ${r.resumo}" para o Balanço?`)) return
+    setRestoringId(r.batch_id)
+    const ok = await setRegistoDeleted(r.batch_id, false)
+    setRestoringId(null)
+    if (ok) onChanged()
+    else window.alert('Não foi possível restaurar este registo.')
+  }
+
+  if (registos.length === 0) {
+    return <div className={`${panelSectionCard} p-8 text-center text-sm text-gray-500 dark:text-zinc-400`}>Não há registos eliminados.</div>
+  }
+
+  const sorted = [...registos].sort((a, b) => (b.deleted_at ?? '').localeCompare(a.deleted_at ?? ''))
+
+  return (
+    <div className={`${panelSectionCard} overflow-hidden`}>
+      <div className="border-b border-gray-200 bg-gray-50 px-4 py-3 dark:border-zinc-700 dark:bg-zinc-800/50">
+        <p className="font-bold text-gray-900 dark:text-white">Eliminadas</p>
+        <p className="text-xs text-gray-500 dark:text-zinc-400">
+          Encomendas/facturas eliminadas pelo cliente ou pela equipa — saem do Balanço, Cotações e Facturas, mas ficam guardadas aqui.
+        </p>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b border-gray-200 text-xs font-bold uppercase tracking-wide text-gray-500 dark:border-zinc-700 dark:text-zinc-400">
+              <th className="px-4 py-2 text-left whitespace-nowrap">Nº</th>
+              <th className="px-4 py-2 text-left">Empresa</th>
+              <th className="px-4 py-2 text-left">Resumo</th>
+              <th className="px-4 py-2 text-right whitespace-nowrap">Valor</th>
+              <th className="px-4 py-2 text-right whitespace-nowrap">Eliminada em</th>
+              <th className="px-4 py-2 text-right whitespace-nowrap"> </th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-100 dark:divide-zinc-800">
+            {sorted.map((r) => (
+              <tr key={r.batch_id} className="hover:bg-gray-50 dark:hover:bg-zinc-800/30">
+                <td className="whitespace-nowrap px-4 py-2.5 font-mono text-xs font-bold text-red-600 dark:text-red-400">{r.numero}</td>
+                <td className="max-w-[14rem] truncate px-4 py-2.5 font-medium text-gray-900 dark:text-white">{r.empresa}</td>
+                <td className="max-w-[16rem] truncate px-4 py-2.5 text-gray-500 dark:text-zinc-400">{r.resumo}</td>
+                <td className="whitespace-nowrap px-4 py-2.5 text-right font-bold tabular-nums text-gray-900 dark:text-white">{formatMt(r.receita_mt)} MT</td>
+                <td className="whitespace-nowrap px-4 py-2.5 text-right text-gray-500 dark:text-zinc-400">
+                  {r.deleted_at ? new Date(r.deleted_at).toLocaleDateString('pt-PT') : '—'}
+                </td>
+                <td className="whitespace-nowrap px-4 py-2.5 text-right">
+                  <button
+                    type="button"
+                    onClick={() => restore(r)}
+                    disabled={restoringId === r.batch_id}
+                    className="inline-flex items-center gap-1 text-xs font-medium text-red-600 hover:underline disabled:opacity-50 dark:text-red-400"
+                    title="Restaurar para o Balanço"
+                  >
+                    <RotateCcw className="w-3.5 h-3.5" /> Restaurar
                   </button>
                 </td>
               </tr>

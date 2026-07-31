@@ -433,6 +433,15 @@ export async function DELETE(_request: NextRequest, { params }: { params: Promis
       return NextResponse.json({ error: 'Não foi possível eliminar a encomenda.' }, { status: 500 });
     }
 
+    // A encomenda pode já ter um registo fixo na Contabilidade (ver
+    // saveAccountingSnapshot, em PATCH /api/admin/cotacoes) — marca-o como
+    // eliminado em vez de o apagar, para sair do Balanço da equipa mas
+    // continuar disponível na aba "Eliminadas". Sem efeito se nunca existiu.
+    await admin
+      .from('accounting_batch_snapshots')
+      .update({ deleted_at: new Date().toISOString() })
+      .eq('batch_id', quotation.batch_id);
+
     return NextResponse.json({ success: true });
   } catch (error: unknown) {
     console.error('[cotacoes/[id] DELETE] error:', error);

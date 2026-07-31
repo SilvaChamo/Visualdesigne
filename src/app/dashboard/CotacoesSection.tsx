@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { motion } from 'framer-motion'
 import {
   RefreshCw, Building2, Phone, Mail, Calendar, ChevronDown, History,
-  Inbox, Clock, Factory, PackageCheck, XCircle, CheckCircle2, MessageCircle, X, Calculator, Check, Ban, Trash2,
+  Inbox, Clock, Factory, PackageCheck, XCircle, CheckCircle2, MessageCircle, Calculator, Check, Ban, Pencil,
 } from 'lucide-react'
 import {
   panelBtnSecondary, panelField,
@@ -32,6 +32,12 @@ interface QuotationRequest extends BatchItem {
   email: string
   categoria_label: string
   produto: string
+  // Marca permanente (nunca muda) — ao contrário de sob_consulta, que passa a
+  // false assim que o valor é definido. Usado só para decidir se o lápis de
+  // reeditar o valor continua disponível depois de precificado (ver Pencil,
+  // acima) — a equipa só pode reeditar preços de itens que nasceram "Sob
+  // Consulta", nunca o preço de um item de catálogo com valor fixo.
+  sob_consulta_original: boolean
   preco_unitario_mt: number
   quantidade: number
   data_limite_entrega: string
@@ -50,27 +56,16 @@ const STATUS_OPTIONS: { value: QuotationRequest['status']; label: string; badge:
   { value: 'approved', label: 'Em Produção', badge: 'bg-teal-100 text-teal-700 dark:bg-teal-950/30 dark:text-teal-400' },
   { value: 'delivered', label: 'Concluída', badge: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-950/30 dark:text-indigo-400' },
   { value: 'rejected', label: 'Rejeitada', badge: 'bg-rose-100 text-rose-700 dark:bg-rose-950/30 dark:text-rose-400' },
-  // 'done' fica de fora das opções seleccionáveis por item — "Entregue" só se aplica à
-  // encomenda inteira, de uma vez, através do botão junto ao prazo de entrega (ver
-  // markBatchDelivered). Continua aqui só para o badge de um item que já esteja 'done'.
   { value: 'done', label: 'Entregue', badge: 'bg-green-100 text-green-700 dark:bg-green-950/30 dark:text-green-400' },
   { value: 'cancelled', label: 'Cancelada', badge: 'bg-gray-200 text-gray-600 dark:bg-zinc-800 dark:text-zinc-400' },
 ]
 
-// 'cancelled' também fica de fora — só o cliente pode cancelar (ver botão no
-// painel dele); a equipa só tem a opção de rejeitar quando a negociação não
-// avança. 'cancelled' continua em STATUS_OPTIONS só para o badge, nunca
-// seleccionável aqui.
-const SELECTABLE_STATUS_OPTIONS = STATUS_OPTIONS.filter((s) => s.value !== 'done' && s.value !== 'cancelled')
+// 'cancelled' fica de fora — só o cliente pode cancelar (ver botão no painel
+// dele); a equipa só tem a opção de rejeitar quando a negociação não avança,
+// ou marcar "Entregue" directamente neste mesmo dropdown, item a item.
+const SELECTABLE_STATUS_OPTIONS = STATUS_OPTIONS.filter((s) => s.value !== 'cancelled')
 
 const displayStatusValue = (status: QuotationRequest['status']) => (status === 'payment_selected' ? 'pending' : status)
-
-/** Só se pode marcar a encomenda inteira como entregue quando não sobra nenhum item por concluir (cancelados não contam). */
-function batchReadyToDeliver(batch: QuotationBatch<QuotationRequest>): boolean {
-  return batch.items
-    .filter((i) => i.status !== 'cancelled')
-    .every((i) => i.status === 'delivered' || i.status === 'done')
-}
 
 const DELIVERED_BUCKET_DAYS = 7
 
@@ -368,61 +363,6 @@ export function CotacoesSection() {
     }
   }
 
-  // Marca TODOS os itens da encomenda como entregues de uma vez — "Entregue" deixou de
-  // ser um estado por item (ver STATUS_OPTIONS) precisamente para evitar encomendas
-  // "entregues em partes". Pode acontecer antes do prazo (entrega antecipada).
-  const markBatchDelivered = async (batch: QuotationBatch<QuotationRequest>) => {
-    if (!batchReadyToDeliver(batch)) {
-      window.alert('Ainda há itens por concluir nesta encomenda — não é possível marcar como entregue.')
-      return
-    }
-    if (!window.confirm(`Marcar toda a encomenda de ${batch.primaryItem.empresa} como entregue?`)) return
-    const itemIds = batch.items.map((i) => i.id)
-    const deliveredAt = new Date().toISOString()
-    setUpdatingId(batch.batchId)
-    try {
-      await Promise.all(itemIds.map((id) =>
-        fetch('/api/admin/cotacoes', {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ id, status: 'done', rejectionReason: null }),
-        }),
-      ))
-      setCotacoes((prev) => prev.map((c) => (itemIds.includes(c.id) ? { ...c, status: 'done', delivered_at: deliveredAt } : c)))
-    } catch (error) {
-      console.error('Erro ao marcar encomenda como entregue:', error)
-    } finally {
-      setUpdatingId(null)
-    }
-  }
-
-  // Só encomendas "Entregue" (done) podem ser eliminadas — mesma regra do
-  // servidor (ver DELETE /api/admin/cotacoes), que também bloqueia se já
-  // houver factura emitida.
-  const deleteBatch = async (batch: QuotationBatch<QuotationRequest>) => {
-    if (!window.confirm(`Eliminar definitivamente a encomenda de ${batch.primaryItem.empresa}? Esta acção não pode ser desfeita.`)) return
-    setUpdatingId(batch.batchId)
-    try {
-      const res = await fetch('/api/admin/cotacoes', {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ batchId: batch.batchId }),
-      })
-      const data = await res.json()
-      if (data.success) {
-        const itemIds = new Set(batch.items.map((i) => i.id))
-        setCotacoes((prev) => prev.filter((c) => !itemIds.has(c.id)))
-      } else {
-        window.alert(data.error || 'Não foi possível eliminar a encomenda.')
-      }
-    } catch (error) {
-      console.error('Erro ao eliminar encomenda:', error)
-      window.alert('Não foi possível eliminar a encomenda.')
-    } finally {
-      setUpdatingId(null)
-    }
-  }
-
   const navBtnClass = (active: boolean) =>
     `w-full flex items-center gap-2 px-2.5 py-2 rounded border-l-2 text-sm font-medium transition-colors text-left ${
       active
@@ -553,8 +493,6 @@ export function CotacoesSection() {
                               updatingId={updatingId}
                               onUpdateStatus={updateStatus}
                               onUpdateDeliveryDate={updateDeliveryDate}
-                              onMarkDelivered={markBatchDelivered}
-                              onDeleteBatch={deleteBatch}
                               onSetPreco={setPrecoItem}
                               unreadCount={dismissedUnread.has(batch.batchId) ? 0 : (unreadByBatch[batch.batchId] ?? 0)}
                               onDismissUnread={() => setDismissedUnread((prev) => new Set(prev).add(batch.batchId))}
@@ -598,8 +536,6 @@ export function CotacoesSection() {
                             updatingId={updatingId}
                             onUpdateStatus={updateStatus}
                             onUpdateDeliveryDate={updateDeliveryDate}
-                            onMarkDelivered={markBatchDelivered}
-                            onDeleteBatch={deleteBatch}
                             onSetPreco={setPrecoItem}
                             unreadCount={dismissedUnread.has(batch.batchId) ? 0 : (unreadByBatch[batch.batchId] ?? 0)}
                             onDismissUnread={() => setDismissedUnread((prev) => new Set(prev).add(batch.batchId))}
@@ -618,12 +554,13 @@ export function CotacoesSection() {
   )
 }
 
-type BatchTab = 'itens' | 'cotacao' | 'factura' | 'historico' | 'anexos' | 'layouts' | 'empresa'
+type BatchTab = 'itens' | 'mensagem' | 'cotacao' | 'factura' | 'historico' | 'anexos' | 'layouts' | 'empresa'
 
 // 'factura' só entra na lista quando a encomenda já tem factura emitida (ver
 // hasFactura em BatchCard) — antes de 'approved' não há número nenhum.
 const BATCH_TABS: { id: BatchTab; label: string }[] = [
   { id: 'itens', label: 'Itens da encomenda' },
+  { id: 'mensagem', label: 'Mensagem' },
   { id: 'historico', label: 'Histórico' },
   { id: 'anexos', label: 'Anexos' },
   { id: 'layouts', label: 'Layouts' },
@@ -648,8 +585,6 @@ function BatchCard({
   updatingId,
   onUpdateStatus,
   onUpdateDeliveryDate,
-  onMarkDelivered,
-  onDeleteBatch,
   onSetPreco,
   unreadCount = 0,
   onDismissUnread,
@@ -663,8 +598,6 @@ function BatchCard({
   onUpdateStatus: (itemId: string, status: QuotationRequest['status']) => void
   onSetPreco: (itemId: string, precoUnitarioMt: number) => void
   onUpdateDeliveryDate: (batchId: string, dataLimiteEntrega: string) => void
-  onMarkDelivered: (batch: QuotationBatch<QuotationRequest>) => void
-  onDeleteBatch: (batch: QuotationBatch<QuotationRequest>) => void
   unreadCount?: number
   onDismissUnread?: () => void
 }) {
@@ -677,17 +610,15 @@ function BatchCard({
   const openTab = (tab: BatchTab) => {
     setActiveTab(tab)
     setMountedTabs((prev) => (prev.has(tab) ? prev : new Set(prev).add(tab)))
+    if (tab === 'mensagem') onDismissUnread?.()
   }
-  const [showMessages, setShowMessages] = useState(false)
-  const [chatMenuOpen, setChatMenuOpen] = useState(false)
   const [editingDate, setEditingDate] = useState(false)
-  const [deliveryMenuOpen, setDeliveryMenuOpen] = useState(false)
   const [editingPrecoItemId, setEditingPrecoItemId] = useState<string | null>(null)
   const [precoDraft, setPrecoDraft] = useState('')
 
-  const startEditingPreco = (itemId: string) => {
-    setEditingPrecoItemId(itemId)
-    setPrecoDraft('')
+  const startEditingPreco = (item: QuotationRequest) => {
+    setEditingPrecoItemId(item.id)
+    setPrecoDraft(item.preco_unitario_mt > 0 ? String(item.preco_unitario_mt) : '')
   }
   const commitPreco = (itemId: string) => {
     const valor = Number(precoDraft)
@@ -791,9 +722,14 @@ function BatchCard({
                     key={t.id}
                     type="button"
                     onClick={() => openTab(t.id)}
-                    className={`${panelTabBtn} ${activeTab === t.id ? panelTabBtnActive : panelTabBtnInactive}`}
+                    className={`${panelTabBtn} ${activeTab === t.id ? panelTabBtnActive : panelTabBtnInactive} inline-flex items-center gap-1.5`}
                   >
                     {t.label}
+                    {t.id === 'mensagem' && unreadCount > 0 && (
+                      <span className="inline-flex items-center justify-center rounded-full bg-red-600 px-1.5 py-0.5 text-[10px] font-bold leading-none text-white">
+                        {unreadCount}
+                      </span>
+                    )}
                   </button>
                 ))}
               </div>
@@ -821,63 +757,30 @@ function BatchCard({
                     Entrega até {new Date(anchor.data_limite_entrega).toLocaleDateString('pt-PT')}
                   </button>
                 )}
+                {/* Estado da encomenda junto ao prazo — só informativo, sem dropdown nem
+                    acções (a acção "Entregar" e a eliminação de itens vivem agora no
+                    dropdown de estado por item, na aba "Itens da encomenda"). */}
                 {batch.status === 'done' ? (
-                  <div className="relative">
-                    <button
-                      type="button"
-                      onClick={() => setDeliveryMenuOpen((v) => !v)}
-                      className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-bold whitespace-nowrap bg-green-100 text-green-700 dark:bg-green-950/30 dark:text-green-400 hover:brightness-95 transition"
-                      title="Clique para mais opções"
-                    >
-                      <CheckCircle2 className="w-3.5 h-3.5" /> Entregue
-                    </button>
-                    {deliveryMenuOpen && (
-                      <div className="absolute right-0 top-full z-20 mt-1 w-52 overflow-hidden rounded-lg border border-gray-200 bg-white shadow-xl dark:border-zinc-700 dark:bg-zinc-900">
-                        <button
-                          type="button"
-                          onClick={() => { setDeliveryMenuOpen(false); onDeleteBatch(batch) }}
-                          disabled={updatingId === batch.batchId}
-                          className="flex w-full items-center gap-2 px-3 py-2 text-sm text-red-600 transition-colors hover:bg-red-50 disabled:opacity-40 dark:text-red-400 dark:hover:bg-red-950/20"
-                        >
-                          <Trash2 className="w-4 h-4" /> Eliminar encomenda
-                        </button>
-                      </div>
-                    )}
-                  </div>
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-bold whitespace-nowrap bg-green-100 text-green-700 dark:bg-green-950/30 dark:text-green-400">
+                    <CheckCircle2 className="w-3.5 h-3.5" /> Entregue
+                  </span>
+                ) : batch.status === 'rejected' ? (
+                  <span className="px-2 py-0.5 rounded text-xs font-bold whitespace-nowrap bg-rose-100 text-rose-700 dark:bg-rose-950/30 dark:text-rose-400">
+                    Rejeitada
+                  </span>
+                ) : batch.status === 'cancelled' ? (
+                  <span className="px-2 py-0.5 rounded text-xs font-bold whitespace-nowrap bg-gray-200 text-gray-600 dark:bg-zinc-800 dark:text-zinc-400">
+                    Cancelada
+                  </span>
                 ) : (
-                  <div className="relative">
-                    {(() => {
-                      const countdown = deliveryCountdown(anchor.data_limite_entrega, anchor.created_at)
-                      return (
-                        <button
-                          type="button"
-                          onClick={() => setDeliveryMenuOpen((v) => !v)}
-                          className={`px-2 py-0.5 rounded text-xs font-bold whitespace-nowrap transition hover:brightness-95 ${countdown.className}`}
-                          title="Clique para marcar como entregue"
-                        >
-                          {countdown.label}
-                        </button>
-                      )
-                    })()}
-                    {deliveryMenuOpen && (
-                      <div className="absolute right-0 top-full z-20 mt-1 w-52 overflow-hidden rounded-lg border border-gray-200 bg-white shadow-xl dark:border-zinc-700 dark:bg-zinc-900">
-                        <button
-                          type="button"
-                          onClick={() => { setDeliveryMenuOpen(false); onMarkDelivered(batch) }}
-                          disabled={updatingId === batch.batchId || !batchReadyToDeliver(batch)}
-                          title={batchReadyToDeliver(batch) ? undefined : 'Ainda há itens por concluir nesta encomenda'}
-                          className="flex w-full items-center gap-2 px-3 py-2 text-sm text-gray-700 transition-colors hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent dark:text-zinc-300 dark:hover:bg-zinc-800"
-                        >
-                          <CheckCircle2 className="w-4 h-4 text-green-600 dark:text-green-400" /> Entregue
-                        </button>
-                        {!batchReadyToDeliver(batch) && (
-                          <p className="px-3 pb-2 text-[11px] leading-tight text-gray-400 dark:text-zinc-500">
-                            Ainda há itens por concluir.
-                          </p>
-                        )}
-                      </div>
-                    )}
-                  </div>
+                  (() => {
+                    const countdown = deliveryCountdown(anchor.data_limite_entrega, anchor.created_at)
+                    return (
+                      <span className={`px-2 py-0.5 rounded text-xs font-bold whitespace-nowrap ${countdown.className}`}>
+                        {countdown.label}
+                      </span>
+                    )
+                  })()
                 )}
               </div>
             </div>
@@ -948,7 +851,7 @@ function BatchCard({
                               ))}
                             </select>
                           </div>
-                          {item.sob_consulta && editingPrecoItemId === item.id ? (
+                          {editingPrecoItemId === item.id ? (
                             <span className="flex shrink-0 items-center gap-1.5">
                               <input
                                 autoFocus
@@ -983,16 +886,29 @@ function BatchCard({
                                   <span className="text-gray-500 dark:text-zinc-400">{formatMt(item.preco_unitario_mt)} MT</span>
                                 )}
                               </span>
-                              <span className="w-24 shrink-0 text-right text-sm font-semibold whitespace-nowrap">
+                              <span className="w-24 shrink-0 flex items-center justify-end gap-1 text-right text-sm font-semibold whitespace-nowrap">
                                 {item.sob_consulta ? (
                                   <button
                                     type="button"
-                                    onClick={() => startEditingPreco(item.id)}
+                                    onClick={() => startEditingPreco(item)}
                                     className="text-red-600 dark:text-red-500 font-extrabold hover:underline"
                                     title="Clique para definir o valor"
                                   >
                                     Sob Consulta
                                   </button>
+                                ) : item.sob_consulta_original ? (
+                                  <>
+                                    <span className="text-gray-700 dark:text-zinc-300">{formatMt(item.preco_unitario_mt * item.quantidade)} MT</span>
+                                    <button
+                                      type="button"
+                                      onClick={() => startEditingPreco(item)}
+                                      disabled={updatingId === item.id}
+                                      className="shrink-0 text-gray-400 hover:text-red-600 dark:text-zinc-500 dark:hover:text-red-500 transition-colors disabled:opacity-50"
+                                      title="Reeditar o valor (item Sob Consulta)"
+                                    >
+                                      <Pencil className="w-3.5 h-3.5" />
+                                    </button>
+                                  </>
                                 ) : (
                                   <span className="text-gray-700 dark:text-zinc-300">{formatMt(item.preco_unitario_mt * item.quantidade)} MT</span>
                                 )}
@@ -1058,6 +974,11 @@ function BatchCard({
               </div>
             )}
 
+            {activeTab === 'mensagem' && (
+              <div className="mx-auto max-w-xl">
+                <QuotationMessagesThread quotationId={anchor.id} viewerRole="admin" />
+              </div>
+            )}
             {activeTab === 'historico' && <QuotationHistoryTimeline quotationId={anchor.id} />}
             {activeTab === 'anexos' && <QuotationAttachmentsList quotationId={anchor.id} viewerRole="admin" />}
             {activeTab === 'layouts' && <QuotationLayoutsList quotationId={anchor.id} viewerRole="admin" />}
@@ -1089,62 +1010,21 @@ function BatchCard({
 
           </div>
 
-          {/* Chat: um único ícone flutuante que abre a escolha entre Mensagens (guardadas no
-              site) e WhatsApp. O WhatsApp continua a abrir numa aba/app à parte — não há forma
-              de incorporar o WhatsApp Web dentro do painel sem uma integração à parte (API
-              oficial do WhatsApp Business), isto é só um atalho rápido. */}
-          <div className="fixed bottom-6 right-6 z-40 flex flex-col items-end gap-3">
-            {showMessages && (
-              <div className="w-[min(360px,calc(100vw-3rem))] max-h-[min(480px,calc(100vh-8rem))] flex flex-col rounded-lg border border-gray-200 bg-white shadow-xl dark:border-zinc-700 dark:bg-zinc-900">
-                <div className="flex items-center justify-between gap-2 border-b border-gray-100 px-4 py-3 dark:border-zinc-800">
-                  <p className="text-sm font-bold text-gray-900 dark:text-white">
-                    Mensagens — {anchor.empresa}
-                  </p>
-                  <button type="button" onClick={() => setShowMessages(false)} className="text-gray-400 hover:text-gray-700 dark:hover:text-zinc-200">
-                    <X className="w-4 h-4" />
-                  </button>
-                </div>
-                <div className="flex-1 overflow-y-auto p-3">
-                  <QuotationMessagesThread quotationId={anchor.id} viewerRole="admin" />
-                </div>
-              </div>
-            )}
-
-            {chatMenuOpen && !showMessages && (
-              <div className="w-48 rounded-lg border border-gray-200 bg-white shadow-xl overflow-hidden dark:border-zinc-700 dark:bg-zinc-900">
-                <button
-                  type="button"
-                  onClick={() => { setShowMessages(true); setChatMenuOpen(false); onDismissUnread?.() }}
-                  className="flex w-full items-center gap-2 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 dark:text-zinc-300 dark:hover:bg-zinc-800"
-                >
-                  <MessageCircle className="w-4 h-4 text-red-600" /> Mensagens
-                </button>
-                {whatsappHref && (
-                  <a
-                    href={whatsappHref}
-                    target="_blank"
-                    rel="noreferrer"
-                    onClick={() => setChatMenuOpen(false)}
-                    className="flex w-full items-center gap-2 border-t border-gray-100 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 dark:border-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-800"
-                  >
-                    <span className="text-base leading-none">📱</span> WhatsApp
-                  </a>
-                )}
-              </div>
-            )}
-
-            <button
-              type="button"
-              title="Chat"
-              onClick={() => {
-                if (showMessages) { setShowMessages(false); return }
-                setChatMenuOpen((v) => !v)
-              }}
-              className="flex h-12 w-12 items-center justify-center rounded-full bg-red-600 text-white shadow-lg transition-transform hover:scale-105 hover:bg-red-700"
+          {/* Mensagens deixou de ser um popup flutuante — vive agora na aba "Mensagem",
+              acima, com o mesmo badge de por-responder. O WhatsApp continua como atalho à
+              parte (abre uma aba/app externa; não há forma de incorporar o WhatsApp Web
+              dentro do painel sem uma integração própria, API oficial do WhatsApp Business). */}
+          {whatsappHref && (
+            <a
+              href={whatsappHref}
+              target="_blank"
+              rel="noreferrer"
+              title="WhatsApp"
+              className="fixed bottom-6 right-6 z-40 flex h-12 w-12 items-center justify-center rounded-full bg-green-600 text-white shadow-lg transition-transform hover:scale-105 hover:bg-green-700"
             >
-              {showMessages ? <X className="w-5 h-5" /> : <MessageCircle className="w-5 h-5" />}
-            </button>
-          </div>
+              <span className="text-xl leading-none">📱</span>
+            </a>
+          )}
         </div>
       )}
     </div>

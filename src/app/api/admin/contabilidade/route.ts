@@ -51,7 +51,7 @@ export async function GET() {
     ] = await Promise.all([
       supabase
         .from('accounting_batch_snapshots')
-        .select('batch_id, primary_item_id, numero, advance_invoice_number, remainder_invoice_number, empresa, resumo, receita_mt, custos_producao_mt, iva_percent, iva_mt, lucro_mt, done_at')
+        .select('batch_id, primary_item_id, numero, advance_invoice_number, remainder_invoice_number, empresa, resumo, receita_mt, custos_producao_mt, iva_percent, iva_mt, lucro_mt, done_at, deleted_at')
         .order('done_at', { ascending: false }),
       supabase.from('quotation_batch_expenses').select('valor_mt, quantidade, created_at'),
       supabase
@@ -63,6 +63,12 @@ export async function GET() {
     if (expensesError) throw expensesError;
     if (fechosError) throw fechosError;
 
+    // Encomendas eliminadas (pelo cliente ou pela equipa, depois de já
+    // concluídas) saem do Balanço e das abas Cotações/Facturas — continuam
+    // guardadas, mas só visíveis na aba "Eliminadas".
+    const registosActivos = (registos || []).filter((r) => !r.deleted_at);
+    const registosEliminados = (registos || []).filter((r) => r.deleted_at);
+
     const custosByMonth = new Map<string, number>();
     for (const e of expenses || []) {
       const key = monthKey(e.created_at);
@@ -71,7 +77,7 @@ export async function GET() {
     }
 
     const revenueByMonth = new Map<string, number>();
-    for (const r of registos || []) {
+    for (const r of registosActivos) {
       const key = monthKey(r.done_at);
       revenueByMonth.set(key, (revenueByMonth.get(key) || 0) + (r.receita_mt || 0));
     }
@@ -86,9 +92,53 @@ export async function GET() {
       return { month, receitaMt, custosProducaoMt, ivaPercent: IVA_PERCENT, ivaMt, lucroMt };
     });
 
-    return NextResponse.json({ success: true, meses, registos: registos || [], fechos: fechos || [] });
+    return NextResponse.json({
+      success: true,
+      meses,
+      registos: registosActivos,
+      eliminados: registosEliminados,
+      fechos: fechos || [],
+    });
   } catch (error: any) {
     console.error('[admin/contabilidade GET] error:', error);
+    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+  }
+}
+
+// Marca (ou desmarca) manualmente um registo de contabilidade como eliminado —
+// para regularizar encomendas cuja origem (quotation_requests) já foi apagada
+// antes de esta funcionalidade existir (ex.: facturas a 0 MT presas no
+// Balanço sem forma de sair de lá), ou para corrigir uma eliminação feita por
+// engano. As eliminações automáticas (encomenda apagada agora, com esta
+// funcionalidade já activa) acontecem directamente nas rotas DELETE de
+// /api/cotacoes/[id] e /api/admin/cotacoes.
+export async function PATCH(request: Request) {
+  const auth = await requireAdminOrReseller();
+  if ('error' in auth) return auth.error;
+  if (auth.user.role !== 'admin') {
+    return NextResponse.json({ success: false, error: 'Acção restrita a administradores.' }, { status: 403 });
+  }
+
+  const supabase = getSupabaseAdmin();
+  if (!supabase) {
+    return NextResponse.json({ success: false, error: 'Supabase Service Role não configurado.' }, { status: 503 });
+  }
+
+  try {
+    const { batchId, deleted } = (await request.json()) || {};
+    if (!batchId || typeof deleted !== 'boolean') {
+      return NextResponse.json({ success: false, error: 'batchId e deleted são obrigatórios.' }, { status: 400 });
+    }
+
+    const { error } = await supabase
+      .from('accounting_batch_snapshots')
+      .update({ deleted_at: deleted ? new Date().toISOString() : null })
+      .eq('batch_id', batchId);
+    if (error) throw error;
+
+    return NextResponse.json({ success: true });
+  } catch (error: any) {
+    console.error('[admin/contabilidade PATCH] error:', error);
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });
   }
 }
