@@ -75,10 +75,14 @@ export function getHestiaUrl(): string {
   return getWebmailUrl();
 }
 
-/** URL público do Roundcube: https://webmail.{domínio} */
+/** URL público do Roundcube: https://{domínio}/webmail — o subdomínio
+ * webmail.{domínio} não tem registo DNS nos domínios geridos pela Cloudflare
+ * (confirmado: nem visualdesignmoz.com nem provisualcorporate.co.mz o têm);
+ * /webmail é o alias que o Apache do DirectAdmin já serve em qualquer
+ * domínio (ver Alias /webmail em httpd-alias.conf no servidor). */
 export function getWebmailUrlForDomain(domain?: string): string {
   const clean = domain?.replace(/^www\./i, '').trim();
-  if (clean) return `https://webmail.${clean}`;
+  if (clean) return `https://${clean}/webmail`;
   return getWebmailUrl();
 }
 
