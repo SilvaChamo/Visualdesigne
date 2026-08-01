@@ -132,18 +132,20 @@ export function ContabilidadeTable() {
 
   return (
     <div>
-      <div className={`${panelTabBar} mb-4`}>
-        <div className="flex flex-wrap items-end gap-5">
-          {TABS.map((t) => (
-            <button
-              key={t.id}
-              type="button"
-              onClick={() => setActiveTab(t.id)}
-              className={`${panelTabBtn} ${activeTab === t.id ? panelTabBtnActive : panelTabBtnInactive}`}
-            >
-              {t.label}
-            </button>
-          ))}
+      <div className={`${panelSectionCard} mb-4 px-4 pt-2`}>
+        <div className={panelTabBar}>
+          <div className="flex flex-wrap items-end gap-5">
+            {TABS.map((t) => (
+              <button
+                key={t.id}
+                type="button"
+                onClick={() => setActiveTab(t.id)}
+                className={`${panelTabBtn} ${activeTab === t.id ? panelTabBtnActive : panelTabBtnInactive}`}
+              >
+                {t.label}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 

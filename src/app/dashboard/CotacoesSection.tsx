@@ -1,10 +1,9 @@
 'use client'
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
-import { motion } from 'framer-motion'
 import {
   RefreshCw, Building2, Phone, Mail, Calendar, ChevronDown, History,
-  Inbox, Clock, Factory, PackageCheck, XCircle, CheckCircle2, MessageCircle, Calculator, Check, Ban, Pencil, AlertTriangle,
+  Inbox, Clock, Factory, PackageCheck, XCircle, CheckCircle2, MessageCircle, Check, Ban, Pencil, AlertTriangle,
 } from 'lucide-react'
 import {
   panelBtnSecondary, panelField,
@@ -17,7 +16,6 @@ import { useBatchNumeros, displayNumero } from '@/lib/use-batch-numeros'
 import { QuotationHistoryTimeline } from '@/components/quotations/QuotationHistoryTimeline'
 import { QuotationMessagesThread } from '@/components/quotations/QuotationMessagesThread'
 import { QuotationBatchExpenses } from '@/components/quotations/QuotationBatchExpenses'
-import { ContabilidadeTable } from '@/components/quotations/ContabilidadeTable'
 import { useAdminSectionChrome } from '@/components/admin/AdminSectionChrome'
 import { Spinner } from '@/components/ui/spinner'
 
@@ -118,7 +116,7 @@ const BUCKET_ITEMS: { value: StatusBucket; label: string; icon: React.ElementTyp
 
 const CATEGORY_LABELS = [...BRANDS.map((b) => b.label), 'Outros']
 
-type NavMode = 'categoria' | 'bucket' | 'contabilidade' | 'historico'
+type NavMode = 'categoria' | 'bucket' | 'historico'
 
 // Cache rápida (sessionStorage) para a lista aparecer junto com a barra lateral em vez de
 // esperar pela ida ao servidor a cada visita — a mesma abordagem já usada noutras secções do
@@ -154,7 +152,6 @@ export function CotacoesSection() {
   const [activeBucket, setActiveBucket] = useState<StatusBucket>('pending')
   const [updatingId, setUpdatingId] = useState<string | null>(null)
   const [expandedBatchId, setExpandedBatchId] = useState<string | null>(null)
-  const [categoriesOpen, setCategoriesOpen] = useState(true)
   const [expandedCompany, setExpandedCompany] = useState<string | null>(null)
   const [unreadByBatch, setUnreadByBatch] = useState<Record<string, number>>({})
   // Cards cuja bolinha de mensagens já foi vista nesta sessão (ao abrir o chat)
@@ -371,47 +368,15 @@ export function CotacoesSection() {
   return (
     <div>
       <div className="flex flex-col lg:flex-row gap-4 lg:gap-5 items-start">
-        <nav className="w-full shrink-0 space-y-0.5 overflow-y-auto border-b border-gray-200 bg-white p-3 shadow-sm dark:border-zinc-700 dark:bg-zinc-900 lg:sticky lg:top-0 lg:h-[calc(100vh-76px)] lg:w-[220px] lg:border-b-0 lg:border-r lg:rounded-br">
-          <div>
-            <button
-              type="button"
-              onClick={() => { setNavMode('categoria'); setActiveCategory(null); setCategoriesOpen((v) => !v) }}
-              className={navBtnClass(navMode === 'categoria' && activeCategory === null) + ' flex items-center pr-1'}
-              title={categoriesOpen ? 'Colapsar categorias' : 'Expandir categorias'}
-            >
-              <Inbox className="w-4 h-4 shrink-0" />
-              <span className="flex-1 text-left">Recebidas</span>
-              <ChevronDown className={`w-3.5 h-3.5 shrink-0 opacity-60 transition-transform ${categoriesOpen ? '' : '-rotate-90'}`} />
-            </button>
-            {categoriesOpen && (
-              <div className="ml-3 mt-1 space-y-0.5 pl-2">
-                {CATEGORY_LABELS.map((label) => {
-                  const isActive = navMode === 'categoria' && activeCategory === label
-                  return (
-                    <button
-                      key={label}
-                      type="button"
-                      onClick={() => { setNavMode('categoria'); setActiveCategory(label) }}
-                      className={`relative w-full flex items-center gap-2 px-2.5 py-1.5 text-xs font-medium transition-colors text-left ${
-                        isActive
-                          ? 'text-red-600 dark:text-red-400'
-                          : 'text-gray-600 hover:bg-gray-50 dark:text-zinc-400 dark:hover:bg-zinc-800/50'
-                      }`}
-                    >
-                      {isActive && (
-                        <motion.span
-                          layoutId="submenu-categoria-active"
-                          className="absolute inset-0 border-l-2 border-red-600 bg-red-50 dark:border-red-500 dark:bg-red-950/20"
-                          transition={{ type: 'spring', bounce: 0.15, duration: 0.35 }}
-                        />
-                      )}
-                      <span className="relative z-10">{label}</span>
-                    </button>
-                  )
-                })}
-              </div>
-            )}
-          </div>
+        <nav className="sticky top-0 z-10 w-full shrink-0 space-y-0.5 overflow-y-auto border-b border-gray-200 bg-white p-3 shadow-sm dark:border-zinc-700 dark:bg-zinc-900 lg:h-[calc(100vh-76px)] lg:w-[220px] lg:border-b-0 lg:border-r lg:rounded-br">
+          <button
+            type="button"
+            onClick={() => { setNavMode('categoria'); setActiveCategory(null) }}
+            className={navBtnClass(navMode === 'categoria')}
+          >
+            <Inbox className="w-4 h-4 shrink-0" />
+            <span className="flex-1 text-left">Recebidas</span>
+          </button>
 
           {BUCKET_ITEMS.map((b) => {
             const Icon = b.icon
@@ -436,19 +401,44 @@ export function CotacoesSection() {
           >
             <History className="w-4 h-4 shrink-0" /> Histórico
           </button>
-          <button
-            type="button"
-            onClick={() => setNavMode('contabilidade')}
-            className={navBtnClass(navMode === 'contabilidade')}
-          >
-            <Calculator className="w-4 h-4 shrink-0" /> Contabilidade
-          </button>
         </nav>
 
-        <div className="min-w-0 flex-1 w-full mt-4 lg:mt-5">
-          {navMode === 'contabilidade' ? (
-            <ContabilidadeTable />
-          ) : navMode === 'historico' ? (
+        <div className={`min-w-0 flex-1 w-full ${navMode === 'categoria' ? '' : 'mt-4 lg:mt-5'}`}>
+          {navMode === 'categoria' && (
+            <div className="mb-4 w-full overflow-x-auto bg-white shadow-sm dark:bg-zinc-900">
+              <div className="flex flex-nowrap min-w-max">
+                {[{ id: null as string | null, label: 'Todas' }, ...CATEGORY_LABELS.map((label) => ({ id: label, label }))].map((tab) => {
+                  const isActive = activeCategory === tab.id
+                  return (
+                    <button
+                      key={tab.label}
+                      type="button"
+                      onClick={() => setActiveCategory(tab.id)}
+                      className={`group relative overflow-hidden px-4 py-3 text-sm font-bold whitespace-nowrap transition-colors ${
+                        isActive
+                          ? 'text-red-600 dark:text-red-400'
+                          : 'text-gray-600 hover:text-red-600 dark:text-zinc-400 dark:hover:text-red-400'
+                      }`}
+                    >
+                      <span
+                        className={`inline-block transition-transform duration-300 ${
+                          isActive ? 'translate-x-1.5' : 'group-hover:translate-x-1.5'
+                        }`}
+                      >
+                        {tab.label}
+                      </span>
+                      <span
+                        className={`absolute inset-x-0 bottom-0 h-0.5 bg-red-600 transition-transform duration-300 dark:bg-red-500 ${
+                          isActive ? 'translate-x-0' : '-translate-x-full group-hover:translate-x-0'
+                        }`}
+                      />
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+          )}
+          {navMode === 'historico' ? (
             loading ? (
               <div className="text-center py-12 text-sm text-gray-400 dark:text-zinc-500">A carregar encomendas...</div>
             ) : deliveredByCompany.length === 0 ? (

@@ -304,12 +304,29 @@ export async function POST(req: NextRequest) {
       // Continuar mesmo se falhar - a conta de email ainda é criada
     }
 
+    // A FK de email_contas.cliente_id aponta para a tabela "clientes" (CRM
+    // antigo de gestão de clientes), não para auth.users — gravar aqui o ID
+    // do login Auth (authUserId) que acabou de ser criado/encontrado rebenta
+    // sempre com "violates foreign key constraint email_contas_cliente_id_fkey",
+    // porque esse ID nunca existe em "clientes". Só grava cliente_id quando
+    // corresponde mesmo a um registo real em "clientes" (ex.: escolhido no
+    // selector do admin); caso contrário fica NULL — o resto da app já
+    // resolve a posse da conta por email/domínio, não por este campo.
+    let dbClienteId: string | null = null
+    if (cliente_id) {
+      const { data: clienteRow } = await supabaseAdmin
+        .from('clientes')
+        .select('id')
+        .eq('id', cliente_id)
+        .maybeSingle()
+      if (clienteRow?.id) dbClienteId = clienteRow.id
+    }
+
     // Guarda no Supabase com configurações AUTOMÁTICAS
-    // Usa authUserId para vincular ao usuário do sistema
     const { data, error } = await supabaseAdmin
       .from('email_contas')
       .upsert({
-        cliente_id: authUserId, // Vincula ao usuário Auth criado
+        cliente_id: dbClienteId,
         email,
         senha_servidor: encrypt(password),
         tipo_conta: tipo,
@@ -374,7 +391,7 @@ export async function PUT(req: NextRequest) {
 
   try {
     const body = await req.json()
-    const { email, password, nome } = body
+    const { email, password, nome, cliente_id: providedClienteId } = body
 
     if (!email || !password) {
       return NextResponse.json({ error: 'Email e senha são obrigatórios' }, { status: 400 })
@@ -437,11 +454,26 @@ export async function PUT(req: NextRequest) {
       console.error('Erro na criação do usuário Auth (PUT):', authError)
     }
 
+    // A FK de email_contas.cliente_id aponta para "clientes" (CRM antigo),
+    // não para auth.users — gravar aqui o authUserId rebentava sempre com
+    // "violates foreign key constraint email_contas_cliente_id_fkey". Só
+    // grava cliente_id quando corresponde mesmo a um registo real em
+    // "clientes"; caso contrário fica NULL (ver mesma lógica no POST acima).
+    let dbClienteId: string | null = null
+    if (providedClienteId) {
+      const { data: clienteRow } = await supabaseAdmin
+        .from('clientes')
+        .select('id')
+        .eq('id', providedClienteId)
+        .maybeSingle()
+      if (clienteRow?.id) dbClienteId = clienteRow.id
+    }
+
     // Upsert no Supabase (actualizar ou criar) - usando apenas colunas existentes
     const { data, error } = await supabaseAdmin
       .from('email_contas')
       .upsert({
-        cliente_id: authUserId, // Vincula ao usuário Auth
+        cliente_id: dbClienteId,
         email,
         tipo_conta: 'webmail',
         senha_servidor: encrypt(password),
@@ -557,10 +589,19 @@ export async function DELETE(req: NextRequest) {
       return NextResponse.json({ error: 'Email em falta' }, { status: 400 });
     }
 
-    // Primeiro verificar se a conta pertence ao utilizador ou se é admin
-    const { data: conta } = await supabaseAdmin.from('email_contas').select('cliente_id').eq('email', email).single();
+    // Primeiro verificar se a conta pertence ao utilizador ou se é admin.
+    // Usa o mesmo cálculo de papel do GET (resolveRoleForAuthUser, lê
+    // profiles.role) — o antigo `user_metadata?.role === 'admin'` ficava
+    // sempre falso para admins cujo papel só está em `profiles` (não
+    // espelhado para user_metadata), bloqueando silenciosamente o apagar
+    // para qualquer conta sem cliente_id (todas as actuais têm NULL).
+    const { data: conta } = await supabaseAdmin.from('email_contas').select('email, cliente_id').eq('email', email).single();
 
-    if (conta?.cliente_id !== session.user.id && session.user?.user_metadata?.role !== 'admin' && !isBootstrapAdmin(session.user?.email)) {
+    const effectiveRole = await resolveRoleForAuthUser(supabaseAdmin, sessionUser)
+    const isAdmin = isBootstrapAdmin(sessionUser.email) || effectiveRole === 'admin'
+    const allowed = conta ? await userCanAccessMailboxPassword(sessionUser, conta, isAdmin, effectiveRole) : isAdmin
+
+    if (!allowed) {
       return NextResponse.json({ error: 'Não tens permissão para eliminar esta conta' }, { status: 403 });
     }
 

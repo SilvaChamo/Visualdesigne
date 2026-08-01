@@ -122,7 +122,20 @@ export async function proxy(request: NextRequest) {
 
   const supabase = createAppServerClient(request, response)
 
-  const { data: { user } } = await supabase.auth.getUser()
+  // Um cookie de sessão inválido/expirado (ex.: "Invalid Refresh Token: Refresh
+  // Token Not Found") fazia isto rebentar sem apanhar — como este proxy corre em
+  // todas as rotas protegidas (/dashboard, /cliente, /revendedor, /guest,
+  // /painel), qualquer visitante nessas condições ficava com "Internal Server
+  // Error" no sítio todo em vez de simplesmente ser tratado como visitante e
+  // reencaminhado para o login (o que já acontece mais abaixo quando `user` é
+  // null).
+  let user: Awaited<ReturnType<typeof supabase.auth.getUser>>['data']['user'] = null
+  try {
+    const result = await supabase.auth.getUser()
+    user = result.data.user
+  } catch (error) {
+    console.error('[proxy] auth.getUser falhou (sessão inválida):', error)
+  }
   const ip = (request as any).ip || request.headers.get('x-forwarded-for')?.split(',')[0] || 'unknown'
 
   // supabase.auth.getUser() pode renovar a sessão (token expirado) e escrever

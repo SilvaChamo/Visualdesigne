@@ -2,7 +2,7 @@
 
 import React from 'react';
 import {
-  Home, LogOut, ChevronRight, Archive, Users, Server, Mail, Globe, Bell, Layout, Settings, FileText, Code2, AppWindow,
+  Home, LogOut, ChevronRight, Archive, Users, Server, Mail, Globe, Bell, Layout, Settings, FileText, Code2, AppWindow, Calculator,
 } from 'lucide-react';
 import { SidebarAccount } from '@/components/panel/SidebarAccount';
 import { SidebarMenuFlyout } from '@/components/panel/SidebarMenuFlyout';
@@ -60,6 +60,7 @@ const MENU_ICONS: Record<string, React.ElementType> = {
   'nov-dominios': Globe,
   'nov-notificacoes': Bell,
   cotacoes: FileText,
+  contabilidade: Calculator,
   newsletter: Layout,
   'nov-wordpress': AppWindow,
   'nov-sistema': Settings,

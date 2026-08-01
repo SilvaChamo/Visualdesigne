@@ -39,7 +39,18 @@ export const updateSession = async (request: NextRequest) => {
     );
 
     // This will refresh the session if it's expired
-    await supabase.auth.getUser();
+    try {
+        await supabase.auth.getUser();
+    } catch (error) {
+        // Refresh token inválido/revogado (ex.: cookie antigo de uma sessão já
+        // encerrada no servidor) fazia isto rebentar sem apanhar — como o
+        // middleware corre em TODOS os pedidos, qualquer visitante com um
+        // cookie de sessão desactualizado ficava com "Internal Server Error"
+        // em todo o site. Tratar como sem sessão e deixar as páginas/rotas
+        // tratarem o utilizador como visitante, tal como já fazem quando não
+        // há cookie nenhum.
+        console.error("[middleware] auth.getUser falhou:", error);
+    }
 
     return response;
 };

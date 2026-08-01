@@ -90,6 +90,11 @@ export const NEW_MENU_ITEM_DEFS: PanelMenuItemDef[] = [
     ],
   },
   {
+    id: 'contabilidade',
+    label: 'Contabilidade',
+    isNewMenu: true,
+  },
+  {
     id: 'nov-wordpress',
     label: 'Websites',
     isNewMenu: true,

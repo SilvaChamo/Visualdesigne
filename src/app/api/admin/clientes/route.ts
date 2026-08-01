@@ -212,10 +212,14 @@ export async function GET(req: NextRequest) {
 
     const osherCreds = await loadResellerCredentialsByDaUsername(OSHER_RESELLER);
 
-    // Pacotes admin — leitura live só quando o espelho está desactualizado ou vazio
-    // (evita esperar por chamadas ao DirectAdmin em todas as visitas a esta página;
-    // um sync completo já grava os pacotes ao vivo, incluindo os de revenda, no espelho).
-    if (stale || packages.length === 0) {
+    // Pacotes admin — leitura live síncrona só quando o espelho está mesmo vazio.
+    // Antes também disparava quando "stale" (>120min), o que travava toda a
+    // resposta à espera de chamadas SSH ao DirectAdmin (admin + revenda) em
+    // qualquer visita a esta página com o espelho só ligeiramente desactualizado
+    // — exactamente quando `scheduleDaSync(0)`, já chamado acima, está a
+    // refrescar tudo (incluindo pacotes) em background. Deixar o refresco
+    // ficar só a cargo do sync assíncrono elimina essa espera duplicada.
+    if (packages.length === 0) {
       try {
         const adminApi = await getAdminDirectAdminAPI();
         const liveAdminPkgs = await adminApi.listPackages();

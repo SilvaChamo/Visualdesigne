@@ -47,6 +47,21 @@ function CotacaoContent() {
   const searchParams = useSearchParams();
   const { user: authUser, loading: authLoading } = useAuth();
   const isAuthenticated = authLoading ? null : !!authUser;
+  // Embutido dentro do painel de encomendas (iframe, ver EncomendasListSection)
+  // — cliente já autenticado, a pedir mais um serviço. Salta os passos
+  // "Empresa"/"Responsável"/"Criar Conta" (dados já conhecidos de uma
+  // encomenda anterior, ver efeito de pré-preenchimento abaixo) e vai direito
+  // ao passo "Serviço", que já era o único necessário neste caso.
+  // Só entra em modo painel com sessão confirmada — um acesso directo a
+  // ?panel=1 sem sessão (fora do iframe autenticado de /encomendas) cai no
+  // formulário público normal em vez de tentar saltar passos sem ter os
+  // dados da empresa/responsável para preencher sozinho.
+  const isPanelEmbed = searchParams.get('panel') === '1' && isAuthenticated === true;
+  // Baseado directamente no parâmetro (não em isPanelEmbed, que só fica
+  // verdadeiro depois de authLoading resolver) — assim começa já a "true"
+  // sem depender dessa corrida, evitando mostrar por instantes os campos
+  // vazios antes dos dados da última encomenda chegarem.
+  const [prefillLoading, setPrefillLoading] = useState(searchParams.get('panel') === '1');
 
   const [currentStep, setCurrentStep] = useState(0);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -107,6 +122,10 @@ function CotacaoContent() {
     return fromQuery && CATEGORIES.some((c) => c.id === fromQuery) ? fromQuery : CATEGORIES[0].id;
   })();
   const [lineItems, setLineItems] = useState<OrderLineItem[]>(() => {
+    // No painel (nova encomenda a partir de /encomendas) começa vazio — um
+    // item pré-seleccionado por omissão parecia uma encomenda já existente,
+    // em vez de um convite a escolher o que se quer adicionar.
+    if (searchParams.get('panel') === '1') return [];
     const cat = categoryFor(initialCategoriaId);
     return [{ id: crypto.randomUUID(), categoriaId: initialCategoriaId, produto: cat?.items[0]?.name ?? '', quantidade: 1 }];
   });
@@ -174,16 +193,55 @@ function CotacaoContent() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Painel de encomendas: reaproveita a empresa/responsável da encomenda mais
+  // recente do próprio cliente, para não ter de os preencher outra vez.
+  useEffect(() => {
+    if (!isPanelEmbed || !isAuthenticated) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch('/api/cotacoes');
+        const data = await res.json();
+        const ultima = data?.success ? data.quotations?.[0] : null;
+        if (!cancelled && ultima) {
+          setEmpresa(ultima.empresa || '');
+          setNif(ultima.nif || '');
+          setEndereco(ultima.endereco || '');
+          setTelefoneInstitucional(ultima.telefone_institucional || '+258 ');
+          setEmailInstitucional(ultima.email_institucional || '');
+          setWebsite(ultima.website || 'https://');
+          setResponsavel(ultima.responsavel || '');
+          setCargo(ultima.cargo || '');
+          setTelefoneResponsavel(ultima.telefone || '+258 ');
+          setEmailResponsavel(ultima.email || '');
+          setTipoCliente(ultima.responsavel && ultima.responsavel === ultima.empresa ? 'individual' : 'empresa');
+        }
+      } catch (e) {
+        console.error('Erro ao pré-preencher dados da encomenda anterior:', e);
+      } finally {
+        if (!cancelled) setPrefillLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isPanelEmbed, isAuthenticated]);
+
   // isAuthenticated pode passar de false a true a meio da submissão (login
   // automático logo a seguir a criar a conta, no passo "Criar Conta") — os
   // passos disponíveis (STEPS, mais abaixo) encolhem nesse momento, por isso o
   // passo actual tem de ser reancorado para não apontar para fora do novo
   // array e rebentar o render.
   useEffect(() => {
+    if (isPanelEmbed) {
+      setCurrentStep(0);
+      return;
+    }
     const baseLen = tipoCliente === 'individual' ? 1 : 2;
     const stepCount = isAuthenticated ? baseLen + 1 : baseLen + 2;
     setCurrentStep((s) => Math.min(s, stepCount - 1));
-  }, [isAuthenticated, tipoCliente]);
+  }, [isAuthenticated, tipoCliente, isPanelEmbed]);
 
   const minDate = minDeliveryDate();
   const dataLimiteCedoDemais = dataLimite !== '' && dataLimite < minDate;
@@ -220,13 +278,13 @@ function CotacaoContent() {
   // imediatamente anterior ter mesmo conteúdo preenchido — nunca ficam duas
   // linhas seguidas sem nada entre elas.
   const entidadeTemDados = Boolean(empresa || endereco || telefoneInstitucionalPreenchido || emailInstitucional || nif || websitePreenchido);
-  const mostrarSeccaoResponsavel = tipoCliente === 'empresa' && currentStep >= 1;
+  const mostrarSeccaoResponsavel = tipoCliente === 'empresa' && (isPanelEmbed || currentStep >= 1);
   const responsavelTemDados = Boolean(responsavel || telefoneResponsavelPreenchido || emailResponsavel);
   const mostrarLinhaAntesServicos = mostrarSeccaoResponsavel ? responsavelTemDados : entidadeTemDados;
 
-  if (isAuthenticated === null) {
+  if (isAuthenticated === null || (isPanelEmbed && prefillLoading)) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-zinc-50 dark:bg-zinc-950">
+      <div className={isPanelEmbed ? 'flex items-center justify-center p-12' : 'min-h-screen flex items-center justify-center bg-zinc-50 dark:bg-zinc-950'}>
         <Spinner className="w-10 h-10" />
       </div>
     );
@@ -239,7 +297,9 @@ function CotacaoContent() {
           { key: 'empresa', label: 'Empresa', icon: Building2 },
           { key: 'responsavel', label: 'Responsável', icon: User },
         ];
-  const STEPS = isAuthenticated
+  const STEPS = isPanelEmbed
+    ? [{ key: 'servico', label: 'Serviço', icon: Package }]
+    : isAuthenticated
     ? [...baseSteps, { key: 'servico', label: 'Serviço', icon: Package }]
     : [...baseSteps, { key: 'conta', label: 'Criar Conta', icon: Lock }, { key: 'servico', label: 'Serviço', icon: Package }];
   // currentStep pode ficar temporariamente fora dos limites no primeiro render
@@ -270,6 +330,7 @@ function CotacaoContent() {
       if (Number(captchaResposta) !== captcha.a + captcha.b) return 'Resposta da verificação de segurança está incorrecta.';
     }
     if (key === 'servico') {
+      if (lineItems.length === 0) return 'Adicione pelo menos um serviço.';
       if (lineItems.some((li) => {
         if (li.categoriaId === CUSTOM_CATEGORIA_ID) return !li.produto.trim();
         return !li.categoriaId || !li.produto || !findItem(li.categoriaId, li.produto);
@@ -400,9 +461,16 @@ function CotacaoContent() {
       if (!res.ok || !data.success) {
         throw new Error(data.error || 'Não foi possível gerar a cotação.');
       }
-      // Painel próprio da VisualDesign (design), separado da hospedagem —
-      // é onde a encomenda fica visível para acompanhamento e aprovação.
-      router.push('/encomendas');
+      if (isPanelEmbed) {
+        // Embutido num iframe dentro de /encomendas — navegar o próprio
+        // iframe não faz sentido (ficaria /encomendas dentro de /encomendas).
+        // Avisa a janela-mãe para voltar à lista e recarregar.
+        window.parent.postMessage({ type: 'visualdesign:cotacao-submitted' }, window.location.origin);
+      } else {
+        // Painel próprio da VisualDesign (design), separado da hospedagem —
+        // é onde a encomenda fica visível para acompanhamento e aprovação.
+        router.push('/encomendas');
+      }
     } catch (err: any) {
       setErrorMessage(err.message || 'Falha ao comunicar com o servidor.');
       setStatus('error');
@@ -416,38 +484,41 @@ function CotacaoContent() {
   const sectionTitleClass = 'text-lg font-bold text-zinc-900 dark:text-white mb-4';
 
   return (
-    <div className="min-h-screen bg-zinc-200 dark:bg-zinc-950">
-      {/* Banner */}
-      <NotchSection shape="start" bg="bg-gradient-to-br from-black via-zinc-900 to-zinc-950" first>
-        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[600px] h-[300px] bg-red-600/10 rounded-full blur-[120px] pointer-events-none" />
-        <div className="container mx-auto max-w-7xl px-6 pt-[170px] pb-[70px] relative z-10 text-center">
-          <h1 className="text-3xl sm:text-4xl font-bold text-white mb-2">Pedir Cotação</h1>
-          <p className="text-base text-zinc-300 max-w-2xl mx-auto leading-relaxed mb-4">
-            Preencha os dados abaixo — acompanhe a pré-visualização da sua cotação ao lado.
-          </p>
-          <nav className="text-xs text-zinc-400">
-            <Link href="/" className="hover:text-white transition-colors">Início</Link>
-            <span className="mx-2">/</span>
-            <Link href="/precos" className="hover:text-white transition-colors">Preços</Link>
-            <span className="mx-2">/</span>
-            <span className="text-zinc-300">Pedir Cotação</span>
-          </nav>
-        </div>
-        <div className="absolute bottom-0 left-0 right-0">
-          <div className="h-[2px] bg-gradient-to-r from-transparent via-zinc-500 to-transparent" />
-          <div className="h-[1px] bg-gradient-to-r from-transparent via-red-600 to-transparent" />
-        </div>
-      </NotchSection>
+    <div className={isPanelEmbed ? 'bg-white dark:bg-zinc-950' : 'min-h-screen bg-zinc-200 dark:bg-zinc-950'}>
+      {/* Banner — não faz sentido dentro do painel, só na página pública */}
+      {!isPanelEmbed && (
+        <NotchSection shape="start" bg="bg-gradient-to-br from-black via-zinc-900 to-zinc-950" first>
+          <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[600px] h-[300px] bg-red-600/10 rounded-full blur-[120px] pointer-events-none" />
+          <div className="container mx-auto max-w-7xl px-6 pt-[170px] pb-[70px] relative z-10 text-center">
+            <h1 className="text-3xl sm:text-4xl font-bold text-white mb-2">Pedir Cotação</h1>
+            <p className="text-base text-zinc-300 max-w-2xl mx-auto leading-relaxed mb-4">
+              Preencha os dados abaixo — acompanhe a pré-visualização da sua cotação ao lado.
+            </p>
+            <nav className="text-xs text-zinc-400">
+              <Link href="/" className="hover:text-white transition-colors">Início</Link>
+              <span className="mx-2">/</span>
+              <Link href="/precos" className="hover:text-white transition-colors">Preços</Link>
+              <span className="mx-2">/</span>
+              <span className="text-zinc-300">Pedir Cotação</span>
+            </nav>
+          </div>
+          <div className="absolute bottom-0 left-0 right-0">
+            <div className="h-[2px] bg-gradient-to-r from-transparent via-zinc-500 to-transparent" />
+            <div className="h-[1px] bg-gradient-to-r from-transparent via-red-600 to-transparent" />
+          </div>
+        </NotchSection>
+      )}
 
-      <div className="bg-zinc-200 dark:bg-zinc-950">
-        <div className="container mx-auto max-w-7xl px-4 sm:px-6 pt-12 pb-16">
-        <div className="mx-5">
+      <div className={isPanelEmbed ? '' : 'bg-zinc-200 dark:bg-zinc-950'}>
+        <div className={isPanelEmbed ? 'p-4' : 'container mx-auto max-w-7xl px-4 sm:px-6 pt-12 pb-16'}>
+        <div className={isPanelEmbed ? '' : 'mx-5'}>
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
 
           {/* Formulário em etapas */}
-          <div className="lg:col-span-2 bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg p-6 sm:p-8">
+          <div className={isPanelEmbed ? 'lg:col-span-2 bg-white dark:bg-zinc-900 rounded-lg' : 'lg:col-span-2 bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg p-6 sm:p-8'}>
 
-            {/* Indicador de etapas */}
+            {/* Indicador de etapas — só um passo no painel, não vale a pena mostrar */}
+            {!isPanelEmbed && (
             <div className="flex items-start justify-center mb-8">
               {STEPS.map((step, idx) => {
                 const Icon = step.icon;
@@ -478,6 +549,7 @@ function CotacaoContent() {
                 );
               })}
             </div>
+            )}
 
             {status === 'error' && errorMessage && (
               <div className="mb-6 bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-900/50 rounded-lg p-4 flex items-start gap-3">
@@ -634,6 +706,16 @@ function CotacaoContent() {
 
                 <div className="mb-4">
                   <label className={labelClass}>Serviços seleccionados</label>
+                  {lineItems.length === 0 && (
+                    <button
+                      type="button"
+                      onClick={addLineItem}
+                      className="w-full flex flex-col items-center justify-center gap-2 p-8 rounded-lg border-2 border-dashed border-zinc-300 dark:border-zinc-700 text-zinc-500 dark:text-zinc-400 hover:border-red-400 hover:text-red-600 dark:hover:text-red-500 transition-colors"
+                    >
+                      <Plus className="w-6 h-6" />
+                      <span className="text-sm font-bold">Adicionar serviço</span>
+                    </button>
+                  )}
                   <div className="flex flex-col gap-3">
                     {lineItems.map((li) => {
                       if (li.categoriaId === CUSTOM_CATEGORIA_ID) {
@@ -807,7 +889,10 @@ function CotacaoContent() {
               </>
             )}
 
-            {/* Navegação entre etapas */}
+            {/* Navegação entre etapas — no painel só há o passo "Serviço", não
+                há "Voltar" nem "Seguinte" para mostrar, por isso nem a faixa
+                (borda + espaço) faz sentido aparecer vazia. */}
+            {!isPanelEmbed && (
             <div className="flex items-center justify-between mt-6 pt-6 border-t border-zinc-200 dark:border-zinc-800">
               {isLastStep ? (
                 <div className="flex items-center gap-3">
@@ -853,6 +938,7 @@ function CotacaoContent() {
                 </>
               )}
             </div>
+            )}
           </div>
 
           {/* Barra lateral — pré-visualização */}

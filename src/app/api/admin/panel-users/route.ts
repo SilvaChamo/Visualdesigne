@@ -905,12 +905,30 @@ export async function DELETE(req: NextRequest) {
     const admin = createAdminClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
     await assertAccountBelongsToPanel(admin, userId);
 
+    // As duas eliminações abaixo têm de ser confirmadas (não só disparadas) —
+    // se qualquer uma falhar silenciosamente, a linha de profiles/panel_auth_accounts
+    // fica órfã e o próximo GET (que lê estas tabelas espelho, não o Auth ao vivo)
+    // "ressuscita" a conta que o utilizador acabou de apagar.
     const profile = await getProfileForAuthUser(admin, userId);
     if (profile?.id) {
-      await admin.from('profiles').delete().eq('id', profile.id);
+      const { error: profileDeleteError } = await admin.from('profiles').delete().eq('id', profile.id);
+      if (profileDeleteError) {
+        return NextResponse.json(
+          { success: false, error: `Falha ao eliminar perfil: ${profileDeleteError.message}` },
+          { status: 500 },
+        );
+      }
     }
 
-    await deletePanelAuthAccount(admin, userId).catch(() => undefined);
+    try {
+      await deletePanelAuthAccount(admin, userId);
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'erro desconhecido';
+      return NextResponse.json(
+        { success: false, error: `Falha ao eliminar conta do painel: ${message}` },
+        { status: 500 },
+      );
+    }
 
     const { error: deleteError } = await admin.auth.admin.deleteUser(userId);
     if (deleteError) {

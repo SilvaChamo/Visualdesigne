@@ -12,6 +12,7 @@ import { panelBtnPrimary, panelBtnSecondary, panelField, panelTabList, panelTabB
 import { PRIMARY_RESELLER_DA_USER } from '@/lib/panel-contas-enrich';
 import { clearAllPanelClientCaches } from '@/lib/panel-session-cache-clear';
 import { Spinner } from '@/components/ui/spinner';
+import { parseJsonResponse } from '@/lib/safe-fetch-json';
 
 const ADMIN_CLIENTES_CACHE_KEY = 'vd-admin-clientes-v4';
 const RESELLER_CLIENTES_CACHE_KEY = 'vd-reseller-contas-v1';
@@ -224,7 +225,7 @@ export function ClientesDaSection({
     try {
       const url = withSync ? `${accountsApiBase}?sync=1` : accountsApiBase;
       const res = await fetch(url, { cache: 'no-store' });
-      const data = await res.json();
+      const data = await parseJsonResponse<any>(res);
       if (!res.ok || !data.success) throw new Error(data.error || 'Falha ao carregar');
       setUsers(data.users || []);
       setSyncMeta(data.meta || null);
@@ -368,7 +369,7 @@ export function ClientesDaSection({
           userName,
         }),
       });
-      const data = await res.json();
+      const data = await parseJsonResponse<any>(res);
       if (!res.ok || !data.success) throw new Error(data.error || 'Falha');
       setMsg(`✅ Acção concluída para ${userName}.`);
       await load();
@@ -393,7 +394,7 @@ export function ClientesDaSection({
           message: messageModal.body,
         }),
       });
-      const data = await res.json();
+      const data = await parseJsonResponse<any>(res);
       if (!res.ok || !data.success) throw new Error(data.error || 'Falha ao enviar');
       setMessageModal(null);
       setMsg(`✅ Mensagem enviada para ${data.data?.sentTo || messageModal.email}.`);
@@ -424,7 +425,7 @@ export function ClientesDaSection({
           password: passwordModal.password,
         }),
       });
-      const data = await res.json();
+      const data = await parseJsonResponse<any>(res);
       if (!res.ok || !data.success) throw new Error(data.error || 'Falha');
       setPasswordModal(null);
       alert(`Password de ${passwordModal.userName} actualizada.`);

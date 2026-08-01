@@ -6,6 +6,7 @@ import type { DirectAdminPackage } from '@/lib/directadmin-api';
 import { readPackagesCache, writePackagesCache } from '@/lib/panel-packages-cache';
 import { panelBtnPrimary, panelBtnSecondary } from '@/lib/panel-ui';
 import { Spinner } from '@/components/ui/spinner';
+import { parseJsonResponse } from '@/lib/safe-fetch-json';
 
 type AccountType = 'client' | 'reseller' | 'professional';
 
@@ -254,7 +255,7 @@ export function ProvisionClienteSection({
             adminEmail,
           }),
         });
-        const json = await res.json();
+        const json = await parseJsonResponse<any>(res);
         if (!res.ok || !json.success) throw new Error(String(json.error || 'Falha ao actualizar conta'));
 
         const serverNote =
@@ -273,7 +274,7 @@ export function ProvisionClienteSection({
               password: identity.password,
             }),
           });
-          const passJson = await passRes.json();
+          const passJson = await parseJsonResponse<any>(passRes);
           if (!passRes.ok || !passJson.success) {
             throw new Error(String(passJson.error || 'Conta actualizada, mas falha ao alterar password'));
           }
@@ -307,7 +308,7 @@ export function ProvisionClienteSection({
           adminEmail,
         }),
       });
-      const json = await res.json();
+      const json = await parseJsonResponse<any>(res);
       if (!res.ok || !json.success) {
         throw new Error(String(json.error || 'Falha ao criar conta'));
       }

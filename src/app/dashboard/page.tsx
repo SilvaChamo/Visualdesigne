@@ -45,6 +45,7 @@ import {
 import { NewsManagerSection } from './NewsManagerSection'
 import { RenewalsSection } from './RenewalsSection'
 import { CotacoesSection } from './CotacoesSection'
+import { ContabilidadeTable } from '@/components/quotations/ContabilidadeTable'
 import { NextJsSitesSection } from './NextJsSitesSection'
 import { TemplatesSection } from './TemplatesSection'
 import { DNSCentralSection } from './DNSCentralSection'
@@ -1417,6 +1418,8 @@ function AdminPageContent() {
         return <CotacoesSection />
       case 'cotacoes-contas':
         return <EncomendasClientesSection isActive={isActive} />
+      case 'contabilidade':
+        return <ContabilidadeTable />
       case 'nextjs-sites':
         return (
           <NextJsSitesSection
