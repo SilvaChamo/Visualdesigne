@@ -224,7 +224,7 @@ export async function sendSmtpMail(input: SendSmtpMailInput) {
   return transport.sendMail(input);
 }
 
-/** Host local do servidor de email (DirectAdmin/Exim) — porta 25, já desbloqueada. */
+/** Host local do servidor de email (DirectAdmin/Exim). */
 export function getWebmailSmtpHost(): string {
   return (
     process.env.DIRECTADMIN_HOST?.trim() ||
@@ -233,26 +233,27 @@ export function getWebmailSmtpHost(): string {
   );
 }
 
+// Porta de submissão (587, STARTTLS) — a 25 sem AUTH não retransmite para
+// fora: confirmado directamente no servidor que `hostlist relay_hosts=` está
+// vazio, logo não há confiança nenhuma por IP (ao contrário do que se
+// assumia antes) e qualquer envio para um domínio externo (ex.: Gmail) sem
+// autenticação leva sempre a "550 relay not permitted".
 export function getWebmailSmtpPort(): number {
   const raw = process.env.WEBMAIL_SMTP_PORT?.trim();
-  const parsed = raw ? Number.parseInt(raw, 10) : 25;
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : 25;
+  const parsed = raw ? Number.parseInt(raw, 10) : 587;
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 587;
 }
 
-// A ligação de dentro do próprio servidor ao Exim local não anuncia AUTH
-// (confirmado directamente: EHLO à porta 25 não lista "AUTH") — o Exim
-// confia com base no IP de origem (o próprio servidor), como já faz para o
-// mail() do PHP e outros processos locais. Passar `auth` aqui faria o
-// nodemailer falhar logo ("server doesn't support authentication"), por
-// isso a identidade da conta vai só nos cabeçalhos From/Reply-To, não em
-// SMTP AUTH.
-function createWebmailSmtpTransport(): Mail {
+function createWebmailSmtpTransport(authUser: string, authPass: string): Mail {
   const host = getWebmailSmtpHost();
+  const port = getWebmailSmtpPort();
+  const secure = port === 465;
   return nodemailer.createTransport({
     host,
-    port: getWebmailSmtpPort(),
-    secure: false,
-    requireTLS: false,
+    port,
+    secure,
+    requireTLS: !secure,
+    auth: { user: authUser, pass: authPass },
     tls: smtpTlsOptions(host),
     connectionTimeout: 15_000,
     greetingTimeout: 12_000,
@@ -261,16 +262,18 @@ function createWebmailSmtpTransport(): Mail {
 }
 
 /**
- * Envio de webmail — liga directamente ao servidor local (porta 25) em vez
- * do relay central da Brevo, que enviava todo o webmail com a mesma
- * identidade partilhada. `fromPassword` não é usada para SMTP AUTH (o
- * servidor não a pede nesta ligação local/confiada) — fica reservada para a
- * gravação IMAP na pasta Enviados, feita à parte por quem chama esta função.
+ * Envio de webmail — liga directamente ao servidor local, autenticado com o
+ * email + password reais da própria conta (a mesma password usada para o
+ * IMAP), tal como um cliente de email normal (Outlook/Thunderbird). Isto
+ * substitui o relay central da Brevo — que enviava todo o webmail com a
+ * mesma identidade partilhada — por um envio com a identidade real de cada
+ * cliente, mantendo SPF/DKIM alinhados com o domínio de origem.
  */
 export async function sendWebmailSmtpMail(
   input: SendSmtpMailInput,
+  auth: { user: string; pass: string },
 ): Promise<ReturnType<Mail['sendMail']>> {
-  const transport = createWebmailSmtpTransport();
+  const transport = createWebmailSmtpTransport(auth.user, auth.pass);
   transport.on('error', (err) => console.error('[smtp] erro tardio no transporte (webmail):', err));
   return transport.sendMail(input);
 }

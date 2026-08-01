@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { sendSmtpMail, isSmtpConfigured } from '@/lib/smtp-mail';
+import { sendWebmailSmtpMail, sendSmtpMail, isSmtpConfigured } from '@/lib/smtp-mail';
+import { createClient } from '@/utils/supabase/server';
+import { resolveMailboxPassword } from '@/lib/imap-panel-shared';
 
 async function saveToSentFolder(
     from: string,
@@ -69,14 +71,6 @@ async function saveToSentFolder(
 export async function POST(req: NextRequest) {
     console.log('🚀 [send-email] Requisição recebida');
     try {
-        if (!isSmtpConfigured()) {
-            return NextResponse.json({
-                success: false,
-                error: 'Servidor de SMTP não configurado. Contacte o administrador.',
-                code: 'SMTP_NOT_CONFIGURED'
-            }, { status: 500 });
-        }
-
         const body = await req.json();
         console.log('🚀 [send-email] Body:', JSON.stringify(body, null, 2));
 
@@ -84,36 +78,50 @@ export async function POST(req: NextRequest) {
 
         if (!from || !to || !subject) {
             console.log('🚀 [send-email] Erro: Campos obrigatórios em falta');
-            return NextResponse.json({ 
-                error: 'Campos obrigatórios em falta (from, to, subject)' 
+            return NextResponse.json({
+                error: 'Campos obrigatórios em falta (from, to, subject)'
             }, { status: 400 });
         }
 
+        // Sem isto, qualquer pedido não autenticado conseguia enviar email
+        // como qualquer conta gerida — mais grave ainda agora que o envio é
+        // directo pelo domínio real (SPF/DKIM alinhados dão-lhe mais
+        // credibilidade num ataque de spoofing).
+        const supabase = await createClient();
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session) {
+            return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
+        }
+        const authorizedPassword = await resolveMailboxPassword(from, fromPassword, session);
+        if (!authorizedPassword) {
+            return NextResponse.json({ error: 'Sem permissão para enviar a partir desta conta.' }, { status: 403 });
+        }
+
+        const mailInput = {
+            to,
+            from,
+            subject,
+            html: html || '',
+            replyTo: replyTo || from,
+            cc,
+            bcc
+        };
+
+        // Cada cliente envia com o seu próprio endereço — sem nome/remetente
+        // fixo. O envio vai directo pelo servidor local (Exim, porta 25, sem
+        // AUTH — o servidor confia por IP porque a app corre na mesma
+        // máquina desde a migração para o Hetzner). Isto mantém SPF/DKIM
+        // alinhados com o domínio real de cada conta, ao contrário do relay
+        // Brevo central (que usava sempre a mesma identidade partilhada).
         try {
-            const mailInput = {
-                to,
-                from: `"VisualDesigne" <${from}>`,
-                subject,
-                html: html || '',
-                replyTo: replyTo || from,
-                cc,
-                bcc
-            };
+            console.log('📧 Enviando via SMTP local do servidor (Exim, autenticado)...');
+            const result = await sendWebmailSmtpMail(mailInput, { user: from, pass: authorizedPassword });
 
-            // Envio via SMTP centralizado (Brevo) — mantido como estava.
-            // (Ver sendWebmailSmtpMail em @/lib/smtp-mail para um envio
-            // directo pelo servidor local na porta 25, já pronto mas não
-            // activado: alguns domínios têm o SPF apontado só para outro
-            // servidor ou só para a Brevo — activar por omissão arriscava
-            // problemas de entrega/spam sem aviso. Ver histórico da conversa.)
-            console.log('📧 Enviando via SMTP centralizado...');
-            const result = await sendSmtpMail(mailInput);
+            console.log('✅ Email enviado com sucesso via SMTP local, ID:', result.messageId);
 
-            console.log('✅ Email enviado com sucesso via SMTP, ID:', result.messageId);
-
-            if (fromPassword) {
+            if (authorizedPassword) {
                 try {
-                    await saveToSentFolder(from, fromPassword, to, subject, html || '');
+                    await saveToSentFolder(from, authorizedPassword, to, subject, html || '');
                 } catch (e) {
                     console.error('❌ [Background] Erro ao guardar Sent:', e);
                 }
@@ -122,18 +130,52 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({
                 success: true,
                 messageId: result.messageId,
-                provider: 'smtp-central',
+                provider: 'smtp-local',
                 response: result.response,
-                savedToSent: !!fromPassword
+                savedToSent: !!authorizedPassword
             });
+        } catch (localError: any) {
+            console.error('❌ SMTP local falhou:', localError.message);
 
-        } catch (smtpError: any) {
-            console.error('❌ SMTP falhou:', smtpError.message);
-            return NextResponse.json({
-                success: false,
-                error: smtpError.message,
-                details: 'Falha no envio via SMTP. Verifique as credenciais e configurações do servidor.'
-            }, { status: 500 });
+            // Reserva: se o envio directo falhar (ex.: destino a rejeitar o IP
+            // do servidor), tenta o relay Brevo como caminho alternativo,
+            // mantendo sempre o endereço real do cliente como remetente.
+            if (!isSmtpConfigured()) {
+                return NextResponse.json({
+                    success: false,
+                    error: localError.message,
+                    details: 'Falha no envio directo pelo servidor de correio.'
+                }, { status: 500 });
+            }
+
+            try {
+                console.log('📧 A tentar via relay Brevo (reserva)...');
+                const result = await sendSmtpMail(mailInput);
+                console.log('✅ Email enviado com sucesso via Brevo (reserva), ID:', result.messageId);
+
+                if (authorizedPassword) {
+                    try {
+                        await saveToSentFolder(from, authorizedPassword, to, subject, html || '');
+                    } catch (e) {
+                        console.error('❌ [Background] Erro ao guardar Sent:', e);
+                    }
+                }
+
+                return NextResponse.json({
+                    success: true,
+                    messageId: result.messageId,
+                    provider: 'smtp-brevo-fallback',
+                    response: result.response,
+                    savedToSent: !!authorizedPassword
+                });
+            } catch (brevoError: any) {
+                console.error('❌ SMTP Brevo (reserva) também falhou:', brevoError.message);
+                return NextResponse.json({
+                    success: false,
+                    error: brevoError.message,
+                    details: 'Falha no envio via SMTP (directo e reserva). Verifique as configurações do servidor.'
+                }, { status: 500 });
+            }
         }
 
     } catch (error: any) {

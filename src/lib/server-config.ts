@@ -1,4 +1,4 @@
-export const DEFAULT_SERVER_IP = '109.199.104.22';
+export const DEFAULT_SERVER_IP = '37.27.17.25';
 
 function webmailBase(): string {
   const env =

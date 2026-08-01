@@ -385,6 +385,18 @@ export async function PUT(req: NextRequest) {
       return NextResponse.json({ error: 'Email inválido' }, { status: 400 })
     }
 
+    // Testa a ligação IMAP com as credenciais fornecidas antes de gravar —
+    // sem isto, uma password errada só aparecia mais tarde ao abrir a caixa,
+    // com um erro genérico difícil de associar à causa real.
+    const { connectImapClient } = await import('@/lib/imap-panel-shared')
+    const imapTestClient = await connectImapClient(email, password)
+    if (!imapTestClient) {
+      return NextResponse.json({
+        error: 'Credenciais inválidas — não foi possível autenticar no servidor de email.',
+      }, { status: 400 })
+    }
+    try { await imapTestClient.logout() } catch (_) {}
+
     // Configuração padrão
     const domainConfig = {
       imap: `mail.${domain}`,
@@ -452,6 +464,77 @@ export async function PUT(req: NextRequest) {
 
   } catch (error: any) {
     console.error('Erro ao sincronizar conta:', error)
+    return NextResponse.json({ error: error.message }, { status: 500 })
+  }
+}
+
+// 🆕 PATCH: Cliente troca a password da própria conta de email (via DirectAdmin,
+// usando as credenciais de quem é dono do domínio — admin ou revendedor).
+export async function PATCH(req: NextRequest) {
+  const supabase = await createClient()
+  const sessionUser = await resolveSessionUser(supabase);
+
+  if (!sessionUser) return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
+
+  try {
+    const { email, newPassword } = await req.json()
+
+    if (!email || !newPassword) {
+      return NextResponse.json({ error: 'Email e nova senha são obrigatórios.' }, { status: 400 });
+    }
+    if (String(newPassword).length < 8) {
+      return NextResponse.json({ error: 'A nova senha deve ter pelo menos 8 caracteres.' }, { status: 400 });
+    }
+
+    const normalizedEmail = String(email).toLowerCase().trim()
+    const [username, domain] = normalizedEmail.split('@')
+    if (!username || !domain) {
+      return NextResponse.json({ error: 'Email inválido.' }, { status: 400 });
+    }
+
+    const { data: conta } = await supabaseAdmin
+      .from('email_contas')
+      .select('email, cliente_id')
+      .eq('email', normalizedEmail)
+      .maybeSingle();
+
+    if (!conta) {
+      return NextResponse.json({ error: 'Conta de email não encontrada.' }, { status: 404 });
+    }
+
+    const roleDb = supabaseAdmin;
+    const effectiveRole = await resolveRoleForAuthUser(roleDb, sessionUser);
+    const isAdmin = isBootstrapAdmin(sessionUser.email) || effectiveRole === 'admin';
+
+    const allowed = await userCanAccessMailboxPassword(sessionUser, conta, isAdmin, effectiveRole);
+    if (!allowed) {
+      return NextResponse.json({ error: 'Não tens permissão para alterar a password desta conta.' }, { status: 403 });
+    }
+
+    const { daRequest } = await import('@/lib/directadmin')
+    const { resolveDirectAdminCredentialsForDomainOwner } = await import('@/lib/directadmin-credentials')
+    const creds = await resolveDirectAdminCredentialsForDomainOwner(domain)
+
+    const res = await daRequest(
+      'CMD_API_POP',
+      'POST',
+      { action: 'modify', domain, user: username, passwd: newPassword, passwd2: newPassword },
+      creds,
+    )
+
+    if (res.error) {
+      return NextResponse.json({ error: res.details || res.text || 'Erro ao alterar a password no servidor de correio.' }, { status: 500 });
+    }
+
+    // Mantém a cópia usada pelo webmail (IMAP) em sincronia com a password real
+    // que acabou de ser definida no servidor de correio.
+    await supabaseAdmin
+      .from('email_contas')
+      .update({ senha_servidor: encrypt(newPassword) })
+      .eq('email', normalizedEmail)
+
+    return NextResponse.json({ success: true, message: `Password de ${normalizedEmail} alterada com sucesso.` })
+  } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 }

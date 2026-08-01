@@ -3,7 +3,10 @@ import { createClient } from '@/utils/supabase/server'
 import { createHmac } from 'crypto'
 import { getWebmailUrlForDomain } from '@/lib/server-config'
 
-const SSO_SECRET = 'vd2026sso_secret_key_32chars!!'
+// Fallback mantém o valor histórico (o plugin SSO do Roundcube, fora deste
+// repositório, já usa esta string) — defina ROUNDCUBE_SSO_SECRET no servidor
+// para deixar de depender de um segredo em texto no código-fonte.
+const SSO_SECRET = process.env.ROUNDCUBE_SSO_SECRET || 'vd2026sso_secret_key_32chars!!'
 
 function roundcubeUrlForEmail(email?: string): string {
   const domain = email?.includes('@') ? email.split('@')[1].toLowerCase() : undefined

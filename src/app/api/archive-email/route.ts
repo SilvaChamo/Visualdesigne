@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { connectImapClient, FOLDER_VARIATIONS } from '@/lib/imap-panel-shared'
+import { connectImapClient, FOLDER_VARIATIONS, resolveMailboxPassword } from '@/lib/imap-panel-shared'
+import { createClient } from '@/utils/supabase/server'
 
 const getMailboxWithFallback = async (client: any, folderPath: string): Promise<{ lock: any; actualPath: string } | null> => {
   const folderList = await client.list()
@@ -43,19 +44,29 @@ export async function POST(req: NextRequest) {
       valores: { email, password: password ? '[HIDDEN]' : null, emailId, fromFolder, toFolder }
     })
     
-    if (!email || !password || !emailId || !fromFolder) {
-      return NextResponse.json({ 
+    if (!email || !emailId || !fromFolder) {
+      return NextResponse.json({
         error: 'Parâmetros obrigatórios faltam',
         detalhes: {
           email: email || 'falta',
-          password: password || 'falta', 
           emailId: emailId || 'falta',
           fromFolder: fromFolder || 'falta'
         }
       }, { status: 400 })
     }
 
-    const client = await connectImapClient(email, password)
+    const supabase = await createClient()
+    const { data: { session } } = await supabase.auth.getSession()
+    if (!session) {
+      return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
+    }
+
+    const resolvedPassword = await resolveMailboxPassword(email, password, session)
+    if (!resolvedPassword) {
+      return NextResponse.json({ error: 'Sem permissão para aceder a esta conta.' }, { status: 403 })
+    }
+
+    const client = await connectImapClient(email, resolvedPassword)
     if (!client) {
       return NextResponse.json({ error: 'Falha na autenticação IMAP', success: false }, { status: 401 })
     }

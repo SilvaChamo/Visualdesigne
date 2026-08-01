@@ -2129,7 +2129,7 @@ export function WebmailSection({
                 name: account.nome || account.email.split('@')[0],
                 domain: account.email.split('@')[1] || '',
                 password: account.password,
-                tipo: account.tipo === 'outlook' ? 'hotmail' : account.tipo
+                tipo: account.tipo
               }
               setAccounts(prev => [...prev, newAccount])
               setSelectedAccount(account.email)

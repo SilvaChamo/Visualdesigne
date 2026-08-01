@@ -5,6 +5,7 @@
 import {
   loadResellerCredentialsByUserId,
   loadResellerCredentialsByEmail,
+  loadResellerCredentialsByDaUsername,
 } from '@/lib/da-credential-store';
 
 export type DirectAdminRole = 'admin' | 'reseller';
@@ -112,6 +113,27 @@ export async function resolveDirectAdminCredentials(
   throw new Error(
     'Conta de revenda em provisionamento. Aguarde alguns segundos ou sincronize em Admin → Utilizadores.',
   );
+}
+
+/**
+ * Credenciais DA de quem é dono do domínio no servidor — para operações que um
+ * cliente comum pode disparar sobre a própria conta (ex.: trocar a password do
+ * seu email), mas que o DirectAdmin só aceita de admin/revendedor. O cliente
+ * nunca tem credenciais DA próprias; usa-se sempre as de quem realmente é dono
+ * do domínio (admin ou o revendedor a quem esse domínio pertence).
+ */
+export async function resolveDirectAdminCredentialsForDomainOwner(
+  domain: string,
+): Promise<DirectAdminCredentials> {
+  const { getMirrorSiteOwner } = await import('@/lib/panel-mirror-read');
+  const owner = await getMirrorSiteOwner(domain);
+
+  if (owner && owner !== getAdminDaUsername()) {
+    const stored = await loadResellerCredentialsByDaUsername(owner);
+    if (stored) return { role: 'reseller', user: stored.user, password: stored.password };
+  }
+
+  return resolveAdminCredentials();
 }
 
 export async function getResellerDaUsername(context?: DirectAdminAuthContext): Promise<string> {
