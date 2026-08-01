@@ -1,12 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/utils/supabase/server'
-import { createHmac } from 'crypto'
+import { createHmac, randomBytes } from 'crypto'
 import { getWebmailUrlForDomain } from '@/lib/server-config'
 
-// Fallback mantém o valor histórico (o plugin SSO do Roundcube, fora deste
-// repositório, já usa esta string) — defina ROUNDCUBE_SSO_SECRET no servidor
-// para deixar de depender de um segredo em texto no código-fonte.
-const SSO_SECRET = process.env.ROUNDCUBE_SSO_SECRET || 'vd2026sso_secret_key_32chars!!'
+// Sem plugin Roundcube a validar esta assinatura no servidor actual (não há
+// nenhum a ler `_sso` — confirmado no Hetzner), por isso nunca deve haver um
+// valor fixo em texto aqui: só o ROUNDCUBE_SSO_SECRET do servidor, com um
+// valor gerado por processo (não persistente) como reserva se faltar.
+const SSO_SECRET = process.env.ROUNDCUBE_SSO_SECRET || randomBytes(32).toString('hex')
 
 function roundcubeUrlForEmail(email?: string): string {
   const domain = email?.includes('@') ? email.split('@')[1].toLowerCase() : undefined
