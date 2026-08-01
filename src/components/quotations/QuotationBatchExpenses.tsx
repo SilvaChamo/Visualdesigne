@@ -16,7 +16,15 @@ function expenseTotal(d: Pick<Expense, 'valor_mt' | 'quantidade'>): number {
   return (d.valor_mt || 0) * (d.quantidade || 1)
 }
 
-export function QuotationBatchExpenses({ batchId, receitaMt }: { batchId: string; receitaMt?: number | null }) {
+export function QuotationBatchExpenses({
+  batchId,
+  receitaMt,
+  onSaldoChange,
+}: {
+  batchId: string
+  receitaMt?: number | null
+  onSaldoChange?: (negativo: boolean) => void
+}) {
   const [despesas, setDespesas] = useState<Expense[] | null>(null)
   const [draftDescricao, setDraftDescricao] = useState('')
   const [draftQuantidade, setDraftQuantidade] = useState('1')
@@ -93,14 +101,19 @@ export function QuotationBatchExpenses({ batchId, receitaMt }: { batchId: string
     }
   }
 
+  const total = (despesas ?? []).reduce((sum, d) => sum + expenseTotal(d), 0)
+  const saldoNegativo = typeof receitaMt === 'number' && total > receitaMt
+
+  useEffect(() => {
+    onSaldoChange?.(saldoNegativo)
+  }, [saldoNegativo, onSaldoChange])
+
   if (!despesas) {
     return <p className="text-xs text-gray-400 dark:text-zinc-500">A carregar despesas de produção...</p>
   }
 
-  const total = despesas.reduce((sum, d) => sum + expenseTotal(d), 0)
   const totalLabel = total === 0 ? '00,00' : formatMt(total)
   const [first, ...rest] = despesas
-  const saldoNegativo = typeof receitaMt === 'number' && total > receitaMt
 
   const renderExpenseFields = (d: Expense) => {
     if (editingId === d.id) {

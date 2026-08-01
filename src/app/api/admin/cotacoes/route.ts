@@ -4,7 +4,7 @@ import { requireAdminOrReseller } from '@/lib/panel-api-auth';
 import { notifyQuoteClientStatusChange, notifyQuoteClientPriceDefined } from '@/lib/notify-quote-client';
 import { computeBatchStatus } from '@/lib/quotation-status-labels';
 import { batchNumero } from '@/lib/quotation-batch';
-import { computeNumeroMap } from '@/lib/quotation-numero';
+import { computeNumeroMap, letterForCategoria } from '@/lib/quotation-numero';
 import { QUOTATION_ATTACHMENTS_BUCKET } from '@/lib/quotation-attachments-bucket';
 import { QUOTATION_LAYOUTS_BUCKET } from '@/lib/quotation-layouts-bucket';
 import { computeUnreadByBatch } from '@/lib/quotation-unread';
@@ -15,10 +15,18 @@ const IVA_PERCENT = 16;
 // única vez quando a encomenda INTEIRA (todas as linhas do batch) atinge
 // 'done'. Ao contrário dos dados de origem, este registo nunca muda depois,
 // mesmo que a encomenda seja editada ou uma despesa seja lançada mais tarde.
+// Letra da marca do lote — mesma regra do "número prático" (ordenar por id,
+// letra do primeiro item), para o número prático e a factura real nunca
+// discordarem sobre a categoria de uma encomenda.
+function primaryBrandLetter(siblings: { id: string; categoria_id: string }[]): string {
+  const sorted = [...siblings].sort((a, b) => a.id.localeCompare(b.id));
+  return sorted[0] ? letterForCategoria(sorted[0].categoria_id) : 'O';
+}
+
 async function saveAccountingSnapshot(
   supabase: ReturnType<typeof getSupabaseAdmin>,
   batchId: string,
-  siblings: { id: string; status: string; categoria_label: string; produto: string; total_mt: number; sob_consulta: boolean; empresa: string; nif: string | null }[],
+  siblings: { id: string; status: string; categoria_label: string; categoria_id: string; produto: string; total_mt: number; sob_consulta: boolean; empresa: string; nif: string | null }[],
 ) {
   try {
     const sorted = [...siblings].sort((a, b) => a.id.localeCompare(b.id));
@@ -252,12 +260,12 @@ export async function PATCH(request: Request) {
     // isso o total do lote (mesma fórmula do livro de pagamentos, abaixo) é
     // calculado ANTES de decidir se há factura a emitir, não depois.
     let invoiceNumber: string | null = null;
-    let siblings: { id: string; status: string; categoria_label: string; produto: string; total_mt: number; sob_consulta: boolean; empresa: string; nif: string | null }[] = [];
+    let siblings: { id: string; status: string; categoria_label: string; categoria_id: string; produto: string; total_mt: number; sob_consulta: boolean; empresa: string; nif: string | null }[] = [];
     let batchTotal = 0;
     if (status === 'approved' || status === 'done') {
       const { data: sib, error: siblingsError } = await supabase
         .from('quotation_requests')
-        .select('id, status, categoria_label, produto, total_mt, sob_consulta, empresa, nif')
+        .select('id, status, categoria_label, categoria_id, produto, total_mt, sob_consulta, empresa, nif')
         .eq('batch_id', data.batch_id);
       if (siblingsError) throw siblingsError;
       siblings = sib || [];
@@ -269,6 +277,7 @@ export async function PATCH(request: Request) {
         try {
           const { data: rpcData, error: rpcError } = await supabase.rpc('assign_quotation_invoice_number', {
             p_batch_id: data.batch_id,
+            p_letter: primaryBrandLetter(siblings),
           });
           if (rpcError) throw rpcError;
           invoiceNumber = rpcData as string;
@@ -316,6 +325,7 @@ export async function PATCH(request: Request) {
               const { error: rpcError } = await supabase.rpc('assign_quotation_invoice_number', {
                 p_batch_id: data.batch_id,
                 p_phase: 'remainder',
+                p_letter: primaryBrandLetter(siblings),
               });
               if (rpcError) throw rpcError;
             } catch (invoiceError) {

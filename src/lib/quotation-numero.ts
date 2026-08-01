@@ -12,7 +12,7 @@ const BRAND_LETTERS: Record<string, string> = {
 
 const FALLBACK_LETTER = 'O';
 
-function letterForCategoria(categoriaId: string): string {
+export function letterForCategoria(categoriaId: string): string {
   const brand = findCategory(categoriaId)?.brand;
   return (brand && BRAND_LETTERS[brand]) || FALLBACK_LETTER;
 }
@@ -21,9 +21,11 @@ type NumeroRow = { id: string; batch_id: string; categoria_id: string; created_a
 
 /**
  * Número prático da encomenda: dia + ano da submissão + letra da categoria
- * (D=Design, W=Web Design, P=Produção de vídeo, ...) + sequência que cresce
- * por categoria (ex.: 252026D001). Calculado a partir de todas as encomendas
- * já submetidas, para o número nunca se repetir e crescer sempre.
+ * (D=Design, W=Web Design, P=Produção de vídeo, ...) + sequência global (ex.:
+ * 252026D001). A sequência é UM único contador partilhado por todas as
+ * letras/marcas — não por categoria — para nunca haver dois números iguais
+ * no mesmo dia (ex.: D001 e W001 já não podem coexistir). Calculado a partir
+ * de todas as encomendas já submetidas.
  */
 export function computeNumeroMap(rows: NumeroRow[]): Map<string, string> {
   const batches = new Map<string, NumeroRow[]>();
@@ -47,14 +49,14 @@ export function computeNumeroMap(rows: NumeroRow[]): Map<string, string> {
     return a.batchId.localeCompare(b.batchId);
   });
 
-  const counters: Record<string, number> = {};
+  let counter = 0;
   const result = new Map<string, string>();
   for (const info of infos) {
-    counters[info.letter] = (counters[info.letter] ?? 0) + 1;
+    counter += 1;
     const date = new Date(info.createdAt);
     const dd = String(date.getUTCDate()).padStart(2, '0');
     const yyyy = String(date.getUTCFullYear());
-    const seq = String(counters[info.letter]).padStart(3, '0');
+    const seq = String(counter).padStart(3, '0');
     result.set(info.batchId, `${dd}${yyyy}${info.letter}${seq}`);
   }
   return result;

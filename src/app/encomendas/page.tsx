@@ -11,14 +11,16 @@ import { EncomendasSidebar, type EncomendasSection } from '@/components/encomend
 import { EncomendasListSection } from '@/components/encomendas/EncomendasListSection';
 import { EncomendasMensagensSection } from '@/components/encomendas/EncomendasMensagensSection';
 import { EncomendasPagamentosSection } from '@/components/encomendas/EncomendasPagamentosSection';
+import { EncomendasPerfilSection } from '@/components/encomendas/EncomendasPerfilSection';
 
 const SECTION_META: Record<EncomendasSection, { title: string; description: string }> = {
   encomendas: { title: 'Encomendas', description: 'Painel VisualDesign — acompanhamento de pedidos e aprovação de layouts' },
   mensagens: { title: 'Mensagens', description: 'Fale com a equipa, veja layouts e anexos de uma encomenda específica' },
   pagamentos: { title: 'Pagamentos', description: 'Estado e instruções de pagamento das suas encomendas' },
+  perfil: { title: 'O Meu Perfil', description: 'Edite os seus dados de contacto, empresa e senha' },
 };
 
-const VALID_SECTIONS: EncomendasSection[] = ['encomendas', 'mensagens', 'pagamentos'];
+const VALID_SECTIONS: EncomendasSection[] = ['encomendas', 'mensagens', 'pagamentos', 'perfil'];
 
 export default function EncomendasPage() {
   const searchParams = useSearchParams();
@@ -81,6 +83,7 @@ export default function EncomendasPage() {
           {activeSection === 'encomendas' && <EncomendasListSection />}
           {activeSection === 'mensagens' && <EncomendasMensagensSection initialQuotationId={initialQuotationId} onMessageSent={refreshUnreadMensagens} />}
           {activeSection === 'pagamentos' && <EncomendasPagamentosSection />}
+          {activeSection === 'perfil' && <EncomendasPerfilSection />}
         </main>
       </div>
     </div>

@@ -1,18 +1,19 @@
 'use client';
 
-import { FileText, MessageSquare, Wallet, ChevronRight, LogOut } from 'lucide-react';
+import { FileText, MessageSquare, Wallet, User, ChevronRight, LogOut } from 'lucide-react';
 import { SidebarAccount } from '@/components/panel/SidebarAccount';
 import { panelShellHeaderHeight } from '@/lib/panel-ui';
 import { cn } from '@/lib/utils';
 
 // Layouts deixou de ser secção própria — layouts e anexos vivem dentro da
 // conversa em "Mensagens" (QuotationMessagesThread mostra tudo inline).
-export type EncomendasSection = 'encomendas' | 'mensagens' | 'pagamentos';
+export type EncomendasSection = 'encomendas' | 'mensagens' | 'pagamentos' | 'perfil';
 
 const ITEMS: { id: EncomendasSection; label: string; icon: React.ElementType }[] = [
   { id: 'encomendas', label: 'Encomendas', icon: FileText },
   { id: 'mensagens', label: 'Mensagens', icon: MessageSquare },
   { id: 'pagamentos', label: 'Pagamentos', icon: Wallet },
+  { id: 'perfil', label: 'O Meu Perfil', icon: User },
 ];
 
 interface EncomendasSidebarProps {

@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { motion } from 'framer-motion'
 import {
   RefreshCw, Building2, Phone, Mail, Calendar, ChevronDown, History,
-  Inbox, Clock, Factory, PackageCheck, XCircle, CheckCircle2, MessageCircle, Calculator, Check, Ban, Pencil,
+  Inbox, Clock, Factory, PackageCheck, XCircle, CheckCircle2, MessageCircle, Calculator, Check, Ban, Pencil, AlertTriangle,
 } from 'lucide-react'
 import {
   panelBtnSecondary, panelField,
@@ -613,6 +613,7 @@ function BatchCard({
   const [editingDate, setEditingDate] = useState(false)
   const [editingPrecoItemId, setEditingPrecoItemId] = useState<string | null>(null)
   const [precoDraft, setPrecoDraft] = useState('')
+  const [saldoNegativo, setSaldoNegativo] = useState(false)
 
   const startEditingPreco = (item: QuotationRequest) => {
     setEditingPrecoItemId(item.id)
@@ -727,6 +728,12 @@ function BatchCard({
                       <span className="inline-flex items-center justify-center rounded-full bg-red-600 px-1.5 py-0.5 text-[10px] font-bold leading-none text-white">
                         {unreadCount}
                       </span>
+                    )}
+                    {t.id === 'itens' && saldoNegativo && (
+                      <AlertTriangle
+                        className="w-3.5 h-3.5 text-red-600 dark:text-red-400"
+                        aria-label="Saldo negativo: despesas de produção ultrapassam o valor da encomenda"
+                      />
                     )}
                   </button>
                 ))}
@@ -923,6 +930,8 @@ function BatchCard({
                       <span className="w-24 shrink-0 text-right text-sm font-bold whitespace-nowrap">
                         {batch.sobConsulta ? (
                           <span className="text-red-600 dark:text-red-500 font-extrabold">Sob Consulta</span>
+                        ) : saldoNegativo ? (
+                          <span className="text-red-600 dark:text-red-500">-{formatMt(batch.totalMt)} MT</span>
                         ) : (
                           <span className="text-gray-900 dark:text-white">{formatMt(batch.totalMt)} MT</span>
                         )}
@@ -931,7 +940,11 @@ function BatchCard({
                     </div>
                   </div>
 
-                  <QuotationBatchExpenses batchId={batch.batchId} receitaMt={batch.sobConsulta ? null : batch.totalMt} />
+                  <QuotationBatchExpenses
+                    batchId={batch.batchId}
+                    receitaMt={batch.sobConsulta ? null : batch.totalMt}
+                    onSaldoChange={setSaldoNegativo}
+                  />
                 </div>
               </div>
             )}
