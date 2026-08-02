@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { requireAdmin } from '@/lib/admin-api-auth'
 
 // VHM API Configuration
 const VHM_URL = 'https://za4.mozserver.com:2087'
@@ -8,6 +9,8 @@ const VHM_TIMEOUT_MS = 15000 // 15 seconds
 
 // VHM Proxy API - Server-side to bypass CORS
 export async function POST(request: NextRequest) {
+  const auth = await requireAdmin()
+  if ('error' in auth) return auth.error
   try {
     const body = await request.json()
     const { endpoint, params } = body

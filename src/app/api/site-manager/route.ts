@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { Client } from 'ssh2'
 import { getServerHost } from '@/lib/server-config'
 import { getSupabaseAdmin } from '@/lib/supabase-admin'
+import { requireAdminOrReseller } from '@/lib/panel-api-auth'
 
 /**
  * Motor de hospedagem NATIVO — cria contas diretamente no servidor
@@ -97,6 +98,8 @@ function domainToLinuxUsername(domain: string): string {
 }
 
 export async function GET(request: NextRequest) {
+  const auth = await requireAdminOrReseller()
+  if ('error' in auth) return auth.error
   try {
     const { searchParams } = new URL(request.url)
     const action = searchParams.get('action') || 'list'
@@ -179,6 +182,8 @@ async function getSiteDetails(domain: string) {
 }
 
 export async function POST(request: NextRequest) {
+  const auth = await requireAdminOrReseller()
+  if ('error' in auth) return auth.error
   try {
     const body = await request.json()
     const action = String(body.action || '')

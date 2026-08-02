@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { exec } from 'child_process';
 import { promisify } from 'util';
 import { getServerHost, getHestiaUrl } from '@/lib/server-config'
+import { requireAdmin } from '@/lib/admin-api-auth'
 
 const execAsync = promisify(exec);
 
@@ -11,6 +12,8 @@ const SSH_USER = 'ADMIN';
 const SSH_PASS = process.env.VPS_PASS || process.env.SSH_PASS || '';
 
 export async function POST(req: NextRequest) {
+  const auth = await requireAdmin();
+  if ('error' in auth) return auth.error;
   try {
     console.log('🚀 Iniciando configuração SMTP no Contabo...');
 

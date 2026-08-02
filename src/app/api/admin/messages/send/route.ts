@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { getDefaultFrom } from '@/lib/smtp-mail';
 import { isBrevoApiConfigured, sendBrevoTransactionalEmail } from '@/lib/brevo-mail';
+import { requireAdminOrReseller } from '@/lib/panel-api-auth';
 
 const supabaseAdmin = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -25,6 +26,8 @@ async function sendOne(
 }
 
 export async function POST(req: Request) {
+    const auth = await requireAdminOrReseller();
+    if ('error' in auth) return auth.error;
     try {
         const { to, subject, html, replyTo, attachments, targetAudiences } = await req.json();
 

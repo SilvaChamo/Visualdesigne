@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { Client } from 'ssh2';
 import { getServerHost, getHestiaUrl } from '@/lib/server-config'
+import { requireAdmin } from '@/lib/admin-api-auth'
 
 // SSH Connection
 async function execSSH(command: string): Promise<string> {
@@ -51,6 +52,8 @@ async function execSSH(command: string): Promise<string> {
 }
 
 export async function POST(request: NextRequest) {
+  const auth = await requireAdmin();
+  if ('error' in auth) return auth.error;
   try {
     const { action } = await request.json();
 

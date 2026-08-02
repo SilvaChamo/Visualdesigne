@@ -4,12 +4,15 @@ import { directAdminHostingAPI as directAdminAPI } from '@/lib/directadmin-adapt
 import type { DirectAdminWebsite } from '@/lib/directadmin-api';
 import { PANEL_SLUG, inferPanelSiteFromEmail } from '@/lib/panel-tenant';
 import { upsertDownloadableCredentials, decryptStoredPassword, buildPanelAccessConfigText } from '@/lib/panel-access-credentials';
+import { requireAdmin } from '@/lib/admin-api-auth';
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
 import { STANDARD_PANEL_PASSWORD } from '@/lib/stored-panel-password';
 
 export async function POST() {
+  const auth = await requireAdmin();
+  if ('error' in auth) return auth.error;
   try {
     if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY) {
       return NextResponse.json(
