@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { resolveQuotationAccess } from '@/lib/quotation-access';
 import { ensureQuotationAttachmentsBucket, QUOTATION_ATTACHMENTS_BUCKET } from '@/lib/quotation-attachments-bucket';
+import { compressImageToMaxSize } from '@/lib/image-compress';
 
 const MAX_SIZE_BYTES = 10 * 1024 * 1024; // 10MB, mesmo limite por omissão de MultiFileUpload
 
@@ -59,12 +60,15 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   const path = `${id}/${Date.now()}-${safeName}.${ext}`;
 
   const bytes = await file.arrayBuffer();
-  const buffer = Buffer.from(bytes);
+  const { buffer, contentType } = await compressImageToMaxSize(
+    Buffer.from(bytes),
+    file.type || 'application/octet-stream'
+  );
 
   const { data: uploadData, error: uploadError } = await admin.storage
     .from(QUOTATION_ATTACHMENTS_BUCKET)
     .upload(path, buffer, {
-      contentType: file.type || 'application/octet-stream',
+      contentType,
       upsert: false,
     });
 
@@ -82,7 +86,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       uploaded_by_role: access.role,
       file_name: file.name,
       file_url: publicData.publicUrl,
-      file_size_bytes: file.size,
+      file_size_bytes: buffer.length,
     })
     .select()
     .single();

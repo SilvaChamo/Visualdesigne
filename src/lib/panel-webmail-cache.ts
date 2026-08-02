@@ -10,10 +10,15 @@ const STORAGE_KEY = 'panel_webmail_accounts_v1'
 const LIST_PREFIX = 'panel_webmail_list_v3'
 const BODY_PREFIX = 'panel_webmail_body_v1'
 const TOTALS_PREFIX = 'panel_webmail_totals_v1'
-const CACHE_MS = 15 * 60 * 1000
-const LIST_CACHE_MS = 15 * 60 * 1000
-const TOTALS_CACHE_MS = 30 * 60 * 1000
-const BODY_CACHE_MS = 60 * 60 * 1000
+// Cache em localStorage (persiste entre sessões — fechar e reabrir o browser
+// não obriga a recarregar tudo outra vez). Os valores abaixo só controlam de
+// quanto em quanto tempo se vai buscar correio novo em segundo plano; os
+// dados em cache aparecem sempre de imediato (allowStale), nunca bloqueiam
+// a UI à espera da rede.
+const CACHE_MS = 6 * 60 * 60 * 1000
+const LIST_CACHE_MS = 60 * 60 * 1000
+const TOTALS_CACHE_MS = 2 * 60 * 60 * 1000
+const BODY_CACHE_MS = 24 * 60 * 60 * 1000
 const PASSWORD_CACHE_MS = 60 * 60 * 1000
 
 export const WEBMAIL_STANDARD_FOLDERS = ['INBOX', 'Sent', 'Drafts', 'Trash', 'Junk', 'Archive'] as const
@@ -107,7 +112,7 @@ export function readWebmailAccountsCache(): WebmailAccountRow[] | null {
   }
   if (typeof window === 'undefined') return null
   try {
-    const raw = sessionStorage.getItem(STORAGE_KEY)
+    const raw = localStorage.getItem(STORAGE_KEY)
     if (!raw) return null
     const { accounts, ts } = JSON.parse(raw) as { accounts: WebmailAccountRow[]; ts: number }
     if (!accounts?.length || Date.now() - ts > CACHE_MS) return null
@@ -122,7 +127,7 @@ export function readWebmailAccountsCacheStale(): WebmailAccountRow[] | null {
   if (memoryCache?.accounts.length) return hydrateAccountPasswords(memoryCache.accounts)
   if (typeof window === 'undefined') return null
   try {
-    const raw = sessionStorage.getItem(STORAGE_KEY)
+    const raw = localStorage.getItem(STORAGE_KEY)
     if (!raw) return null
     const { accounts } = JSON.parse(raw) as { accounts: WebmailAccountRow[]; ts: number }
     return accounts?.length ? hydrateAccountPasswords(accounts) : null
@@ -139,7 +144,7 @@ export function writeWebmailAccountsCache(accounts: WebmailAccountRow[]) {
   if (typeof window === 'undefined') return
   try {
     const safe = accounts.map(({ email, name, domain, tipo }) => ({ email, name, domain, tipo }))
-    sessionStorage.setItem(STORAGE_KEY, JSON.stringify({ accounts: safe, ts: Date.now() }))
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ accounts: safe, ts: Date.now() }))
   } catch {
     /* quota */
   }
@@ -177,7 +182,7 @@ export function isWebmailListCacheFresh(account: string, folder: string): boolea
   if (mem) return Date.now() - mem.ts <= LIST_CACHE_MS
   if (typeof window === 'undefined') return false
   try {
-    const raw = sessionStorage.getItem(key)
+    const raw = localStorage.getItem(key)
     if (!raw) return false
     const parsed = JSON.parse(raw) as ListCacheEntry
     return Date.now() - parsed.ts <= LIST_CACHE_MS
@@ -195,7 +200,7 @@ export function readWebmailFolderTotalsCache(
   if (mem && (allowStale || Date.now() - mem.ts <= TOTALS_CACHE_MS)) return mem.totals
   if (typeof window === 'undefined') return null
   try {
-    const raw = sessionStorage.getItem(`${TOTALS_PREFIX}:${key}`)
+    const raw = localStorage.getItem(`${TOTALS_PREFIX}:${key}`)
     if (!raw) return null
     const parsed = JSON.parse(raw) as { totals: Record<string, number>; ts: number }
     if (!allowStale && Date.now() - parsed.ts > TOTALS_CACHE_MS) return null
@@ -213,7 +218,7 @@ export function writeWebmailFolderTotalsCache(account: string, totals: Record<st
   totalsMemoryCache[key] = entry
   if (typeof window === 'undefined') return
   try {
-    sessionStorage.setItem(`${TOTALS_PREFIX}:${key}`, JSON.stringify(entry))
+    localStorage.setItem(`${TOTALS_PREFIX}:${key}`, JSON.stringify(entry))
   } catch {
     /* quota */
   }
@@ -231,7 +236,7 @@ export function readWebmailListCache(
   }
   if (typeof window === 'undefined') return null
   try {
-    const raw = sessionStorage.getItem(key)
+    const raw = localStorage.getItem(key)
     if (!raw) return null
     const parsed = JSON.parse(raw) as ListCacheEntry
     if (!isListCacheFresh(parsed, allowStale)) return null
@@ -256,7 +261,7 @@ export function writeWebmailListCache(
   }
   if (typeof window === 'undefined') return
   try {
-    sessionStorage.setItem(key, JSON.stringify(entry))
+    localStorage.setItem(key, JSON.stringify(entry))
   } catch {
     /* quota */
   }
@@ -421,13 +426,13 @@ export function clearWebmailListCache(account: string, folder?: string) {
   if (typeof window === 'undefined') return
   try {
     if (folder) {
-      sessionStorage.removeItem(listCacheKey(account, folder))
+      localStorage.removeItem(listCacheKey(account, folder))
       return
     }
     const prefix = `${LIST_PREFIX}:${account}:`
-    for (let i = sessionStorage.length - 1; i >= 0; i--) {
-      const key = sessionStorage.key(i)
-      if (key?.startsWith(prefix)) sessionStorage.removeItem(key)
+    for (let i = localStorage.length - 1; i >= 0; i--) {
+      const key = localStorage.key(i)
+      if (key?.startsWith(prefix)) localStorage.removeItem(key)
     }
   } catch {
     /* ignore */
@@ -452,7 +457,7 @@ export function readWebmailBodyCache(
   }
   if (typeof window === 'undefined') return null
   try {
-    const raw = sessionStorage.getItem(key)
+    const raw = localStorage.getItem(key)
     if (!raw) return null
     const parsed = JSON.parse(raw) as { corpo: string; anexos?: unknown[]; ts: number } & WebmailBodyMeta
     if (Date.now() - parsed.ts > BODY_CACHE_MS) return null
@@ -477,7 +482,7 @@ export function writeWebmailBodyCache(
   bodyMemoryCache[key] = entry
   if (typeof window === 'undefined') return
   try {
-    sessionStorage.setItem(key, JSON.stringify(entry))
+    localStorage.setItem(key, JSON.stringify(entry))
   } catch {
     /* quota */
   }

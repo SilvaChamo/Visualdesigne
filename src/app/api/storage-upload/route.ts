@@ -1,10 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { compressImageToMaxSize } from '@/lib/image-compress';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 
 const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
+
+const MAX_SIZE_BYTES = 10 * 1024 * 1024; // 10MB, mesmo limite dos outros endpoints de anexo
 
 export async function POST(req: NextRequest) {
   try {
@@ -16,6 +19,9 @@ export async function POST(req: NextRequest) {
     if (!file) {
       return NextResponse.json({ error: 'Ficheiro em falta' }, { status: 400 });
     }
+    if (file.size > MAX_SIZE_BYTES) {
+      return NextResponse.json({ error: 'Ficheiro demasiado grande (máx. 10MB).' }, { status: 400 });
+    }
 
     const ext = file.name.split('.').pop() || 'bin';
     const baseName = file.name.replace(/\.[^/.]+$/, '');
@@ -23,12 +29,15 @@ export async function POST(req: NextRequest) {
     const path = `${folder}/${Date.now()}-${safeName}.${ext}`;
 
     const bytes = await file.arrayBuffer();
-    const buffer = Buffer.from(bytes);
+    const { buffer, contentType } = await compressImageToMaxSize(
+      Buffer.from(bytes),
+      file.type || 'application/octet-stream'
+    );
 
     const { data, error } = await supabaseAdmin.storage
       .from(bucket)
       .upload(path, buffer, {
-        contentType: file.type || 'application/octet-stream',
+        contentType,
         upsert: false,
       });
 

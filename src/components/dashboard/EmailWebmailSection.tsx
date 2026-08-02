@@ -913,7 +913,7 @@ export function EmailWebmailSection({
 
         // Optimistic update: remove apenas o email apagado da lista local
         setEmails(prev => prev.filter(e => e.id !== emailId))
-        // Purga a cache partilhada (sessionStorage + memória) — sem isto o
+        // Purga a cache partilhada (localStorage + memória) — sem isto o
         // email eliminado reaparecia ("piscava") assim que outra leitura
         // (mudança de pasta/conta, WebmailSection) devolvia a lista em cache.
         removeEmailFromListCache(emailOrigem, pastaParaIMAP(pastaActiva), emailId)
@@ -1339,10 +1339,10 @@ export function EmailWebmailSection({
                 {/* Coluna esquerda — botão Enviar */}
                 <div className="flex flex-col border-r border-gray-200 shrink-0">
                   <button onClick={handleSend} disabled={enviando || !compose.para || !emailOrigem}
-                    className="flex-1 bg-green-50 border border-green-300 text-green-600 hover:bg-green-100 hover:text-green-700 disabled:bg-green-600 disabled:cursor-not-allowed  font-bold px-6 text-sm flex flex-col items-center justify-center gap-1 shadow-sm min-w-[110px]">
+                    className="flex-1 bg-green-600 border border-green-600 text-white hover:bg-green-700 hover:border-green-700 disabled:bg-green-300 disabled:border-green-300 disabled:cursor-not-allowed  font-bold px-6 text-sm flex flex-col items-center justify-center gap-1 shadow-sm min-w-[110px]">
                     {enviando
                       ? <><span className="text-xl">⏳</span><span className="text-[11px] tracking-wide">A enviar...</span></>
-                      : <><svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg><span className="text-[11px] tracking-wide uppercase">Enviar</span></>
+                      : <><svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg><span className="text-[11px] tracking-wide uppercase text-white">Enviar</span></>
                     }
                   </button>
                 </div>

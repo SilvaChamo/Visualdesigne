@@ -3,6 +3,7 @@ import { createClient } from '@supabase/supabase-js';
 import { requirePanelBootstrapAccess } from '@/lib/panel-api-auth';
 import { ensureCompanyLogoBucket, COMPANY_LOGO_BUCKET } from '@/lib/company-logo-bucket';
 import { resolveEffectivePanelUserId } from '@/lib/panel-reseller-context';
+import { compressImageToMaxSize } from '@/lib/image-compress';
 
 const MAX_SIZE_BYTES = 2 * 1024 * 1024; // 2MB — é só um logótipo, não um anexo
 
@@ -47,9 +48,10 @@ export async function POST(request: NextRequest) {
   const path = `${userId}/${Date.now()}.${ext}`;
 
   const bytes = await file.arrayBuffer();
+  const { buffer, contentType } = await compressImageToMaxSize(Buffer.from(bytes), file.type);
   const { data: uploadData, error: uploadError } = await supabaseAdmin.storage
     .from(COMPANY_LOGO_BUCKET)
-    .upload(path, Buffer.from(bytes), { contentType: file.type, upsert: false });
+    .upload(path, buffer, { contentType, upsert: false });
 
   if (uploadError) {
     console.error('[mailmarketing-logo] upload error:', uploadError);

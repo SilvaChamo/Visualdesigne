@@ -151,7 +151,7 @@ export function WebmailSection({
   }, [searchQuery])
 
   // Estado para compose avançado (EmailWebmailSection)
-  const [showAdvancedCompose, setShowAdvancedCompose] = useState(false)
+  const [showAdvancedCompose, setShowAdvancedCompose] = useState(true)
   
   // Estados para assinaturas - sistema completo copiado do EmailWebmailSection
   const [assinatura, setAssinatura] = useState('')
@@ -1314,8 +1314,8 @@ export function WebmailSection({
 
 
   return (
-    <div className={`flex flex-col bg-gray-50 ${showAdvancedCompose ? 'h-screen' : 'h-[calc(100vh-80px)]'}`}>
-      {!showAdvancedCompose && (
+    <div className="flex flex-col bg-gray-50 h-[calc(100vh-80px)]">
+      {(
         <div className="bg-white border-b border-gray-200 px-4 py-3 flex items-center justify-between shrink-0">
           <div className="flex items-center gap-4">
             {onBack && (
@@ -1420,7 +1420,7 @@ export function WebmailSection({
       )}
 
       <div className="flex-1 flex overflow-hidden">
-        {!showAdvancedCompose && (
+        {(
           <div className="bg-white border-r border-gray-200 flex flex-col shrink-0 w-56">
             <div className="p-4 border-b border-gray-100">
               <button
@@ -1488,27 +1488,6 @@ export function WebmailSection({
                   Voltar ao Painel
                 </button>
               </div>
-            </div>
-          ) : showAdvancedCompose ? (
-            <div className="flex-1 flex flex-col overflow-hidden">
-              <EmailWebmailSection
-                sites={sites}
-                defaultCompose={true}
-                emailOrigem={selectedAccount || undefined}
-                composeSeed={composeSeed}
-                onCloseCompose={() => { setShowAdvancedCompose(false); setComposeSeed(null) }}
-                onComposeStateChange={(isActive) => {
-                  if (!isActive && showAdvancedCompose) { setShowAdvancedCompose(false); setComposeSeed(null) }
-                }}
-                hideSidebar={true}
-                externalAssinaturas={assinaturas}
-                externalAssinaturaAtiva={assinaturaAtiva}
-                externalSetAssinaturas={setAssinaturas}
-                externalSetAssinaturaAtiva={setAssinaturaAtiva}
-                externalAssinaturasPorEmailRef={assinaturasPorEmailRef}
-                externalModoEscuro={modoEscuroAssinatura}
-                isAdmin={isAdmin}
-              />
             </div>
           ) : viewMode === 'iframe' ? (
             <div className="flex-1 relative">
@@ -1911,6 +1890,31 @@ export function WebmailSection({
           )}
         </div>
       </div>
+
+      {showAdvancedCompose && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-2xl w-full max-w-4xl h-[85vh] flex flex-col overflow-hidden">
+            <EmailWebmailSection
+              sites={sites}
+              defaultCompose={true}
+              emailOrigem={selectedAccount || undefined}
+              composeSeed={composeSeed}
+              onCloseCompose={() => { setShowAdvancedCompose(false); setComposeSeed(null) }}
+              onComposeStateChange={(isActive) => {
+                if (!isActive && showAdvancedCompose) { setShowAdvancedCompose(false); setComposeSeed(null) }
+              }}
+              hideSidebar={true}
+              externalAssinaturas={assinaturas}
+              externalAssinaturaAtiva={assinaturaAtiva}
+              externalSetAssinaturas={setAssinaturas}
+              externalSetAssinaturaAtiva={setAssinaturaAtiva}
+              externalAssinaturasPorEmailRef={assinaturasPorEmailRef}
+              externalModoEscuro={modoEscuroAssinatura}
+              isAdmin={isAdmin}
+            />
+          </div>
+        </div>
+      )}
 
       {showCompose && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">

@@ -3,6 +3,7 @@ import { requireAdminResellerOrManager } from '@/lib/panel-api-auth';
 import { resolveResellerPanelContext } from '@/lib/panel-reseller-context';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { ensureQuotationAttachmentsBucket, QUOTATION_ATTACHMENTS_BUCKET } from '@/lib/quotation-attachments-bucket';
+import { compressImageToMaxSize } from '@/lib/image-compress';
 
 const MAX_SIZE_BYTES = 10 * 1024 * 1024; // 10MB, mesmo limite dos anexos de cotação
 
@@ -57,12 +58,15 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   const path = `credito/${id}/${Date.now()}-${safeName}.${ext}`;
 
   const bytes = await file.arrayBuffer();
-  const buffer = Buffer.from(bytes);
+  const { buffer, contentType } = await compressImageToMaxSize(
+    Buffer.from(bytes),
+    file.type || 'application/octet-stream'
+  );
 
   const { data: uploadData, error: uploadError } = await supabase.storage
     .from(QUOTATION_ATTACHMENTS_BUCKET)
     .upload(path, buffer, {
-      contentType: file.type || 'application/octet-stream',
+      contentType,
       upsert: false,
     });
   if (uploadError) {

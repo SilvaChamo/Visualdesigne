@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from 'react'
 import { X } from 'lucide-react'
-import { supabase } from '@/lib/supabase'
 
 interface NovoTicketModalProps {
   isOpen: boolean
@@ -79,12 +78,14 @@ export function NovoTicketModal({ isOpen, onClose, cliente, sites, onTicketCreat
     try {
       let anexoUrl = ''
       if (file) {
-        const fileExt = file.name.split('.').pop()
-        const fileName = `${Math.random()}.${fileExt}`
-        const { data: uploadData } = await supabase.storage.from('ticket-attachments').upload(fileName, file)
-        if (uploadData) {
-          const { data: { publicUrl } } = supabase.storage.from('ticket-attachments').getPublicUrl(fileName)
-          anexoUrl = publicUrl
+        const uploadForm = new FormData()
+        uploadForm.append('file', file)
+        uploadForm.append('bucket', 'ticket-attachments')
+        uploadForm.append('folder', 'tickets')
+        const uploadRes = await fetch('/api/storage-upload', { method: 'POST', body: uploadForm })
+        const uploadData = await uploadRes.json()
+        if (uploadData?.url) {
+          anexoUrl = uploadData.url
         }
       }
 

@@ -3,6 +3,7 @@ import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { resolveQuotationAccess } from '@/lib/quotation-access';
 import { ensureQuotationLayoutsBucket, QUOTATION_LAYOUTS_BUCKET } from '@/lib/quotation-layouts-bucket';
 import { notifyQuoteClientNewLayout } from '@/lib/notify-quote-client';
+import { compressImageToMaxSize } from '@/lib/image-compress';
 
 const MAX_SIZE_BYTES = 10 * 1024 * 1024; // 10MB, mesmo limite dos anexos
 
@@ -79,12 +80,15 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   const path = `${id}/${Date.now()}-${safeName}.${ext}`;
 
   const bytes = await file.arrayBuffer();
-  const buffer = Buffer.from(bytes);
+  const { buffer, contentType } = await compressImageToMaxSize(
+    Buffer.from(bytes),
+    file.type || 'application/octet-stream'
+  );
 
   const { data: uploadData, error: uploadError } = await admin.storage
     .from(QUOTATION_LAYOUTS_BUCKET)
     .upload(path, buffer, {
-      contentType: file.type || 'application/octet-stream',
+      contentType,
       upsert: false,
     });
 
@@ -103,7 +107,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       descricao,
       file_name: file.name,
       file_url: publicData.publicUrl,
-      file_size_bytes: file.size,
+      file_size_bytes: buffer.length,
     })
     .select()
     .single();

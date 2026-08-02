@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/utils/supabase/server';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { ensureQuotationAttachmentsBucket, QUOTATION_ATTACHMENTS_BUCKET } from '@/lib/quotation-attachments-bucket';
+import { compressImageToMaxSize } from '@/lib/image-compress';
 
 const MAX_SIZE_BYTES = 10 * 1024 * 1024;
 
@@ -55,11 +56,14 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   const path = `renovacao/${id}/${Date.now()}-${safeName}.${ext}`;
 
   const bytes = await file.arrayBuffer();
-  const buffer = Buffer.from(bytes);
+  const { buffer, contentType } = await compressImageToMaxSize(
+    Buffer.from(bytes),
+    file.type || 'application/octet-stream'
+  );
 
   const { data: uploadData, error: uploadError } = await admin.storage
     .from(QUOTATION_ATTACHMENTS_BUCKET)
-    .upload(path, buffer, { contentType: file.type || 'application/octet-stream', upsert: false });
+    .upload(path, buffer, { contentType, upsert: false });
   if (uploadError) {
     console.error('[renewals/pagamento comprovativo] upload error:', uploadError);
     return NextResponse.json({ error: 'Não foi possível enviar o ficheiro.' }, { status: 500 });
