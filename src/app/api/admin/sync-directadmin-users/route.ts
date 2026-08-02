@@ -8,7 +8,7 @@ import { requireAdmin } from '@/lib/admin-api-auth';
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
-import { STANDARD_PANEL_PASSWORD } from '@/lib/stored-panel-password';
+import { getStandardPanelPassword } from '@/lib/stored-panel-password';
 
 export async function POST() {
   const auth = await requireAdmin();
@@ -63,7 +63,7 @@ export async function POST() {
           if (!userId) {
             const { data: newUser, error: createError } = await admin.auth.admin.createUser({
               email,
-              password: STANDARD_PANEL_PASSWORD,
+              password: getStandardPanelPassword(),
               email_confirm: true,
               user_metadata: {
                 role: 'client',
@@ -102,7 +102,7 @@ export async function POST() {
 
           await upsertDownloadableCredentials(admin, {
             email,
-            password: STANDARD_PANEL_PASSWORD,
+            password: getStandardPanelPassword(),
             userId: userId!,
             role: 'client',
           });

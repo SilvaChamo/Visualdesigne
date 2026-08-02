@@ -4,7 +4,7 @@ import { createClient } from '@/utils/supabase/server'
 import { detectDomainConfig } from '@/lib/email-autoconfig'
 import { PANEL_SLUG, inferPanelSiteFromEmail } from '@/lib/panel-tenant'
 import { encryptStoredPassword, decryptStoredPassword, buildPanelAccessConfigText } from '@/lib/panel-access-credentials'
-import { STANDARD_PANEL_PASSWORD } from '@/lib/stored-panel-password'
+import { getStandardPanelPassword } from '@/lib/stored-panel-password'
 import { resolveRoleForAuthUser } from '@/lib/server-auth-role'
 import { ADMIN_BOOTSTRAP_EMAILS } from '@/lib/panel-user-registry'
 import { readImpersonateDaUsername } from '@/lib/panel-api-context'
@@ -90,8 +90,11 @@ export async function GET(req: NextRequest) {
     let password = row?.senha_servidor ? decryptStoredPassword(row.senha_servidor as string) : '';
 
     if (!password) {
-      const std = STANDARD_PANEL_PASSWORD;
-      if (std) password = std;
+      try {
+        password = getStandardPanelPassword();
+      } catch {
+        /* sem fallback configurado — segue para o erro abaixo */
+      }
     }
 
     if (!password) {
@@ -559,11 +562,22 @@ export async function PATCH(req: NextRequest) {
     }
 
     // Mantém a cópia usada pelo webmail (IMAP) em sincronia com a password real
-    // que acabou de ser definida no servidor de correio.
-    await supabaseAdmin
+    // que acabou de ser definida no servidor de correio. Se isto falhar, a
+    // password no servidor já mudou mas o webmail fica com a antiga guardada
+    // — por isso é preciso reportar o erro em vez de dizer "sucesso" na mesma,
+    // que é exactamente o tipo de desfasamento que causa "Falha na ligação IMAP"
+    // mais tarde sem explicação (afecta todos os painéis, pois é o mesmo endpoint).
+    const { error: syncError } = await supabaseAdmin
       .from('email_contas')
       .update({ senha_servidor: encrypt(newPassword) })
       .eq('email', normalizedEmail)
+
+    if (syncError) {
+      console.error(`⚠️ [email-contas PATCH] Password alterada no servidor para ${normalizedEmail} mas falhou a sincronizar no Supabase:`, syncError)
+      return NextResponse.json({
+        error: `A password foi alterada no servidor de correio, mas falhou a guardar aqui (o webmail pode continuar a usar a password antiga). Tenta novamente. Detalhe: ${syncError.message}`,
+      }, { status: 500 })
+    }
 
     return NextResponse.json({ success: true, message: `Password de ${normalizedEmail} alterada com sucesso.` })
   } catch (error: any) {

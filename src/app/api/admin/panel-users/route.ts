@@ -19,7 +19,7 @@ import {
   type ProfileRow,
 } from '@/lib/profile-db';
 import { upsertDownloadableCredentials, decryptStoredPassword } from '@/lib/panel-access-credentials';
-import { STANDARD_PANEL_PASSWORD } from '@/lib/stored-panel-password';
+import { getStandardPanelPassword } from '@/lib/stored-panel-password';
 import {
   filterPanelAccountsForCaller,
   listAllBootstrapPanelAccounts,
@@ -77,7 +77,7 @@ async function backfillDownloadableCredentials(
 
     await upsertDownloadableCredentials(admin, {
       email,
-      password: STANDARD_PANEL_PASSWORD,
+      password: getStandardPanelPassword(),
       userId: authUser.id,
       role: String(role),
     });

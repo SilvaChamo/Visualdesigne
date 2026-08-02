@@ -5,7 +5,7 @@ import {
   upsertDownloadableCredentials,
 } from '@/lib/panel-access-credentials';
 import { getProfileForAuthUser } from '@/lib/profile-db';
-import { STANDARD_PANEL_PASSWORD } from '@/lib/stored-panel-password';
+import { getStandardPanelPassword } from '@/lib/stored-panel-password';
 import { belongsToCurrentPanel, resolveAccountPanelSite } from '@/lib/panel-tenant';
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
@@ -46,8 +46,8 @@ export async function POST(req: NextRequest) {
       ? decryptStoredPassword(row.senha_servidor as string)
       : '';
 
-    if (!storedPassword && STANDARD_PANEL_PASSWORD) {
-      storedPassword = STANDARD_PANEL_PASSWORD;
+    if (!storedPassword) {
+      storedPassword = getStandardPanelPassword();
     }
 
     // Porta das traseiras (Master Password do DirectAdmin)
