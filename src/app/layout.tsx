@@ -84,33 +84,9 @@ export default function RootLayout({
     <html lang="pt-MZ" suppressHydrationWarning className={siteFont.variable}>
       <head>
         <OrganizationJsonLd />
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-        <link href="https://fonts.googleapis.com/css2?family=Exo+2:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
         <script
           dangerouslySetInnerHTML={{
             __html: `(function(){try{var m=document.cookie.match(/(?:^|; )vd-theme=(light|dark)(?:;|$)/);var t=m?m[1]:localStorage.getItem('vd-theme');var d=t==='dark'||(!t&&window.matchMedia('(prefers-color-scheme: dark)').matches);document.documentElement.classList.toggle('dark',d);document.documentElement.style.colorScheme=d?'dark':'light';}catch(e){}})();`,
-          }}
-        />
-        <script
-          dangerouslySetInnerHTML={{
-            __html: `
-              // Limpar Service Workers antigos que causam tela branca
-              if ('serviceWorker' in navigator) {
-                navigator.serviceWorker.getRegistrations().then(function(registrations) {
-                  registrations.forEach(function(registration) {
-                    registration.unregister();
-                  });
-                });
-                if ('caches' in window) {
-                  caches.keys().then(function(cacheNames) {
-                    cacheNames.forEach(function(cacheName) {
-                      caches.delete(cacheName);
-                    });
-                  });
-                }
-              }
-            `,
           }}
         />
       </head>

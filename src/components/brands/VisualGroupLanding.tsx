@@ -175,6 +175,7 @@ export function VisualGroupBody({ onCtaClick }: { onCtaClick: () => void }) {
                     src="/assets/design_grafico_branding.jpg"
                     alt="Design Gráfico & Comunicação Visual"
                     className="w-full h-full object-cover"
+                    loading="lazy"
                   />
                 </div>
 
@@ -232,6 +233,7 @@ export function VisualGroupBody({ onCtaClick }: { onCtaClick: () => void }) {
                     src="/assets/branding_estrategia.png"
                     alt="Estratégia de Branding e Naming"
                     className="w-full h-full object-cover"
+                    loading="lazy"
                   />
                 </div>
 
@@ -289,6 +291,7 @@ export function VisualGroupBody({ onCtaClick }: { onCtaClick: () => void }) {
                     src="/assets/IMG-VD/Redes-sociais.jpeg"
                     alt="Design para Redes Sociais"
                     className="w-full h-full object-cover"
+                    loading="lazy"
                   />
                 </div>
 
@@ -346,6 +349,7 @@ export function VisualGroupBody({ onCtaClick }: { onCtaClick: () => void }) {
                     src="/assets/envelopamento_viatura.jpg"
                     alt="Envelopamento de Viaturas Corporativas"
                     className="w-full h-full object-cover"
+                    loading="lazy"
                   />
                 </div>
 
