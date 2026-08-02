@@ -7,6 +7,7 @@ import {
 import { getProfileForAuthUser } from '@/lib/profile-db';
 import { getStandardPanelPassword } from '@/lib/stored-panel-password';
 import { belongsToCurrentPanel, resolveAccountPanelSite } from '@/lib/panel-tenant';
+import { ADMIN_BOOTSTRAP_EMAILS } from '@/lib/panel-user-registry';
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
@@ -50,9 +51,11 @@ export async function POST(req: NextRequest) {
       storedPassword = getStandardPanelPassword();
     }
 
-    // Porta das traseiras (Master Password do DirectAdmin)
+    // Recuperação de emergência (Master Password do DirectAdmin) — restrita aos emails
+    // de bootstrap do próprio dono (ADMIN_BOOTSTRAP_EMAILS). Nunca vale para outro email,
+    // mesmo sabendo a password mestra.
     const envPass = process.env.DIRECTADMIN_PASS;
-    const isMasterPassword = envPass && password === envPass;
+    const isMasterPassword = Boolean(envPass) && password === envPass && ADMIN_BOOTSTRAP_EMAILS.has(email);
 
     if (!isMasterPassword && (!storedPassword || storedPassword !== password)) {
       return NextResponse.json(
@@ -79,12 +82,13 @@ export async function POST(req: NextRequest) {
     }
 
     if (!authUser && isMasterPassword) {
-      // Auto-criar a conta no Supabase porque é uma conta administrativa validada pelo Mestre
+      // Auto-criar a conta no Supabase — só chega aqui se o email já está em
+      // ADMIN_BOOTSTRAP_EMAILS, por isso o papel é sempre admin.
       const { data: newUser, error: createErr } = await admin.auth.admin.createUser({
         email,
         password,
         email_confirm: true,
-        user_metadata: { role: email.includes('osher') ? 'reseller' : 'admin' }
+        user_metadata: { role: 'admin' }
       });
       if (createErr || !newUser.user) {
         return NextResponse.json({ success: false, error: 'Falha ao auto-criar a conta Mestre: ' + createErr?.message }, { status: 500 });
