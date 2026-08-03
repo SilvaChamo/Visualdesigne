@@ -214,27 +214,25 @@ export async function GET(request: NextRequest) {
       query = query.eq('category', category)
     }
 
-    const { data: notifications, error } = await query
+    // A lista principal e as 3 contagens de estatísticas são independentes
+    // entre si — correr em paralelo (Promise.all) em vez de 4 pedidos em
+    // sequência. Cada pedido a este Supabase (self-hosted) demora ~0.8s de
+    // latência de rede; em sequência isso são ~3-4s só nesta rota.
+    const [{ data: notifications, error }, totalRes, unreadRes, emailSentRes] = await Promise.all([
+      query,
+      supabaseAdmin.from('notifications').select('*', { count: 'exact', head: true }),
+      supabaseAdmin.from('notifications').select('*', { count: 'exact', head: true }).eq('read', false),
+      supabaseAdmin.from('notifications').select('*', { count: 'exact', head: true }).eq('email_sent', true),
+    ])
 
     if (error) {
       console.error('Erro ao buscar notificações admin:', error)
       return NextResponse.json({ error: 'Erro ao buscar notificações' }, { status: 500 })
     }
 
-    // Estatísticas
-    const { count: totalCount } = await supabaseAdmin
-      .from('notifications')
-      .select('*', { count: 'exact', head: true })
-
-    const { count: unreadCount } = await supabaseAdmin
-      .from('notifications')
-      .select('*', { count: 'exact', head: true })
-      .eq('read', false)
-
-    const { count: emailSentCount } = await supabaseAdmin
-      .from('notifications')
-      .select('*', { count: 'exact', head: true })
-      .eq('email_sent', true)
+    const totalCount = totalRes.count
+    const unreadCount = unreadRes.count
+    const emailSentCount = emailSentRes.count
 
     return NextResponse.json({
       success: true,
