@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/utils/supabase/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
 import { sendEmail as sendTransactionalEmail } from '@/lib/email-service'
-import { emailHeader, emailGreeting, emailFooter, wrapContentInFrame } from '@/lib/renewal-templates'
+import { buildSimpleNotificationEmailHtml as buildNotificationEmailHtml } from '@/lib/renewal-templates'
 
 // Verificar se é admin
 async function isAdmin(supabase: any): Promise<boolean> {
@@ -11,63 +11,6 @@ async function isAdmin(supabase: any): Promise<boolean> {
 
   const adminEmails = ['admin@visualdesignmoz.com', 'silva.chamo@gmail.com', 'geral@visualdesignmoz.com', 'suporte@visualdesignmoz.com']
   return adminEmails.includes(user.email || '') || user.user_metadata?.role === 'admin'
-}
-
-const SUPPORT_EMAIL = 'suporte@visualdesignmoz.com'
-const SUPPORT_PHONE = '+258 85 242 5525'
-const COMPANY_NAME = 'VisualDesign'
-
-// Tipo de notificação -> cor da barra do quadro no email
-function urgencyForType(type: string): string {
-  switch (type) {
-    case 'error': return 'critical'
-    case 'warning': return 'medium'
-    case 'success':
-    case 'info':
-    default: return 'low'
-  }
-}
-
-function buildNotificationEmailHtml(params: {
-  clientName: string
-  title: string
-  message: string
-  link?: string
-  linkText?: string
-  type: string
-}): string {
-  const { clientName, title, message, link, linkText, type } = params
-
-  const body = `
-    <h2 style="margin: 0 0 12px 0; color: #111827; font-size: 18px; font-family: 'Exo 2', sans-serif; font-weight: 600;">${title}</h2>
-    <p style="margin: 0; color: #374151; font-size: 14px; line-height: 1.6; white-space: pre-line; font-family: 'Exo 2', sans-serif; font-weight: normal;">${message}</p>
-    ${link ? `<p style="margin: 20px 0 0 0;"><a href="${link}" style="display: inline-block; padding: 10px 20px; background: #dc2626; color: #ffffff; text-decoration: none; border-radius: 6px; font-size: 14px; font-family: 'Exo 2', sans-serif;">${linkText || 'Ver mais'}</a></p>` : ''}
-  `
-
-  return `
-<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>${title}</title>
-</head>
-<body style="margin: 0; padding: 0; font-family: 'Exo 2', sans-serif; background: #f3f4f6;">
-  <table width="100%" cellpadding="0" cellspacing="0" border="0" style="font-family: 'Exo 2', sans-serif;">
-    ${emailHeader(COMPANY_NAME)}
-    <tr>
-      <td align="center" style="padding: 24px 12px; background: #f3f4f6; font-family: 'Exo 2', sans-serif;">
-        <table width="600" cellpadding="0" cellspacing="0" border="0" style="max-width: 600px; width: 100%; background: #ffffff; border: 1px solid #e5e7eb; font-family: 'Exo 2', sans-serif;">
-          <tr><td>${emailGreeting(clientName)}</td></tr>
-          <tr><td style="padding: 20px 24px;">${wrapContentInFrame(body, urgencyForType(type))}</td></tr>
-          <tr><td>${emailFooter(SUPPORT_EMAIL, SUPPORT_PHONE, COMPANY_NAME)}</td></tr>
-        </table>
-      </td>
-    </tr>
-  </table>
-</body>
-</html>
-  `.trim()
 }
 
 // Criar notificação para usuário específico ou todos

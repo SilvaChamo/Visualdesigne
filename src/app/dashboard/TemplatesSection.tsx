@@ -27,7 +27,8 @@ import {
   Plus,
   Trash2,
   Paintbrush,
-  Droplet
+  Droplet,
+  AlertTriangle
 } from 'lucide-react'
 import { 
   defaultRenewalTemplates, 
@@ -40,9 +41,12 @@ import {
 } from '@/lib/renewal-templates'
 
 const STORAGE_KEY = 'visualdesign_custom_templates'
+const LAST_EDITED_KEY = 'visualdesign_last_edited_template_id'
 
 export function TemplatesSection() {
-  const [templates, setTemplates] = useState<RenewalTemplate[]>([])
+  // Começa já com os templates padrão (sem esperar pelo servidor) para nunca mostrar
+  // o painel vazio — é só texto, não há motivo para um ecrã de carregamento.
+  const [templates, setTemplates] = useState<RenewalTemplate[]>(defaultRenewalTemplates)
   const [isLoading, setIsLoading] = useState(true)
   const [saveStatus, setSaveStatus] = useState<'saved' | 'saving' | 'error' | null>(null)
   const [selectedTemplate, setSelectedTemplate] = useState<RenewalTemplate | null>(null)
@@ -62,8 +66,27 @@ export function TemplatesSection() {
   const [history, setHistory] = useState<string[]>([])
   const [historyIndex, setHistoryIndex] = useState(-1)
   const [fontSizeDropdownOpen, setFontSizeDropdownOpen] = useState(false)
+  const [lineHeightDropdownOpen, setLineHeightDropdownOpen] = useState(false)
   const editorRef = useRef<HTMLDivElement>(null)
   const cursorPositionRef = useRef<number | null>(null)
+  // Snapshot do template tal como estava ao ser aberto — permite saber se o
+  // utilizador já mexeu nele antes de o servidor responder (ver reconcileServerTemplates).
+  const editingSnapshotRef = useRef<string | null>(null)
+
+  // Abre um template no editor e lembra-o como o último editado
+  const selectTemplate = (template: RenewalTemplate) => {
+    setSelectedTemplate(template)
+    setEditingTemplate({ ...template })
+    editingSnapshotRef.current = JSON.stringify(template)
+    setHistory([template.emailBody])
+    setHistoryIndex(0)
+    setEditorMode('visual')
+    try {
+      localStorage.setItem(LAST_EDITED_KEY, template.id)
+    } catch {
+      // localStorage indisponível — sem impacto na edição actual
+    }
+  }
 
   // Salvar estado no histórico
   const saveToHistory = (content: string) => {
@@ -324,8 +347,10 @@ export function TemplatesSection() {
     }
   }
 
-  const fontSizes = [8, 9, 10, 11, 12, 14, 16, 18, 20, 22, 24, 26, 28, 36, 48, 72]
+  const fontSizes = [8, 9, 10, 11, 12, 14, 16, 18, 20, 22, 23, 24, 26, 28, 36, 48, 72]
+  const lineHeights = [1, 1.15, 1.3, 1.5, 1.6, 1.8, 2, 2.5]
   const fontSizeDropdownRef = useRef<HTMLDivElement>(null)
+  const lineHeightDropdownRef = useRef<HTMLDivElement>(null)
 
   // Paleta de cores VisualDesign
   const [colorPickerOpen, setColorPickerOpen] = useState(false)
@@ -395,6 +420,60 @@ export function TemplatesSection() {
       return () => document.removeEventListener('mousedown', handleClickOutside)
     }
   }, [fontSizeDropdownOpen])
+
+  // Fechar dropdown de altura de linha ao clicar fora
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (lineHeightDropdownRef.current && !lineHeightDropdownRef.current.contains(event.target as Node)) {
+        setLineHeightDropdownOpen(false)
+      }
+    }
+    if (lineHeightDropdownOpen) {
+      document.addEventListener('mousedown', handleClickOutside)
+      return () => document.removeEventListener('mousedown', handleClickOutside)
+    }
+  }, [lineHeightDropdownOpen])
+
+  // A altura de linha é uma propriedade de bloco (não há document.execCommand para
+  // isto) — aplica-se ao elemento de bloco mais próximo da selecção (parágrafo,
+  // div, célula, item de lista...), subindo na árvore a partir do cursor.
+  const applyLineHeight = (value: number) => {
+    if (!editorRef.current || !editingTemplate) return
+    const selection = window.getSelection()
+    if (!selection || selection.rangeCount === 0) return
+    let node: Node | null = selection.getRangeAt(0).commonAncestorContainer
+    const isBlock = (el: HTMLElement) => {
+      const display = getComputedStyle(el).display
+      return display === 'block' || display === 'list-item' || /^(P|DIV|LI|H1|H2|H3|H4|H5|H6|TD|BLOCKQUOTE)$/.test(el.tagName)
+    }
+    while (node && node !== editorRef.current) {
+      if (node.nodeType === 1 && isBlock(node as HTMLElement)) {
+        ;(node as HTMLElement).style.lineHeight = String(value)
+        break
+      }
+      node = node.parentNode
+    }
+    const newContent = editorRef.current.innerHTML
+    setEditingTemplate({ ...editingTemplate, emailBody: newContent })
+    saveToHistory(newContent)
+    setLineHeightDropdownOpen(false)
+  }
+
+  // Bloco de destaque de largura total (fundo colorido + texto editável),
+  // igual em espírito ao Botão CTA mas ocupando toda a largura do conteúdo.
+  const insertEditableBanner = () => {
+    if (!editorRef.current || !editingTemplate) return
+    const bg = prompt('Cor de fundo do destaque (hex):', '#f3f4f6') || '#f3f4f6'
+    const bannerHTML = `
+      <div style="display:block;width:100%;box-sizing:border-box;background:${bg};color:#374151;padding:16px 20px;margin:20px 0;">
+        <span contenteditable="true" style="outline:none;">Texto do destaque</span>
+      </div>
+    `
+    document.execCommand('insertHTML', false, bannerHTML)
+    const newContent = editorRef.current.innerHTML
+    setEditingTemplate({ ...editingTemplate, emailBody: newContent })
+    saveToHistory(newContent)
+  }
 
   const applyFontSize = (size: number) => {
     if (!editorRef.current || !editingTemplate) return
@@ -512,17 +591,51 @@ export function TemplatesSection() {
     }
   }
 
-  // Carregar templates do servidor ao iniciar
+  // Escolhe qual template abrir por defeito: o último editado (lembrado no
+  // localStorage), ou o primeiro da lista se ainda não houver nenhum.
+  const pickDefaultTemplate = (list: RenewalTemplate[]): RenewalTemplate => {
+    let lastEditedId: string | null = null
+    try {
+      lastEditedId = localStorage.getItem(LAST_EDITED_KEY)
+    } catch {
+      // localStorage indisponível — usa o primeiro da lista
+    }
+    return (lastEditedId && list.find(t => t.id === lastEditedId)) || list[0]
+  }
+
+  // Abre imediatamente um template a partir dos padrões embutidos (sem esperar
+  // pela rede) assim que o componente monta — nunca mostra o painel vazio.
   useEffect(() => {
+    selectTemplate(pickDefaultTemplate(defaultRenewalTemplates))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // Carregar templates do servidor e reconciliar com o que já está aberto
+  useEffect(() => {
+    // Actualiza a lista (tabs) e, se o template aberto ainda não tiver sido tocado
+    // pelo utilizador, actualiza também o próprio editor para a versão do servidor
+    // (que pode já ter personalizações gravadas). Se já houver edições em curso,
+    // não mexe — evita perder o que a pessoa estava a escrever.
+    const reconcile = (list: RenewalTemplate[]) => {
+      setTemplates(list)
+      setEditingTemplate(current => {
+        if (!current) return current
+        if (editingSnapshotRef.current !== JSON.stringify(current)) return current
+        const fresh = list.find(t => t.id === current.id)
+        if (!fresh || JSON.stringify(fresh) === editingSnapshotRef.current) return current
+        editingSnapshotRef.current = JSON.stringify(fresh)
+        setHistory([fresh.emailBody])
+        setHistoryIndex(0)
+        return { ...fresh }
+      })
+    }
+
     const loadTemplates = async () => {
       try {
         setIsLoading(true)
         const serverTemplates = await loadTemplatesFromServer()
         if (serverTemplates && serverTemplates.length > 0) {
-          setTemplates(serverTemplates)
-        } else {
-          // Fallback para padrão se servidor retornar vazio
-          setTemplates(defaultRenewalTemplates)
+          reconcile(serverTemplates)
         }
       } catch (error) {
         console.error('Erro ao carregar templates:', error)
@@ -535,13 +648,10 @@ export function TemplatesSection() {
               const custom = customTemplates.find(t => t.id === defaultT.id)
               return custom || defaultT
             })
-            setTemplates(merged)
-          } else {
-            setTemplates(defaultRenewalTemplates)
+            reconcile(merged)
           }
         } catch (e) {
           console.error('Erro ao carregar do localStorage:', e)
-          setTemplates(defaultRenewalTemplates)
         }
       } finally {
         setIsLoading(false)
@@ -636,7 +746,11 @@ export function TemplatesSection() {
                 const newTemplates = templates.map(t => t.id === editingTemplate!.id ? editingTemplate : t)
                 setTemplates(newTemplates)
                 await persistTemplates(newTemplates)
-                setEditingTemplate(null)
+                try {
+                  localStorage.setItem(LAST_EDITED_KEY, editingTemplate!.id)
+                } catch {
+                  // localStorage indisponível — sem impacto na gravação já concluída
+                }
               }}
               disabled={saveStatus === 'saving'}
               className="px-4 py-2 bg-emerald-50 text-emerald-600 border border-emerald-200 rounded font-bold hover:bg-emerald-100 hover:text-emerald-700 flex items-center gap-2 transition-colors disabled:opacity-50"
@@ -663,112 +777,44 @@ export function TemplatesSection() {
         )}
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Lista de Templates */}
-        <div className="lg:col-span-1 space-y-3">
-          <h4 className="font-medium text-gray-700 flex items-center gap-2">
-            <MessageSquare className="w-4 h-4" />
-            Templates Disponíveis ({templates.length})
-          </h4>
-          <div className="space-y-2 max-h-96 overflow-y-auto">
-            {templates.map(template => (
-              <div
-                key={template.id}
-                onClick={() => {
-                  setSelectedTemplate(template)
-                  setEditingTemplate({ ...template })
-                  setHistory([template.emailBody])
-                  setHistoryIndex(0)
-                  setEditorMode('visual')
-                }}
-                className={`p-3 rounded border cursor-pointer transition-colors ${
-                  editingTemplate?.id === template.id
-                    ? 'border-purple-500 bg-purple-50'
-                    : 'border-gray-200 hover:border-purple-300 hover:bg-gray-50'
-                }`}
-              >
-                <div className="flex items-center gap-2">
-                  <span className={`w-2 h-2 rounded-full ${
-                    template.urgency === 'critical' ? 'bg-red-500' :
-                    template.urgency === 'high' ? 'bg-orange-500' :
-                    template.urgency === 'medium' ? 'bg-yellow-500' :
-                    'bg-blue-500'
-                  }`} />
-                  <span className="font-medium text-sm">{template.name}</span>
-                </div>
-                <div className="flex items-center gap-2 mt-1 text-xs text-gray-500">
-                  <span className="px-2 py-0.5 bg-gray-100 rounded">
-                    {template.daysBefore === 0 ? 'Confirmação' : `${template.daysBefore} dias`}
-                  </span>
-                  <span className={`px-2 py-0.5 rounded ${
-                    template.type === 'error' ? 'bg-red-100 text-red-700' :
-                    template.type === 'warning' ? 'bg-yellow-100 text-yellow-700' :
-                    template.type === 'success' ? 'bg-green-100 text-green-700' :
-                    'bg-blue-100 text-blue-700'
-                  }`}>
-                    {template.type}
-                  </span>
-                </div>
-              </div>
-            ))}
-          </div>
-
-          {/* Variáveis Disponíveis */}
-          <div className="mt-6 p-4 bg-blue-50 rounded border border-blue-200">
-            <h4 className="font-medium text-blue-900 flex items-center gap-2 mb-3">
-              <Variable className="w-4 h-4" />
-              Variáveis Disponíveis
-            </h4>
-            <p className="text-xs text-blue-700 mb-2">
-              Use estas variáveis nos templates:
-            </p>
-            <div className="space-y-1 text-xs font-mono">
-              <div className="flex justify-between">
-                <code className="text-blue-800">{'{{clientName}}'}</code>
-                <span className="text-blue-600">Nome do cliente</span>
-              </div>
-              <div className="flex justify-between">
-                <code className="text-blue-800">{'{{serviceName}}'}</code>
-                <span className="text-blue-600">Domínio/Serviço</span>
-              </div>
-              <div className="flex justify-between">
-                <code className="text-blue-800">{'{{expirationDate}}'}</code>
-                <span className="text-blue-600">Data de vencimento</span>
-              </div>
-              <div className="flex justify-between">
-                <code className="text-blue-800">{'{{daysRemaining}}'}</code>
-                <span className="text-blue-600">Dias restantes</span>
-              </div>
-              <div className="flex justify-between">
-                <code className="text-blue-800">{'{{renewalPrice}}'}</code>
-                <span className="text-blue-600">Preço</span>
-              </div>
-              <div className="flex justify-between">
-                <code className="text-blue-800">{'{{renewalLink}}'}</code>
-                <span className="text-blue-600">Link de renovação</span>
-              </div>
-              <div className="flex justify-between">
-                <code className="text-blue-800">{'{{companyName}}'}</code>
-                <span className="text-blue-600">VisualDesign</span>
-              </div>
-              <div className="flex justify-between">
-                <code className="text-blue-800">{'{{supportEmail}}'}</code>
-                <span className="text-blue-600">Email suporte</span>
-              </div>
-              <div className="flex justify-between">
-                <code className="text-blue-800">{'{{supportPhone}}'}</code>
-                <span className="text-blue-600">Telefone</span>
-              </div>
-            </div>
-          </div>
+      {saveStatus === 'error' && saveError && (
+        <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700 flex items-start gap-2">
+          <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" />
+          <span><strong>Falha ao gravar:</strong> {saveError}</span>
         </div>
+      )}
 
-        {/* Editor e Preview */}
-        <div className="lg:col-span-2 space-y-6">
+      <div className="flex flex-wrap gap-2">
+        {templates.map(template => (
+          <button
+            key={template.id}
+            onClick={() => selectTemplate(template)}
+            className={`px-3 py-1.5 rounded-full text-xs font-bold border transition-colors flex items-center gap-1.5 ${
+              editingTemplate?.id === template.id
+                ? 'border-purple-500 bg-purple-100 text-purple-700 ring-2 ring-purple-200'
+                : template.type === 'error' ? 'border-red-200 bg-red-50 text-red-700 hover:border-red-300'
+                : template.type === 'warning' ? 'border-yellow-200 bg-yellow-50 text-yellow-700 hover:border-yellow-300'
+                : template.type === 'success' ? 'border-green-200 bg-green-50 text-green-700 hover:border-green-300'
+                : 'border-blue-200 bg-blue-50 text-blue-700 hover:border-blue-300'
+            }`}
+          >
+            <span className={`w-1.5 h-1.5 rounded-full ${
+              template.urgency === 'critical' ? 'bg-red-500' :
+              template.urgency === 'high' ? 'bg-orange-500' :
+              template.urgency === 'medium' ? 'bg-yellow-500' :
+              'bg-blue-500'
+            }`} />
+            {template.daysBefore === 0 ? 'Confirmação' : template.daysBefore === 1 ? '1 dia' : `${template.daysBefore} dias`}
+          </button>
+        ))}
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)] gap-6">
+
+        {/* Editor */}
+        <div className="space-y-4">
           {editingTemplate ? (
-            <>
-              {/* Editor */}
-              <div className="space-y-4">
+            <div className="space-y-4 bg-white rounded-xl border border-gray-200 shadow-sm p-6">
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -1021,7 +1067,7 @@ export function TemplatesSection() {
                           </svg>
                         </button>
                         {fontSizeDropdownOpen && (
-                          <div className="absolute top-full left-0 mt-1 bg-white border border-gray-300 rounded shadow-lg z-50 max-h-[200px] overflow-y-auto min-w-[60px]">
+                          <div className="absolute top-full left-0 mt-1 bg-white border border-gray-300 rounded shadow-lg z-50 max-h-[240px] overflow-y-auto min-w-[60px]">
                             {fontSizes.map(size => (
                               <button
                                 key={size}
@@ -1034,6 +1080,32 @@ export function TemplatesSection() {
                           </div>
                         )}
                       </div>
+                      {/* Dropdown de Altura de Linha */}
+                      <div ref={lineHeightDropdownRef} className="relative">
+                        <button
+                          onClick={() => setLineHeightDropdownOpen(!lineHeightDropdownOpen)}
+                          className="flex items-center gap-1 px-2 py-1.5 hover:bg-white hover:shadow rounded transition-all border border-gray-300 bg-white"
+                          title="Altura da Linha"
+                        >
+                          <span className="text-xs font-medium text-gray-700">Altura</span>
+                          <svg className="w-3 h-3 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                          </svg>
+                        </button>
+                        {lineHeightDropdownOpen && (
+                          <div className="absolute top-full left-0 mt-1 bg-white border border-gray-300 rounded shadow-lg z-50 max-h-[240px] overflow-y-auto min-w-[60px]">
+                            {lineHeights.map(value => (
+                              <button
+                                key={value}
+                                onClick={() => applyLineHeight(value)}
+                                className="w-full px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-100 text-left"
+                              >
+                                {value}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
                       <div className="w-px h-5 bg-gray-300 mx-1" />
                       <button
                         onClick={() => insertEditableButton()}
@@ -1041,6 +1113,13 @@ export function TemplatesSection() {
                         title="Botão CTA com texto editável"
                       >
                         Botão CTA
+                      </button>
+                      <button
+                        onClick={() => insertEditableBanner()}
+                        className="px-2 py-1 hover:bg-white hover:shadow rounded transition-all text-xs text-gray-700 font-medium"
+                        title="Bloco de destaque com fundo colorido, largura total"
+                      >
+                        Bloco Destaque
                       </button>
                     </div>
                   )}
@@ -1057,13 +1136,13 @@ export function TemplatesSection() {
                         saveToHistory(content)
                       }}
                       onKeyDown={handleKeyDown}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-b min-h-[300px] max-h-[400px] overflow-y-auto focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent text-left"
-                      style={{ 
-                        minHeight: '300px',
+                      className="w-full px-3 py-2 border border-gray-300 rounded-b min-h-[150px] focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent text-left"
+                      style={{
+                        minHeight: '150px',
+                        height: 'auto',
                         fontFamily: '"Exo 2", sans-serif',
                         fontSize: '14px',
                         lineHeight: '1.6',
-                        whiteSpace: 'pre-wrap',
                         wordWrap: 'break-word'
                       }}
                     />
@@ -1071,51 +1150,21 @@ export function TemplatesSection() {
                     /* Editor HTML */
                     <textarea
                       value={editingTemplate.emailBody}
-                      onChange={(e) => setEditingTemplate({ ...editingTemplate, emailBody: e.target.value })}
-                      rows={15}
-                      className="w-full px-3 py-2 border border-gray-300 rounded font-mono text-xs focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                      onChange={(e) => {
+                        setEditingTemplate({ ...editingTemplate, emailBody: e.target.value })
+                        e.target.style.height = 'auto'
+                        e.target.style.height = `${e.target.scrollHeight}px`
+                      }}
+                      ref={(el) => {
+                        if (el) {
+                          el.style.height = 'auto'
+                          el.style.height = `${el.scrollHeight}px`
+                        }
+                      }}
+                      className="w-full px-3 py-2 border border-gray-300 rounded font-mono text-xs min-h-[150px] resize-none overflow-hidden focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
                       spellCheck={false}
                     />
                   )}
-                </div>
-              </div>
-
-
-              {/* Preview */}
-              <div className="border-t border-gray-200 pt-6">
-                <h4 className="font-medium text-gray-900 flex items-center gap-2 mb-4">
-                  <Eye className="w-5 h-5" />
-                  Preview ao Vivo
-                </h4>
-                
-                {/* Preview Dashboard */}
-                <div className={`p-4 rounded border-l-4 mb-4 ${
-                  editingTemplate.type === 'error' ? 'bg-red-50 border-red-400' :
-                  editingTemplate.type === 'warning' ? 'bg-yellow-50 border-yellow-400' :
-                  editingTemplate.type === 'success' ? 'bg-green-50 border-green-400' :
-                  'bg-blue-50 border-blue-400'
-                }`}>
-                  <p className="font-medium">
-                    {processTemplate(editingTemplate, previewVariables).title}
-                  </p>
-                  <p className="text-sm mt-1 opacity-80">
-                    {processTemplate(editingTemplate, previewVariables).message}
-                  </p>
-                </div>
-
-                {/* Preview Email */}
-                <div className="border border-gray-200 rounded overflow-hidden">
-                  <div className="bg-gray-100 px-4 py-2 border-b border-gray-200">
-                    <p className="text-sm font-medium text-gray-700">
-                      Assunto: {processTemplate(editingTemplate, previewVariables).emailSubject}
-                    </p>
-                  </div>
-                  <div 
-                    className="p-4 bg-white prose prose-sm max-w-none"
-                    dangerouslySetInnerHTML={{ 
-                      __html: processTemplate(editingTemplate, previewVariables).emailBody 
-                    }}
-                  />
                 </div>
 
                 {/* Editar Variáveis de Preview - Dados Simulados do Cliente */}
@@ -1178,13 +1227,107 @@ export function TemplatesSection() {
                     <strong>Nota:</strong> O valor pode ser editado manualmente para cada renovação. Na notificação real, os dados são automaticamente preenchidos com base no registo do cliente no sistema.
                   </p>
                 </div>
-              </div>
-            </>
+            </div>
           ) : (
             <div className="text-center py-12 bg-gray-50 rounded border-2 border-dashed border-gray-200">
               <Palette className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-              <p className="text-gray-500">Selecione um template à esquerda para editar</p>
+              <p className="text-gray-500">Selecione um template acima para editar</p>
             </div>
+          )}
+        </div>
+
+        {/* Preview */}
+        <div className="space-y-4">
+          {/* Variáveis Disponíveis */}
+          <div className="p-4 bg-blue-50 rounded border border-blue-200">
+            <h4 className="font-medium text-blue-900 flex items-center gap-2 mb-3">
+              <Variable className="w-4 h-4" />
+              Variáveis Disponíveis
+            </h4>
+            <p className="text-xs text-blue-700 mb-2">
+              Use estas variáveis nos templates:
+            </p>
+            <div className="grid grid-cols-2 divide-x divide-blue-200 text-xs font-mono">
+              <div className="space-y-1 pr-4">
+                <div className="flex justify-between gap-2">
+                  <code className="text-blue-800">{'{{clientName}}'}</code>
+                  <span className="text-blue-600">Nome do cliente</span>
+                </div>
+                <div className="flex justify-between gap-2">
+                  <code className="text-blue-800">{'{{serviceName}}'}</code>
+                  <span className="text-blue-600">Domínio/Serviço</span>
+                </div>
+                <div className="flex justify-between gap-2">
+                  <code className="text-blue-800">{'{{expirationDate}}'}</code>
+                  <span className="text-blue-600">Vencimento</span>
+                </div>
+                <div className="flex justify-between gap-2">
+                  <code className="text-blue-800">{'{{daysRemaining}}'}</code>
+                  <span className="text-blue-600">Dias restantes</span>
+                </div>
+                <div className="flex justify-between gap-2">
+                  <code className="text-blue-800">{'{{renewalPrice}}'}</code>
+                  <span className="text-blue-600">Preço</span>
+                </div>
+              </div>
+              <div className="space-y-1 pl-4">
+                <div className="flex justify-between gap-2">
+                  <code className="text-blue-800">{'{{renewalLink}}'}</code>
+                  <span className="text-blue-600">Link</span>
+                </div>
+                <div className="flex justify-between gap-2">
+                  <code className="text-blue-800">{'{{companyName}}'}</code>
+                  <span className="text-blue-600">VisualDesign</span>
+                </div>
+                <div className="flex justify-between gap-2">
+                  <code className="text-blue-800">{'{{supportEmail}}'}</code>
+                  <span className="text-blue-600">Email suporte</span>
+                </div>
+                <div className="flex justify-between gap-2">
+                  <code className="text-blue-800">{'{{supportPhone}}'}</code>
+                  <span className="text-blue-600">Telefone</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {editingTemplate && (
+            <>
+              <h4 className="font-medium text-gray-900 flex items-center gap-2 mb-4">
+                <Eye className="w-5 h-5" />
+                Preview ao Vivo
+              </h4>
+                
+                {/* Preview Dashboard */}
+                <div className={`p-4 rounded border-l-4 mb-4 ${
+                  editingTemplate.type === 'error' ? 'bg-red-50 border-red-400' :
+                  editingTemplate.type === 'warning' ? 'bg-yellow-50 border-yellow-400' :
+                  editingTemplate.type === 'success' ? 'bg-green-50 border-green-400' :
+                  'bg-blue-50 border-blue-400'
+                }`}>
+                  <p className="font-medium">
+                    {processTemplate(editingTemplate, previewVariables).title}
+                  </p>
+                  <p className="text-sm mt-1 opacity-80">
+                    {processTemplate(editingTemplate, previewVariables).message}
+                  </p>
+                </div>
+
+                {/* Preview Email */}
+                <div className="border border-gray-200 rounded overflow-hidden">
+                  <div className="bg-gray-100 px-4 py-2 border-b border-gray-200">
+                    <p className="text-sm font-medium text-gray-700">
+                      Assunto: {processTemplate(editingTemplate, previewVariables).emailSubject}
+                    </p>
+                  </div>
+                  <div 
+                    className="p-4 bg-white prose prose-sm max-w-none"
+                    dangerouslySetInnerHTML={{ 
+                      __html: processTemplate(editingTemplate, previewVariables).emailBody 
+                    }}
+                  />
+                </div>
+            </>
           )}
         </div>
       </div>

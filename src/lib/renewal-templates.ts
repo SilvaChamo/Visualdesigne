@@ -20,20 +20,55 @@
 
 // URL base do site - usa variável de ambiente ou fallback para o domínio de produção
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'https://visualdesignmoz.com'
-const LOGO_URL = `${SITE_URL}/assets/logotipoII.png`
+// Logo horizontal (texto a branco, pensado para fundos escuros) — o mesmo já usado
+// nos templates de mailmarketing (src/components/admin/EmailTemplates.tsx).
+const LOGO_URL = `${SITE_URL}/assets/Logo_horizontal_branco.png`
+const LOGO_NATIVE_WIDTH = 2241
+const LOGO_NATIVE_HEIGHT = 642
+const LOGO_DISPLAY_WIDTH = 160
+const LOGO_DISPLAY_HEIGHT = Math.round(LOGO_DISPLAY_WIDTH * (LOGO_NATIVE_HEIGHT / LOGO_NATIVE_WIDTH))
 
-// Cabeçalho partilhado por todos os emails transaccionais: estilo "chapado"
-// (sem cartão flutuante, sem cantos arredondados, sem margem cinza à volta —
-// igual ao email da MozServer e aos templates de mailmarketing). Uma <tr>
-// própria, de largura total, directamente na tabela exterior a 100%.
+// Reset "à prova de bala" para o cabeçalho ficar mesmo colado às margens do
+// cliente de email (sem tirar o padding interno dos cartões de conteúdo) —
+// o Outlook (motor Word) ignora margin/padding:0 do body e acrescenta espaço
+// à volta das tabelas por conta própria a menos que se anule explicitamente
+// com mso-table-lspace/rspace e os atributos HTML4 no <body>. Nota: NÃO zerar
+// padding de <td> em geral — isso tirava o respiro interno da saudação e do
+// cartão de conteúdo, que têm o próprio padding inline de propósito.
+const EMAIL_CLIENT_RESET_STYLE = `<style type="text/css">
+    body { margin: 0 !important; padding: 0 !important; width: 100% !important; -webkit-text-size-adjust: 100%; -ms-text-size-adjust: 100%; }
+    table { mso-table-lspace: 0pt !important; mso-table-rspace: 0pt !important; }
+    img { -ms-interpolation-mode: bicubic; border: 0; outline: none; }
+  </style>`
+
+// Ícones de redes sociais (mesmo estilo circular usado em EmailTemplates.tsx).
+const socialIconsHtml = () => `<table cellpadding="0" cellspacing="0" border="0"><tr>
+        <td style="padding:0 3px;"><a href="#" style="display:inline-block;width:20px;height:20px;line-height:20px;border-radius:50%;background:#dc2626;color:#fff;font-size:10px;font-weight:800;text-decoration:none;text-align:center;">f</a></td>
+        <td style="padding:0 3px;"><a href="#" style="display:inline-block;width:20px;height:20px;line-height:20px;border-radius:50%;background:#dc2626;color:#fff;font-size:10px;font-weight:800;text-decoration:none;text-align:center;">in</a></td>
+        <td style="padding:0 3px;"><a href="#" style="display:inline-block;width:20px;height:20px;line-height:20px;border-radius:50%;background:#dc2626;color:#fff;font-size:10px;font-weight:800;text-decoration:none;text-align:center;">ig</a></td>
+      </tr></table>`
+
+// Cabeçalho partilhado por todos os emails transaccionais: fundo esticado à
+// largura total da página (igual ao email da MozServer e aos templates de
+// mailmarketing), mas o conteúdo (logo + redes sociais) fica alinhado à
+// mesma largura/margens do cartão de conteúdo (600px) — não à largura total
+// do fundo. Logo à esquerda, redes sociais à direita — sem linha de destaque
+// aqui (essa passou a ficar por cima do cartão de conteúdo, ver wrapContentInFrame).
 export const emailHeader = (companyName: string) => `
 <tr>
-  <td align="center" style="background: linear-gradient(135deg, #000000 0%, #1a1a1a 50%, #000000 100%); border-bottom: 3px solid #dc2626; padding: 15px 20px;">
-    <img src="${LOGO_URL}"
-         alt="${companyName}"
-         width="150"
-         height="60"
-         style="display: block; margin: 0 auto; max-width: 150px; height: auto; border: 0; outline: none;" />
+  <td align="center" style="background: linear-gradient(135deg, #000000 0%, #1a1a1a 50%, #000000 100%); padding: 10px 0;">
+    <table width="600" cellpadding="0" cellspacing="0" border="0" style="max-width: 600px; width: 100%;">
+      <tr>
+        <td align="left" valign="middle">
+          <img src="${LOGO_URL}"
+               alt="${companyName}"
+               width="${LOGO_DISPLAY_WIDTH}"
+               height="${LOGO_DISPLAY_HEIGHT}"
+               style="display: block; width: ${LOGO_DISPLAY_WIDTH}px; height: ${LOGO_DISPLAY_HEIGHT}px; border: 0; outline: none;" />
+        </td>
+        <td align="right" valign="middle">${socialIconsHtml()}</td>
+      </tr>
+    </table>
   </td>
 </tr>
 `.trim()
@@ -58,6 +93,67 @@ export const emailFooter = (supportEmail: string, supportPhone: string, companyN
 </div>
 `.trim()
 
+// Notificações admin livres (tab "Enviar Notificação" em Notificações → Servidor):
+// layout em branco, sem cartão/linha de destaque nem botão pré-formatado — só o
+// cabeçalho e rodapé partilhados, com espaço aberto para o título/mensagem que o
+// admin escrever no formulário.
+export const NOTIFICATION_SUPPORT_EMAIL = 'suporte@visualdesignmoz.com'
+export const NOTIFICATION_SUPPORT_PHONE = '+258 85 242 5525'
+export const NOTIFICATION_COMPANY_NAME = 'VisualDesign'
+
+export function urgencyForNotificationType(type: string): string {
+  switch (type) {
+    case 'error': return 'critical'
+    case 'warning': return 'medium'
+    case 'success':
+    case 'info':
+    default: return 'low'
+  }
+}
+
+export function buildSimpleNotificationEmailHtml(params: {
+  clientName: string
+  title: string
+  message: string
+  link?: string
+  linkText?: string
+  type: string
+}): string {
+  const { clientName, title, message, link, linkText, type } = params
+
+  const body = `
+    <h2 style="margin: 0 0 12px 0; color: #111827; font-size: 18px; font-family: 'Exo 2', sans-serif; font-weight: 600;">${title}</h2>
+    <p style="margin: 0; color: #374151; font-size: 14px; line-height: 1.6; white-space: pre-line; font-family: 'Exo 2', sans-serif; font-weight: normal;">${message}</p>
+    ${link ? `<p style="margin: 20px 0 0 0;"><a href="${link}" style="display: inline-block; padding: 10px 20px; background: #dc2626; color: #ffffff; text-decoration: none; border-radius: 4px; font-size: 14px; font-family: 'Exo 2', sans-serif;">${linkText || 'Ver mais'}</a></p>` : ''}
+  `
+
+  return `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${title}</title>
+  ${EMAIL_CLIENT_RESET_STYLE}
+</head>
+<body marginwidth="0" marginheight="0" topmargin="0" leftmargin="0" style="margin: 0; padding: 0; width: 100%; font-family: 'Exo 2', sans-serif; background: #f3f4f6;">
+  <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:0; padding:0; font-family: 'Exo 2', sans-serif;">
+    ${emailHeader(NOTIFICATION_COMPANY_NAME)}
+    <tr>
+      <td align="center" style="padding: 24px 12px; background: #f3f4f6; font-family: 'Exo 2', sans-serif;">
+        <table width="600" cellpadding="0" cellspacing="0" border="0" style="max-width: 600px; width: 100%; background: #ffffff; border: 1px solid #e5e7eb; border-top: 3px solid #dc2626; font-family: 'Exo 2', sans-serif;">
+          <tr><td>${emailGreeting(clientName)}</td></tr>
+          <tr><td style="padding: 20px 24px;">${wrapContentInFrame(body, urgencyForNotificationType(type))}</td></tr>
+          <tr><td>${emailFooter(NOTIFICATION_SUPPORT_EMAIL, NOTIFICATION_SUPPORT_PHONE, NOTIFICATION_COMPANY_NAME)}</td></tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
+  `.trim()
+}
+
 export const emailAttentionCard = (supportEmail: string, dashboardLink?: string, clientAreaLink?: string) => `
 <div style="padding: 12px 15px; background: #fef2f2; border-left: 3px solid #dc2626; margin-top: 15px;">
   <p style="margin: 0; font-size: 11px; color: #7f1d1d; line-height: 1.5;">
@@ -77,15 +173,13 @@ export const getUrgencyColor = (urgency: string): string => {
   }
 }
 
-// Sem caixa/cartão — só uma linha de destaque no topo, conforme a urgência.
-export const wrapContentInFrame = (content: string, urgency: string) => {
-  const borderColor = getUrgencyColor(urgency)
-  return `
-<div style="border-top: 3px solid ${borderColor}; padding-top: 16px; font-family: 'Exo 2', sans-serif;">
+// Sem caixa/cartão nem linha de destaque — a cor de urgência (getUrgencyColor)
+// passou a ficar só no cartão "Preview ao Vivo" do dashboard, não no email.
+export const wrapContentInFrame = (content: string, _urgency: string) => `
+<div style="font-family: 'Exo 2', sans-serif;">
   ${content}
 </div>
   `.trim()
-}
 
 export interface RenewalTemplate {
   id: string
@@ -122,8 +216,8 @@ export const defaultRenewalTemplates: RenewalTemplate[] = [
   <p style="margin:8px 0;"><strong>Vencimento:</strong> {{expirationDate}}</p>
   <p style="margin:8px 0;"><strong>Valor:</strong> {{renewalPrice}}</p>
 </div>
-<div style="text-align:center;margin:30px 0;">
-  <a href="{{renewalLink}}" style="display:inline-block;background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);color:white;padding:15px 40px;text-decoration:none;border-radius:8px;font-weight:bold;font-size:16px;">RENOVAR AGORA →</a>
+<div style="text-align:left;margin:24px 0;">
+  <a href="{{renewalLink}}" style="display:inline-block;background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);color:white;padding:10px 24px;text-decoration:none;border-radius:4px;font-weight:bold;font-size:14px;">RENOVAR AGORA →</a>
 </div>
 <p style="font-size:14px;color:#64748b;">Renovando com antecedência, você garante continuidade do serviço sem interrupções e evita taxas de reativação.</p>
     `.trim(),
@@ -145,8 +239,8 @@ export const defaultRenewalTemplates: RenewalTemplate[] = [
   <p style="margin:8px 0;"><strong>📅 Data de Vencimento:</strong> {{expirationDate}}</p>
   <p style="margin:8px 0;"><strong>💰 Investimento:</strong> {{renewalPrice}}</p>
 </div>
-<div style="text-align:center;margin:30px 0;">
-  <a href="{{renewalLink}}" style="display:inline-block;background:#3b82f6;color:white;padding:15px 40px;text-decoration:none;border-radius:8px;font-weight:bold;font-size:16px;">RENOVAR AGORA →</a>
+<div style="text-align:left;margin:24px 0;">
+  <a href="{{renewalLink}}" style="display:inline-block;background:#3b82f6;color:white;padding:10px 24px;text-decoration:none;border-radius:4px;font-weight:bold;font-size:14px;">RENOVAR AGORA →</a>
 </div>
 <p>Evite contratempos e renove com tranquilidade.</p>
     `.trim(),
@@ -183,8 +277,8 @@ export const defaultRenewalTemplates: RenewalTemplate[] = [
   <p style="margin:8px 0;"><strong>Investimento:</strong> {{renewalPrice}}</p>
 </div>
 
-<div style="text-align:center;margin:30px 0;">
-  <a href="{{renewalLink}}" style="display:inline-block;background:#ca8a04;color:white;padding:15px 40px;text-decoration:none;border-radius:8px;font-weight:bold;font-size:16px;">🛡️ PROTEJA SEU SERVIÇO AGORA →</a>
+<div style="text-align:left;margin:24px 0;">
+  <a href="{{renewalLink}}" style="display:inline-block;background:#ca8a04;color:white;padding:10px 24px;text-decoration:none;border-radius:4px;font-weight:bold;font-size:14px;">🛡️ PROTEJA SEU SERVIÇO AGORA →</a>
 </div>
 
 <p>
@@ -228,9 +322,9 @@ Olá {{clientName}},
   <li>✗ Taxas de reativação (até 50% mais caro)</li>
 </ul>
 
-<div style="background: #dbeafe; border: 2px solid #2563eb; padding: 15px; margin: 20px 0; text-align: center;">
+<div style="background: #dbeafe; border: 2px solid #2563eb; padding: 15px; margin: 20px 0; text-align: left;">
   <p style="margin: 0 0 10px 0; font-weight: bold; color: #1e40af;">🛡️ PROTEJA SEU SERVIÇO AGORA</p>
-  <a href="{{renewalLink}}" style="background: #dc2626; color: white; padding: 12px 30px; text-decoration: none; border-radius: 5px; font-weight: bold; display: inline-block;">
+  <a href="{{renewalLink}}" style="background: #dc2626; color: white; padding: 10px 24px; text-decoration: none; border-radius: 4px; font-weight: bold; display: inline-block;">
     RENOVAR AGORA →
   </a>
   <p style="margin: 10px 0 0 0; font-size: 14px; color: #1e40af;">
@@ -284,9 +378,9 @@ Equipe {{companyName}}
   <li>Taxas de reativação serão aplicadas</li>
 </ul>
 
-<div style="background: #dbeafe; border: 2px solid #2563eb; padding: 15px; margin: 20px 0; text-align: center;">
+<div style="background: #dbeafe; border: 2px solid #2563eb; padding: 15px; margin: 20px 0; text-align: left;">
   <p style="margin: 0 0 10px 0; font-weight: bold; color: #1e40af;">⏰ ACÇÃO IMEDIATA NECESSÁRIA!</p>
-  <a href="{{renewalLink}}" style="background: #dc2626; color: white; padding: 12px 30px; text-decoration: none; border-radius: 5px; font-weight: bold; display: inline-block;">
+  <a href="{{renewalLink}}" style="background: #dc2626; color: white; padding: 10px 24px; text-decoration: none; border-radius: 4px; font-weight: bold; display: inline-block;">
     RENOVAR AGORA →
   </a>
   <p style="margin: 10px 0 0 0; font-size: 14px; color: #1e40af;">
@@ -338,9 +432,9 @@ Olá {{clientName}},
   <li>✗ Taxas de reativação (até 50% mais caro)</li>
 </ul>
 
-<div style="background: #dbeafe; border: 2px solid #2563eb; padding: 15px; margin: 20px 0; text-align: center;">
+<div style="background: #dbeafe; border: 2px solid #2563eb; padding: 15px; margin: 20px 0; text-align: left;">
   <p style="margin: 0 0 10px 0; font-weight: bold; color: #1e40af;">🛡️ PROTEJA SEU SERVIÇO AGORA</p>
-  <a href="{{renewalLink}}" style="background: #dc2626; color: white; padding: 12px 30px; text-decoration: none; border-radius: 5px; font-weight: bold; display: inline-block;">
+  <a href="{{renewalLink}}" style="background: #dc2626; color: white; padding: 10px 24px; text-decoration: none; border-radius: 4px; font-weight: bold; display: inline-block;">
     RENOVAR AGORA →
   </a>
   <p style="margin: 10px 0 0 0; font-size: 14px; color: #1e40af;">
@@ -404,8 +498,8 @@ Equipe {{companyName}}
   </ul>
 </div>
 
-<div style="text-align: center; margin: 30px 0;">
-  <a href="{{renewalLink}}" style="background: #dc2626; color: white; padding: 15px 40px; text-decoration: none; border-radius: 8px; font-weight: bold; font-size: 18px; display: inline-block; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+<div style="text-align: left; margin: 24px 0;">
+  <a href="{{renewalLink}}" style="background: #dc2626; color: white; padding: 10px 24px; text-decoration: none; border-radius: 4px; font-weight: bold; font-size: 14px; display: inline-block;">
     🛡️ RENOVAR AGORA →
   </a>
   <p style="margin-top: 15px; font-size: 16px;">
@@ -566,13 +660,14 @@ export function processTemplate(
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>${processed.emailSubject}</title>
+  ${EMAIL_CLIENT_RESET_STYLE}
 </head>
-<body style="margin: 0; padding: 0; font-family: 'Exo 2', sans-serif; background: #f3f4f6;">
-  <table width="100%" cellpadding="0" cellspacing="0" border="0" style="font-family: 'Exo 2', sans-serif;">
+<body marginwidth="0" marginheight="0" topmargin="0" leftmargin="0" style="margin: 0; padding: 0; width: 100%; font-family: 'Exo 2', sans-serif; background: #f3f4f6;">
+  <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:0; padding:0; font-family: 'Exo 2', sans-serif;">
     ${header}
     <tr>
       <td align="center" style="padding: 24px 12px; background: #f3f4f6; font-family: 'Exo 2', sans-serif;">
-        <table width="600" cellpadding="0" cellspacing="0" border="0" style="max-width: 600px; width: 100%; background: #ffffff; border: 1px solid #e5e7eb; font-family: 'Exo 2', sans-serif;">
+        <table width="600" cellpadding="0" cellspacing="0" border="0" style="max-width: 600px; width: 100%; background: #ffffff; border: 1px solid #e5e7eb; border-top: 3px solid #dc2626; font-family: 'Exo 2', sans-serif;">
           <tr><td>${greeting}</td></tr>
           <tr>
             <td style="padding: 20px 24px;">

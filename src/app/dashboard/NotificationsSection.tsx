@@ -14,10 +14,12 @@ import {
   Mail,
   MessageSquare,
   Palette,
-  ArrowRight
+  ArrowRight,
+  Eye
 } from 'lucide-react'
 import { panelTabList, panelTabBtn } from '@/lib/panel-ui'
 import { Spinner } from '@/components/ui/spinner'
+import { buildSimpleNotificationEmailHtml } from '@/lib/renewal-templates'
 
 interface Notification {
   id: string
@@ -52,14 +54,6 @@ export function NotificationsSection({
   const [loading, setLoading] = useState(false)
   const [sending, setSending] = useState(false)
   const [activeTab, setActiveTab] = useState<NotificationsTab>(defaultTab)
-
-  // Redirecionar automaticamente para o editor de templates
-  useEffect(() => {
-    if (activeTab === 'renewal-templates') {
-      const isAdmin = window.location.pathname.includes('/dashboard')
-      window.location.href = isAdmin ? '/dashboard?section=renewals' : '/revendedor?section=renewals'
-    }
-  }, [activeTab])
 
   const fetchNotifications = async () => {
     setLoading(true)
@@ -251,6 +245,7 @@ export function NotificationsSection({
 
       {/* Tab: Enviar */}
       {activeTab === 'send' && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
           <div className="flex items-center gap-3 mb-6">
             <div className="p-3 bg-blue-100 rounded-lg">
@@ -433,6 +428,28 @@ export function NotificationsSection({
               )}
             </button>
           </form>
+        </div>
+
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
+          <h4 className="font-medium text-gray-900 flex items-center gap-2 mb-4">
+            <Eye className="w-5 h-5" />
+            Preview ao Vivo
+          </h4>
+          <div className="border border-gray-200 rounded overflow-hidden">
+            <div
+              dangerouslySetInnerHTML={{
+                __html: buildSimpleNotificationEmailHtml({
+                  clientName: 'Cliente',
+                  title: title || 'Título da notificação',
+                  message: message || 'A mensagem que escreveres aqui aparece assim no email.',
+                  link: link || undefined,
+                  linkText: linkText || undefined,
+                  type,
+                }),
+              }}
+            />
+          </div>
+        </div>
         </div>
       )}
 
