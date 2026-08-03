@@ -5,7 +5,7 @@
 
 import { createClient } from '@supabase/supabase-js';
 import { daPostViaSsh } from '@/lib/da-api-ssh';
-import { decryptStoredPassword } from '@/lib/panel-access-credentials';
+import { decryptDaSecret } from '@/lib/da-credential-store';
 import { upsertPanelAuthAccount } from '@/lib/panel-auth-accounts';
 import { saveProfileForAuthUser } from '@/lib/profile-db';
 import { getDaSyncAdmin } from '@/lib/da-sync-schema';
@@ -137,17 +137,21 @@ export async function provisionPanelAccountToServer(userName: string): Promise<{
     return { ok: false, linked: false, error: 'Email da conta em falta' };
   }
 
-  const { data: cred } = await sb
-    .from('email_contas')
-    .select('senha_servidor')
-    .eq('cliente_id', userId)
+  // A password vive em profiles.da_password_encrypted — NÃO em
+  // email_contas.senha_servidor: essa tabela tem cliente_id como FK para
+  // 'clientes' (tabela legada, vazia em produção), nunca para auth.users,
+  // por isso o lookup por cliente_id=userId falhava sempre em silêncio.
+  const { data: profileRow } = await sb
+    .from('profiles')
+    .select('da_password_encrypted')
+    .eq('user_id', userId)
     .maybeSingle();
 
-  if (!cred?.senha_servidor) {
+  if (!profileRow?.da_password_encrypted) {
     return { ok: false, linked: false, error: 'Credenciais da conta em falta' };
   }
 
-  const password = decryptStoredPassword(String(cred.senha_servidor));
+  const password = decryptDaSecret(String(profileRow.da_password_encrypted));
   if (!password || password.length < 8) {
     return { ok: false, linked: false, error: 'Password da conta inválida' };
   }

@@ -1,12 +1,18 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { createClient as createAdminClient } from '@supabase/supabase-js';
 import type { CatalogCartItem } from '@/lib/package-catalog';
+import { generateProvisionerPassword } from '@/lib/reseller-auto-provision';
+import { sanitizeDaUsername } from '@/lib/reseller-provision';
+import { encryptDaSecret } from '@/lib/da-credential-store';
+import { upsertPanelAuthAccount } from '@/lib/panel-auth-accounts';
+import { upsertMirrorUser, upsertMirrorSite } from '@/lib/panel-mirror-write';
+import { schedulePanelServerProvision } from '@/lib/panel-server-provision';
+import { getDaSyncAdmin } from '@/lib/da-sync-schema';
 
 // 'VisualDESIGN' é o único pacote real confirmado no DirectAdmin (via
 // CMD_API_PACKAGES_USER) — os nomes VD-Host-*/VD-Email-* não existem no
-// servidor. Serve só para o registo de tracking (hosting_renewals); a conta
-// real é sempre criada manualmente pelo admin/revendedor/profissional (ver
-// nota mais abaixo), não a partir do checkout.
+// servidor e faziam a criação da conta falhar sempre. Usar este pacote para
+// todos os planos até existirem pacotes dedicados por plano.
 const CART_PLAN_TO_PACKAGE: Record<string, string> = {
   'hosting-basico': 'VisualDESIGN',
   'hosting-pro': 'VisualDESIGN',
@@ -16,6 +22,25 @@ const CART_PLAN_TO_PACKAGE: Record<string, string> = {
   'email-starter': 'VisualDESIGN',
   'email-business': 'VisualDESIGN',
 };
+
+/**
+ * Escolhe um username livre no espelho do painel (panel_users) — não no
+ * DirectAdmin em si. O painel tem de conseguir registar a conta mesmo que o
+ * servidor DA esteja indisponível ou tenha atingido o limite da licença, daí
+ * verificar unicidade aqui e não via API DA (ver panel-server-provision.ts,
+ * que faz a sincronização real de forma assíncrona e best-effort, com nova
+ * tentativa automática mais tarde se falhar).
+ */
+async function pickAvailableMirrorUsername(base: string): Promise<string> {
+  const sb = getDaSyncAdmin();
+  const sanitized = sanitizeDaUsername(base);
+  if (!sb) return sanitized;
+  for (const candidate of [sanitized, `${sanitized}1`, `${sanitized}2`, `${sanitized}${Date.now().toString().slice(-4)}`]) {
+    const { data } = await sb.from('panel_users').select('username').eq('username', candidate).maybeSingle();
+    if (!data) return candidate;
+  }
+  return `${sanitized}${Date.now().toString().slice(-6)}`;
+}
 
 function addYears(date: Date, years: number) {
   const d = new Date(date);
@@ -55,38 +80,6 @@ async function alertAdminOfTrackingFailure(context: string, message: string) {
 }
 
 /**
- * Avisa o admin que há uma nova hospedagem comprada à espera de conta no
- * servidor. A criação real da conta (DirectAdmin) é sempre um passo manual
- * de admin/revendedor/profissional em "Criar conta de hospedagem" — o
- * checkout nunca cria contas de servidor sozinho, só regista a compra e
- * avisa quem tem de agir.
- */
-async function notifyAdminOfPendingHostingProvision(domain: string, packageName: string, clientEmail?: string) {
-  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  if (!serviceKey || !supabaseUrl) return;
-  try {
-    const admin = createAdminClient(supabaseUrl, serviceKey);
-    const { data: adminProfile } = await admin
-      .from('profiles')
-      .select('id')
-      .eq('role', 'admin')
-      .limit(1)
-      .maybeSingle();
-    if (!adminProfile?.id) return;
-    await admin.from('notifications').insert({
-      user_id: adminProfile.id,
-      title: 'Nova hospedagem comprada — falta criar conta no servidor',
-      message: `Domínio: ${domain}\nPacote: ${packageName}\nCliente: ${clientEmail || '—'}\n\nCriar em "Criar conta de hospedagem" no painel admin.`,
-      type: 'info',
-      category: 'system',
-    });
-  } catch {
-    /* um alerta falhado nunca deve impedir o checkout de terminar */
-  }
-}
-
-/**
  * Activa os produtos comprados (domínio/hospedagem/email) e promove a conta guest -> client.
  * Só deve ser chamada depois de o pagamento estar confirmado (webhook Stripe), nunca a partir
  * de um pedido directo do browser.
@@ -108,6 +101,13 @@ export async function fulfillCheckout(
   const currentMetadata = authUser?.user?.user_metadata || {};
   const email = authUser?.user?.email;
   const displayName = currentMetadata.nome || currentMetadata.full_name || email?.split('@')[0];
+
+  // Password partilhada entre o login do painel e a(s) conta(s) de
+  // hospedagem criadas nesta compra — gerada uma única vez (se houver pelo
+  // menos um item de hospedagem) e sincronizada no perfil auth mais abaixo,
+  // para que o botão "Direct Admin" no painel entre por SSO assim que o
+  // servidor confirmar a criação.
+  let sharedHostingPassword: string | null = null;
 
   for (const item of items) {
     const years = item.period || 1;
@@ -169,11 +169,48 @@ export async function fulfillCheckout(
       }
       created.push(`hospedagem:${domainName}`);
 
-      // A conta no servidor (DirectAdmin) nunca é criada a partir do
-      // checkout — é sempre um passo manual de admin/revendedor/profissional
-      // em "Criar conta de hospedagem". O checkout só regista a compra e
-      // avisa quem tem de agir.
-      await notifyAdminOfPendingHostingProvision(domainName, packageName, email);
+      // Regista a conta no painel (espelho Supabase) já, automaticamente —
+      // o cliente é levado para o painel dele logo a seguir ao pagamento,
+      // com a hospedagem lá mesmo antes de o servidor confirmar. A criação
+      // real no DirectAdmin é tentada em segundo plano por
+      // schedulePanelServerProvision, com nova tentativa automática mais
+      // tarde se falhar (ex.: licença do servidor no limite) — nunca
+      // bloqueia nem depende do checkout. Editar a conta (trocar pacote,
+      // etc.) depois de criada é que fica manual, no painel admin.
+      if (admin && email) {
+        try {
+          if (!sharedHostingPassword) sharedHostingPassword = generateProvisionerPassword();
+          const daUsername = await pickAvailableMirrorUsername(domainName.split('.')[0] || email.split('@')[0]);
+
+          const { saveProfileForAuthUser: savePassword } = await import('@/lib/profile-db');
+          await savePassword(admin, userId, {
+            da_password_encrypted: encryptDaSecret(sharedHostingPassword),
+          });
+          await upsertPanelAuthAccount(admin, {
+            userId,
+            email,
+            role: 'client',
+            name: displayName,
+            serverLinked: false,
+            daUsername: null,
+          });
+          await upsertMirrorUser({
+            username: daUsername,
+            email,
+            first_name: displayName,
+            acl: 'user',
+            auth_user_id: userId,
+            package_name: packageName,
+          });
+          await upsertMirrorSite({ domain: domainName, owner: daUsername, admin_email: email, package: packageName });
+
+          schedulePanelServerProvision(daUsername, 800);
+        } catch (provisionError) {
+          const msg = provisionError instanceof Error ? provisionError.message : String(provisionError);
+          console.error('[checkout-fulfillment] falha ao registar conta de hospedagem no painel:', msg);
+          await alertAdminOfTrackingFailure('provisionamento de hospedagem', `${domainName}: ${msg}`);
+        }
+      }
     }
 
     if (item.type === 'email') {
@@ -221,8 +258,14 @@ export async function fulfillCheckout(
 
     if (!isElevated) {
       await admin.auth.admin.updateUserById(userId, {
+        // Se foi provisionada hospedagem nesta compra, a password do login
+        // passa a ser a mesma da conta de hospedagem, para o botão "Direct
+        // Admin" entrar por SSO assim que o servidor confirmar a criação.
+        ...(sharedHostingPassword ? { password: sharedHostingPassword } : {}),
         user_metadata: { ...currentMetadata, role: 'client', nome: displayName },
       });
+    } else if (sharedHostingPassword) {
+      await admin.auth.admin.updateUserById(userId, { password: sharedHostingPassword });
     }
 
     await saveProfileForAuthUser(admin, userId, {
