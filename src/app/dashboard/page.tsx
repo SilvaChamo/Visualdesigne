@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
+import dynamic from 'next/dynamic'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useI18n } from '@/lib/i18n'
 
@@ -23,48 +24,81 @@ import { ListWebsitesSection, sortSitesPrimaryFirst } from '@/components/panel/L
 import { panelBtnSecondary, panelDashboardGrid, panelDashboardToolCard, panelDashboardToolLabel, panelSectionPadding } from '@/lib/panel-ui'
 import { usePanelSidebarCollapsed } from '@/hooks/usePanelSidebarCollapsed'
 import { CpanelDashboard } from './CpanelDashboard'
-import { WebmailSection } from '@/components/dashboard/WebmailSection'
-import { NativeHostingSection } from './NativeHostingSection'
-import {
-  DatabasesSection, FTPSection, EmailManagementSection,
-  CPUsersSection, SSLSection, SSLViewSection, PHPConfigSection,
-  APIConfigSection, GitDeploySection, WPPluginsSection,
-  ResellerSection, ModifyWebsiteSection, SuspendWebsiteSection,
-  DeleteWebsiteSection, DNSNameserverSection, DNSDefaultNSSection,
-  DNSCreateZoneSection, DNSDeleteZoneSection,
-  DNSResetSection, EmailDeleteSection, EmailLimitsSection,
-  EmailForwardingSection, CatchAllEmailSection, PatternForwardingSection,
-  PlusAddressingSection, EmailChangePasswordSection, DKIMManagerSection,
-  WPRestoreBackupSection, WPRemoteBackupSection, ListSubdomainsSection,
-  WebsitePreviewSection, EmailImportSection,
-  PackagesSection, DNSZoneEditorSection, FileManagerSection, BackupManagerSection,
-  WordPressInstallSection, WPBackupSection, DomainManagerSection, DeploySection,
-  SMTPConfigSection, AuditSyncSection, NameserverManagementSection,
-  SecuritySection
-} from './DirectAdminSections'
-import { NewsManagerSection } from './NewsManagerSection'
-import { RenewalsSection } from './RenewalsSection'
-import { NotificationsSection } from './NotificationsSection'
-import { CotacoesSection } from './CotacoesSection'
-import { ContabilidadeTable } from '@/components/quotations/ContabilidadeTable'
-import { NextJsSitesSection } from './NextJsSitesSection'
-import { TemplatesSection } from './TemplatesSection'
-import { DNSCentralSection } from './DNSCentralSection'
-import { DomainTransferSection } from './DomainTransferSection'
-import { DomainDetailSection } from './DomainDetailSection'
-import {
-  DomainsHubSection,
-  type DomainHubTab,
-} from './DomainsHubSection'
-import { PanelPermissionsConfig } from './PanelPermissionsConfig'
-import { ClientesDaSection } from './ClientesDaSection'
-import {
-  AccountMessageTemplatesSection,
-  BulkChangePasswordsSection,
-  MoveUsersBetweenResellersSection,
-} from './HostingAccountMgmtSections'
-import { WordPressHubSection } from './WordPressHubSection'
-import { WordPressUsersSection } from './WordPressUsersSection'
+import type { DomainHubTab } from './DomainsHubSection'
+
+// Secções carregadas sob pedido (next/dynamic) em vez de importadas estaticamente:
+// evita que o JS de todas as ~50 secções do painel (incluindo o HostingSections.tsx
+// de ~12 mil linhas) seja descarregado logo ao abrir /dashboard, mesmo que o
+// utilizador só visite a vista inicial ou uma única secção.
+const sectionLoadingFallback = (
+  <div className={`${panelSectionPadding} flex min-h-[40vh] items-center justify-center`}>
+    <Spinner className="w-6 h-6 text-gray-400" />
+  </div>
+)
+const WebmailSection = dynamic(() => import('@/components/dashboard/WebmailSection').then(m => m.WebmailSection), { ssr: false, loading: () => sectionLoadingFallback })
+const NativeHostingSection = dynamic(() => import('./NativeHostingSection').then(m => m.NativeHostingSection), { ssr: false, loading: () => sectionLoadingFallback })
+const DatabasesSection = dynamic(() => import('./HostingSections').then(m => m.DatabasesSection), { ssr: false, loading: () => sectionLoadingFallback })
+const FTPSection = dynamic(() => import('./HostingSections').then(m => m.FTPSection), { ssr: false, loading: () => sectionLoadingFallback })
+const EmailManagementSection = dynamic(() => import('./HostingSections').then(m => m.EmailManagementSection), { ssr: false, loading: () => sectionLoadingFallback })
+const CPUsersSection = dynamic(() => import('./HostingSections').then(m => m.CPUsersSection), { ssr: false, loading: () => sectionLoadingFallback })
+const SSLSection = dynamic(() => import('./HostingSections').then(m => m.SSLSection), { ssr: false, loading: () => sectionLoadingFallback })
+const SSLViewSection = dynamic(() => import('./HostingSections').then(m => m.SSLViewSection), { ssr: false, loading: () => sectionLoadingFallback })
+const PHPConfigSection = dynamic(() => import('./HostingSections').then(m => m.PHPConfigSection), { ssr: false, loading: () => sectionLoadingFallback })
+const APIConfigSection = dynamic(() => import('./HostingSections').then(m => m.APIConfigSection), { ssr: false, loading: () => sectionLoadingFallback })
+const GitDeploySection = dynamic(() => import('./HostingSections').then(m => m.GitDeploySection), { ssr: false, loading: () => sectionLoadingFallback })
+const WPPluginsSection = dynamic(() => import('./HostingSections').then(m => m.WPPluginsSection), { ssr: false, loading: () => sectionLoadingFallback })
+const ResellerSection = dynamic(() => import('./HostingSections').then(m => m.ResellerSection), { ssr: false, loading: () => sectionLoadingFallback })
+const ModifyWebsiteSection = dynamic(() => import('./HostingSections').then(m => m.ModifyWebsiteSection), { ssr: false, loading: () => sectionLoadingFallback })
+const SuspendWebsiteSection = dynamic(() => import('./HostingSections').then(m => m.SuspendWebsiteSection), { ssr: false, loading: () => sectionLoadingFallback })
+const DeleteWebsiteSection = dynamic(() => import('./HostingSections').then(m => m.DeleteWebsiteSection), { ssr: false, loading: () => sectionLoadingFallback })
+const DNSNameserverSection = dynamic(() => import('./HostingSections').then(m => m.DNSNameserverSection), { ssr: false, loading: () => sectionLoadingFallback })
+const DNSDefaultNSSection = dynamic(() => import('./HostingSections').then(m => m.DNSDefaultNSSection), { ssr: false, loading: () => sectionLoadingFallback })
+const DNSCreateZoneSection = dynamic(() => import('./HostingSections').then(m => m.DNSCreateZoneSection), { ssr: false, loading: () => sectionLoadingFallback })
+const DNSDeleteZoneSection = dynamic(() => import('./HostingSections').then(m => m.DNSDeleteZoneSection), { ssr: false, loading: () => sectionLoadingFallback })
+const DNSResetSection = dynamic(() => import('./HostingSections').then(m => m.DNSResetSection), { ssr: false, loading: () => sectionLoadingFallback })
+const EmailDeleteSection = dynamic(() => import('./HostingSections').then(m => m.EmailDeleteSection), { ssr: false, loading: () => sectionLoadingFallback })
+const EmailLimitsSection = dynamic(() => import('./HostingSections').then(m => m.EmailLimitsSection), { ssr: false, loading: () => sectionLoadingFallback })
+const EmailForwardingSection = dynamic(() => import('./HostingSections').then(m => m.EmailForwardingSection), { ssr: false, loading: () => sectionLoadingFallback })
+const CatchAllEmailSection = dynamic(() => import('./HostingSections').then(m => m.CatchAllEmailSection), { ssr: false, loading: () => sectionLoadingFallback })
+const PatternForwardingSection = dynamic(() => import('./HostingSections').then(m => m.PatternForwardingSection), { ssr: false, loading: () => sectionLoadingFallback })
+const PlusAddressingSection = dynamic(() => import('./HostingSections').then(m => m.PlusAddressingSection), { ssr: false, loading: () => sectionLoadingFallback })
+const EmailChangePasswordSection = dynamic(() => import('./HostingSections').then(m => m.EmailChangePasswordSection), { ssr: false, loading: () => sectionLoadingFallback })
+const DKIMManagerSection = dynamic(() => import('./HostingSections').then(m => m.DKIMManagerSection), { ssr: false, loading: () => sectionLoadingFallback })
+const WPRestoreBackupSection = dynamic(() => import('./HostingSections').then(m => m.WPRestoreBackupSection), { ssr: false, loading: () => sectionLoadingFallback })
+const WPRemoteBackupSection = dynamic(() => import('./HostingSections').then(m => m.WPRemoteBackupSection), { ssr: false, loading: () => sectionLoadingFallback })
+const ListSubdomainsSection = dynamic(() => import('./HostingSections').then(m => m.ListSubdomainsSection), { ssr: false, loading: () => sectionLoadingFallback })
+const WebsitePreviewSection = dynamic(() => import('./HostingSections').then(m => m.WebsitePreviewSection), { ssr: false, loading: () => sectionLoadingFallback })
+const EmailImportSection = dynamic(() => import('./HostingSections').then(m => m.EmailImportSection), { ssr: false, loading: () => sectionLoadingFallback })
+const PackagesSection = dynamic(() => import('./HostingSections').then(m => m.PackagesSection), { ssr: false, loading: () => sectionLoadingFallback })
+const DNSZoneEditorSection = dynamic(() => import('./HostingSections').then(m => m.DNSZoneEditorSection), { ssr: false, loading: () => sectionLoadingFallback })
+const FileManagerSection = dynamic(() => import('./HostingSections').then(m => m.FileManagerSection), { ssr: false, loading: () => sectionLoadingFallback })
+const BackupManagerSection = dynamic(() => import('./HostingSections').then(m => m.BackupManagerSection), { ssr: false, loading: () => sectionLoadingFallback })
+const WordPressInstallSection = dynamic(() => import('./HostingSections').then(m => m.WordPressInstallSection), { ssr: false, loading: () => sectionLoadingFallback })
+const WPBackupSection = dynamic(() => import('./HostingSections').then(m => m.WPBackupSection), { ssr: false, loading: () => sectionLoadingFallback })
+const DomainManagerSection = dynamic(() => import('./HostingSections').then(m => m.DomainManagerSection), { ssr: false, loading: () => sectionLoadingFallback })
+const DeploySection = dynamic(() => import('./HostingSections').then(m => m.DeploySection), { ssr: false, loading: () => sectionLoadingFallback })
+const SMTPConfigSection = dynamic(() => import('./HostingSections').then(m => m.SMTPConfigSection), { ssr: false, loading: () => sectionLoadingFallback })
+const AuditSyncSection = dynamic(() => import('./HostingSections').then(m => m.AuditSyncSection), { ssr: false, loading: () => sectionLoadingFallback })
+const NameserverManagementSection = dynamic(() => import('./HostingSections').then(m => m.NameserverManagementSection), { ssr: false, loading: () => sectionLoadingFallback })
+const SecuritySection = dynamic(() => import('./HostingSections').then(m => m.SecuritySection), { ssr: false, loading: () => sectionLoadingFallback })
+const NewsManagerSection = dynamic(() => import('./NewsManagerSection').then(m => m.NewsManagerSection), { ssr: false, loading: () => sectionLoadingFallback })
+const RenewalsSection = dynamic(() => import('./RenewalsSection').then(m => m.RenewalsSection), { ssr: false, loading: () => sectionLoadingFallback })
+const NotificationsSection = dynamic(() => import('./NotificationsSection').then(m => m.NotificationsSection), { ssr: false, loading: () => sectionLoadingFallback })
+const CotacoesSection = dynamic(() => import('./CotacoesSection').then(m => m.CotacoesSection), { ssr: false, loading: () => sectionLoadingFallback })
+const ContabilidadeTable = dynamic(() => import('@/components/quotations/ContabilidadeTable').then(m => m.ContabilidadeTable), { ssr: false, loading: () => sectionLoadingFallback })
+const NextJsSitesSection = dynamic(() => import('./NextJsSitesSection').then(m => m.NextJsSitesSection), { ssr: false, loading: () => sectionLoadingFallback })
+const TemplatesSection = dynamic(() => import('./TemplatesSection').then(m => m.TemplatesSection), { ssr: false, loading: () => sectionLoadingFallback })
+const DNSCentralSection = dynamic(() => import('./DNSCentralSection').then(m => m.DNSCentralSection), { ssr: false, loading: () => sectionLoadingFallback })
+const DomainTransferSection = dynamic(() => import('./DomainTransferSection').then(m => m.DomainTransferSection), { ssr: false, loading: () => sectionLoadingFallback })
+const DomainDetailSection = dynamic(() => import('./DomainDetailSection').then(m => m.DomainDetailSection), { ssr: false, loading: () => sectionLoadingFallback })
+const DomainsHubSection = dynamic(() => import('./DomainsHubSection').then(m => m.DomainsHubSection), { ssr: false, loading: () => sectionLoadingFallback })
+const PanelPermissionsConfig = dynamic(() => import('./PanelPermissionsConfig').then(m => m.PanelPermissionsConfig), { ssr: false, loading: () => sectionLoadingFallback })
+const ClientesDaSection = dynamic(() => import('./ClientesDaSection').then(m => m.ClientesDaSection), { ssr: false, loading: () => sectionLoadingFallback })
+const AccountMessageTemplatesSection = dynamic(() => import('./HostingAccountMgmtSections').then(m => m.AccountMessageTemplatesSection), { ssr: false, loading: () => sectionLoadingFallback })
+const BulkChangePasswordsSection = dynamic(() => import('./HostingAccountMgmtSections').then(m => m.BulkChangePasswordsSection), { ssr: false, loading: () => sectionLoadingFallback })
+const MoveUsersBetweenResellersSection = dynamic(() => import('./HostingAccountMgmtSections').then(m => m.MoveUsersBetweenResellersSection), { ssr: false, loading: () => sectionLoadingFallback })
+const WordPressHubSection = dynamic(() => import('./WordPressHubSection').then(m => m.WordPressHubSection), { ssr: false, loading: () => sectionLoadingFallback })
+const WordPressUsersSection = dynamic(() => import('./WordPressUsersSection').then(m => m.WordPressUsersSection), { ssr: false, loading: () => sectionLoadingFallback })
 import { getPanelSectionMeta } from '@/lib/panel-section-meta'
 import { loadScreenshot, prefetchScreenshot, getCachedScreenshot } from '@/lib/site-screenshot-cache'
 import { readSiteSslCache, writeSiteSslCache } from '@/lib/site-ssl-cache'
@@ -79,9 +113,6 @@ import { supabase as createClientInstance } from '@/lib/supabase'
 import type { DirectAdminWebsite, DirectAdminUser, DirectAdminPackage } from '@/lib/directadmin-api'
 import { removeWebsiteFromSupabase, syncWebsiteToSupabase } from '@/lib/supabase-sync'
 import { cn } from '@/lib/utils'
-import { MailMarketingSection } from '@/components/dashboard/MailMarketingSection'
-import { EncomendasClientesSection } from '@/components/dashboard/EncomendasClientesSection'
-import { DirectAdminEmailsSection } from './DirectAdminEmailsSection'
 import {
   fetchPanelBootstrap,
   fetchPanelBootstrapStaleWhileRevalidate,
@@ -93,6 +124,10 @@ import {
 import { prefetchPanelContentFromBootstrap } from '@/lib/panel-prefetch'
 import { applyAdminPanelScope, buildResellerOwnerTree, isAdminPanelSite } from '@/lib/panel-scope-filter'
 import { auth as panelAuth } from '@/lib/supabase-client'
+
+const MailMarketingSection = dynamic(() => import('@/components/dashboard/MailMarketingSection').then(m => m.MailMarketingSection), { ssr: false, loading: () => sectionLoadingFallback })
+const EncomendasClientesSection = dynamic(() => import('@/components/dashboard/EncomendasClientesSection').then(m => m.EncomendasClientesSection), { ssr: false, loading: () => sectionLoadingFallback })
+const DirectAdminEmailsSection = dynamic(() => import('./DirectAdminEmailsSection').then(m => m.DirectAdminEmailsSection), { ssr: false, loading: () => sectionLoadingFallback })
 
 const directAdminAPI = panelAPI
 

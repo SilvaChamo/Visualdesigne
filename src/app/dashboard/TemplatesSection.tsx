@@ -72,6 +72,11 @@ export function TemplatesSection() {
   // Snapshot do template tal como estava ao ser aberto — permite saber se o
   // utilizador já mexeu nele antes de o servidor responder (ver reconcileServerTemplates).
   const editingSnapshotRef = useRef<string | null>(null)
+  // Sinaliza que o emailBody mudou por reconciliação com o servidor (não por
+  // digitação do utilizador) — o efeito de sincronização do editor visual usa
+  // isto para saber quando deve reescrever o DOM (ver reconcile e o useEffect abaixo).
+  const externalSyncRef = useRef(false)
+  const lastSyncedTemplateIdRef = useRef<string | null>(null)
 
   // Abre um template no editor e lembra-o como o último editado
   const selectTemplate = (template: RenewalTemplate) => {
@@ -624,6 +629,7 @@ export function TemplatesSection() {
         const fresh = list.find(t => t.id === current.id)
         if (!fresh || JSON.stringify(fresh) === editingSnapshotRef.current) return current
         editingSnapshotRef.current = JSON.stringify(fresh)
+        externalSyncRef.current = true
         setHistory([fresh.emailBody])
         setHistoryIndex(0)
         return { ...fresh }
@@ -660,15 +666,21 @@ export function TemplatesSection() {
     loadTemplates()
   }, [])
 
-  // Sincronizar conteúdo do editor quando template mudar
+  // Sincronizar conteúdo do editor quando o template mudar (troca de template)
+  // ou quando o emailBody for actualizado por reconciliação com o servidor
+  // (externalSyncRef) — nunca por causa da própria digitação do utilizador,
+  // que já actualiza o DOM directamente antes de chamar setEditingTemplate.
   useEffect(() => {
-    if (editorRef.current && editingTemplate) {
-      // Só atualiza se o conteúdo for diferente (evita perder cursor durante digitação)
+    if (!editorRef.current || !editingTemplate) return
+    const templateChanged = lastSyncedTemplateIdRef.current !== editingTemplate.id
+    if (templateChanged || externalSyncRef.current) {
       if (editorRef.current.innerHTML !== editingTemplate.emailBody) {
         editorRef.current.innerHTML = editingTemplate.emailBody
       }
+      lastSyncedTemplateIdRef.current = editingTemplate.id
+      externalSyncRef.current = false
     }
-  }, [editingTemplate?.id])
+  }, [editingTemplate])
 
   // Salvar templates no servidor (persistência permanente)
   const [saveError, setSaveError] = useState<string | null>(null)
