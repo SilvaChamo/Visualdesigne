@@ -262,7 +262,7 @@ export async function PATCH(request: Request) {
     let invoiceNumber: string | null = null;
     let siblings: { id: string; status: string; categoria_label: string; categoria_id: string; produto: string; total_mt: number; sob_consulta: boolean; empresa: string; nif: string | null }[] = [];
     let batchTotal = 0;
-    if (status === 'approved' || status === 'done') {
+    if (status === 'approved' || status === 'done' || status === 'delivered') {
       const { data: sib, error: siblingsError } = await supabase
         .from('quotation_requests')
         .select('id, status, categoria_label, categoria_id, produto, total_mt, sob_consulta, empresa, nif')
@@ -344,7 +344,13 @@ export async function PATCH(request: Request) {
 
     // Não aguardar o envio do email (ver /api/cotacoes) — a actualização de
     // estado já ficou gravada, não pode falhar por causa de um SMTP lento.
-    if (status === 'approved' || status === 'rejected') {
+    // 'delivered'/'done' são estados por item — só notifica quando o LOTE
+    // inteiro atinge esse estado (mesmo guard usado acima para pagamento/
+    // factura do remanescente), para não mandar um email por cada item de
+    // uma encomenda com vários serviços.
+    const shouldNotifyBatchState =
+      (status === 'delivered' || status === 'done') && computeBatchStatus(siblings) === status;
+    if (status === 'approved' || status === 'rejected' || shouldNotifyBatchState) {
       notifyQuoteClientStatusChange({
         to: data.email,
         clientName: data.responsavel || data.empresa,

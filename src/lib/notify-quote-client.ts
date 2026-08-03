@@ -65,22 +65,26 @@ export async function notifyQuoteClientStatusChange(params: {
   to: string;
   clientName: string;
   produto: string;
-  status: 'approved' | 'rejected';
+  status: 'approved' | 'rejected' | 'delivered' | 'done';
   rejectionReason?: string | null;
 }) {
   const { to, clientName, produto, status, rejectionReason } = params;
 
-  const title =
-    status === 'approved'
-      ? 'A sua encomenda foi aprovada'
-      : 'Actualização sobre a sua encomenda';
+  const title = {
+    approved: 'A sua encomenda foi aprovada',
+    rejected: 'Actualização sobre a sua encomenda',
+    delivered: 'A sua encomenda está concluída',
+    done: 'A sua encomenda foi entregue',
+  }[status];
 
-  const message =
-    status === 'approved'
-      ? `A sua encomenda "${produto}" foi aprovada e a produção vai avançar.\n\n${APPROVAL_NOTICE}`
-      : `A sua encomenda "${produto}" não foi aprovada neste momento.${
-          rejectionReason ? `\n\nMotivo: ${rejectionReason}` : ''
-        }\n\nEntre em contacto connosco se tiver dúvidas.`;
+  const message = {
+    approved: `A sua encomenda "${produto}" foi aprovada e a produção vai avançar.\n\n${APPROVAL_NOTICE}`,
+    rejected: `A sua encomenda "${produto}" não foi aprovada neste momento.${
+      rejectionReason ? `\n\nMotivo: ${rejectionReason}` : ''
+    }\n\nEntre em contacto connosco se tiver dúvidas.`,
+    delivered: `A sua encomenda "${produto}" está concluída e pronta para levantamento. Falta apenas confirmar o pagamento do remanescente para avançarmos com a entrega.`,
+    done: `A sua encomenda "${produto}" foi entregue com sucesso. Obrigado por escolher a VisualDesign!`,
+  }[status];
 
   try {
     await sendEmail({
