@@ -5,6 +5,72 @@
 
 const SPACESHIP_API_URL = 'https://spaceship.dev/api/v1';
 
+/**
+ * Mapeia o perfil do painel (profiles) para o formato de contacto WHOIS que
+ * a Spaceship exige para registar um domínio. Partilhado entre o registo
+ * manual (admin, /api/domain-register) e o registo automático depois de uma
+ * compra no carrinho (checkout-fulfillment.ts).
+ */
+export function mapProfileToSpaceshipContact(
+  profile: Record<string, unknown> | null | undefined,
+  userEmail: string,
+) {
+  const nomeCompleto = String(profile?.nome || 'Utilizador').trim();
+  const parts = nomeCompleto.split(/\s+/);
+  const firstName = parts[0] || 'Utilizador';
+  const lastName = parts.slice(1).join(' ') || 'Registo';
+
+  let rawPhone = String(profile?.telefone || '').replace(/[\s\-()]/g, '');
+  if (!rawPhone) rawPhone = '840000000';
+
+  let phone = '';
+  if (rawPhone.startsWith('+')) {
+    const withoutPlus = rawPhone.substring(1);
+    if (withoutPlus.includes('.')) {
+      phone = rawPhone;
+    } else if (withoutPlus.startsWith('258') && withoutPlus.length > 3) {
+      phone = `+258.${withoutPlus.substring(3)}`;
+    } else if (withoutPlus.startsWith('351') && withoutPlus.length > 3) {
+      phone = `+351.${withoutPlus.substring(3)}`;
+    } else {
+      phone = `+${withoutPlus.substring(0, 3)}.${withoutPlus.substring(3)}`;
+    }
+  } else if (rawPhone.startsWith('258') && rawPhone.length > 3) {
+    phone = `+258.${rawPhone.substring(3)}`;
+  } else if (rawPhone.startsWith('351') && rawPhone.length > 3) {
+    phone = `+351.${rawPhone.substring(3)}`;
+  } else {
+    phone = `+258.${rawPhone}`;
+  }
+
+  const countryMap: Record<string, string> = {
+    'moçambique': 'MZ',
+    'mozambique': 'MZ',
+    'portugal': 'PT',
+    'brasil': 'BR',
+    'brazil': 'BR',
+    'angola': 'AO',
+    'cabo verde': 'CV',
+    'guiné-bissau': 'GW',
+    'são tomé e príncipe': 'ST',
+    'timor-leste': 'TL',
+  };
+  const cleanCountry = String(profile?.pais || 'Moçambique').toLowerCase().trim();
+  const country = countryMap[cleanCountry] || 'MZ';
+
+  return {
+    firstName,
+    lastName,
+    email: userEmail || 'admin@your-domain.com',
+    address1: String(profile?.morada || 'Av. Marginal 123'),
+    city: String(profile?.cidade || 'Maputo'),
+    country,
+    phone,
+    postalCode: '1100',
+    organization: profile?.empresa ? String(profile.empresa) : undefined,
+  };
+}
+
 interface SpaceshipAvailabilityResponse {
   available: boolean;
   premiumPricing?: {
@@ -253,6 +319,38 @@ export const spaceshipAPI = {
         return { success: false, error: body.detail || body.message || `Erro do registador (${res.status})` };
       }
       return { success: true, isEnabled: body.isEnabled ?? isEnabled };
+    } catch (e: unknown) {
+      return { success: false, error: e instanceof Error ? e.message : 'Erro ao contactar o serviço de registo' };
+    }
+  },
+
+  /**
+   * Aponta o domínio para nameservers próprios (ex: os que a Cloudflare
+   * atribuiu a uma zona nova). "Crucial" segundo a própria doc da Spaceship
+   * — sem isto o domínio fica registado mas sem nenhum DNS a apontar.
+   */
+  async setNameservers(
+    domain: string,
+    hosts: string[],
+  ): Promise<{ success: true; hosts: string[] } | { success: false; error: string }> {
+    if (!getKeys()) {
+      return { success: false, error: 'Chaves de API do registador não configuradas' };
+    }
+    if (hosts.length < 2) {
+      return { success: false, error: 'São precisos pelo menos 2 nameservers' };
+    }
+    try {
+      const res = await spaceshipFetch(`/domains/${encodeURIComponent(domain.toLowerCase())}/nameservers`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ provider: 'custom', hosts }),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        const errorDetail = body.detail || body.message || `Erro do registador (${res.status})`;
+        return { success: false, error: errorDetail };
+      }
+      return { success: true, hosts: body.hosts || hosts };
     } catch (e: unknown) {
       return { success: false, error: e instanceof Error ? e.message : 'Erro ao contactar o serviço de registo' };
     }

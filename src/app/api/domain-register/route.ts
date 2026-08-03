@@ -1,73 +1,7 @@
 import { NextResponse } from 'next/server';
 import { requireAdminOrReseller } from '@/lib/panel-api-auth';
-import { checkAvailability, spaceshipAPI } from '@/lib/spaceship-adapter';
+import { checkAvailability, spaceshipAPI, mapProfileToSpaceshipContact } from '@/lib/spaceship-adapter';
 import { createClient } from '@/utils/supabase/server';
-
-function mapProfileToSpaceshipContact(profile: any, userEmail: string) {
-  // Dividir o nome completo em nome e apelido
-  const nomeCompleto = (profile?.nome || 'Utilizador').trim();
-  const parts = nomeCompleto.split(/\s+/);
-  const firstName = parts[0] || 'Utilizador';
-  const lastName = parts.slice(1).join(' ') || 'Registo';
-
-  // Normalizar formato de telefone: +CCC.NNNNNNNNN (exemplo: +258.840000000)
-  let rawPhone = (profile?.telefone || '').replace(/[\s\-\(\)]/g, '');
-  if (!rawPhone) {
-    rawPhone = '840000000'; // Fallback padrão
-  }
-
-  let phone = '';
-  if (rawPhone.startsWith('+')) {
-    const withoutPlus = rawPhone.substring(1);
-    if (withoutPlus.includes('.')) {
-      phone = rawPhone;
-    } else {
-      if (withoutPlus.startsWith('258') && withoutPlus.length > 3) {
-        phone = `+258.${withoutPlus.substring(3)}`;
-      } else if (withoutPlus.startsWith('351') && withoutPlus.length > 3) {
-        phone = `+351.${withoutPlus.substring(3)}`;
-      } else {
-        phone = `+${withoutPlus.substring(0, 3)}.${withoutPlus.substring(3)}`;
-      }
-    }
-  } else {
-    if (rawPhone.startsWith('258') && rawPhone.length > 3) {
-      phone = `+258.${rawPhone.substring(3)}`;
-    } else if (rawPhone.startsWith('351') && rawPhone.length > 3) {
-      phone = `+351.${rawPhone.substring(3)}`;
-    } else {
-      phone = `+258.${rawPhone}`;
-    }
-  }
-
-  // Mapeamento de país para ISO de 2 letras
-  const countryMap: Record<string, string> = {
-    'moçambique': 'MZ',
-    'mozambique': 'MZ',
-    'portugal': 'PT',
-    'brasil': 'BR',
-    'brazil': 'BR',
-    'angola': 'AO',
-    'cabo verde': 'CV',
-    'guiné-bissau': 'GW',
-    'são tomé e príncipe': 'ST',
-    'timor-leste': 'TL',
-  };
-  const cleanCountry = (profile?.pais || 'Moçambique').toLowerCase().trim();
-  const country = countryMap[cleanCountry] || 'MZ';
-
-  return {
-    firstName,
-    lastName,
-    email: userEmail || 'admin@your-domain.com',
-    address1: profile?.morada || 'Av. Marginal 123',
-    city: profile?.cidade || 'Maputo',
-    country,
-    phone,
-    postalCode: '1100', // Código postal padrão para Maputo
-    organization: profile?.empresa || undefined,
-  };
-}
 
 export async function POST(req: Request) {
   const auth = await requireAdminOrReseller();

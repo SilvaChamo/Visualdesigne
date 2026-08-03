@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { applyBrevoMxToDomain } from '@/lib/bind-email-dns';
 import { daRequest } from '@/lib/directadmin';
 import { requireAdminResellerOrManager, type PanelStaffAuthSuccess } from '@/lib/panel-api-auth';
 import { resolvePanelDaContext } from '@/lib/panel-api-context';
@@ -144,12 +143,9 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ success: false, error: res.details || res.text || 'Erro ao criar email' });
       }
 
-      const dns = await applyBrevoMxToDomain(domain);
-
       return NextResponse.json({
         success: true,
         message: `Email ${username}@${domain} criado com sucesso!`,
-        dnsBrevo: dns,
       });
     }
 

@@ -186,3 +186,45 @@ export async function deleteBrevoDomain(domain: string): Promise<{ ok: boolean; 
     return { ok: false, error: error instanceof Error ? error.message : 'Erro desconhecido' };
   }
 }
+
+/**
+ * Cria o remetente principal (ex: geral@dominio.com) na Brevo para um
+ * domínio novo. Chamar depois de ensureBrevoDomainAuth ter corrido — com o
+ * domínio já autenticado (DKIM), a Brevo não pede confirmação manual por
+ * clique no e-mail, fica logo verificado. Idempotente: 400 "already exists"
+ * conta como sucesso.
+ */
+export async function ensureBrevoSender(
+  email: string,
+  name: string,
+): Promise<{ ok: boolean; alreadyExisted: boolean; error?: string }> {
+  const apiKey = getBrevoApiKey();
+  const cleanEmail = email.trim().toLowerCase();
+  if (!apiKey) return { ok: false, alreadyExisted: false, error: 'BREVO_API_KEY não configurada' };
+  if (!cleanEmail.includes('@')) return { ok: false, alreadyExisted: false, error: 'Email inválido' };
+
+  try {
+    const res = await fetch(`${BREVO_API_BASE}/senders`, {
+      method: 'POST',
+      headers: brevoHeaders(apiKey),
+      body: JSON.stringify({ email: cleanEmail, name }),
+    });
+    if (res.ok) return { ok: true, alreadyExisted: false };
+
+    const body = await res.json().catch(() => ({}) as Record<string, unknown>);
+    const typed = body as { message?: string; code?: string };
+    const msg = String(typed.message || '');
+    // A Brevo devolve 404 (não 400) com code "duplicate_parameter" para um
+    // remetente já existente — confirmado empiricamente, não documentado.
+    if (typed.code === 'duplicate_parameter' || /already exist|duplicate/i.test(msg)) {
+      return { ok: true, alreadyExisted: true };
+    }
+    return { ok: false, alreadyExisted: false, error: msg || `HTTP ${res.status}` };
+  } catch (error) {
+    return {
+      ok: false,
+      alreadyExisted: false,
+      error: error instanceof Error ? error.message : 'Erro desconhecido',
+    };
+  }
+}

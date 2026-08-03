@@ -8,6 +8,8 @@ import { upsertPanelAuthAccount } from '@/lib/panel-auth-accounts';
 import { upsertMirrorUser, upsertMirrorSite } from '@/lib/panel-mirror-write';
 import { schedulePanelServerProvision } from '@/lib/panel-server-provision';
 import { getDaSyncAdmin } from '@/lib/da-sync-schema';
+import { autoProvisionPurchasedDomain } from '@/lib/domain-purchase-provision';
+import { after } from 'next/server';
 
 // 'VisualDESIGN' é o único pacote real confirmado no DirectAdmin (via
 // CMD_API_PACKAGES_USER) — os nomes VD-Host-*/VD-Email-* não existem no
@@ -151,6 +153,39 @@ export async function fulfillCheckout(
       if (admin && email) {
         const { attachDomainToEmailPlan } = await import('@/lib/email-plan-provision');
         await attachDomainToEmailPlan(admin, userId, domainName, email, displayName).catch(() => {});
+      }
+
+      // Regista o domínio a sério no registador, cria a zona na Cloudflare,
+      // aponta os nameservers para lá, aplica o DNS de e-mail e cria o
+      // remetente geral@dominio no Brevo — tudo em segundo plano (envolve
+      // chamadas a 3 serviços externos, não deve atrasar a resposta do
+      // checkout). Best-effort: se falhar a meio (ex. saldo do registador
+      // insuficiente), o domínio já ficou registado no painel (passo acima)
+      // para um admin tratar manualmente; o aviso vai para as notificações.
+      if (admin) {
+        const { data: profileForDomain } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('user_id', userId)
+          .maybeSingle();
+        const task = async () => {
+          const result = await autoProvisionPurchasedDomain({
+            domain: domainName,
+            profile: profileForDomain,
+            userEmail: email || '',
+            displayName,
+          });
+          if (!result.ok) {
+            const failed = result.steps.filter((s) => !s.ok).map((s) => `${s.step}: ${s.error}`).join(' | ');
+            console.error('[checkout-fulfillment] auto-provisionamento de domínio incompleto:', domainName, failed);
+            await alertAdminOfTrackingFailure('auto-provisionamento de domínio', `${domainName}: ${failed}`);
+          }
+        };
+        try {
+          after(task);
+        } catch {
+          void task().catch((err) => console.error('[checkout-fulfillment] auto-provisionamento de domínio:', err));
+        }
       }
     }
 

@@ -13,11 +13,7 @@ import {
 } from '@/lib/smtp-mail';
 import { isBrevoApiConfigured } from '@/lib/brevo-mail';
 import { BREVO_SENDERS_OSHER, BREVO_SENDERS_VISUALDESIGN } from '@/lib/email-accounts';
-import {
-  BREVO_INBOUND_MX,
-  BREVO_INBOUND_WEBHOOK_PATH,
-  buildEmailSpfRecord,
-} from '@/lib/email-dns-defaults';
+import { buildEmailSpfRecord } from '@/lib/email-dns-defaults';
 import { getServerHost } from '@/lib/server-config';
 import {
   getBrevoSmtpUser,
@@ -49,11 +45,9 @@ export async function GET() {
       brevoOsherAppSenders: BREVO_SENDERS_OSHER,
     },
     receive: {
-      provider: 'brevo-inbound',
-      mx: BREVO_INBOUND_MX.map((mx) => ({ priority: mx.priority, host: mx.host })),
+      provider: 'hetzner-direct',
+      mx: { priority: 10, host: `mail.<dominio>. (-> ${getServerHost()})` },
       spf: buildEmailSpfRecord(getServerHost()),
-      webhookPath: BREVO_INBOUND_WEBHOOK_PATH,
-      webhookUrl: `${process.env.NEXT_PUBLIC_SITE_URL || 'https://visualdesignmoz.com'}${BREVO_INBOUND_WEBHOOK_PATH}`,
       mailboxes: 'DirectAdmin / IMAP / Webmail',
     },
     marketing: {

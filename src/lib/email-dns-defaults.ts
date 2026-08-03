@@ -1,12 +1,9 @@
 /**
- * DNS por defeito para email — recepção via Brevo (sem porta 25 inbound Hetzner).
- * Envio: Exim smarthost Brevo (já no servidor).
+ * DNS por defeito para email — recepção direta no Hetzner (porta 25 aberta,
+ * o Exim/DirectAdmin do servidor recebe o correio). Envio: Exim smarthost
+ * Brevo (já configurado no servidor) — por isso o SPF inclui a Brevo mesmo
+ * a receção sendo local.
  */
-
-export const BREVO_INBOUND_MX = [
-  { priority: 10, host: 'inbound1.sendinblue.com.' },
-  { priority: 20, host: 'inbound2.sendinblue.com.' },
-] as const;
 
 export const BREVO_SPF_INCLUDE = 'include:spf.brevo.com';
 
@@ -35,22 +32,26 @@ export function buildDmarcRecord(): string {
   return 'v=DMARC1; p=none; rua=mailto:rua@dmarc.brevo.com; fo=1';
 }
 
-/** Registos MX+SPF+DMARC aplicados ao criar conta de email ou domínio novo.
+/** Registos MX+SPF+DMARC+A aplicados ao criar conta de email ou domínio novo.
  *  Não inclui DKIM — esse vem da API da Brevo (ver brevo-domain-auth.ts),
- *  porque a chave é gerada por domínio do lado da Brevo. */
+ *  porque a chave é gerada por domínio do lado da Brevo.
+ *  MX aponta para mail.<dominio> no próprio servidor (receção direta, porta
+ *  25) — o envio continua a sair pela Brevo (smarthost), daí o SPF incluir
+ *  a Brevo mesmo com receção local. */
 export function getDefaultEmailDnsRecords(
   domain: string,
   serverIp?: string,
 ): EmailDnsRecord[] {
   const spf = buildEmailSpfRecord(serverIp);
+  const cleanDomain = domain.replace(/\.$/, '');
   return [
-    ...BREVO_INBOUND_MX.map((mx) => ({
+    {
       name: '@',
       type: 'MX' as const,
-      value: mx.host,
+      value: `mail.${cleanDomain}.`,
       ttl: 3600,
-      priority: mx.priority,
-    })),
+      priority: 10,
+    },
     {
       name: '@',
       type: 'TXT' as const,
@@ -69,7 +70,23 @@ export function getDefaultEmailDnsRecords(
       value: serverIp || '',
       ttl: 3600,
     },
+    {
+      name: 'ftp',
+      type: 'A' as const,
+      value: serverIp || '',
+      ttl: 3600,
+    },
+    {
+      name: 'pop',
+      type: 'A' as const,
+      value: serverIp || '',
+      ttl: 3600,
+    },
+    {
+      name: 'smtp',
+      type: 'A' as const,
+      value: serverIp || '',
+      ttl: 3600,
+    },
   ].filter((r) => r.type !== 'A' || Boolean(r.value));
 }
-
-export const BREVO_INBOUND_WEBHOOK_PATH = '/api/webhook/brevo-inbound';

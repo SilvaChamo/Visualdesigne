@@ -13,9 +13,52 @@ import { ensureBrevoDomainAuth, triggerBrevoDomainVerification, deleteBrevoDomai
 import { getServerHost } from '@/lib/server-config';
 import { upsertMirrorDns, deleteMirrorSite } from '@/lib/panel-mirror-write';
 import { scheduleDaSync } from '@/lib/da-sync-engine';
+import {
+  findCloudflareZoneId,
+  upsertCloudflareRecord,
+  deleteCloudflareEmailRecords,
+} from '@/lib/cloudflare-dns';
 
 function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/**
+ * Aplica um registo de DNS de e-mail no sítio certo: se o domínio já tiver
+ * zona própria na Cloudflare, aplica lá (é o que fica realmente visível
+ * publicamente); caso contrário cai no DNS interno do DirectAdmin (só serve
+ * domínios cujos nameservers ainda são ns1/ns2.visualdesignmoz.com).
+ */
+async function applyRecordAnyProvider(
+  cleanDomain: string,
+  cfZoneId: string | null,
+  creds: Awaited<ReturnType<typeof resolveDirectAdminCredentials>> | null,
+  record: EmailDnsRecord,
+): Promise<DnsAutomationRecordResult> {
+  if (cfZoneId) {
+    const r = await upsertCloudflareRecord(cfZoneId, cleanDomain, {
+      type: record.type,
+      name: record.name,
+      content: record.type === 'MX' && record.priority != null ? record.value : record.value,
+      ttl: record.ttl,
+      priority: record.priority,
+    });
+    if (r.ok) {
+      await upsertMirrorDns({
+        domain: cleanDomain,
+        name: record.name === '@' ? cleanDomain : record.name,
+        type: record.type,
+        value: record.value,
+        ttl: record.ttl,
+      });
+    }
+    return { name: r.name, type: r.type, ok: r.ok, error: r.error };
+  }
+
+  if (!creds) {
+    return { name: record.name, type: record.type, ok: false, error: 'Sem credenciais DirectAdmin' };
+  }
+  return applyRecord(creds, cleanDomain, record);
 }
 
 export type DnsAutomationRecordResult = {
@@ -80,14 +123,17 @@ export async function provisionEmailAuthForDomain(domain: string): Promise<DnsAu
   let brevoError: string | undefined;
 
   try {
-    const creds = await resolveDirectAdminCredentials('admin');
+    // Se o domínio já tiver zona própria na Cloudflare, os registos vão lá
+    // (é o que fica visível publicamente); senão cai no DNS interno do
+    // DirectAdmin (só serve domínios ainda com NS ns1/ns2.visualdesignmoz.com).
+    const cfZoneId = await findCloudflareZoneId(cleanDomain);
+    const creds = cfZoneId ? null : await resolveDirectAdminCredentials('admin');
 
-    // 1) SPF + MX inbound + DMARC (não dependem de nenhuma chamada externa)
-    const baseRecords = getDefaultEmailDnsRecords(cleanDomain, serverIp).filter(
-      (r) => r.type !== 'A', // o A/www já é tratado na criação do website em si
-    );
+    // 1) SPF + MX + DMARC + A de mail/ftp/pop/smtp (não dependem de nenhuma
+    //    chamada externa)
+    const baseRecords = getDefaultEmailDnsRecords(cleanDomain, serverIp);
     for (const record of baseRecords) {
-      results.push(await applyRecord(creds, cleanDomain, record));
+      results.push(await applyRecordAnyProvider(cleanDomain, cfZoneId, creds, record));
     }
 
     // 2) DKIM real + brevo-code (dependem da API da Brevo — falha aqui não
@@ -99,7 +145,7 @@ export async function provisionEmailAuthForDomain(domain: string): Promise<DnsAu
     if (brevoAuth.ok) {
       if (brevoAuth.dkim) {
         results.push(
-          await applyRecord(creds, cleanDomain, {
+          await applyRecordAnyProvider(cleanDomain, cfZoneId, creds, {
             name: brevoAuth.dkim.hostName || '@',
             type: 'TXT',
             value: brevoAuth.dkim.value,
@@ -109,7 +155,7 @@ export async function provisionEmailAuthForDomain(domain: string): Promise<DnsAu
       }
       if (brevoAuth.brevoCode) {
         results.push(
-          await applyRecord(creds, cleanDomain, {
+          await applyRecordAnyProvider(cleanDomain, cfZoneId, creds, {
             name: brevoAuth.brevoCode.hostName || '@',
             type: 'TXT',
             value: brevoAuth.brevoCode.value,
@@ -165,13 +211,22 @@ export async function cleanupEmailAuthForDomain(domain: string): Promise<DnsClea
   let brevoError: string | undefined;
 
   try {
-    const creds = await resolveDirectAdminCredentials('admin');
-    const zoneResult = await daPostViaSsh(
-      'CMD_API_DNS_CONTROL',
-      { action: 'delete', domain: cleanDomain },
-      creds,
-    );
-    dnsZoneDeleted = zoneResult.ok;
+    const cfZoneId = await findCloudflareZoneId(cleanDomain);
+    if (cfZoneId) {
+      // Nunca apagar a zona inteira na Cloudflare — só os registos de email
+      // que a automação criou (o resto da zona pode ter o site do cliente:
+      // Shopify, Vercel, etc).
+      const result = await deleteCloudflareEmailRecords(cleanDomain, cfZoneId);
+      dnsZoneDeleted = result.ok;
+    } else {
+      const creds = await resolveDirectAdminCredentials('admin');
+      const zoneResult = await daPostViaSsh(
+        'CMD_API_DNS_CONTROL',
+        { action: 'delete', domain: cleanDomain },
+        creds,
+      );
+      dnsZoneDeleted = zoneResult.ok;
+    }
   } catch (error) {
     console.error('[email-dns-cleanup] falha a apagar zona DNS', cleanDomain, error);
   }

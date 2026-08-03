@@ -11388,9 +11388,8 @@ type BrevoEmailStatus = {
     serverEmail?: string
   }
   receive?: {
-    mx?: Array<{ priority: number; host: string }>
+    mx?: { priority: number; host: string }
     spf?: string
-    webhookUrl?: string
     mailboxes?: string
   }
   marketing?: {
@@ -11402,10 +11401,6 @@ type BrevoEmailStatus = {
 export function SMTPConfigSection() {
   const [status, setStatus] = useState<BrevoEmailStatus | null>(null)
   const [statusLoading, setStatusLoading] = useState(true)
-  const [domain, setDomain] = useState('oshercollective.com')
-  const [applyLoading, setApplyLoading] = useState<'one' | 'all' | null>(null)
-  const [applyResult, setApplyResult] = useState<string | null>(null)
-  const [applyError, setApplyError] = useState<string | null>(null)
 
   const loadStatus = async () => {
     setStatusLoading(true)
@@ -11424,31 +11419,8 @@ export function SMTPConfigSection() {
     loadStatus()
   }, [])
 
-  const applyBrevoMx = async (all = false) => {
-    setApplyLoading(all ? 'all' : 'one')
-    setApplyError(null)
-    setApplyResult(null)
-    try {
-      const response = await fetch('/api/email-dns-brevo', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(all ? { all: true } : { domain: domain.trim() }),
-      })
-      const data = await response.json()
-      if (!response.ok || !data.success) {
-        setApplyError(data.error || data.output || 'Falha ao aplicar DNS Brevo')
-      } else {
-        setApplyResult(data.output || `MX Brevo aplicado${all ? ' em todos os domínios' : ` em ${domain}`}`)
-      }
-    } catch (err: unknown) {
-      setApplyError(err instanceof Error ? err.message : 'Erro de rede')
-    } finally {
-      setApplyLoading(null)
-    }
-  }
-
   const sendOk = Boolean(status?.brevoTransactional)
-  const receiveMx = status?.receive?.mx || []
+  const receiveMx = status?.receive?.mx
 
   return (
     <div className="space-y-6">
@@ -11505,63 +11477,21 @@ export function SMTPConfigSection() {
                 <h2 className="text-lg font-semibold text-gray-900 dark:text-zinc-100">Recepção</h2>
               </div>
               <p className="mb-4 text-sm text-gray-600 dark:text-zinc-400">
-                E-mail externo chega via MX do serviço de envio → webhook injecta na caixa no servidor ({status?.receive?.mailboxes}).
+                E-mail externo chega diretamente ao servidor via MX ({status?.receive?.mailboxes}).
               </p>
               <dl className="space-y-2 text-sm text-gray-700 dark:text-zinc-300">
-                {receiveMx.map((mx) => (
-                  <div key={mx.host}>
-                    <dt className="inline font-medium">MX {mx.priority}: </dt>
-                    <dd className="inline font-mono text-xs">{mx.host}</dd>
+                {receiveMx && (
+                  <div>
+                    <dt className="inline font-medium">MX {receiveMx.priority}: </dt>
+                    <dd className="inline font-mono text-xs">{receiveMx.host}</dd>
                   </div>
-                ))}
+                )}
                 <div><dt className="inline font-medium">SPF: </dt><dd className="inline break-all font-mono text-xs">{status?.receive?.spf}</dd></div>
-                <div><dt className="inline font-medium">Webhook: </dt><dd className="inline break-all font-mono text-xs">{status?.receive?.webhookUrl}</dd></div>
               </dl>
               <p className="mt-4 text-xs text-gray-500 dark:text-zinc-500">
                 Leitura: secção <strong>Webmail</strong> ou cliente IMAP.
               </p>
             </div>
-          </div>
-
-          <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm dark:border-zinc-700 dark:bg-zinc-900">
-            <h2 className="mb-2 text-lg font-semibold text-gray-900 dark:text-zinc-100">Aplicar DNS de recepção (MX)</h2>
-            <p className="mb-4 text-sm text-gray-600 dark:text-zinc-400">
-              Actualiza as zonas DNS no servidor ({getServerHost()}) para receber e-mail externo.
-            </p>
-            <div className="mb-4 flex flex-col gap-3 sm:flex-row">
-              <input
-                type="text"
-                value={domain}
-                onChange={(e) => setDomain(e.target.value)}
-                placeholder="dominio.com"
-                className={`${panelField} flex-1`}
-              />
-              <button
-                type="button"
-                onClick={() => applyBrevoMx(false)}
-                disabled={applyLoading !== null || !domain.trim()}
-                className={panelBtnPrimary}
-              >
-                {applyLoading === 'one' ? 'A aplicar...' : 'Aplicar neste domínio'}
-              </button>
-              <button
-                type="button"
-                onClick={() => applyBrevoMx(true)}
-                disabled={applyLoading !== null}
-                className={panelBtnSecondary}
-              >
-                {applyLoading === 'all' ? 'A aplicar...' : 'Aplicar em todos'}
-              </button>
-            </div>
-
-            {applyResult && (
-              <pre className="max-h-40 overflow-auto whitespace-pre-wrap rounded border border-green-200 bg-green-50 p-3 font-mono text-xs text-green-800 dark:border-green-900/50 dark:bg-green-950/30 dark:text-green-300">
-                {applyResult}
-              </pre>
-            )}
-            {applyError && (
-              <p className="rounded border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-300">{applyError}</p>
-            )}
           </div>
         </>
       )}
