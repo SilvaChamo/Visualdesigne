@@ -75,6 +75,7 @@ export const NEW_MENU_ITEM_DEFS: PanelMenuItemDef[] = [
     label: 'Notificações',
     isNewMenu: true,
     subItems: [
+      { id: 'notificacoes-servidor', label: 'Servidor' },
       { id: 'renewals', label: 'Visão geral' },
       { id: 'cadastrar-renovacao', label: 'Cadastrar' },
       { id: 'templates-renovacao', label: 'Templates' },

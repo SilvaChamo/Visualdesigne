@@ -44,6 +44,7 @@ import {
 } from './DirectAdminSections'
 import { NewsManagerSection } from './NewsManagerSection'
 import { RenewalsSection } from './RenewalsSection'
+import { NotificationsSection } from './NotificationsSection'
 import { CotacoesSection } from './CotacoesSection'
 import { ContabilidadeTable } from '@/components/quotations/ContabilidadeTable'
 import { NextJsSitesSection } from './NextJsSitesSection'
@@ -1194,6 +1195,8 @@ function AdminPageContent() {
     }
 
     switch (sectionId) {
+      case 'notificacoes-servidor':
+        return <NotificationsSection defaultTab="list" filterCategory="system" />
       case 'cp-client-permissions':
         return <PanelPermissionsConfig role="client" />
       case 'cp-reseller-permissions':

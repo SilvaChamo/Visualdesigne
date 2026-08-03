@@ -203,6 +203,25 @@ export function AdminSidebar({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeSection]);
 
+  const [unreadNotifications, setUnreadNotifications] = React.useState(0);
+  React.useEffect(() => {
+    let cancelled = false;
+    const fetchUnread = () => {
+      fetch('/api/notifications/admin?limit=1')
+        .then((r) => r.json())
+        .then((data) => {
+          if (!cancelled && data?.success) setUnreadNotifications(data.stats?.unread || 0);
+        })
+        .catch(() => {});
+    };
+    fetchUnread();
+    const interval = setInterval(fetchUnread, 30000);
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+  }, []);
+
   const handleParentClick = (item: MenuItem) => {
     if (!item.subItems?.length) {
       setExpandedMenu(null);
@@ -306,7 +325,7 @@ export function AdminSidebar({
                           if (isCollapsed && isMobile && item.subItems?.length) return;
                           handleParentClick(item);
                         }}
-                        className={`group flex w-full items-center overflow-hidden ${MENU_ROW_CLASS} transition-all duration-200 ease-out hover:translate-x-1 ${
+                        className={`group relative flex w-full items-center overflow-hidden ${MENU_ROW_CLASS} transition-all duration-200 ease-out hover:translate-x-1 ${
                           isCollapsed ? 'justify-center px-2' : 'px-2.5'
                         } rounded-lg ${
                           isActive
@@ -324,6 +343,15 @@ export function AdminSidebar({
                           }`}
                         />
                         {!isCollapsed && <span className="ml-3 truncate text-base leading-none">{item.label}</span>}
+                        {item.id === 'nov-notificacoes' && unreadNotifications > 0 && (
+                          <span
+                            className={`flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-red-600 px-1 text-[11px] font-bold text-white ${
+                              isCollapsed ? 'absolute right-1 top-1' : 'ml-auto'
+                            }`}
+                          >
+                            {unreadNotifications > 99 ? '99+' : unreadNotifications}
+                          </span>
+                        )}
                         {!isCollapsed && item.subItems && (
                           <ChevronRight size={14} className={`ml-auto text-gray-400 transition-transform group-hover:text-red-600 ${isOpen ? 'rotate-90' : ''}`} />
                         )}

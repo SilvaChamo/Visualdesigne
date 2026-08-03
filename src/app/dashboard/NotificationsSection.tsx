@@ -31,7 +31,12 @@ interface Notification {
   email_sent: boolean
 }
 
-export function NotificationsSection() {
+type NotificationsTab = 'renewal-templates' | 'send' | 'list'
+
+export function NotificationsSection({
+  defaultTab = 'renewal-templates',
+  filterCategory,
+}: { defaultTab?: NotificationsTab; filterCategory?: string } = {}) {
   const [title, setTitle] = useState('')
   const [message, setMessage] = useState('')
   const [type, setType] = useState<'info' | 'success' | 'warning' | 'error'>('info')
@@ -46,7 +51,7 @@ export function NotificationsSection() {
   const [stats, setStats] = useState({ total: 0, unread: 0, emailSent: 0 })
   const [loading, setLoading] = useState(false)
   const [sending, setSending] = useState(false)
-  const [activeTab, setActiveTab] = useState<'renewal-templates' | 'send' | 'list'>('renewal-templates')
+  const [activeTab, setActiveTab] = useState<NotificationsTab>(defaultTab)
 
   // Redirecionar automaticamente para o editor de templates
   useEffect(() => {
@@ -59,9 +64,12 @@ export function NotificationsSection() {
   const fetchNotifications = async () => {
     setLoading(true)
     try {
-      const res = await fetch('/api/notifications/admin')
+      const url = filterCategory
+        ? `/api/notifications/admin?category=${encodeURIComponent(filterCategory)}`
+        : '/api/notifications/admin'
+      const res = await fetch(url)
       const data = await res.json()
-      
+
       if (data.success) {
         setNotifications(data.notifications)
         setStats(data.stats)
@@ -77,7 +85,8 @@ export function NotificationsSection() {
     if (activeTab === 'list') {
       fetchNotifications()
     }
-  }, [activeTab])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, filterCategory])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -140,6 +149,24 @@ export function NotificationsSection() {
       alert('❌ Erro ao enviar notificação')
     } finally {
       setSending(false)
+    }
+  }
+
+  const markAsRead = async (id: string) => {
+    const target = notifications.find(n => n.id === id)
+    if (!target || target.read) return
+
+    setNotifications(prev => prev.map(n => (n.id === id ? { ...n, read: true } : n)))
+    setStats(prev => ({ ...prev, unread: Math.max(0, prev.unread - 1) }))
+
+    try {
+      await fetch('/api/notifications/admin', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id })
+      })
+    } catch (error) {
+      console.error('Erro ao marcar como lida:', error)
     }
   }
 
@@ -530,7 +557,8 @@ export function NotificationsSection() {
               {notifications.map((notification) => (
                 <div
                   key={notification.id}
-                  className={`p-4 rounded-lg border ${getTypeColor(notification.type)} ${
+                  onClick={() => markAsRead(notification.id)}
+                  className={`p-4 rounded-lg border cursor-pointer ${getTypeColor(notification.type)} ${
                     notification.read ? 'opacity-75' : ''
                   }`}
                 >
@@ -539,22 +567,25 @@ export function NotificationsSection() {
                       {getTypeIcon(notification.type)}
                       <div className="flex-1">
                         <div className="flex items-center gap-2">
-                          <p className="font-medium">{notification.title}</p>
+                          <p className={notification.read ? 'font-medium' : 'font-bold'}>{notification.title}</p>
                           <span className="px-2 py-0.5 bg-white/50 text-xs rounded">
                             {notification.category}
                           </span>
                           {notification.email_sent && (
                             <Mail className="w-3 h-3 text-gray-400" />
                           )}
+                          {!notification.read && (
+                            <span className="w-2 h-2 rounded-full bg-red-600" title="Não lida" />
+                          )}
                         </div>
-                        <p className="text-sm mt-1 opacity-90">{notification.message}</p>
+                        <p className={`text-sm mt-1 opacity-90 ${notification.read ? '' : 'font-semibold'}`}>{notification.message}</p>
                         <p className="text-xs mt-2 opacity-70">
                           {new Date(notification.created_at).toLocaleString('pt-PT')}
                         </p>
                       </div>
                     </div>
                     <button
-                      onClick={() => deleteNotification(notification.id)}
+                      onClick={(e) => { e.stopPropagation(); deleteNotification(notification.id) }}
                       className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
                       title="Deletar"
                     >

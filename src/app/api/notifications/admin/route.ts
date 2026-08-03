@@ -256,15 +256,19 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url)
     const limit = parseInt(searchParams.get('limit') || '100')
     const userId = searchParams.get('userId')
+    const category = searchParams.get('category')
 
     let query = supabaseAdmin
       .from('notifications')
-      .select('*, users:auth.users!inner(email)')
+      .select('*')
       .order('created_at', { ascending: false })
       .limit(limit)
 
     if (userId) {
       query = query.eq('user_id', userId)
+    }
+    if (category) {
+      query = query.eq('category', category)
     }
 
     const { data: notifications, error } = await query
@@ -300,6 +304,42 @@ export async function GET(request: NextRequest) {
     })
   } catch (error) {
     console.error('Erro no GET notificações admin:', error)
+    return NextResponse.json({ error: 'Erro interno' }, { status: 500 })
+  }
+}
+
+// Marcar como lida
+export async function PATCH(request: NextRequest) {
+  try {
+    const supabase = await createClient()
+
+    if (!(await isAdmin(supabase))) {
+      return NextResponse.json({ error: 'Acesso restrito' }, { status: 403 })
+    }
+
+    const { id } = await request.json()
+
+    if (!id) {
+      return NextResponse.json({ error: 'ID obrigatório' }, { status: 400 })
+    }
+
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
+    const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || ''
+    const supabaseAdmin = createAdminClient(supabaseUrl, supabaseKey)
+
+    const { error } = await supabaseAdmin
+      .from('notifications')
+      .update({ read: true, read_at: new Date().toISOString() })
+      .eq('id', id)
+
+    if (error) {
+      console.error('Erro ao marcar notificação como lida:', error)
+      return NextResponse.json({ error: 'Erro ao marcar como lida' }, { status: 500 })
+    }
+
+    return NextResponse.json({ success: true })
+  } catch (error) {
+    console.error('Erro no PATCH notificação:', error)
     return NextResponse.json({ error: 'Erro interno' }, { status: 500 })
   }
 }
