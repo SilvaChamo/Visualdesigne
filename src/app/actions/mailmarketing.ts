@@ -4,6 +4,7 @@ import { createClient } from '@supabase/supabase-js'
 import { cacheService } from '@/lib/cache-service'
 import { requirePanelBootstrapAccess } from '@/lib/panel-api-auth'
 import { listMirrorWebsites, listMirrorWebsitesForClientUser } from '@/lib/panel-mirror-read'
+import { EMAIL_PLAN_PACKAGE_NAME } from '@/lib/email-plan-provision'
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
@@ -50,8 +51,13 @@ async function resolveSession(): Promise<MailmarketingSession | null> {
         ? await listMirrorWebsites({ role: 'reseller', userId: auth.user.id })
         : await listMirrorWebsitesForClientUser(auth.user.id, email) // 'manager' e 'client'
 
+    // Domínios do plano "Email Básico" (sem hospedagem real) só dão direito a
+    // Webmail — o plano não inclui Mail Marketing.
     const allowedDomains = new Set(
-        (sites || []).map((s: any) => normalizeDomain(s.domain)).filter(Boolean)
+        (sites || [])
+            .filter((s: any) => s.package !== EMAIL_PLAN_PACKAGE_NAME)
+            .map((s: any) => normalizeDomain(s.domain))
+            .filter(Boolean)
     )
     return { email, isAdmin: false, allowedDomains }
 }

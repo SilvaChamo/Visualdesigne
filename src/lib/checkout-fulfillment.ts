@@ -18,9 +18,6 @@ const CART_PLAN_TO_PACKAGE: Record<string, string> = {
   'hosting-pro': 'VisualDESIGN',
   'hosting-business': 'VisualDESIGN',
   'hosting-enterprise': 'VisualDESIGN',
-  'email-pro': 'VisualDESIGN',
-  'email-starter': 'VisualDESIGN',
-  'email-business': 'VisualDESIGN',
 };
 
 /**
@@ -146,6 +143,15 @@ export async function fulfillCheckout(
         }
       }
       created.push(`domínio:${domainName}`);
+
+      // Se o cliente já tinha um plano de email comprado à espera de
+      // domínio, este domínio novo fica automaticamente ligado a ele — a
+      // opção "comprar domínio connosco" no aviso do painel passa por aqui.
+      // Não ter plano pendente é o caso normal (resultado ok:false), não um erro.
+      if (admin && email) {
+        const { attachDomainToEmailPlan } = await import('@/lib/email-plan-provision');
+        await attachDomainToEmailPlan(admin, userId, domainName, email, displayName).catch(() => {});
+      }
     }
 
     if (item.type === 'hosting') {
@@ -214,25 +220,27 @@ export async function fulfillCheckout(
     }
 
     if (item.type === 'email') {
-      const serviceName = item.name.toLowerCase().trim();
-      const packageName = CART_PLAN_TO_PACKAGE[item.id] || 'VisualDESIGN';
+      // O plano de email não vem com domínio — o cliente escolhe (ou compra
+      // um connosco) depois, já no painel dele (ver EMAIL_PLAN_PACKAGE_NAME
+      // em user-products.ts e /api/client/attach-email-domain). domain_name
+      // fica vazio até isso acontecer.
       const { error: insErr } = await supabase.from('hosting_renewals').insert({
         user_id: userId,
-        domain_name: serviceName,
-        package_name: packageName,
+        domain_name: '',
+        package_name: 'Email Básico',
         start_date: today,
         expiration_date: expires,
         renewal_price: item.price,
         currency: 'MZN',
         status: 'active',
         server: 'Mail',
-        notes: `Plano de e-mail (${paymentMethod})`,
+        notes: `Plano de e-mail (${paymentMethod}) — aguarda domínio`,
       });
       if (insErr) {
         console.warn('[checkout-fulfillment] email plano:', insErr.message);
         await alertAdminOfTrackingFailure('hosting_renewals (email)', insErr.message);
       }
-      created.push(`email:${serviceName}`);
+      created.push('email:plano-basico');
     }
   }
 

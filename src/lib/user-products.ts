@@ -18,6 +18,14 @@ export type UserProductsSummary = {
     expirationDate?: string | null;
     status?: string | null;
   }>;
+  /** Planos de email (server='Mail' em hosting_renewals) — nunca contam para tier/hosting. */
+  emailPlans: Array<{
+    id?: string;
+    /** Vazio até o cliente associar um domínio (ver attachDomainToEmailPlan). */
+    domain: string;
+    expirationDate?: string | null;
+    status?: string | null;
+  }>;
 };
 
 export async function fetchUserProductsSummary(
@@ -26,6 +34,7 @@ export async function fetchUserProductsSummary(
 ): Promise<UserProductsSummary> {
   const domains: UserProductsSummary['domains'] = [];
   const hosting: UserProductsSummary['hosting'] = [];
+  const emailPlans: UserProductsSummary['emailPlans'] = [];
 
   const [domainRenewals, hostingRenewals, pagamentos, sites] = await Promise.all([
     supabase
@@ -34,7 +43,7 @@ export async function fetchUserProductsSummary(
       .eq('user_id', userId),
     supabase
       .from('hosting_renewals')
-      .select('id, domain_name, package_name, expiration_date, status')
+      .select('id, domain_name, package_name, server, expiration_date, status')
       .eq('user_id', userId),
     supabase
       .from('pagamentos')
@@ -57,6 +66,18 @@ export async function fetchUserProductsSummary(
   }
 
   for (const row of hostingRenewals.data ?? []) {
+    // Planos de email (server='Mail') não são hospedagem real — nunca podem
+    // contaminar tier/hasHosting, senão o painel mostra um cartão de
+    // "Hospedagem" bogus para quem só comprou email.
+    if (row.server === 'Mail') {
+      emailPlans.push({
+        id: row.id,
+        domain: row.domain_name,
+        expirationDate: row.expiration_date,
+        status: row.status,
+      });
+      continue;
+    }
     hosting.push({
       id: row.id,
       domain: row.domain_name,
@@ -81,10 +102,12 @@ export async function fetchUserProductsSummary(
   const paidCount =
     (pagamentos.data?.length ?? 0) +
     domains.filter((d) => d.status && d.status !== 'cancelled').length +
-    hosting.filter((h) => h.status && !['cancelled', 'expired'].includes(String(h.status))).length;
+    hosting.filter((h) => h.status && !['cancelled', 'expired'].includes(String(h.status))).length +
+    emailPlans.filter((e) => e.status && !['cancelled', 'expired'].includes(String(e.status))).length;
 
   const hasDomains = domains.length > 0;
   const hasHosting = hosting.length > 0;
+  const hasEmailPlan = emailPlans.length > 0;
 
   let tier: ClientProductTier = 'none';
   if (hasDomains && hasHosting) tier = 'both';
@@ -93,8 +116,9 @@ export async function fetchUserProductsSummary(
 
   return {
     tier,
-    hasPaidProducts: paidCount > 0 || hasDomains || hasHosting,
+    hasPaidProducts: paidCount > 0 || hasDomains || hasHosting || hasEmailPlan,
     domains,
     hosting,
+    emailPlans,
   };
 }

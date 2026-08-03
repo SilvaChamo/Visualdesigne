@@ -14,9 +14,15 @@ function usdToMt(usd: number): number {
   return Math.round(usd * 65 * 1.5 * 1.075);
 }
 
-/** Planos de email vendidos através do carrinho (DomainSearch, CartDrawer). Preços em MT. */
+/**
+ * Único plano de email vendido através do carrinho (DomainSearch, CartDrawer,
+ * /precos/email) — sem domínio adicional incluído; o domínio é escolhido
+ * depois, no painel do cliente (ver ClientProductsHub / attach-email-domain).
+ */
+export const EMAIL_BASICO_ID = 'email-basico';
+export const EMAIL_BASICO_PRICE_MT = 680;
 const EMAIL_CATALOG: Record<string, { name: string; monthly: number; annual: number }> = {
-  'email-pro': { name: 'Email Profissional', monthly: 250, annual: 2700 },
+  [EMAIL_BASICO_ID]: { name: 'Email Básico', monthly: EMAIL_BASICO_PRICE_MT, annual: EMAIL_BASICO_PRICE_MT * 12 },
 };
 
 const HOSTING_CYCLES: HostingBillingCycle[] = ['monthly', 'semiannual', 'annual'];

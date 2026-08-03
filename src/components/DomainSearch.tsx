@@ -446,16 +446,16 @@ export default function DomainSearch({
             </button>
           </div>
           <div className="flex flex-col rounded-xl border border-slate-200 bg-white p-6 transition-all duration-300 hover:shadow-lg">
-            <h4 className="mb-2 text-xl font-bold text-slate-800">Email Profissional</h4>
-            <p className="mb-4 text-sm text-slate-500">Emails corporativos.</p>
+            <h4 className="mb-2 text-xl font-bold text-slate-800">Email Básico</h4>
+            <p className="mb-4 text-sm text-slate-500">Emails corporativos. O domínio escolhe-se depois, no painel.</p>
             <div className="mb-6">
-              <span className="text-3xl font-black text-red-600">{billingCycle === 'anual' ? '2.700' : '250'} MT</span>
-              <span className="ml-1 text-sm font-normal text-slate-500">/{billingCycle === 'anual' ? 'ano' : 'mês'}</span>
+              <span className="text-3xl font-black text-red-600">680 MT</span>
+              <span className="ml-1 text-sm font-normal text-slate-500">/mês</span>
             </div>
             <button
               type="button"
               onClick={() => {
-                addItem({ id: 'email-pro', type: 'email', name: 'Email Profissional', price: billingCycle === 'anual' ? 2700 : 250, period: 1 })
+                addItem({ id: 'email-basico', type: 'email', name: 'Email Básico', price: 680, period: 1 })
                 setIsCartOpen(true)
               }}
               className="mt-auto w-full rounded-lg bg-red-600 py-2.5 font-bold text-white transition-colors hover:bg-red-700"

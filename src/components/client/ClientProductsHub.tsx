@@ -4,6 +4,7 @@ import React, { useEffect, useState } from 'react';
 import {
   Globe,
   Server,
+  Mail,
   RefreshCw,
   ShoppingCart,
   ExternalLink,
@@ -33,8 +34,11 @@ export function ClientProductsHub({ onNavigate }: Props) {
   const [products, setProducts] = useState<UserProductsSummary | null>(null);
   const [tier, setTier] = useState<ClientProductTier>('none');
   const [quotations, setQuotations] = useState<Quotation[]>([]);
+  const [emailDomainInput, setEmailDomainInput] = useState('');
+  const [attachingDomain, setAttachingDomain] = useState(false);
+  const [attachError, setAttachError] = useState<string | null>(null);
 
-  useEffect(() => {
+  const loadProducts = () => {
     fetch('/api/my-products', { credentials: 'include' })
       .then((r) => r.json())
       .then((data) => {
@@ -43,12 +47,41 @@ export function ClientProductsHub({ onNavigate }: Props) {
       })
       .catch(() => setProducts(null))
       .finally(() => setLoading(false));
+  };
+
+  useEffect(() => {
+    loadProducts();
 
     fetch('/api/cotacoes')
       .then((r) => r.json())
       .then((data) => { if (data.success) setQuotations(data.quotations); })
       .catch(() => {});
   }, []);
+
+  const handleAttachEmailDomain = async () => {
+    const domain = emailDomainInput.trim().toLowerCase();
+    if (!domain) return;
+    setAttachingDomain(true);
+    setAttachError(null);
+    try {
+      const res = await fetch('/api/client/attach-email-domain', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ domain }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        setAttachError(data.error || 'Não foi possível associar o domínio.');
+        return;
+      }
+      setEmailDomainInput('');
+      loadProducts();
+    } catch {
+      setAttachError('Erro de rede — tente novamente.');
+    } finally {
+      setAttachingDomain(false);
+    }
+  };
 
   if (loading) {
     return (
@@ -58,7 +91,9 @@ export function ClientProductsHub({ onNavigate }: Props) {
     );
   }
 
-  if (!products || tier === 'none') {
+  const hasEmailPlan = (products?.emailPlans?.length ?? 0) > 0;
+
+  if (!products || (tier === 'none' && !hasEmailPlan)) {
     return (
       <div className="p-6 bg-amber-50 border border-amber-200 rounded-xl text-sm text-amber-900">
         Ainda não encontrámos produtos na sua conta. Se acabou de comprar, aguarde alguns minutos
@@ -232,6 +267,90 @@ export function ClientProductsHub({ onNavigate }: Props) {
             <p className="text-xs text-gray-400 flex items-center gap-1">
               <AlertCircle className="w-3.5 h-3.5" />
               O botão &quot;Direct Admin&quot; entra directamente na sua conta de hospedagem, sem pedir password.
+            </p>
+          </div>
+        </section>
+      )}
+
+      {hasEmailPlan && (
+        <section className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+          <div className="px-5 py-4 border-b border-gray-100 flex items-center gap-2">
+            <Mail className="w-5 h-5 text-blue-600" />
+            <h2 className="font-bold text-gray-900">Email</h2>
+          </div>
+          <div className="p-5 space-y-3">
+            {products.emailPlans.map((plan) => {
+              if (!plan.domain) {
+                return (
+                  <div key={plan.id} className="p-4 bg-amber-50 border border-amber-200 rounded-lg space-y-3">
+                    <p className="text-sm text-amber-900">
+                      O seu plano de email está activo mas ainda não tem domínio associado — indique
+                      um domínio que já tenha, ou compre um connosco, para o email começar a funcionar.
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                      <input
+                        type="text"
+                        value={emailDomainInput}
+                        onChange={(e) => setEmailDomainInput(e.target.value)}
+                        placeholder="meusite.co.mz"
+                        className="flex-1 min-w-[180px] text-sm border border-gray-300 rounded-lg px-3 py-2"
+                      />
+                      <button
+                        type="button"
+                        disabled={attachingDomain || !emailDomainInput.trim()}
+                        onClick={handleAttachEmailDomain}
+                        className="text-xs font-bold bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 disabled:opacity-50"
+                      >
+                        {attachingDomain ? 'A associar…' : 'Já tenho este domínio'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => (window.location.href = '/precos#dominios')}
+                        className="text-xs font-bold border border-gray-300 px-4 py-2 rounded-lg hover:border-red-400 flex items-center gap-1"
+                      >
+                        <ShoppingCart className="w-4 h-4" /> Comprar domínio connosco
+                      </button>
+                    </div>
+                    {attachError && <p className="text-xs text-red-600">{attachError}</p>}
+                  </div>
+                );
+              }
+
+              return (
+                <div
+                  key={plan.id ?? plan.domain}
+                  className="flex flex-wrap items-center justify-between gap-3 p-4 bg-gray-50 rounded-lg border border-gray-100"
+                >
+                  <div>
+                    <p className="font-bold text-gray-900">{plan.domain}</p>
+                    <p className="text-xs text-gray-500 mt-1">
+                      Email Básico
+                      {plan.expirationDate &&
+                        ` · Renova: ${new Date(plan.expirationDate).toLocaleDateString('pt-PT')}`}
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={() => onNavigate?.('webmail')}
+                      className="text-xs font-bold border border-gray-300 px-4 py-2 rounded-lg hover:border-blue-400"
+                    >
+                      Webmail
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => onNavigate?.('facturas')}
+                      className="text-xs font-bold bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700"
+                    >
+                      Renovar
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+            <p className="text-xs text-gray-400 flex items-center gap-1">
+              <AlertCircle className="w-3.5 h-3.5" />
+              O plano Email Básico não inclui Mail Marketing — só caixas de correio (Webmail).
             </p>
           </div>
         </section>

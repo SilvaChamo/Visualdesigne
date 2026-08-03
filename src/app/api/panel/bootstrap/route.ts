@@ -51,6 +51,15 @@ export async function GET(req: NextRequest) {
     if (auth.user.role === 'client') {
       const ctx = await resolveClientPanelContext(auth.user.id, auth.user.email);
       const capabilities = resolvePanelCapabilities({ role: 'client' });
+      // 'client' cai sempre no ramo readOnly de resolvePanelCapabilities (não
+      // há ramo próprio para este role) — isso bloqueava Webmail/Mailmarketing
+      // para QUALQUER cliente, mesmo com hospedagem/email/domínio activos.
+      // Um cliente com pelo menos um produto comprado deixa de ser readOnly;
+      // só fica limitado a "meus-produtos" quem ainda não comprou nada.
+      const hasActiveProduct = Boolean(
+        ctx.products && (ctx.products.tier !== 'none' || ctx.products.emailPlans.length > 0),
+      );
+      const readOnly = capabilities.readOnly && !hasActiveProduct;
       return NextResponse.json({
         success: true,
         sites: ctx.sites,
@@ -62,8 +71,8 @@ export async function GET(req: NextRequest) {
         products: ctx.products,
         session: {
           role: 'client',
-          readOnly: capabilities.readOnly,
-          capabilities,
+          readOnly,
+          capabilities: { ...capabilities, readOnly },
         },
         meta: { source: 'mirror', lastSyncedAt },
       });

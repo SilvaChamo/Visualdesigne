@@ -111,19 +111,19 @@ export function CartDrawer() {
 
                 <div
                   className="flex items-center justify-between p-3 bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-xl hover:border-blue-300 hover:shadow-sm transition-all cursor-pointer group"
-                  onClick={() => addItem({ id: 'email-pro', type: 'email', name: 'Email Profissional', price: 250, period: 1 })}
+                  onClick={() => addItem({ id: 'email-basico', type: 'email', name: 'Email Básico', price: 680, period: 1 })}
                 >
                   <div className="flex items-center gap-3">
                     <div className="w-9 h-9 rounded-lg bg-blue-50 dark:bg-blue-950/20 flex items-center justify-center flex-shrink-0">
                       <Mail className="w-4 h-4 text-blue-600 dark:text-blue-500" />
                     </div>
                     <div>
-                      <h4 className="font-bold text-slate-800 dark:text-zinc-200 text-sm group-hover:text-blue-600 transition-colors">Email Profissional</h4>
-                      <p className="text-[10px] text-slate-500 dark:text-zinc-400">10 contas · Mail Marketing</p>
+                      <h4 className="font-bold text-slate-800 dark:text-zinc-200 text-sm group-hover:text-blue-600 transition-colors">Email Básico</h4>
+                      <p className="text-[10px] text-slate-500 dark:text-zinc-400">Domínio escolhe-se depois, no painel</p>
                     </div>
                   </div>
                   <div className="text-right flex-shrink-0">
-                    <div className="font-bold text-slate-800 dark:text-zinc-200 text-sm">250 MT<span className="text-[10px] text-slate-400 font-normal">/mês</span></div>
+                    <div className="font-bold text-slate-800 dark:text-zinc-200 text-sm">680 MT<span className="text-[10px] text-slate-400 font-normal">/mês</span></div>
                     <span className="text-[10px] text-blue-600 dark:text-blue-500 font-bold">+ Adicionar</span>
                   </div>
                 </div>
@@ -217,22 +217,22 @@ export function CartDrawer() {
                     </div>
                   </div>
                 )}
-                {!items.find(i => i.id === 'email-pro') && (
+                {!items.find(i => i.id === 'email-basico') && (
                   <div
                     className="flex items-center justify-between p-3 bg-white rounded-xl border border-slate-200 hover:border-blue-300 hover:shadow-sm transition-all cursor-pointer group"
-                    onClick={() => addItem({ id: 'email-pro', type: 'email', name: 'Email Profissional', price: 250, period: 1 })}
+                    onClick={() => addItem({ id: 'email-basico', type: 'email', name: 'Email Básico', price: 680, period: 1 })}
                   >
                     <div className="flex items-center gap-3">
                       <div className="w-9 h-9 rounded-lg bg-blue-50 flex items-center justify-center flex-shrink-0">
                         <Mail className="w-4 h-4 text-blue-600" />
                       </div>
                       <div>
-                        <h4 className="font-bold text-slate-800 text-sm group-hover:text-blue-600 transition-colors">Email Profissional</h4>
-                        <p className="text-[10px] text-slate-500">10 contas · Mail Marketing</p>
+                        <h4 className="font-bold text-slate-800 text-sm group-hover:text-blue-600 transition-colors">Email Básico</h4>
+                        <p className="text-[10px] text-slate-500">Domínio escolhe-se depois, no painel</p>
                       </div>
                     </div>
                     <div className="text-right flex-shrink-0">
-                      <div className="font-bold text-slate-800 text-sm">250 MT<span className="text-[10px] text-slate-400 font-normal">/mês</span></div>
+                      <div className="font-bold text-slate-800 text-sm">680 MT<span className="text-[10px] text-slate-400 font-normal">/mês</span></div>
                       <span className="text-[10px] text-blue-600 font-bold">+ Adicionar</span>
                     </div>
                   </div>
