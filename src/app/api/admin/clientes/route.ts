@@ -8,12 +8,11 @@ import {
 import { daPostViaSsh } from '@/lib/da-api-ssh';
 import { requireAdminOrReseller } from '@/lib/panel-api-auth';
 import { runDaFullSyncDeduped, scheduleDaSync } from '@/lib/da-sync-engine';
-import { loadResellerCredentialsByDaUsername } from '@/lib/da-credential-store';
+import { loadResellerCredentialsByDaUsername, encryptDaSecret } from '@/lib/da-credential-store';
 import { sendEmail } from '@/lib/email-service';
 import { pushUserEditToServer } from '@/lib/da-user-push-ssh';
 import { getDaSyncAdmin } from '@/lib/da-sync-schema';
 import { saveProfileForAuthUser, getProfileForAuthUser } from '@/lib/profile-db';
-import { upsertDownloadableCredentials } from '@/lib/panel-access-credentials';
 import { upsertPanelAuthAccount } from '@/lib/panel-auth-accounts';
 import { PANEL_SLUG } from '@/lib/panel-tenant';
 import type { UserRole } from '@/lib/user-roles';
@@ -400,11 +399,8 @@ export async function POST(req: NextRequest) {
 
       if (password.length >= 8) {
         await admin.auth.admin.updateUserById(authUserId, { password });
-        await upsertDownloadableCredentials(admin, {
-          email: normalizedEmail,
-          password,
-          userId: authUserId,
-          role: panelRole,
+        await saveProfileForAuthUser(admin, authUserId, {
+          da_password_encrypted: encryptDaSecret(password),
         });
       }
 
@@ -445,11 +441,8 @@ export async function POST(req: NextRequest) {
         ...(resellerTier ? { reseller_tier: resellerTier } : {}),
       });
 
-      await upsertDownloadableCredentials(admin, {
-        email: normalizedEmail,
-        password,
-        userId: authUserId,
-        role: panelRole,
+      await saveProfileForAuthUser(admin, authUserId, {
+        da_password_encrypted: encryptDaSecret(password),
       });
 
       await upsertPanelAuthAccount(admin, {
