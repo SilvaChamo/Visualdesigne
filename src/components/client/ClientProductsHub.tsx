@@ -187,6 +187,14 @@ export function ClientProductsHub({ onNavigate }: Props) {
                     </p>
                   </div>
                   <div className="flex flex-wrap gap-2">
+                    <a
+                      href="/api/client-directadmin-access"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-xs font-bold border border-gray-300 px-4 py-2 rounded-lg hover:border-red-400"
+                    >
+                      Direct Admin
+                    </a>
                     <button
                       type="button"
                       onClick={() => onNavigate?.('webmail')}
@@ -223,7 +231,7 @@ export function ClientProductsHub({ onNavigate }: Props) {
             </div>
             <p className="text-xs text-gray-400 flex items-center gap-1">
               <AlertCircle className="w-3.5 h-3.5" />
-              Acesso técnico ao servidor: apenas revendedores. Clientes gerem pelo painel Visual Design.
+              O botão &quot;Direct Admin&quot; entra directamente na sua conta de hospedagem, sem pedir password.
             </p>
           </div>
         </section>

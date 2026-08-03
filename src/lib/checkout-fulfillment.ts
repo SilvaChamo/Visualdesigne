@@ -2,14 +2,19 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { createClient as createAdminClient } from '@supabase/supabase-js';
 import type { CatalogCartItem } from '@/lib/package-catalog';
 
+// 'VisualDESIGN' é o único pacote real confirmado no DirectAdmin (via
+// CMD_API_PACKAGES_USER) — os nomes VD-Host-*/VD-Email-* não existem no
+// servidor. Serve só para o registo de tracking (hosting_renewals); a conta
+// real é sempre criada manualmente pelo admin/revendedor/profissional (ver
+// nota mais abaixo), não a partir do checkout.
 const CART_PLAN_TO_PACKAGE: Record<string, string> = {
-  'hosting-basico': 'VD-Host-Basico',
-  'hosting-pro': 'VD-Host-Pro',
-  'hosting-business': 'VD-Host-Business',
-  'hosting-enterprise': 'VD-Host-Enterprise',
-  'email-pro': 'VD-Email-Pro',
-  'email-starter': 'VD-Email-Starter',
-  'email-business': 'VD-Email-Business',
+  'hosting-basico': 'VisualDESIGN',
+  'hosting-pro': 'VisualDESIGN',
+  'hosting-business': 'VisualDESIGN',
+  'hosting-enterprise': 'VisualDESIGN',
+  'email-pro': 'VisualDESIGN',
+  'email-starter': 'VisualDESIGN',
+  'email-business': 'VisualDESIGN',
 };
 
 function addYears(date: Date, years: number) {
@@ -50,6 +55,38 @@ async function alertAdminOfTrackingFailure(context: string, message: string) {
 }
 
 /**
+ * Avisa o admin que há uma nova hospedagem comprada à espera de conta no
+ * servidor. A criação real da conta (DirectAdmin) é sempre um passo manual
+ * de admin/revendedor/profissional em "Criar conta de hospedagem" — o
+ * checkout nunca cria contas de servidor sozinho, só regista a compra e
+ * avisa quem tem de agir.
+ */
+async function notifyAdminOfPendingHostingProvision(domain: string, packageName: string, clientEmail?: string) {
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  if (!serviceKey || !supabaseUrl) return;
+  try {
+    const admin = createAdminClient(supabaseUrl, serviceKey);
+    const { data: adminProfile } = await admin
+      .from('profiles')
+      .select('id')
+      .eq('role', 'admin')
+      .limit(1)
+      .maybeSingle();
+    if (!adminProfile?.id) return;
+    await admin.from('notifications').insert({
+      user_id: adminProfile.id,
+      title: 'Nova hospedagem comprada — falta criar conta no servidor',
+      message: `Domínio: ${domain}\nPacote: ${packageName}\nCliente: ${clientEmail || '—'}\n\nCriar em "Criar conta de hospedagem" no painel admin.`,
+      type: 'info',
+      category: 'system',
+    });
+  } catch {
+    /* um alerta falhado nunca deve impedir o checkout de terminar */
+  }
+}
+
+/**
  * Activa os produtos comprados (domínio/hospedagem/email) e promove a conta guest -> client.
  * Só deve ser chamada depois de o pagamento estar confirmado (webhook Stripe), nunca a partir
  * de um pedido directo do browser.
@@ -63,6 +100,14 @@ export async function fulfillCheckout(
   const today = new Date().toISOString().split('T')[0];
   const total = items.reduce((sum, item) => sum + (item.price || 0), 0);
   const created: string[] = [];
+
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const admin = serviceKey && supabaseUrl ? createAdminClient(supabaseUrl, serviceKey) : null;
+  const { data: authUser } = admin ? await admin.auth.admin.getUserById(userId) : { data: null };
+  const currentMetadata = authUser?.user?.user_metadata || {};
+  const email = authUser?.user?.email;
+  const displayName = currentMetadata.nome || currentMetadata.full_name || email?.split('@')[0];
 
   for (const item of items) {
     const years = item.period || 1;
@@ -105,7 +150,7 @@ export async function fulfillCheckout(
 
     if (item.type === 'hosting') {
       const domainName = item.name.toLowerCase().trim();
-      const packageName = CART_PLAN_TO_PACKAGE[item.id] || item.id || 'VD-Host-Basico';
+      const packageName = CART_PLAN_TO_PACKAGE[item.id] || 'VisualDESIGN';
       const { error: insErr } = await supabase.from('hosting_renewals').insert({
         user_id: userId,
         domain_name: domainName,
@@ -123,11 +168,17 @@ export async function fulfillCheckout(
         await alertAdminOfTrackingFailure('hosting_renewals', insErr.message);
       }
       created.push(`hospedagem:${domainName}`);
+
+      // A conta no servidor (DirectAdmin) nunca é criada a partir do
+      // checkout — é sempre um passo manual de admin/revendedor/profissional
+      // em "Criar conta de hospedagem". O checkout só regista a compra e
+      // avisa quem tem de agir.
+      await notifyAdminOfPendingHostingProvision(domainName, packageName, email);
     }
 
     if (item.type === 'email') {
       const serviceName = item.name.toLowerCase().trim();
-      const packageName = CART_PLAN_TO_PACKAGE[item.id] || item.id || 'VD-Email-Pro';
+      const packageName = CART_PLAN_TO_PACKAGE[item.id] || 'VisualDESIGN';
       const { error: insErr } = await supabase.from('hosting_renewals').insert({
         user_id: userId,
         domain_name: serviceName,
@@ -158,15 +209,7 @@ export async function fulfillCheckout(
     status: 'paid',
   });
 
-  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  if (serviceKey && supabaseUrl) {
-    const admin = createAdminClient(supabaseUrl, serviceKey);
-    const { data: authUser } = await admin.auth.admin.getUserById(userId);
-    const currentMetadata = authUser?.user?.user_metadata || {};
-    const email = authUser?.user?.email;
-    const displayName = currentMetadata.nome || currentMetadata.full_name || email?.split('@')[0];
-
+  if (admin) {
     const { getProfileForAuthUser, saveProfileForAuthUser } = await import('@/lib/profile-db');
     const existingProfile = await getProfileForAuthUser(admin, userId, email);
 

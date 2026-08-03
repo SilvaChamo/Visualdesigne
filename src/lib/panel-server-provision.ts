@@ -176,15 +176,30 @@ export async function provisionPanelAccountToServer(userName: string): Promise<{
     `${String(panelUser.first_name || '')} ${String(panelUser.last_name || '')}`.trim() ||
     authRow?.name ||
     email.split('@')[0];
+  const role: UserRole = (authRow?.role as UserRole) || 'client';
 
   await markAccountServerLinked({
     userId,
     email: email.toLowerCase(),
-    role: (authRow?.role as UserRole) || 'client',
+    role,
     name: displayName,
     userName: username,
     domain,
   });
+
+  // Só notifica o cliente quando a conta foi mesmo criada agora nesta
+  // tentativa (result.ok) — se caiu no ramo "já existe" (isDaAlreadyExistsError),
+  // a password que enviámos ao DA foi ignorada e não corresponde à real.
+  if (result.ok && role === 'client') {
+    const { notifyHostingAccountProvisioned } = await import('@/lib/notify-hosting-client');
+    await notifyHostingAccountProvisioned({
+      to: email,
+      clientName: displayName,
+      domain,
+      daUsername: username,
+      password,
+    }).catch(() => {});
+  }
 
   return { ok: true, linked: true };
 }
