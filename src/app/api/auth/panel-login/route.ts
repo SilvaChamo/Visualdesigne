@@ -8,6 +8,7 @@ import { getProfileForAuthUser } from '@/lib/profile-db';
 import { getStandardPanelPassword } from '@/lib/stored-panel-password';
 import { belongsToCurrentPanel, resolveAccountPanelSite } from '@/lib/panel-tenant';
 import { ADMIN_BOOTSTRAP_EMAILS } from '@/lib/panel-user-registry';
+import { loginRateLimitKey, checkAndRegisterLoginAttempt, clearLoginAttempts } from '@/lib/login-rate-limit';
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
@@ -25,6 +26,15 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(
         { success: false, error: 'Email e palavra-passe são obrigatórios.' },
         { status: 400 },
+      );
+    }
+
+    const rateLimitKey = loginRateLimitKey(req, email);
+    const rateLimit = await checkAndRegisterLoginAttempt(rateLimitKey);
+    if (!rateLimit.allowed) {
+      return NextResponse.json(
+        { success: false, error: 'Demasiadas tentativas. Tente novamente daqui a alguns minutos.' },
+        { status: 429, headers: { 'Retry-After': String(rateLimit.retryAfterSeconds) } },
       );
     }
 
@@ -125,6 +135,8 @@ export async function POST(req: NextRequest) {
         role: String(role),
       });
     }
+
+    await clearLoginAttempts(rateLimitKey);
 
     return NextResponse.json({ success: true });
   } catch (error: unknown) {
