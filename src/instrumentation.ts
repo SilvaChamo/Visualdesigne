@@ -8,11 +8,30 @@
 export async function register() {
   if (process.env.NEXT_RUNTIME !== 'nodejs') return
 
+  const { logServerError } = await import('@/lib/error-log')
+
   process.on('uncaughtException', (err) => {
     console.error('[instrumentation] uncaughtException — processo mantido vivo:', err)
+    logServerError('uncaughtException', err).catch(() => {})
   })
 
   process.on('unhandledRejection', (reason) => {
     console.error('[instrumentation] unhandledRejection — processo mantido vivo:', reason)
+    logServerError('unhandledRejection', reason).catch(() => {})
   })
+}
+
+/**
+ * Gancho nativo do Next.js — apanha erros dentro do ciclo de vida de um
+ * pedido (rota de API, server component, action) que de outra forma só
+ * apareceriam na consola do servidor, sem ninguém ver. Complementa os
+ * handlers acima, que só cobrem erros ao nível do processo.
+ */
+export async function onRequestError(
+  err: unknown,
+  request: { path: string; method: string },
+) {
+  if (process.env.NEXT_RUNTIME !== 'nodejs') return
+  const { logServerError } = await import('@/lib/error-log')
+  await logServerError(`${request.method} ${request.path}`, err).catch(() => {})
 }
