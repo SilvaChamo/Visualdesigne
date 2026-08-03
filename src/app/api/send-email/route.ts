@@ -74,7 +74,7 @@ export async function POST(req: NextRequest) {
         const body = await req.json();
         console.log('🚀 [send-email] Body:', JSON.stringify(body, null, 2));
 
-        const { from, to, cc, bcc, subject, html, replyTo, fromPassword } = body;
+        const { from, to, cc, bcc, subject, html, replyTo, fromPassword, attachments } = body;
 
         if (!from || !to || !subject) {
             console.log('🚀 [send-email] Erro: Campos obrigatórios em falta');
@@ -97,6 +97,16 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: 'Sem permissão para enviar a partir desta conta.' }, { status: 403 });
         }
 
+        const mailAttachments = Array.isArray(attachments)
+            ? attachments
+                .filter((a: { filename?: string; content?: string }) => a?.filename && a?.content)
+                .map((a: { filename: string; contentType?: string; content: string }) => ({
+                    filename: a.filename,
+                    contentType: a.contentType,
+                    content: Buffer.from(a.content, 'base64'),
+                }))
+            : undefined;
+
         const mailInput = {
             to,
             from,
@@ -104,7 +114,8 @@ export async function POST(req: NextRequest) {
             html: html || '',
             replyTo: replyTo || from,
             cc,
-            bcc
+            bcc,
+            attachments: mailAttachments
         };
 
         // Cada cliente envia com o seu próprio endereço — sem nome/remetente

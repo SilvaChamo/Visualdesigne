@@ -1066,6 +1066,14 @@ export function EmailWebmailSection({
 
   const [envioNotificacao, setEnvioNotificacao] = useState<{show: boolean, message: string, type: 'success' | 'error' | 'info'}>({show: false, message: '', type: 'info'})
 
+  const fileParaBase64 = (file: File): Promise<string> =>
+    new Promise((resolve, reject) => {
+      const reader = new FileReader()
+      reader.onload = () => resolve((reader.result as string).split(',')[1] || '')
+      reader.onerror = reject
+      reader.readAsDataURL(file)
+    })
+
   const handleSend = async () => {
     if (!emailOrigem) {
       alert('Selecciona uma conta de email')
@@ -1088,6 +1096,7 @@ export function EmailWebmailSection({
       html: editorRef.current?.innerHTML || '',
       assinatura: assinatura
     }
+    const anexosParaEnviar = anexos
 
     // Limpar e fechar composer
     setMostrarCompose(false)
@@ -1105,6 +1114,14 @@ export function EmailWebmailSection({
       const htmlFinal = emailData.assinatura ? `${htmlCorpo}<br/><br/>--<br/>${emailData.assinatura.replace(/\n/g, '<br/>')}` : htmlCorpo
       const idempotencyKey = crypto.randomUUID()
 
+      const anexosPayload = anexosParaEnviar.length
+        ? await Promise.all(anexosParaEnviar.map(async (file) => ({
+            filename: file.name,
+            contentType: file.type || 'application/octet-stream',
+            content: await fileParaBase64(file)
+          })))
+        : []
+
       const controller = new AbortController()
       const timeoutId = setTimeout(() => controller.abort(), 30000)
 
@@ -1120,6 +1137,7 @@ export function EmailWebmailSection({
           bcc: emailData.bcc,
           subject: emailData.subject,
           html: htmlFinal,
+          attachments: anexosPayload,
           idempotencyKey
         })
       })
