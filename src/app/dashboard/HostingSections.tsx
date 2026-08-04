@@ -10098,7 +10098,7 @@ export function DomainManagerSection({
           (r: { domain_name?: string }) => r.domain_name?.toLowerCase() === domain.toLowerCase(),
         )
         if (renewal?.id) {
-          window.location.href = `/pagamento/renovacao/${renewal.id}`
+          window.location.href = `/renovacao/iniciar/domain/${renewal.id}`
           return
         }
       }

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/utils/supabase/server';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
+import { getPublicSiteOrigin } from '@/lib/panel-origin';
 
 const VALID_TYPES = ['domain', 'hosting'];
 
@@ -13,7 +14,10 @@ export async function GET(
   { params }: { params: Promise<{ type: string; id: string }> }
 ) {
   const { type, id } = await params;
-  const { origin } = new URL(request.url);
+  // Origem explícita (NEXT_PUBLIC_SITE_URL), não new URL(request.url).origin —
+  // atrás do proxy do Hetzner esse origin resolve para "localhost:3003" em
+  // vez do domínio público (mesmo problema documentado em auth/confirm/route.ts).
+  const origin = getPublicSiteOrigin();
 
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -49,7 +53,7 @@ export async function GET(
     .limit(1)
     .maybeSingle();
   if (existing) {
-    return NextResponse.redirect(`${origin}/renovacao/${existing.id}`);
+    return NextResponse.redirect(`${origin}/checkout?renewalId=${existing.id}`);
   }
 
   const valorMt = Number(renewal.renewal_price);
@@ -86,5 +90,5 @@ export async function GET(
     return NextResponse.redirect(`${origin}/dashboard?section=notificacoes-servidor`);
   }
 
-  return NextResponse.redirect(`${origin}/renovacao/${pedido.id}`);
+  return NextResponse.redirect(`${origin}/checkout?renewalId=${pedido.id}`);
 }
