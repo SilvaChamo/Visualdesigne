@@ -46,7 +46,7 @@ export function TemplatesSection() {
   // Começa já com os templates padrão (sem esperar pelo servidor) para nunca mostrar
   // o painel vazio — é só texto, não há motivo para um ecrã de carregamento.
   const [templates, setTemplates] = useState<RenewalTemplate[]>(defaultRenewalTemplates)
-  const [isLoading, setIsLoading] = useState(true)
+  const [isLoading, setIsLoading] = useState(false)
   const [loadWarning, setLoadWarning] = useState<string | null>(null)
   const [saveStatus, setSaveStatus] = useState<'saved' | 'saving' | 'error' | null>(null)
   const [selectedTemplate, setSelectedTemplate] = useState<RenewalTemplate | null>(null)
@@ -609,10 +609,23 @@ export function TemplatesSection() {
     return (lastEditedId && list.find(t => t.id === lastEditedId)) || list[0]
   }
 
-  // Abre imediatamente um template a partir dos padrões embutidos (sem esperar
-  // pela rede) assim que o componente monta — nunca mostra o painel vazio.
+  // Abre imediatamente um template a partir do cache local (ou padrões) assim que o
+  // componente monta — nunca mostra o painel vazio e evita o spinner infinito.
   useEffect(() => {
-    selectTemplate(pickDefaultTemplate(defaultRenewalTemplates))
+    try {
+      const cached = typeof window !== 'undefined' ? localStorage.getItem('visualdesign_custom_templates') : null
+      if (cached) {
+        const parsed = JSON.parse(cached) as RenewalTemplate[]
+        const merged = defaultRenewalTemplates.map(defaultT => parsed.find(t => t.id === defaultT.id) || defaultT)
+        setTemplates(merged)
+        const initialTemplate = pickDefaultTemplate(merged)
+        selectTemplate(initialTemplate)
+      } else {
+        selectTemplate(pickDefaultTemplate(defaultRenewalTemplates))
+      }
+    } catch {
+      selectTemplate(pickDefaultTemplate(defaultRenewalTemplates))
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -670,6 +683,17 @@ export function TemplatesSection() {
       externalSyncRef.current = false
     }
   }, [editingTemplate])
+
+  const getLatestEditingTemplate = () => {
+    if (!editingTemplate) return null
+
+    const latestTemplate = { ...editingTemplate }
+    if (editorMode === 'visual' && editorRef.current) {
+      latestTemplate.emailBody = editorRef.current.innerHTML
+    }
+
+    return latestTemplate
+  }
 
   // Salvar templates no servidor (persistência permanente)
   const [saveError, setSaveError] = useState<string | null>(null)
@@ -750,11 +774,15 @@ export function TemplatesSection() {
             )}
             <button
               onClick={async () => {
-                const newTemplates = templates.map(t => t.id === editingTemplate!.id ? editingTemplate : t)
+                const latestEditingTemplate = getLatestEditingTemplate()
+                if (!latestEditingTemplate) return
+
+                setEditingTemplate(latestEditingTemplate)
+                const newTemplates = templates.map(t => t.id === latestEditingTemplate.id ? latestEditingTemplate : t)
                 setTemplates(newTemplates)
                 await persistTemplates(newTemplates)
                 try {
-                  localStorage.setItem(LAST_EDITED_KEY, editingTemplate!.id)
+                  localStorage.setItem(LAST_EDITED_KEY, latestEditingTemplate.id)
                 } catch {
                   // localStorage indisponível — sem impacto na gravação já concluída
                 }

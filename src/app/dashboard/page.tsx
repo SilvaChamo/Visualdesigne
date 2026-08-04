@@ -87,7 +87,7 @@ const NotificationsSection = dynamic(() => import('./NotificationsSection').then
 const CotacoesSection = dynamic(() => import('./CotacoesSection').then(m => m.CotacoesSection), { ssr: false, loading: () => sectionLoadingFallback })
 const ContabilidadeTable = dynamic(() => import('@/components/quotations/ContabilidadeTable').then(m => m.ContabilidadeTable), { ssr: false, loading: () => sectionLoadingFallback })
 const NextJsSitesSection = dynamic(() => import('./NextJsSitesSection').then(m => m.NextJsSitesSection), { ssr: false, loading: () => sectionLoadingFallback })
-const TemplatesSection = dynamic(() => import('./TemplatesSection').then(m => m.TemplatesSection), { ssr: false, loading: () => sectionLoadingFallback })
+const TemplatesSection = dynamic(() => import('./TemplatesSection').then(m => m.TemplatesSection), { ssr: false })
 const DNSCentralSection = dynamic(() => import('./DNSCentralSection').then(m => m.DNSCentralSection), { ssr: false, loading: () => sectionLoadingFallback })
 const DomainTransferSection = dynamic(() => import('./DomainTransferSection').then(m => m.DomainTransferSection), { ssr: false, loading: () => sectionLoadingFallback })
 const DomainDetailSection = dynamic(() => import('./DomainDetailSection').then(m => m.DomainDetailSection), { ssr: false, loading: () => sectionLoadingFallback })
@@ -947,6 +947,7 @@ function AdminPageContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const initialLoadDone = useRef(false);
+  const lastAppliedSectionRef = useRef<string>('dashboard');
 
   const applyPanelNavigation = useCallback((sectionId: string) => {
     const nav = resolvePanelNavigation(sectionId)
@@ -954,34 +955,37 @@ function AdminPageContent() {
     if (nav.openPackagesCreate) setPackagesOpenCreate(true)
     else if (nav.section !== 'packages-list') setPackagesOpenCreate(false)
     setActiveSection(nav.section)
+    lastAppliedSectionRef.current = nav.section
   }, [])
 
-  // Efeito para capturar section da URL - garantir dashboard como padrão
+  // Efeito para capturar section da URL - garantir dashboard como padrão, mas
+  // manter a última secção activa mesmo quando a página é reloaded sem query string.
   useEffect(() => {
+    const section = searchParams.get('section');
+    const storedSection = typeof window !== 'undefined' ? window.sessionStorage.getItem('vd-dashboard-section') : null
+
     if (!initialLoadDone.current) {
       initialLoadDone.current = true;
-      const section = searchParams.get('section');
-      if (section) {
-        applyPanelNavigation(section);
-      } else {
-        setActiveSection('dashboard');
-      }
+      const targetSection = section || storedSection || 'dashboard'
+      applyPanelNavigation(targetSection);
+
       if (section || searchParams.get('impersonate_error')) {
         const err = searchParams.get('impersonate_error');
-        window.history.replaceState(
-          {},
-          '',
-          err ? `/dashboard?impersonate_error=${encodeURIComponent(err)}` : '/dashboard',
-        );
+        const nextUrl = err ? `/dashboard?impersonate_error=${encodeURIComponent(err)}` : '/dashboard'
+        window.history.replaceState({}, '', nextUrl);
       }
       return;
     }
 
-    const section = searchParams.get('section');
     if (section) {
       applyPanelNavigation(section);
     }
   }, [searchParams, applyPanelNavigation]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    window.sessionStorage.setItem('vd-dashboard-section', activeSection)
+  }, [activeSection]);
 
   // Efeito para capturar domínio vindo do botão "Base de Dados"
   useEffect(() => {

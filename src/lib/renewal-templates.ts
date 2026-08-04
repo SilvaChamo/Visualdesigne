@@ -710,18 +710,22 @@ export function processTemplate(
 
 const STORAGE_KEY = 'visualdesign_custom_templates'
 
+function mergeTemplatesWithDefaults(customTemplates: RenewalTemplate[] | null | undefined): RenewalTemplate[] {
+  const source = Array.isArray(customTemplates) ? customTemplates : []
+  return defaultRenewalTemplates.map(defaultT => {
+    const custom = source.find(t => t.id === defaultT.id)
+    return custom || defaultT
+  })
+}
+
 export function loadCustomTemplates(): RenewalTemplate[] {
   if (typeof window === 'undefined') return defaultRenewalTemplates
-  
+
   try {
     const saved = localStorage.getItem(STORAGE_KEY)
     if (saved) {
       const customTemplates = JSON.parse(saved) as RenewalTemplate[]
-      // Merge com templates padrão, mantendo customizações
-      return defaultRenewalTemplates.map(defaultT => {
-        const custom = customTemplates.find(t => t.id === defaultT.id)
-        return custom || defaultT
-      })
+      return mergeTemplatesWithDefaults(customTemplates)
     }
   } catch (error) {
     console.error('Erro ao carregar templates personalizados:', error)
@@ -765,7 +769,7 @@ export type TemplatesLoadResult = {
 // Carregar templates do servidor (persistência permanente)
 export async function loadTemplatesFromServer(): Promise<TemplatesLoadResult> {
   try {
-    const response = await fetch('/api/admin/renewal-templates')
+    const response = await fetch('/api/admin/renewal-templates', { cache: 'no-store' })
     if (!response.ok) {
       let reason = `Erro ${response.status} ao carregar templates do servidor`
       try {
@@ -778,10 +782,7 @@ export async function loadTemplatesFromServer(): Promise<TemplatesLoadResult> {
     }
     const data = await response.json()
 
-    if (data.success && Array.isArray(data.templates) && data.templates.length > 0) {
-      // Converter do formato do banco para o formato da aplicação, mantendo
-      // os templates padrão para qualquer dia que ainda não tenha sido
-      // customizado na base de dados (mesma lógica de merge do loadCustomTemplates).
+    if (data.success && Array.isArray(data.templates)) {
       const fromDb: RenewalTemplate[] = data.templates.map((t: any) => ({
         id: t.template_id,
         name: t.name,
@@ -793,11 +794,31 @@ export async function loadTemplatesFromServer(): Promise<TemplatesLoadResult> {
         type: t.type,
         urgency: t.urgency
       }))
-      return {
-        templates: defaultRenewalTemplates.map(defaultT => fromDb.find(t => t.id === defaultT.id) || defaultT),
-        source: 'server',
+
+      if (fromDb.length > 0) {
+        return {
+          templates: mergeTemplatesWithDefaults(fromDb),
+          source: 'server',
+        }
       }
     }
+
+    // Se o servidor responder sem templates utilizáveis, tenta usar a cópia local
+    // do browser para não perder as edições feitas recentemente.
+    try {
+      const saved = typeof window !== 'undefined' ? localStorage.getItem(STORAGE_KEY) : null
+      if (saved) {
+        const customTemplates = JSON.parse(saved) as RenewalTemplate[]
+        return {
+          templates: mergeTemplatesWithDefaults(customTemplates),
+          source: 'localStorage',
+          error: 'O servidor não devolveu templates válidos; a mostrar a cópia guardada localmente.'
+        }
+      }
+    } catch (e) {
+      console.error('Erro ao carregar do localStorage:', e)
+    }
+
     return { templates: defaultRenewalTemplates, source: 'server' }
   } catch (error: any) {
     console.error('Erro ao carregar templates do servidor:', error)
@@ -806,11 +827,7 @@ export async function loadTemplatesFromServer(): Promise<TemplatesLoadResult> {
       const saved = typeof window !== 'undefined' ? localStorage.getItem(STORAGE_KEY) : null
       if (saved) {
         const customTemplates = JSON.parse(saved) as RenewalTemplate[]
-        const merged = defaultRenewalTemplates.map(defaultT => {
-          const custom = customTemplates.find(t => t.id === defaultT.id)
-          return custom || defaultT
-        })
-        return { templates: merged, source: 'localStorage', error: error?.message }
+        return { templates: mergeTemplatesWithDefaults(customTemplates), source: 'localStorage', error: error?.message }
       }
     } catch (e) {
       console.error('Erro ao carregar do localStorage:', e)
@@ -822,12 +839,17 @@ export async function loadTemplatesFromServer(): Promise<TemplatesLoadResult> {
 // Salvar templates no servidor (persistência permanente)
 export async function saveTemplatesToServer(templates: RenewalTemplate[]): Promise<boolean> {
   try {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(templates))
+    }
+
     const response = await fetch('/api/admin/renewal-templates', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify({ templates })
+      body: JSON.stringify({ templates }),
+      cache: 'no-store'
     })
     
     if (!response.ok) {
