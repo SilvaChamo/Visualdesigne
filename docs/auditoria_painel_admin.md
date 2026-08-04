@@ -50,13 +50,12 @@ Este documento apresenta a análise técnica detalhada do painel de administraç
 - **Credenciais**: `SPACESHIP_API_KEY` e `SPACESHIP_SECRET_KEY` no ambiente.
 
 ### O que falta configurar:
-- [ ] **Registo na compra**: `/api/domain-register` ainda chama código legado Porkbun — migrar para Spaceship ou desactivar o botão «Registar» até o endpoint estar alinhado.
 - [ ] **Disponibilidade real**: `checkAvailability` no adaptador está em modo simulado (delay + regra «indisponivel» no nome); ligar à API real `spaceship.dev` quando as chaves estiverem validadas.
 - [ ] **Protecção de rotas**: confirmar que `domain-check` e `domain-register` exigem sessão admin/revendedor em produção.
-- [ ] **Linguagem UI**: manter «Registar domínio» / «Domínios registados» — sem mencionar Porkbun nem Spaceship na interface.
+- [ ] **Linguagem UI**: manter «Registar domínio» / «Domínios registados» — sem mencionar Spaceship na interface.
 
 ### Nota (comentário do utilizador):
-> Não há intenção de usar Porkbun. Toda a compra e gestão de domínios deve reflectir **Spaceship** apenas no backend; o painel mostra linguagem neutra («registador», «serviço de registo»).
+> Não há intenção de usar Porkbun (removida do código em 2026-08-04). Toda a compra e gestão de domínios deve reflectir **Spaceship** apenas no backend; o painel mostra linguagem neutra («registador», «serviço de registo»).
 
 ---
 
@@ -81,6 +80,6 @@ Este documento apresenta a análise técnica detalhada do painel de administraç
 ## 🚀 Recomendações Prioritárias
 
 1. **Ajuste da Foreign Key**: Alterar a restrição de chave estrangeira de `email_contas.cliente_id` para apontar para `profiles(id)` e remover a tabela vazia `clientes` para evitar confusão de dados.
-2. **Registo Spaceship**: Migrar `/api/domain-register` de Porkbun para Spaceship; activar `checkAvailability` real na API.
+2. **Registo Spaceship**: `/api/domain-register` já usa Spaceship; falta activar `checkAvailability` real na API (está em modo simulado).
 3. **Otimização da Sync**: Remover o loop de requisições SSH por domínio no endpoint `/api/admin/sync-directadmin-users` para evitar travamento da requisição Next.js por timeout.
 4. **Email ponta a ponta**: Garantir senhas no webmail, MX Brevo por domínio, webhook inbound e testes de envio/recepção no painel.

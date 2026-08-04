@@ -1,4 +1,4 @@
-# Painel: DirectAdmin (acesso + Vercel) e domínios (Porkbun)
+# Painel: DirectAdmin (acesso + Vercel) e domínios (Spaceship)
 
 Documento de referência para próximas sessões. Projeto: `visualdesign` (Next.js).
 
@@ -63,61 +63,20 @@ Redirecionamento de bookmarks antigos é **DNS / proxy / servidor** (fora do Nex
 
 ---
 
-## 2. Compra de domínios — Porkbun (o que já existe no código)
+## 2. Compra de domínios — Spaceship
 
-### Ficheiros principais
-
-| Ficheiro | Função |
-|----------|--------|
-| `src/lib/porkbun-adapter.ts` | Cliente API v3: `checkAvailability`, `registerDomain`, `updateNameservers`, `getDomainDetails` |
-| `src/app/api/domain-check/route.ts` | POST: verifica disponibilidade (corpo JSON: `domain`, opcional `tld`) |
-| `src/app/api/domain-register/route.ts` | POST: registo (corpo JSON: `domain`; aceita `years` mas **não** é passado ao adapter) |
-| `src/components/DomainSearch.tsx` | UI: chama `/api/domain-check` e, se `isAdmin`, `/api/domain-register` |
-| `src/app/admin/PorkbunResellerSection.tsx` | Wrapper admin em volta de `DomainSearch` |
-
-### Variáveis de ambiente (Porkbun)
-
-- `PORKBUN_API_KEY`
-- `PORKBUN_SECRET_KEY`
-
-Sem estas chaves na Vercel, check e register devolvem erro genérico.
-
-### Problemas / melhorias para a ligação ser efetiva
-
-1. **`registerDomain` incompleto face à API Porkbun**  
-   O adapter envia apenas `apikey` e `secretapikey`. A API de registo da Porkbun normalmente exige também (conforme documentação atual): período (`years`), servidores DNS (`ns`), e **dados de contacto do registrador** (nome, morada, email, telefone, país, etc.). Sem isso, o registo falha ou fica inconsistente.
-
-2. **Preço hardcoded**  
-   Em `domain-check`, o preço devolvido pode ser estimativa (`10.37` USD); não vem da API de pricing da Porkbun.
-
-3. **`PorkbunResellerSection` não está ligado ao menu admin**  
-   O componente existe mas **não** está importado/renderizado em `src/app/admin/page.tsx` (ou equivalente). Para o painel admin “comprar domínios”, é preciso acrescentar uma secção/menu que renderize `PorkbunResellerSection`.
-
-4. **Segurança nas rotas API (estado actual)**  
-   `src/app/api/domain-check/route.ts` e `src/app/api/domain-register/route.ts` **não** aplicam hoje `requireAdminOrReseller` (ou equivalente): qualquer cliente que saiba o URL pode chamar estas rotas se as chaves Porkbun estiverem no servidor. Para produção, **é obrigatório** proteger pelo menos `domain-register` (e idealmente também `domain-check` com rate limit).
-
-5. **Resposta `register` sem tratamento de texto não-JSON**  
-   `checkAvailability` já faz `response.text()` + parse seguro; `registerDomain` usa `response.json()` direto — em caso de HTML/erro de rede, pode rebentar.
-
-6. **Pós-registo**  
-   Falta fluxo opcional: atualizar NS para o teu servidor, criar zona no DirectAdmin, ou gravar o domínio no Supabase para o cliente.
-
-### Referência oficial
-
-- Documentação API v3: `https://porkbun.com/api/json/v3/documentation`
-- OpenAPI: `https://porkbun.com/api/json/v3/spec`
+A integração de domínios usa exclusivamente a API da **Spaceship** (`src/lib/spaceship-adapter.ts`), chamada por `src/app/api/domain-check/route.ts` e `src/app/api/domain-register/route.ts`. Não há nenhuma integração com a Porkbun no código — foi completamente removida (2026-08-04), incluindo referências no menu admin e na documentação, na sequência de uma chave de API da Porkbun encontrada exposta em scripts de debug antigos.
 
 ---
 
 ## 3. Checklist rápido antes de ir a produção
 
 - [ ] Vercel: todas as variáveis DirectAdmin + fallback conforme secção 1  
-- [ ] Vercel: `PORKBUN_*` sem espaços e com permissões corretas na conta Porkbun  
+- [ ] Vercel: variáveis `SPACESHIP_*` correctas  
 - [ ] Redeploy  
 - [ ] Testar no browser: `https://host.visualdesignmoz.com:2026`  
 - [ ] Testar: `GET /api/directadmin-access` (deve redirecionar para DA ou fallback)  
-- [ ] Porkbun: testar POST `/api/domain-check` com domínio inventado + TLD  
-- [ ] Porkbun: só activar registo em massa após `registerDomain` enviar payload completo e auth no servidor
+- [ ] Spaceship: testar POST `/api/domain-check` com domínio inventado + TLD
 
 ---
 
