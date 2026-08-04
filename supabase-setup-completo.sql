@@ -202,22 +202,13 @@ DROP POLICY IF EXISTS "Allow all on domain_transfers" ON domain_transfers;
 CREATE POLICY "Allow all on domain_transfers" ON domain_transfers FOR ALL USING (true) WITH CHECK (true);
 
 -- ============================================================
--- 11. NOTIFICAÇÕES
+-- 11. NOTIFICAÇÕES — NÃO recriar aqui.
+-- A definição oficial (a que a aplicação usa de facto) está em supabase-notifications.sql.
+-- Este ficheiro tinha uma versão antiga e incompatível (sem user_id/category/email_sent),
+-- removida em 2026-08-03 para evitar confusão/risco em setups novos.
 -- ============================================================
-CREATE TABLE IF NOT EXISTS notifications (
-  id         UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-  type       TEXT NOT NULL,
-  title      TEXT NOT NULL,
-  message    TEXT DEFAULT '',
-  domain     TEXT DEFAULT '',
-  read       BOOLEAN DEFAULT false,
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-);
-ALTER TABLE notifications ENABLE ROW LEVEL SECURITY;
-DROP POLICY IF EXISTS "Allow all on notifications" ON notifications;
-CREATE POLICY "Allow all on notifications" ON notifications FOR ALL USING (true) WITH CHECK (true);
 
 -- ============================================================
 -- FIM — todas as tabelas criadas com sucesso
 -- ============================================================
-SELECT 'Setup concluído! Tabelas criadas: panel_sites, panel_users, panel_packages, subscriptions, panel_emails, panel_subdomains, panel_databases, panel_ftp, panel_dns, domain_transfers, notifications' AS resultado;
+SELECT 'Setup concluído! Tabelas criadas: panel_sites, panel_users, panel_packages, subscriptions, panel_emails, panel_subdomains, panel_databases, panel_ftp, panel_dns, domain_transfers (ver supabase-notifications.sql para a tabela notifications)' AS resultado;

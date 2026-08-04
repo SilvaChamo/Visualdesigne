@@ -5,13 +5,32 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import Image from 'next/image'
 import {
-  Globe, ShieldCheck, Users, Gauge, ArrowRight, ChevronRight,
+  Globe, ShieldCheck, Users, Gauge, ArrowRight,
   Monitor, Palette, Calendar, Film, Truck, Gift,
   CheckCircle2, ChevronDown, Check, Award, Sparkles
 } from 'lucide-react'
 import { useI18n } from '@/lib/i18n'
 import ServicosWebCarousel from '@/components/ServicosWebCarousel'
 import { NotchSection } from '@/components/home/NotchSection'
+
+function ExitArrow({ className }: { className?: string }) {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+      aria-hidden="true"
+    >
+      <path d="m16 17 5-5-5-5" />
+      <path d="M21 12H9" />
+    </svg>
+  )
+}
 
 export function VisualGroupHero({ onCtaClick }: { onCtaClick: () => void }) {
   return (
@@ -53,16 +72,22 @@ export function VisualGroupHero({ onCtaClick }: { onCtaClick: () => void }) {
               </div>
             </div>
  
-            <Link
-              href="/precos"
-              className="group/btn bg-red-600 hover:bg-red-700 text-white font-bold px-10 py-2 rounded-md transition-all duration-300 transform hover:-translate-y-0.5 inline-flex items-center justify-center gap-2 shadow-lg shadow-red-600/20 cursor-pointer"
-            >
-              <span>Ver Lista de Preços</span>
-              <span className="inline-flex items-center">
-                <span className="h-px w-0 bg-white transition-all duration-300 group-hover/btn:w-5" />
-                <ChevronRight className="w-4 h-4 shrink-0" />
-              </span>
-            </Link>
+            <div className="flex items-center gap-6">
+              <Link
+                href="/precos"
+                className="group/btn bg-red-600 hover:bg-red-700 text-white font-bold px-6 py-2 rounded-md transition-all duration-300 transform hover:-translate-y-0.5 inline-flex items-center justify-center gap-2 shadow-lg shadow-red-600/20 cursor-pointer"
+              >
+                <span>Ver Lista de Preços</span>
+                <ExitArrow className="w-4 h-4 shrink-0 transition-transform duration-300 group-hover/btn:translate-x-1" />
+              </Link>
+              <Link
+                href="/web"
+                className="group/btn border-2 border-white/40 hover:border-red-500 text-white hover:text-red-500 font-bold px-6 py-2 rounded-md transition-all duration-300 transform hover:-translate-y-0.5 inline-flex items-center justify-center gap-2 cursor-pointer"
+              >
+                <span>Hospedagem</span>
+                <ExitArrow className="w-4 h-4 shrink-0 transition-transform duration-300 group-hover/btn:translate-x-1" />
+              </Link>
+            </div>
           </div>
           <div className="lg:col-span-5 hidden lg:block" />
         </div>
@@ -93,7 +118,7 @@ export function VisualGroupBody({ onCtaClick }: { onCtaClick: () => void }) {
   const whyUsColumns = [whyUsItems.slice(0, 2), whyUsItems.slice(2, 4)]
 
   const brands = [
-    { Icon: Monitor, name: 'VisualWeb', desc: 'Sites corporativos, e-commerce, alojamento, domínios e marketing digital.', href: '/web' },
+    { Icon: Monitor, name: 'VisualWeb', desc: 'Sites corporativos, e-commerce, alojamento, domínios e marketing digital.', href: '/servicos/webdesign' },
     { Icon: Palette, name: 'VisualDesign', desc: 'Identidade de marca, design de logotipos, materiais gráficos e envelopamento.', href: '/' },
     { Icon: Calendar, name: 'VisualEventos', desc: 'Stands para exposições, catering completo, aluguer e organização.', href: '/eventos' },
     { Icon: Film, name: 'VisualPro', desc: 'Vídeo institucional, fotografia profissional e cobertura multimedia.', href: '/producoes' },

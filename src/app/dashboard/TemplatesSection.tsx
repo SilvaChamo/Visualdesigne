@@ -40,7 +40,6 @@ import {
   resetTemplatesOnServer
 } from '@/lib/renewal-templates'
 
-const STORAGE_KEY = 'visualdesign_custom_templates'
 const LAST_EDITED_KEY = 'visualdesign_last_edited_template_id'
 
 export function TemplatesSection() {
@@ -48,6 +47,7 @@ export function TemplatesSection() {
   // o painel vazio — é só texto, não há motivo para um ecrã de carregamento.
   const [templates, setTemplates] = useState<RenewalTemplate[]>(defaultRenewalTemplates)
   const [isLoading, setIsLoading] = useState(true)
+  const [loadWarning, setLoadWarning] = useState<string | null>(null)
   const [saveStatus, setSaveStatus] = useState<'saved' | 'saving' | 'error' | null>(null)
   const [selectedTemplate, setSelectedTemplate] = useState<RenewalTemplate | null>(null)
   const [editingTemplate, setEditingTemplate] = useState<RenewalTemplate | null>(null)
@@ -57,10 +57,11 @@ export function TemplatesSection() {
     expirationDate: '15/06/2025',
     daysRemaining: 60,
     renewalPrice: '2,500.00 MT',
-    renewalLink: 'https://visualdesignmoz.com/renovar',
+    renewalLink: `${process.env.NEXT_PUBLIC_SITE_URL || 'https://visualdesignmoz.com'}/renovacao/iniciar/domain/exemplo-id`,
     companyName: 'VisualDesign',
     supportEmail: 'suporte@visualdesignmoz.com',
-    supportPhone: '+258 85 242 5525'
+    supportPhone: '+258 85 242 5525',
+    paymentMethod: 'M-Pesa'
   })
   const [editorMode, setEditorMode] = useState<'visual' | 'html'>('visual')
   const [history, setHistory] = useState<string[]>([])
@@ -637,31 +638,19 @@ export function TemplatesSection() {
     }
 
     const loadTemplates = async () => {
-      try {
-        setIsLoading(true)
-        const serverTemplates = await loadTemplatesFromServer()
-        if (serverTemplates && serverTemplates.length > 0) {
-          reconcile(serverTemplates)
-        }
-      } catch (error) {
-        console.error('Erro ao carregar templates:', error)
-        // Fallback para localStorage em caso de erro
-        try {
-          const saved = localStorage.getItem(STORAGE_KEY)
-          if (saved) {
-            const customTemplates = JSON.parse(saved) as RenewalTemplate[]
-            const merged = defaultRenewalTemplates.map(defaultT => {
-              const custom = customTemplates.find(t => t.id === defaultT.id)
-              return custom || defaultT
-            })
-            reconcile(merged)
-          }
-        } catch (e) {
-          console.error('Erro ao carregar do localStorage:', e)
-        }
-      } finally {
-        setIsLoading(false)
+      setIsLoading(true)
+      const result = await loadTemplatesFromServer()
+      if (result.templates.length > 0) {
+        reconcile(result.templates)
       }
+      setLoadWarning(
+        result.source === 'server'
+          ? null
+          : result.source === 'localStorage'
+            ? `Não foi possível ligar ao servidor — a mostrar a última versão guardada apenas neste dispositivo/browser, não a versão oficial. Motivo: ${result.error || 'desconhecido'}`
+            : `Não foi possível carregar as personalizações guardadas — a mostrar os valores padrão (não editados). Motivo: ${result.error || 'desconhecido'}`
+      )
+      setIsLoading(false)
     }
     loadTemplates()
   }, [])
@@ -729,6 +718,12 @@ export function TemplatesSection() {
 
   return (
     <div className="space-y-6">
+      {loadWarning && (
+        <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-800 flex items-start gap-2">
+          <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" />
+          <span><strong>Aviso:</strong> {loadWarning}</span>
+        </div>
+      )}
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>

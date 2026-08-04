@@ -56,7 +56,7 @@ const socialIconsHtml = () => `<table cellpadding="0" cellspacing="0" border="0"
 // aqui (essa passou a ficar por cima do cartão de conteúdo, ver wrapContentInFrame).
 export const emailHeader = (companyName: string) => `
 <tr>
-  <td align="center" style="background: linear-gradient(135deg, #000000 0%, #1a1a1a 50%, #000000 100%); padding: 10px 0;">
+  <td align="center" style="background: linear-gradient(135deg, #000000 0%, #1a1a1a 50%, #000000 100%); padding: 16px 0;">
     <table width="600" cellpadding="0" cellspacing="0" border="0" style="max-width: 600px; width: 100%;">
       <tr>
         <td align="left" valign="middle">
@@ -208,16 +208,23 @@ export const defaultRenewalTemplates: RenewalTemplate[] = [
     message: 'Olá {{clientName}}, seu {{serviceName}} expira em 60 dias ({{expirationDate}}). Renove agora para evitar interrupções no serviço.',
     emailSubject: '🔔 Lembrete: Renovação de {{serviceName}} em 60 dias',
     emailBody: `
-<p>Esperamos que esteja tudo bem!</p>
-<p>Gostaríamos de informar que o serviço <strong>{{serviceName}}</strong> está programado para expirar em <strong>{{expirationDate}}</strong> ({{daysRemaining}} dias).</p>
-<div style="background:#f8fafc;border-left:4px solid #7c3aed;padding:20px;margin:25px 0;">
-  <h3 style="margin:0 0 15px 0;color:#1e293b;font-size:16px;">📋 Detalhes do Serviço</h3>
-  <p style="margin:8px 0;"><strong>Serviço:</strong> {{serviceName}}</p>
-  <p style="margin:8px 0;"><strong>Vencimento:</strong> {{expirationDate}}</p>
-  <p style="margin:8px 0;"><strong>Valor:</strong> {{renewalPrice}}</p>
+<p>Este é um aviso de que uma cobrança foi gerada para o seu serviço, que vence dia <strong>{{expirationDate}}</strong>. Esta fatura é referente aos seguintes serviços/produtos contratados na <strong>VisualDESIGN</strong>.</p>
+<div style="border:1px solid #e5e7eb;border-radius:4px;margin:25px 0;overflow:hidden;">
+  <div style="padding:10px 15px;background:#f9fafb;border-bottom:1px solid #e5e7eb;font-size:13px;color:#6b7280;font-weight:600;">Descrição dos Serviços</div>
+  <div style="padding:16px;font-size:14px;color:#374151;">
+    <p style="margin:6px 0;"><strong>Forma de Pagamento:</strong> {{paymentMethod}}</p>
+    <p style="margin:6px 0;"><strong>Detalhes:</strong> Renovação de {{serviceName}}</p>
+    <p style="margin:6px 0;"><strong>Vencimento:</strong> {{expirationDate}}</p>
+    <p style="margin:6px 0;"><strong>Faltam apenas:</strong> {{daysRemaining}} dias</p>
+    <hr style="border:none;border-top:1px dashed #d1d5db;margin:14px 0;">
+    <p style="margin:4px 0;">Sub-total: {{subtotal}}</p>
+    <p style="margin:4px 0;">Crédito: {{creditAmount}}</p>
+    <p style="margin:4px 0;font-weight:bold;">Total: {{renewalPrice}}</p>
+  </div>
 </div>
+<p><strong>Observação:</strong> Para prosseguir com o pagamento clique no botão pagar agora.</p>
 <div style="text-align:left;margin:24px 0;">
-  <a href="{{renewalLink}}" style="display:inline-block;background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);color:white;padding:10px 24px;text-decoration:none;border-radius:4px;font-weight:bold;font-size:14px;">RENOVAR AGORA →</a>
+  <a href="{{renewalLink}}" style="display:inline-block;background:#dc2626;color:white;padding:12px 30px;text-decoration:none;border-radius:5px;font-weight:bold;font-size:14px;">PAGAR AGORA</a>
 </div>
 <p style="font-size:14px;color:#64748b;">Renovando com antecedência, você garante continuidade do serviço sem interrupções e evita taxas de reativação.</p>
     `.trim(),
@@ -605,6 +612,14 @@ export interface TemplateVariables {
   companyName: string
   supportEmail: string
   supportPhone: string
+  // Método de pagamento habitual do cliente (último usado numa renovação real).
+  // Sem histórico, vem como "A escolher no pagamento" — nunca inventado.
+  paymentMethod?: string
+  // Valor cheio antes de aplicar crédito, e crédito disponível do cliente
+  // (client_credits). renewalPrice já vem com o crédito descontado (o valor
+  // que falta mesmo pagar) — subtotal/creditAmount são só para mostrar a conta.
+  subtotal?: string
+  creditAmount?: string
   // Links com autenticação automática para acesso direto quando logado
   dashboardAutoLoginLink?: string
   clientAreaAutoLoginLink?: string
@@ -628,6 +643,9 @@ export function processTemplate(
       .replace(/\{\{companyName\}\}/g, variables.companyName)
       .replace(/\{\{supportEmail\}\}/g, variables.supportEmail)
       .replace(/\{\{supportPhone\}\}/g, variables.supportPhone)
+      .replace(/\{\{paymentMethod\}\}/g, variables.paymentMethod || 'A escolher no pagamento')
+      .replace(/\{\{subtotal\}\}/g, variables.subtotal || variables.renewalPrice)
+      .replace(/\{\{creditAmount\}\}/g, variables.creditAmount || '0,00 MT')
   }
   
   processed.title = replaceVars(processed.title)
@@ -736,15 +754,30 @@ export function getActiveReminderDays(): number[] {
 // PERSISTÊNCIA NO SERVIDOR (SUPABASE)
 // ============================================
 
+export type TemplatesLoadResult = {
+  templates: RenewalTemplate[]
+  /** De onde vieram os dados mostrados — 'server' é o único caso "saudável". */
+  source: 'server' | 'localStorage' | 'default'
+  /** Motivo da falha, quando source !== 'server' — para mostrar ao utilizador em vez de falhar em silêncio. */
+  error?: string
+}
+
 // Carregar templates do servidor (persistência permanente)
-export async function loadTemplatesFromServer(): Promise<RenewalTemplate[]> {
+export async function loadTemplatesFromServer(): Promise<TemplatesLoadResult> {
   try {
     const response = await fetch('/api/admin/renewal-templates')
     if (!response.ok) {
-      throw new Error('Erro ao carregar templates do servidor')
+      let reason = `Erro ${response.status} ao carregar templates do servidor`
+      try {
+        const errBody = await response.json()
+        if (errBody?.error) reason = errBody.error
+      } catch {
+        // corpo não é JSON — mantém a mensagem genérica com o status
+      }
+      throw new Error(reason)
     }
     const data = await response.json()
-    
+
     if (data.success && Array.isArray(data.templates) && data.templates.length > 0) {
       // Converter do formato do banco para o formato da aplicação, mantendo
       // os templates padrão para qualquer dia que ainda não tenha sido
@@ -760,13 +793,29 @@ export async function loadTemplatesFromServer(): Promise<RenewalTemplate[]> {
         type: t.type,
         urgency: t.urgency
       }))
-      return defaultRenewalTemplates.map(defaultT => fromDb.find(t => t.id === defaultT.id) || defaultT)
+      return {
+        templates: defaultRenewalTemplates.map(defaultT => fromDb.find(t => t.id === defaultT.id) || defaultT),
+        source: 'server',
+      }
     }
-    return defaultRenewalTemplates
-  } catch (error) {
+    return { templates: defaultRenewalTemplates, source: 'server' }
+  } catch (error: any) {
     console.error('Erro ao carregar templates do servidor:', error)
-    // Fallback para localStorage ou padrão
-    return loadCustomTemplates()
+    // Fallback para localStorage ou padrão — mas sem esconder o motivo da falha
+    try {
+      const saved = typeof window !== 'undefined' ? localStorage.getItem(STORAGE_KEY) : null
+      if (saved) {
+        const customTemplates = JSON.parse(saved) as RenewalTemplate[]
+        const merged = defaultRenewalTemplates.map(defaultT => {
+          const custom = customTemplates.find(t => t.id === defaultT.id)
+          return custom || defaultT
+        })
+        return { templates: merged, source: 'localStorage', error: error?.message }
+      }
+    } catch (e) {
+      console.error('Erro ao carregar do localStorage:', e)
+    }
+    return { templates: defaultRenewalTemplates, source: 'default', error: error?.message }
   }
 }
 

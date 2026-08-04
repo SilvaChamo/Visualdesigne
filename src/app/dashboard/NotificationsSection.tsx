@@ -1,7 +1,8 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { 
+import { useRouter } from 'next/navigation'
+import {
   Bell, 
   Send, 
   Users, 
@@ -39,6 +40,7 @@ export function NotificationsSection({
   defaultTab = 'renewal-templates',
   filterCategory,
 }: { defaultTab?: NotificationsTab; filterCategory?: string } = {}) {
+  const router = useRouter()
   const [title, setTitle] = useState('')
   const [message, setMessage] = useState('')
   const [type, setType] = useState<'info' | 'success' | 'warning' | 'error'>('info')
@@ -493,7 +495,7 @@ export function NotificationsSection({
               <button
                 onClick={() => {
                   const isAdmin = window.location.pathname.includes('/dashboard')
-                  window.location.href = isAdmin ? '/dashboard?section=renewals' : '/revendedor?section=renewals'
+                  router.push(isAdmin ? '/dashboard?section=renewals' : '/revendedor?section=renewals')
                 }}
                 className="px-6 py-3 bg-purple-600 text-white rounded-xl font-medium hover:bg-purple-700 flex items-center gap-2 shadow-lg shadow-purple-200 transition-all hover:shadow-xl"
               >

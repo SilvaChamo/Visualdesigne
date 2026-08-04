@@ -19,13 +19,13 @@ const servicosWeb = [
     id: 'seo',
     title: 'Otimização para Buscadores (SEO)',
     description: 'Engenharia de posicionamento orgânico e auditoria técnica para colocar o seu site no topo dos resultados de pesquisa.',
-    link: '/servicos/seo'
+    link: '/servicos/webdesign#seo'
   },
   {
     id: 'redes-sociais',
     title: 'Gestão de Redes Sociais',
     description: 'Fazemos Gestão de tráfego do seu site, fortificamos a sua presença digital e criamos estratégias de engajamento integradas aos canais digitais.',
-    link: '/servicos/redes-sociais'
+    link: '/servicos/webdesign#redes-sociais'
   }
 ]
 

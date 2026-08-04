@@ -72,7 +72,11 @@ CREATE TABLE IF NOT EXISTS pagamentos (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- 4. TABELA DE NOTIFICAÇÕES
+-- 4. TABELA DE NOTIFICAÇÕES (LEGADO — não usada pela aplicação actual)
+-- O sistema de notificações realmente em uso é a tabela "notifications" (em inglês),
+-- definida em supabase-notifications.sql. Esta tabela "notificacoes" (PT) ficou
+-- órfã de uma versão antiga do projecto — nenhum ficheiro do código actual lhe
+-- acede. Mantida aqui apenas por já ter sido criada; não recriar/usar de novo.
 CREATE TABLE IF NOT EXISTS notificacoes (
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
     cliente_id UUID REFERENCES clientes(id) ON DELETE CASCADE,

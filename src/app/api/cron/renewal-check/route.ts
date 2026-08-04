@@ -7,6 +7,7 @@ import {
   getServerRenewalTemplates
 } from '@/lib/renewal-templates'
 import { sendEmail } from '@/lib/email-service'
+import { EMAIL_PLAN_PACKAGE_NAME } from '@/lib/email-plan-provision'
 
 // Cron secret para segurança
 const CRON_SECRET = process.env.CRON_SECRET || 'default-secret-change-in-production'
@@ -87,24 +88,99 @@ export async function GET(request: NextRequest) {
             }
 
             const clientName = userData.user_metadata?.full_name || userData.email?.split('@')[0] || 'Cliente'
-            
+
+            // Marca de deduplicação para este serviço+dias. A tabela renewal_reminders
+            // (pensada originalmente para isto) não existe em produção — em vez de
+            // depender dela, embutimos a marca no próprio link da notificação e
+            // verificamos aqui se já existe uma notificação igual antes de criar
+            // outra. Evita reenviar o mesmo aviso em todos os cron runs seguintes.
+            const reminderTag = `rid=${renewal.service_type}:${renewal.service_id}:${days}`
+            const { data: alreadyReminded } = await supabaseAdmin
+              .from('notifications')
+              .select('id')
+              .eq('user_id', renewal.user_id)
+              .ilike('link', `%${reminderTag}%`)
+              .limit(1)
+
+            if (alreadyReminded && alreadyReminded.length > 0) {
+              continue
+            }
+
+            // Planos de email (compra "Email Básico") ficam guardados na mesma
+            // tabela de hospedagem, com server='Mail' — não há tabela própria.
+            // Aqui só ajustamos o texto do aviso para dizer "Email", não "Hospedagem".
+            let serviceLabel = renewal.service_name
+            if (renewal.service_type === 'hosting') {
+              const { data: hostingRow } = await supabaseAdmin
+                .from('hosting_renewals')
+                .select('server, package_name')
+                .eq('id', renewal.service_id)
+                .maybeSingle()
+              if (hostingRow?.server === 'Mail' || hostingRow?.package_name === EMAIL_PLAN_PACKAGE_NAME) {
+                serviceLabel = `${EMAIL_PLAN_PACKAGE_NAME} - ${renewal.service_name}`
+              }
+            }
+
+            // Método de pagamento habitual do cliente: último usado num pagamento
+            // de renovação real (renewal_payment_requests). Sem histórico, fica
+            // por definir — não inventamos um método que o cliente nunca escolheu.
+            const { data: lastPayment } = await supabaseAdmin
+              .from('renewal_payment_requests')
+              .select('metodo_pagamento')
+              .eq('user_id', renewal.user_id)
+              .order('created_at', { ascending: false })
+              .limit(1)
+              .maybeSingle()
+
+            const paymentMethodLabels: Record<string, string> = {
+              mpesa: 'M-Pesa',
+              transferencia: 'Transferência Bancária',
+              stripe: 'Cartão'
+            }
+            const paymentMethod = lastPayment?.metodo_pagamento
+              ? (paymentMethodLabels[lastPayment.metodo_pagamento] || lastPayment.metodo_pagamento)
+              : 'A escolher no pagamento'
+
+            // Saldo de crédito do cliente (client_credits). A tabela pode ainda
+            // não existir em produção — nesse caso trata-se sempre como 0,00,
+            // nunca inventa um valor.
+            const subtotalValue = renewal.renewal_price || 0
+            let creditValue = 0
+            try {
+              const { data: creditRow } = await supabaseAdmin
+                .from('client_credits')
+                .select('saldo_mt')
+                .eq('user_id', renewal.user_id)
+                .maybeSingle()
+              creditValue = Math.min(creditRow?.saldo_mt || 0, subtotalValue)
+            } catch {
+              creditValue = 0
+            }
+            const totalValue = subtotalValue - creditValue
+            const formatMt = (n: number) => `${n.toLocaleString('pt-MZ', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} MT`
+
             // Preparar variáveis
             const variables: TemplateVariables = {
               clientName,
-              serviceName: renewal.service_name,
+              serviceName: serviceLabel,
               expirationDate: new Date(renewal.expiration_date).toLocaleDateString('pt-MZ'),
               daysRemaining: renewal.days_remaining,
-              renewalPrice: `${(renewal.renewal_price || 0).toLocaleString('pt-MZ', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} MT`,
-              renewalLink: `https://visualdesignmoz.com/dashboard?section=renewals`,
+              renewalPrice: formatMt(totalValue),
+              renewalLink: `${process.env.NEXT_PUBLIC_SITE_URL || 'https://visualdesignmoz.com'}/renovacao/iniciar/${renewal.service_type}/${renewal.service_id}`,
               companyName: 'VisualDesign',
               supportEmail: 'suporte@visualdesignmoz.com',
-              supportPhone: '+258 85 242 5525'
+              supportPhone: '+258 85 242 5525',
+              paymentMethod,
+              subtotal: formatMt(subtotalValue),
+              creditAmount: formatMt(creditValue)
             }
 
             // Processar template
             const processedTemplate = processTemplate(template, variables)
 
-            // Criar notificação
+            // Criar notificação — o link leva a marca de deduplicação (só para uso
+            // interno da checagem acima; o botão dentro do email usa variables.renewalLink,
+            // que fica limpo, sem esta marca).
             const { data: notification, error: notifError } = await supabaseAdmin
               .from('notifications')
               .insert({
@@ -113,7 +189,7 @@ export async function GET(request: NextRequest) {
                 message: processedTemplate.message,
                 type: processedTemplate.type,
                 category: 'payment',
-                link: variables.renewalLink,
+                link: `${variables.renewalLink}?${reminderTag}`,
                 link_text: 'Renovar Agora',
                 email_sent: false
               })
@@ -154,17 +230,9 @@ export async function GET(request: NextRequest) {
               await supabaseAdmin.from('notifications').update({ email_sent: true }).eq('id', notification.id)
             }
 
-            // Registrar lembrete
-            await supabaseAdmin.rpc('record_renewal_reminder', {
-              p_user_id: renewal.user_id,
-              p_service_type: renewal.service_type,
-              p_service_id: renewal.service_id,
-              p_service_name: renewal.service_name,
-              p_expiration_date: renewal.expiration_date,
-              p_reminder_days: days,
-              p_notification_id: notification.id,
-              p_email_sent: emailSent
-            })
+            // O registo do lembrete já ficou feito acima: a própria notificação
+            // criada (com a marca reminderTag no link) é a prova de que este
+            // serviço+dias já foi avisado — ver checagem "alreadyReminded" no topo.
 
             results.notifications++
             results.details.push({

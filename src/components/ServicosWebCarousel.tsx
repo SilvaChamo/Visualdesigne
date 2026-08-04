@@ -39,14 +39,14 @@ const SERVICOS: ServiceItem[] = [
     Icon: TrendingUp,
     titleKey: 'carousel.seo.title',
     descKey: 'carousel.seo.desc',
-    href: '/servicos/seo',
+    href: '/servicos/webdesign#seo',
   },
   {
     id: 'redes-sociais',
     Icon: Share2,
     titleKey: 'carousel.redes-sociais.title',
     descKey: 'carousel.redes-sociais.desc',
-    href: '/servicos/redes-sociais',
+    href: '/servicos/webdesign#redes-sociais',
   },
   {
     id: 'loja-online',
