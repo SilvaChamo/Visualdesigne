@@ -38,5 +38,39 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
     }
   }
 
-  return NextResponse.json({ success: true, pedido });
+  // Número da factura do ciclo (se já tiver sido atribuído pelo cron de
+  // renovações — ver assign_renewal_invoice_number em supabase-renewal-invoices.sql).
+  // Melhor esforço: a página de checkout funciona igualmente sem isto.
+  let invoiceNumber: string | null = null;
+  let invoiceDate: string | null = null;
+  let expirationDate: string | null = null;
+  try {
+    const table = pedido.renewal_type === 'domain' ? 'domain_renewals' : 'hosting_renewals';
+    const { data: renewal } = await admin
+      .from(table)
+      .select('expiration_date')
+      .eq('id', pedido.renewal_id)
+      .maybeSingle();
+    if (renewal?.expiration_date) {
+      expirationDate = renewal.expiration_date;
+      const { data: invoiceRow } = await admin
+        .from('renewal_invoices')
+        .select('invoice_number, issued_at')
+        .eq('service_type', pedido.renewal_type)
+        .eq('service_id', pedido.renewal_id)
+        .eq('expiration_date', renewal.expiration_date)
+        .maybeSingle();
+      if (invoiceRow) {
+        invoiceNumber = invoiceRow.invoice_number;
+        invoiceDate = invoiceRow.issued_at;
+      }
+    }
+  } catch (invoiceErr) {
+    console.error('[renewals/pagamento] Falha ao obter nº de factura:', invoiceErr);
+  }
+
+  return NextResponse.json({
+    success: true,
+    pedido: { ...pedido, invoice_number: invoiceNumber, invoice_date: invoiceDate, expiration_date: expirationDate },
+  });
 }

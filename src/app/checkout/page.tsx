@@ -4,8 +4,9 @@ import React, { useState, Suspense } from 'react';
 import { useCart } from '@/contexts/CartContext';
 import { supabase } from '@/lib/supabase-client';
 import { useAuth } from '@/components/auth/AuthProvider';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
+import { RenewalCheckout } from './RenewalCheckout';
 import {
   CreditCard,
   Lock,
@@ -27,6 +28,8 @@ function CheckoutContent() {
   const router = useRouter();
   const { user: authUser, loading: authLoading } = useAuth();
   const isAuthenticated = authLoading ? null : !!authUser;
+  const searchParams = useSearchParams();
+  const renewalId = searchParams.get('renewalId');
 
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -141,6 +144,28 @@ function CheckoutContent() {
         <div className="text-center space-y-4">
           <Spinner className="w-10 h-10 mx-auto" />
           <p className="text-sm font-semibold text-slate-500 dark:text-zinc-400">A validar sessão segura...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Checkout de renovação (link "Pagar Agora" das notificações) — dados da
+  // conta clicada carregados a partir do pedido, layout próprio (ver
+  // RenewalCheckout.tsx). Não usa o carrinho de compras nem o fluxo de registo
+  // abaixo, que servem só para compras novas.
+  if (renewalId) {
+    if (isAuthenticated === false) {
+      router.push(`/auth/login?redirect=${encodeURIComponent(`/checkout?renewalId=${renewalId}`)}`);
+      return (
+        <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-zinc-950">
+          <Spinner className="w-10 h-10" />
+        </div>
+      );
+    }
+    return (
+      <div className="min-h-screen bg-slate-50 dark:bg-zinc-950 pt-32 pb-16 transition-colors duration-200">
+        <div className="max-w-7xl mx-auto px-4 mt-4">
+          <RenewalCheckout renewalId={renewalId} />
         </div>
       </div>
     );

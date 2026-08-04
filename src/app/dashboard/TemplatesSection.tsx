@@ -370,7 +370,7 @@ export function TemplatesSection() {
     '#dc2626', '#ea580c', '#ca8a04', '#16a34a', '#2563eb', '#9333ea', '#db2777', '#0891b2'
   ]
   const bgColors = [
-    '#fef2f2', '#fff7ed', '#fefce8', '#f0fdf4', '#eff6ff', '#faf5ff', '#fdf2f8', '#ecfeff',
+    '#ffffff', '#fef2f2', '#fff7ed', '#fefce8', '#f0fdf4', '#eff6ff', '#faf5ff', '#fdf2f8', '#ecfeff',
     '#fee2e2', '#ffedd5', '#fef9c3', '#dcfce7', '#dbeafe', '#f3e8ff', '#fce7f3', '#cffafe',
     '#fecaca', '#fed7aa', '#fef08a', '#bbf7d0', '#bfdbfe', '#e9d5ff', '#fbcfe8', '#a5f3fc'
   ]
@@ -398,18 +398,33 @@ export function TemplatesSection() {
     setColorPickerOpen(false)
   }
 
-  const applyBgColor = (color: string) => {
+  // color === null → "Sem fundo": limpa o fundo já aplicado à selecção em vez
+  // de a envolver numa cor nova.
+  const applyBgColor = (color: string | null) => {
     if (!editorRef.current || !editingTemplate) return
     const selection = window.getSelection()
     if (!selection || selection.rangeCount === 0) return
-    
+
     const range = selection.getRangeAt(0)
     const selectedContent = range.extractContents()
-    const span = document.createElement('span')
-    span.style.backgroundColor = color
-    span.appendChild(selectedContent)
-    range.insertNode(span)
-    
+
+    if (color === null) {
+      const wrapper = document.createElement('div')
+      wrapper.appendChild(selectedContent)
+      wrapper.querySelectorAll<HTMLElement>('*').forEach((el) => {
+        el.style.removeProperty('background')
+        el.style.removeProperty('background-color')
+      })
+      const fragment = document.createDocumentFragment()
+      while (wrapper.firstChild) fragment.appendChild(wrapper.firstChild)
+      range.insertNode(fragment)
+    } else {
+      const span = document.createElement('span')
+      span.style.backgroundColor = color
+      span.appendChild(selectedContent)
+      range.insertNode(span)
+    }
+
     const newContent = editorRef.current.innerHTML
     setEditingTemplate({ ...editingTemplate, emailBody: newContent })
     saveToHistory(newContent)
@@ -596,6 +611,37 @@ export function TemplatesSection() {
           insertLink()
           break
       }
+    }
+  }
+
+  // Remove qualquer fundo/cor de fundo do HTML colado — texto copiado de fora
+  // (ou da própria caixa "Variáveis Disponíveis", que tem fundo azul) não pode
+  // trazer esse retângulo colorido agarrado para dentro do corpo do email.
+  const stripBackgrounds = (html: string): string => {
+    const container = document.createElement('div')
+    container.innerHTML = html
+    const elements = container.querySelectorAll<HTMLElement>('*')
+    elements.forEach((el) => {
+      el.style.removeProperty('background')
+      el.style.removeProperty('background-color')
+      el.style.removeProperty('background-image')
+      el.removeAttribute('bgcolor')
+    })
+    return container.innerHTML
+  }
+
+  const handlePaste = (e: React.ClipboardEvent) => {
+    e.preventDefault()
+    const html = e.clipboardData.getData('text/html')
+    const text = e.clipboardData.getData('text/plain')
+    const cleanHtml = html
+      ? stripBackgrounds(html)
+      : text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br>')
+    document.execCommand('insertHTML', false, cleanHtml)
+    if (editorRef.current && editingTemplate) {
+      const newContent = editorRef.current.innerHTML
+      setEditingTemplate({ ...editingTemplate, emailBody: newContent })
+      saveToHistory(newContent)
     }
   }
 
@@ -1071,6 +1117,16 @@ export function TemplatesSection() {
                             <div>
                               <p className="text-xs font-semibold text-gray-700 mb-2">Cor de Fundo</p>
                               <div className="grid grid-cols-8 gap-1">
+                                <button
+                                  onClick={() => applyBgColor(null)}
+                                  className="w-5 h-5 rounded border border-gray-300 hover:scale-110 transition-transform relative bg-white overflow-hidden"
+                                  title="Sem fundo"
+                                >
+                                  <span
+                                    className="absolute inset-0"
+                                    style={{ background: 'linear-gradient(to top right, transparent calc(50% - 1px), #dc2626, transparent calc(50% + 1px))' }}
+                                  />
+                                </button>
                                 {bgColors.map(color => (
                                   <button
                                     key={color}
@@ -1189,6 +1245,7 @@ export function TemplatesSection() {
                         saveToHistory(content)
                       }}
                       onKeyDown={handleKeyDown}
+                      onPaste={handlePaste}
                       className="w-full px-3 py-2 border border-gray-300 rounded-b min-h-[150px] focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent text-left"
                       style={{
                         minHeight: '150px',

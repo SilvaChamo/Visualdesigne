@@ -61,8 +61,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         },
       ],
       metadata: { kind: 'renewal_payment', renewal_payment_id: pedido.id },
-      success_url: `${origin}/renovacao/${pedido.id}?success=1`,
-      cancel_url: `${origin}/renovacao/${pedido.id}`,
+      success_url: `${origin}/checkout?renewalId=${pedido.id}&success=1`,
+      cancel_url: `${origin}/checkout?renewalId=${pedido.id}`,
     });
 
     return NextResponse.json({ success: true, url: stripeSession.url });
