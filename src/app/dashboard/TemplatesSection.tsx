@@ -21,7 +21,6 @@ import {
   List,
   Link,
   Image,
-  RotateCcw,
   Table2,
   Type as TypeIcon,
   Plus,
@@ -30,15 +29,16 @@ import {
   Droplet,
   AlertTriangle
 } from 'lucide-react'
-import { 
-  defaultRenewalTemplates, 
-  RenewalTemplate, 
-  processTemplate, 
+import {
+  defaultRenewalTemplates,
+  RenewalTemplate,
+  processTemplate,
   TemplateVariables,
   loadTemplatesFromServer,
   saveTemplatesToServer,
   resetTemplatesOnServer
 } from '@/lib/renewal-templates'
+import { useAdminSectionChrome } from '@/components/admin/AdminSectionChrome'
 
 const LAST_EDITED_KEY = 'visualdesign_last_edited_template_id'
 
@@ -61,7 +61,9 @@ export function TemplatesSection() {
     companyName: 'VisualDesign',
     supportEmail: 'suporte@visualdesignmoz.com',
     supportPhone: '+258 85 242 5525',
-    paymentMethod: 'M-Pesa'
+    paymentMethod: 'M-Pesa',
+    invoiceNumber: 'FR082026/0001',
+    invoiceDate: '17/04/2026'
   })
   const [editorMode, setEditorMode] = useState<'visual' | 'html'>('visual')
   const [history, setHistory] = useState<string[]>([])
@@ -740,6 +742,72 @@ export function TemplatesSection() {
     }
   }
 
+  // Salvar/Cancelar/Eliminar Definitivamente ficam na barra de menu principal
+  // do dashboard (cabeçalho global), não no cabeçalho local desta secção — ver
+  // PanelHeader (chrome.toolbar) e o mesmo padrão em CotacoesSection.tsx.
+  const { setChrome } = useAdminSectionChrome()
+  useEffect(() => {
+    if (!editingTemplate) {
+      setChrome(null)
+      return
+    }
+    setChrome({
+      toolbar: (
+        <>
+          {saveStatus && (
+            <span className={`text-xs font-bold px-3 py-1 rounded ${
+              saveStatus === 'saved' ? 'bg-green-100 text-green-700' :
+              saveStatus === 'saving' ? 'bg-yellow-100 text-yellow-700' :
+              'bg-red-100 text-red-700'
+            }`}>
+              {saveStatus === 'saved' && '✓ Salvo'}
+              {saveStatus === 'saving' && 'Salvando...'}
+              {saveStatus === 'error' && 'Erro!'}
+            </span>
+          )}
+          <button
+            onClick={async () => {
+              const latestEditingTemplate = getLatestEditingTemplate()
+              if (!latestEditingTemplate) return
+
+              setEditingTemplate(latestEditingTemplate)
+              const newTemplates = templates.map(t => t.id === latestEditingTemplate.id ? latestEditingTemplate : t)
+              setTemplates(newTemplates)
+              await persistTemplates(newTemplates)
+              try {
+                localStorage.setItem(LAST_EDITED_KEY, latestEditingTemplate.id)
+              } catch {
+                // localStorage indisponível — sem impacto na gravação já concluída
+              }
+            }}
+            disabled={saveStatus === 'saving'}
+            className="h-[38px] px-4 bg-emerald-50 text-emerald-600 border border-emerald-200 rounded font-bold hover:bg-emerald-100 hover:text-emerald-700 flex items-center gap-2 transition-colors disabled:opacity-50"
+          >
+            <Save className="w-4 h-4" />
+            {saveStatus === 'saving' ? 'Salvando...' : 'Salvar Alterações'}
+          </button>
+          <button
+            onClick={() => setEditingTemplate(null)}
+            className="h-[38px] px-4 bg-gray-50 border border-gray-200 text-gray-600 font-bold rounded hover:bg-gray-100 hover:text-gray-700 transition-colors flex items-center gap-2"
+          >
+            <Undo2 className="w-4 h-4" />
+            Cancelar
+          </button>
+          <button
+            onClick={resetToDefault}
+            className="h-[38px] px-4 bg-red-50 border border-red-200 text-red-600 font-bold rounded hover:bg-red-100 hover:text-red-700 transition-colors flex items-center gap-2"
+            title="Restaurar templates padrão — elimina definitivamente as personalizações guardadas"
+          >
+            <Trash2 className="w-4 h-4" />
+            Eliminar Definitivamente
+          </button>
+        </>
+      )
+    })
+    return () => setChrome(null)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editingTemplate, saveStatus, templates, setChrome])
+
   return (
     <div className="space-y-6">
       {loadWarning && (
@@ -748,8 +816,10 @@ export function TemplatesSection() {
           <span><strong>Aviso:</strong> {loadWarning}</span>
         </div>
       )}
-      {/* Header */}
-      <div className="flex items-center justify-between">
+      {/* Header — título/descrição e, na mesma linha, os tabs de tipos de template
+          (Salvar/Cancelar/Eliminar Definitivamente passaram para a barra de menu
+          principal do dashboard, ver o useEffect de useAdminSectionChrome acima). */}
+      <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
           <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
             <Palette className="w-5 h-5 text-purple-600" />
@@ -759,57 +829,30 @@ export function TemplatesSection() {
             Personalize as mensagens de renovação enviadas aos clientes
           </p>
         </div>
-        {editingTemplate && (
-          <div className="flex gap-2 items-center">
-            {saveStatus && (
-              <span className={`text-xs font-bold px-3 py-1 rounded ${
-                saveStatus === 'saved' ? 'bg-green-100 text-green-700' :
-                saveStatus === 'saving' ? 'bg-yellow-100 text-yellow-700' :
-                'bg-red-100 text-red-700'
-              }`}>
-                {saveStatus === 'saved' && '✓ Salvo'}
-                {saveStatus === 'saving' && 'Salvando...'}
-                {saveStatus === 'error' && 'Erro!'}
-              </span>
-            )}
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          {templates.map(template => (
             <button
-              onClick={async () => {
-                const latestEditingTemplate = getLatestEditingTemplate()
-                if (!latestEditingTemplate) return
-
-                setEditingTemplate(latestEditingTemplate)
-                const newTemplates = templates.map(t => t.id === latestEditingTemplate.id ? latestEditingTemplate : t)
-                setTemplates(newTemplates)
-                await persistTemplates(newTemplates)
-                try {
-                  localStorage.setItem(LAST_EDITED_KEY, latestEditingTemplate.id)
-                } catch {
-                  // localStorage indisponível — sem impacto na gravação já concluída
-                }
-              }}
-              disabled={saveStatus === 'saving'}
-              className="px-4 py-2 bg-emerald-50 text-emerald-600 border border-emerald-200 rounded font-bold hover:bg-emerald-100 hover:text-emerald-700 flex items-center gap-2 transition-colors disabled:opacity-50"
+              key={template.id}
+              onClick={() => selectTemplate(template)}
+              className={`px-3 py-1.5 rounded-full text-xs font-bold border transition-colors flex items-center gap-1.5 ${
+                editingTemplate?.id === template.id
+                  ? 'border-purple-500 bg-purple-100 text-purple-700 ring-2 ring-purple-200'
+                  : template.type === 'error' ? 'border-red-200 bg-red-50 text-red-700 hover:border-red-300'
+                  : template.type === 'warning' ? 'border-yellow-200 bg-yellow-50 text-yellow-700 hover:border-yellow-300'
+                  : template.type === 'success' ? 'border-green-200 bg-green-50 text-green-700 hover:border-green-300'
+                  : 'border-blue-200 bg-blue-50 text-blue-700 hover:border-blue-300'
+              }`}
             >
-              <Save className="w-4 h-4" />
-              {saveStatus === 'saving' ? 'Salvando...' : 'Salvar Alterações'}
+              <span className={`w-1.5 h-1.5 rounded-full ${
+                template.urgency === 'critical' ? 'bg-red-500' :
+                template.urgency === 'high' ? 'bg-orange-500' :
+                template.urgency === 'medium' ? 'bg-yellow-500' :
+                'bg-blue-500'
+              }`} />
+              {template.daysBefore === 0 ? 'Confirmação' : template.daysBefore === 1 ? '1 dia' : `${template.daysBefore} dias`}
             </button>
-            <button
-              onClick={() => setEditingTemplate(null)}
-              className="px-4 py-2 bg-gray-50 border border-gray-200 text-gray-600 font-bold rounded hover:bg-gray-100 hover:text-gray-700 transition-colors flex items-center gap-2"
-            >
-              <Undo2 className="w-4 h-4" />
-              Cancelar
-            </button>
-            <button
-              onClick={resetToDefault}
-              className="px-4 py-2 bg-red-50 border border-red-200 text-red-600 font-bold rounded hover:bg-red-100 hover:text-red-700 transition-colors flex items-center gap-2"
-              title="Restaurar templates padrão"
-            >
-              <RotateCcw className="w-4 h-4" />
-              Padrão
-            </button>
-          </div>
-        )}
+          ))}
+        </div>
       </div>
 
       {saveStatus === 'error' && saveError && (
@@ -818,31 +861,6 @@ export function TemplatesSection() {
           <span><strong>Falha ao gravar:</strong> {saveError}</span>
         </div>
       )}
-
-      <div className="flex flex-wrap gap-2">
-        {templates.map(template => (
-          <button
-            key={template.id}
-            onClick={() => selectTemplate(template)}
-            className={`px-3 py-1.5 rounded-full text-xs font-bold border transition-colors flex items-center gap-1.5 ${
-              editingTemplate?.id === template.id
-                ? 'border-purple-500 bg-purple-100 text-purple-700 ring-2 ring-purple-200'
-                : template.type === 'error' ? 'border-red-200 bg-red-50 text-red-700 hover:border-red-300'
-                : template.type === 'warning' ? 'border-yellow-200 bg-yellow-50 text-yellow-700 hover:border-yellow-300'
-                : template.type === 'success' ? 'border-green-200 bg-green-50 text-green-700 hover:border-green-300'
-                : 'border-blue-200 bg-blue-50 text-blue-700 hover:border-blue-300'
-            }`}
-          >
-            <span className={`w-1.5 h-1.5 rounded-full ${
-              template.urgency === 'critical' ? 'bg-red-500' :
-              template.urgency === 'high' ? 'bg-orange-500' :
-              template.urgency === 'medium' ? 'bg-yellow-500' :
-              'bg-blue-500'
-            }`} />
-            {template.daysBefore === 0 ? 'Confirmação' : template.daysBefore === 1 ? '1 dia' : `${template.daysBefore} dias`}
-          </button>
-        ))}
-      </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)] gap-6">
 
@@ -1202,64 +1220,70 @@ export function TemplatesSection() {
                   )}
                 </div>
 
-                {/* Editar Variáveis de Preview - Dados Simulados do Cliente */}
+                {/* Variáveis Disponíveis — movida para aqui (ficava perdida no topo
+                    da coluna de preview); substitui a antiga caixa de "Dados
+                    Simulados do Cliente", que só editava valores de pré-visualização
+                    e não os dados reais usados na notificação. */}
                 <div className="mt-4 p-4 bg-blue-50 rounded border border-blue-200">
-                  <div className="flex items-center justify-between mb-3">
-                    <p className="text-sm font-bold text-blue-900 flex items-center gap-2">
-                      <Variable className="w-4 h-4" />
-                      Dados Simulados do Cliente (Preview)
-                    </p>
-                    <span className="text-xs text-blue-600 bg-blue-100 px-2 py-1 rounded">
-                      Na notificação real, estes valores vêm do registo do cliente
-                    </span>
-                  </div>
-                  <div className="grid grid-cols-2 gap-3 text-sm">
-                    <div>
-                      <label className="block text-xs font-medium text-blue-700 mb-1">Nome do Cliente</label>
-                      <input
-                        type="text"
-                        value={previewVariables.clientName}
-                        onChange={(e) => setPreviewVariables({ ...previewVariables, clientName: e.target.value })}
-                        placeholder="Ex: João Silva"
-                        className="w-full px-3 py-2 border border-blue-200 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      />
+                  <h4 className="font-medium text-blue-900 flex items-center gap-2 mb-3">
+                    <Variable className="w-4 h-4" />
+                    Variáveis Disponíveis
+                  </h4>
+                  <p className="text-xs text-blue-700 mb-2">
+                    Use estas variáveis nos templates:
+                  </p>
+                  <div className="grid grid-cols-2 divide-x divide-blue-200 text-xs font-mono">
+                    <div className="space-y-1 pr-4">
+                      <div className="flex justify-between gap-2">
+                        <code className="text-blue-800">{'{{clientName}}'}</code>
+                        <span className="text-blue-600">Nome do cliente</span>
+                      </div>
+                      <div className="flex justify-between gap-2">
+                        <code className="text-blue-800">{'{{serviceName}}'}</code>
+                        <span className="text-blue-600">Domínio/Serviço</span>
+                      </div>
+                      <div className="flex justify-between gap-2">
+                        <code className="text-blue-800">{'{{expirationDate}}'}</code>
+                        <span className="text-blue-600">Vencimento</span>
+                      </div>
+                      <div className="flex justify-between gap-2">
+                        <code className="text-blue-800">{'{{daysRemaining}}'}</code>
+                        <span className="text-blue-600">Dias restantes</span>
+                      </div>
+                      <div className="flex justify-between gap-2">
+                        <code className="text-blue-800">{'{{renewalPrice}}'}</code>
+                        <span className="text-blue-600">Preço</span>
+                      </div>
+                      <div className="flex justify-between gap-2">
+                        <code className="text-blue-800">{'{{invoiceNumber}}'}</code>
+                        <span className="text-blue-600">Nº da factura</span>
+                      </div>
                     </div>
-                    <div>
-                      <label className="block text-xs font-medium text-blue-700 mb-1">Serviço (Domínio/Website)</label>
-                      <input
-                        type="text"
-                        value={previewVariables.serviceName}
-                        onChange={(e) => setPreviewVariables({ ...previewVariables, serviceName: e.target.value })}
-                        placeholder="Ex: meusite.com"
-                        className="w-full px-3 py-2 border border-blue-200 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-medium text-blue-700 mb-1">Data de Vencimento</label>
-                      <input
-                        type="text"
-                        value={previewVariables.expirationDate}
-                        onChange={(e) => setPreviewVariables({ ...previewVariables, expirationDate: e.target.value })}
-                        placeholder="Ex: 31/12/2025"
-                        className="w-full px-3 py-2 border border-blue-200 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-medium text-blue-700 mb-1">
-                        Valor da Renovação <span className="text-red-500">*</span>
-                        <span className="text-gray-400 font-normal">(editável)</span>
-                      </label>
-                      <input
-                        type="text"
-                        value={previewVariables.renewalPrice}
-                        onChange={(e) => setPreviewVariables({ ...previewVariables, renewalPrice: e.target.value })}
-                        placeholder="Ex: 15.00 MT"
-                        className="w-full px-3 py-2 border border-red-200 rounded focus:ring-2 focus:ring-red-500 focus:border-transparent font-medium"
-                      />
+                    <div className="space-y-1 pl-4">
+                      <div className="flex justify-between gap-2">
+                        <code className="text-blue-800">{'{{renewalLink}}'}</code>
+                        <span className="text-blue-600">Link</span>
+                      </div>
+                      <div className="flex justify-between gap-2">
+                        <code className="text-blue-800">{'{{companyName}}'}</code>
+                        <span className="text-blue-600">VisualDesign</span>
+                      </div>
+                      <div className="flex justify-between gap-2">
+                        <code className="text-blue-800">{'{{supportEmail}}'}</code>
+                        <span className="text-blue-600">Email suporte</span>
+                      </div>
+                      <div className="flex justify-between gap-2">
+                        <code className="text-blue-800">{'{{supportPhone}}'}</code>
+                        <span className="text-blue-600">Telefone</span>
+                      </div>
+                      <div className="flex justify-between gap-2">
+                        <code className="text-blue-800">{'{{invoiceDate}}'}</code>
+                        <span className="text-blue-600">Data da factura</span>
+                      </div>
                     </div>
                   </div>
                   <p className="text-xs text-blue-600 mt-3">
-                    <strong>Nota:</strong> O valor pode ser editado manualmente para cada renovação. Na notificação real, os dados são automaticamente preenchidos com base no registo do cliente no sistema.
+                    <strong>Nota:</strong> Na notificação real, todos estes valores vêm do registo do cliente e do ciclo de cobrança — não são editáveis aqui.
                   </p>
                 </div>
             </div>
@@ -1273,59 +1297,6 @@ export function TemplatesSection() {
 
         {/* Preview */}
         <div className="space-y-4">
-          {/* Variáveis Disponíveis */}
-          <div className="p-4 bg-blue-50 rounded border border-blue-200">
-            <h4 className="font-medium text-blue-900 flex items-center gap-2 mb-3">
-              <Variable className="w-4 h-4" />
-              Variáveis Disponíveis
-            </h4>
-            <p className="text-xs text-blue-700 mb-2">
-              Use estas variáveis nos templates:
-            </p>
-            <div className="grid grid-cols-2 divide-x divide-blue-200 text-xs font-mono">
-              <div className="space-y-1 pr-4">
-                <div className="flex justify-between gap-2">
-                  <code className="text-blue-800">{'{{clientName}}'}</code>
-                  <span className="text-blue-600">Nome do cliente</span>
-                </div>
-                <div className="flex justify-between gap-2">
-                  <code className="text-blue-800">{'{{serviceName}}'}</code>
-                  <span className="text-blue-600">Domínio/Serviço</span>
-                </div>
-                <div className="flex justify-between gap-2">
-                  <code className="text-blue-800">{'{{expirationDate}}'}</code>
-                  <span className="text-blue-600">Vencimento</span>
-                </div>
-                <div className="flex justify-between gap-2">
-                  <code className="text-blue-800">{'{{daysRemaining}}'}</code>
-                  <span className="text-blue-600">Dias restantes</span>
-                </div>
-                <div className="flex justify-between gap-2">
-                  <code className="text-blue-800">{'{{renewalPrice}}'}</code>
-                  <span className="text-blue-600">Preço</span>
-                </div>
-              </div>
-              <div className="space-y-1 pl-4">
-                <div className="flex justify-between gap-2">
-                  <code className="text-blue-800">{'{{renewalLink}}'}</code>
-                  <span className="text-blue-600">Link</span>
-                </div>
-                <div className="flex justify-between gap-2">
-                  <code className="text-blue-800">{'{{companyName}}'}</code>
-                  <span className="text-blue-600">VisualDesign</span>
-                </div>
-                <div className="flex justify-between gap-2">
-                  <code className="text-blue-800">{'{{supportEmail}}'}</code>
-                  <span className="text-blue-600">Email suporte</span>
-                </div>
-                <div className="flex justify-between gap-2">
-                  <code className="text-blue-800">{'{{supportPhone}}'}</code>
-                  <span className="text-blue-600">Telefone</span>
-                </div>
-              </div>
-            </div>
-          </div>
-
           {editingTemplate && (
             <>
               <h4 className="font-medium text-gray-900 flex items-center gap-2 mb-4">

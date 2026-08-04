@@ -12,6 +12,8 @@
 // - {{companyName}} - Nome da empresa (VisualDesign)
 // - {{supportEmail}} - Email de suporte
 // - {{supportPhone}} - Telefone de suporte
+// - {{invoiceNumber}} - Número da factura do ciclo de cobrança
+// - {{invoiceDate}} - Data em que a factura foi gerada
 
 // ============================================
 // CABEÇALHO E RODAPÉ PADRÃO - CORES VISUALDESIGN
@@ -208,7 +210,7 @@ export const defaultRenewalTemplates: RenewalTemplate[] = [
     message: 'Olá {{clientName}}, seu {{serviceName}} expira em 60 dias ({{expirationDate}}). Renove agora para evitar interrupções no serviço.',
     emailSubject: '🔔 Lembrete: Renovação de {{serviceName}} em 60 dias',
     emailBody: `
-<p>Este é um aviso de que uma cobrança foi gerada para o seu serviço, que vence dia <strong>{{expirationDate}}</strong>. Esta fatura é referente aos seguintes serviços/produtos contratados na <strong>VisualDESIGN</strong>.</p>
+<p>Este é um aviso de que uma factura nº <strong>{{invoiceNumber}}</strong>, de cobrança de serviços de hospedagem, foi gerada no dia <strong>{{invoiceDate}}</strong> e vence no dia <strong>{{expirationDate}}</strong>, faltam apenas: {{daysRemaining}} dias.</p>
 <div style="border:1px solid #e5e7eb;border-radius:4px;margin:25px 0;overflow:hidden;">
   <div style="padding:10px 15px;background:#f9fafb;border-bottom:1px solid #e5e7eb;font-size:13px;color:#6b7280;font-weight:600;">Descrição dos Serviços</div>
   <div style="padding:16px;font-size:14px;color:#374151;">
@@ -623,6 +625,12 @@ export interface TemplateVariables {
   // Links com autenticação automática para acesso direto quando logado
   dashboardAutoLoginLink?: string
   clientAreaAutoLoginLink?: string
+  // Número da factura do ciclo de cobrança actual e data em que foi gerada.
+  // Atribuído uma única vez por ciclo (service + expirationDate) e reutilizado
+  // em todos os lembretes seguintes — ver assign_renewal_invoice_number()
+  // (supabase-renewal-invoices.sql) e o cron em api/cron/renewal-check.
+  invoiceNumber?: string
+  invoiceDate?: string
 }
 
 export function processTemplate(
@@ -646,6 +654,8 @@ export function processTemplate(
       .replace(/\{\{paymentMethod\}\}/g, variables.paymentMethod || 'A escolher no pagamento')
       .replace(/\{\{subtotal\}\}/g, variables.subtotal || variables.renewalPrice)
       .replace(/\{\{creditAmount\}\}/g, variables.creditAmount || '0,00 MT')
+      .replace(/\{\{invoiceNumber\}\}/g, variables.invoiceNumber || 'A gerar')
+      .replace(/\{\{invoiceDate\}\}/g, variables.invoiceDate || '—')
   }
   
   processed.title = replaceVars(processed.title)

@@ -159,6 +159,32 @@ export async function GET(request: NextRequest) {
             const totalValue = subtotalValue - creditValue
             const formatMt = (n: number) => `${n.toLocaleString('pt-MZ', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} MT`
 
+            // Número da factura do ciclo de cobrança: atribuído uma única vez por
+            // (service_type, service_id, expiration_date) — normalmente aqui, na
+            // primeira notificação processada para este ciclo (o lembrete de 60
+            // dias, o mais distante) — e devolvido tal e qual em todos os
+            // lembretes seguintes do mesmo ciclo, incluindo a confirmação. Ver
+            // assign_renewal_invoice_number() em supabase-renewal-invoices.sql.
+            let invoiceNumber = ''
+            let invoiceDate = ''
+            try {
+              const { data: invoiceRow, error: invoiceError } = await supabaseAdmin
+                .rpc('assign_renewal_invoice_number', {
+                  p_service_type: renewal.service_type,
+                  p_service_id: renewal.service_id,
+                  p_user_id: renewal.user_id,
+                  p_expiration_date: renewal.expiration_date
+                })
+                .single()
+              if (invoiceError) throw invoiceError
+              invoiceNumber = (invoiceRow as any)?.invoice_number || ''
+              invoiceDate = (invoiceRow as any)?.issued_at
+                ? new Date((invoiceRow as any).issued_at).toLocaleDateString('pt-MZ')
+                : ''
+            } catch (invoiceErr: any) {
+              results.errors.push(`Falha ao atribuir nº de factura (${renewal.service_name}): ${invoiceErr.message}`)
+            }
+
             // Preparar variáveis
             const variables: TemplateVariables = {
               clientName,
@@ -172,7 +198,9 @@ export async function GET(request: NextRequest) {
               supportPhone: '+258 85 242 5525',
               paymentMethod,
               subtotal: formatMt(subtotalValue),
-              creditAmount: formatMt(creditValue)
+              creditAmount: formatMt(creditValue),
+              invoiceNumber,
+              invoiceDate
             }
 
             // Processar template

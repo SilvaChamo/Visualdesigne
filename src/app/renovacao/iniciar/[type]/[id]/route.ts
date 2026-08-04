@@ -5,8 +5,8 @@ import { getSupabaseAdmin } from '@/lib/supabase-admin';
 const VALID_TYPES = ['domain', 'hosting'];
 
 // Ponte mínima entre o link de notificação/email e a página de pagamento
-// já existente (/renovacao/[id]): cria o pedido (método M-Pesa por omissão,
-// o cliente pode trocar depois na página) e redirecciona. Mesma lógica de
+// já existente (/renovacao/[id]): cria o pedido (com o método habitual do
+// cliente, ver lookup abaixo) e redirecciona. Mesma lógica de
 // POST /api/renewals/pagamento, usada hoje só pelos revendedores.
 export async function GET(
   request: Request,
@@ -21,12 +21,12 @@ export async function GET(
     return NextResponse.redirect(`${origin}/login?redirect=/renovacao/iniciar/${type}/${id}`);
   }
   if (!VALID_TYPES.includes(type)) {
-    return NextResponse.redirect(`${origin}/dashboard?section=renewals`);
+    return NextResponse.redirect(`${origin}/dashboard?section=notificacoes-servidor`);
   }
 
   const admin = getSupabaseAdmin();
   if (!admin) {
-    return NextResponse.redirect(`${origin}/dashboard?section=renewals`);
+    return NextResponse.redirect(`${origin}/dashboard?section=notificacoes-servidor`);
   }
 
   const table = type === 'domain' ? 'domain_renewals' : 'hosting_renewals';
@@ -36,7 +36,7 @@ export async function GET(
     .eq('id', id)
     .single();
   if (renewalError || !renewal || renewal.user_id !== user.id) {
-    return NextResponse.redirect(`${origin}/dashboard?section=renewals`);
+    return NextResponse.redirect(`${origin}/dashboard?section=notificacoes-servidor`);
   }
 
   const { data: existing } = await admin
@@ -54,8 +54,20 @@ export async function GET(
 
   const valorMt = Number(renewal.renewal_price);
   if (!Number.isFinite(valorMt) || valorMt <= 0) {
-    return NextResponse.redirect(`${origin}/dashboard?section=renewals`);
+    return NextResponse.redirect(`${origin}/dashboard?section=notificacoes-servidor`);
   }
+
+  // Método habitual do cliente (mesmo lookup do renewal-check/route.ts): último
+  // usado num pedido real. Sem histórico, cai em 'mpesa' — o cliente pode
+  // sempre trocar voltando a pedir a renovação com outro método.
+  const { data: lastPayment } = await admin
+    .from('renewal_payment_requests')
+    .select('metodo_pagamento')
+    .eq('user_id', user.id)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  const metodoPagamento = lastPayment?.metodo_pagamento || 'mpesa';
 
   const { data: pedido, error } = await admin
     .from('renewal_payment_requests')
@@ -65,13 +77,13 @@ export async function GET(
       renewal_id: id,
       service_name: renewal.domain_name,
       valor_mt: valorMt,
-      metodo_pagamento: 'mpesa',
+      metodo_pagamento: metodoPagamento,
       status: 'pending',
     })
     .select()
     .single();
   if (error || !pedido) {
-    return NextResponse.redirect(`${origin}/dashboard?section=renewals`);
+    return NextResponse.redirect(`${origin}/dashboard?section=notificacoes-servidor`);
   }
 
   return NextResponse.redirect(`${origin}/renovacao/${pedido.id}`);
