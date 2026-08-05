@@ -75,6 +75,8 @@ interface ClientSidebarProps {
   readOnly?: boolean;
   /** Só mostra o item "Encomendas" quando o cliente tiver pelo menos uma. */
   hasEncomendas?: boolean;
+  /** Só mostra "Domínios & DNS" quando o cliente tiver pelo menos um domínio. */
+  hasDomains?: boolean;
 }
 
 export function ClientSidebar({
@@ -86,6 +88,7 @@ export function ClientSidebar({
   isMobile = false,
   readOnly = false,
   hasEncomendas = false,
+  hasDomains = false,
 }: ClientSidebarProps) {
   const currentSidebarWidth = isCollapsed ? 64 : 250;
   const [expandedMenu, setExpandedMenu] = React.useState<string | null>(null);
@@ -95,7 +98,9 @@ export function ClientSidebar({
         { id: 'domains', label: 'Os meus sites', icon: Globe },
       ]
     : FLAT_ITEMS.filter((item) => item.id !== 'encomendas' || hasEncomendas);
-  const expandableMenus = readOnly ? [] : CLIENT_MENU_DEFS;
+  const expandableMenus = readOnly
+    ? []
+    : CLIENT_MENU_DEFS.filter((menu) => menu.id !== 'nov-dominios' || hasDomains);
 
   React.useEffect(() => {
     const parent = clientMenuParentForSection(activeSection);
