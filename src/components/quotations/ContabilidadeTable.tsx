@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { Fragment, useEffect, useState } from 'react'
 import { ChevronDown, ChevronRight, RotateCcw } from 'lucide-react'
 import {
   panelSectionCard,
@@ -195,6 +195,7 @@ function ResellerCreditsTable() {
   const [pedidos, setPedidos] = useState<CreditoPedido[] | null>(null)
   const [updatingId, setUpdatingId] = useState<string | null>(null)
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null)
+  const [expandedId, setExpandedId] = useState<string | null>(null)
 
   const load = () => {
     fetch('/api/admin/reseller-creditos')
@@ -246,6 +247,7 @@ function ResellerCreditsTable() {
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-gray-200 text-xs font-bold uppercase tracking-wide text-gray-500 dark:border-zinc-700 dark:text-zinc-400">
+              <th className="w-8 px-2 py-2"> </th>
               <th className="px-4 py-2 text-left whitespace-nowrap">Data</th>
               <th className="px-4 py-2 text-left">Revendedor</th>
               <th className="px-4 py-2 text-right whitespace-nowrap">Valor</th>
@@ -258,8 +260,20 @@ function ResellerCreditsTable() {
           <tbody className="divide-y divide-gray-100 dark:divide-zinc-800">
             {pedidos.map((p) => {
               const meta = CREDITO_STATUS_META[p.status]
+              const isExpanded = expandedId === p.id
               return (
-                <tr key={p.id} className="hover:bg-gray-50 dark:hover:bg-zinc-800/30">
+                <Fragment key={p.id}>
+                <tr className="hover:bg-gray-50 dark:hover:bg-zinc-800/30">
+                  <td className="px-2 py-2.5">
+                    <button
+                      type="button"
+                      onClick={() => setExpandedId(isExpanded ? null : p.id)}
+                      className="text-gray-400 hover:text-gray-700 dark:text-zinc-500 dark:hover:text-zinc-200"
+                      title="Ver anexo"
+                    >
+                      {isExpanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+                    </button>
+                  </td>
                   <td className="whitespace-nowrap px-4 py-2.5 text-gray-500 dark:text-zinc-400">
                     {new Date(p.created_at).toLocaleDateString('pt-PT')}
                   </td>
@@ -314,12 +328,80 @@ function ResellerCreditsTable() {
                     )}
                   </td>
                 </tr>
+                {isExpanded && (
+                  <tr className="bg-gray-50 dark:bg-zinc-900/40">
+                    <td colSpan={8} className="px-4 py-4">
+                      <AnexoInline
+                        comprovativoUrl={p.comprovativo_url}
+                        onOpen={() => setLightboxUrl(p.comprovativo_url)}
+                        canAct={p.status === 'pending'}
+                        updating={updatingId === p.id}
+                        onConfirm={() => respond(p.id, 'confirmed')}
+                        onReject={() => respond(p.id, 'rejected')}
+                      />
+                    </td>
+                  </tr>
+                )}
+                </Fragment>
               )
             })}
           </tbody>
         </table>
       </div>
       {lightboxUrl && <ImageLightbox url={lightboxUrl} onClose={() => setLightboxUrl(null)} />}
+    </div>
+  )
+}
+
+/** Painel inline usado dentro da linha expandida (anexo + acções) — partilhado pelas tabelas de pagamento. */
+function AnexoInline({
+  comprovativoUrl,
+  onOpen,
+  canAct,
+  updating,
+  onConfirm,
+  onReject,
+}: {
+  comprovativoUrl: string | null
+  onOpen: () => void
+  canAct: boolean
+  updating: boolean
+  onConfirm: () => void
+  onReject: () => void
+}) {
+  return (
+    <div className="flex flex-wrap items-center gap-4">
+      {comprovativoUrl ? (
+        <button type="button" onClick={onOpen} className="shrink-0">
+          <img
+            src={comprovativoUrl}
+            alt="Comprovativo"
+            className="h-32 w-auto rounded-lg border border-gray-200 dark:border-zinc-700 object-contain hover:border-red-300 dark:hover:border-red-800 transition-colors"
+          />
+        </button>
+      ) : (
+        <p className="text-sm text-gray-400 dark:text-zinc-500">Sem comprovativo enviado.</p>
+      )}
+      {canAct && (
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            disabled={updating}
+            onClick={onConfirm}
+            className="inline-flex items-center gap-1.5 rounded-lg bg-green-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-green-700 disabled:opacity-50"
+          >
+            Confirmar
+          </button>
+          <button
+            type="button"
+            disabled={updating}
+            onClick={onReject}
+            className="inline-flex items-center gap-1.5 rounded-lg bg-rose-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-rose-700 disabled:opacity-50"
+          >
+            Rejeitar
+          </button>
+        </div>
+      )}
     </div>
   )
 }
@@ -825,6 +907,7 @@ function RenewalPaymentsTable() {
   const [pedidos, setPedidos] = useState<RenewalPedido[] | null>(null)
   const [updatingId, setUpdatingId] = useState<string | null>(null)
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null)
+  const [expandedId, setExpandedId] = useState<string | null>(null)
 
   const load = () => {
     fetch('/api/admin/renewal-pagamentos')
@@ -876,6 +959,7 @@ function RenewalPaymentsTable() {
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-gray-200 text-xs font-bold uppercase tracking-wide text-gray-500 dark:border-zinc-700 dark:text-zinc-400">
+              <th className="w-8 px-2 py-2"> </th>
               <th className="px-4 py-2 text-left whitespace-nowrap">Data</th>
               <th className="px-4 py-2 text-left">Cliente</th>
               <th className="px-4 py-2 text-left">Serviço</th>
@@ -890,8 +974,20 @@ function RenewalPaymentsTable() {
           <tbody className="divide-y divide-gray-100 dark:divide-zinc-800">
             {pedidos.map((p) => {
               const meta = CREDITO_STATUS_META[p.status]
+              const isExpanded = expandedId === p.id
               return (
-                <tr key={p.id} className="hover:bg-gray-50 dark:hover:bg-zinc-800/30">
+                <Fragment key={p.id}>
+                <tr className="hover:bg-gray-50 dark:hover:bg-zinc-800/30">
+                  <td className="px-2 py-2.5">
+                    <button
+                      type="button"
+                      onClick={() => setExpandedId(isExpanded ? null : p.id)}
+                      className="text-gray-400 hover:text-gray-700 dark:text-zinc-500 dark:hover:text-zinc-200"
+                      title="Ver anexo"
+                    >
+                      {isExpanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+                    </button>
+                  </td>
                   <td className="whitespace-nowrap px-4 py-2.5 text-gray-500 dark:text-zinc-400">
                     {new Date(p.created_at).toLocaleDateString('pt-PT')}
                   </td>
@@ -950,6 +1046,21 @@ function RenewalPaymentsTable() {
                     )}
                   </td>
                 </tr>
+                {isExpanded && (
+                  <tr className="bg-gray-50 dark:bg-zinc-900/40">
+                    <td colSpan={9} className="px-4 py-4">
+                      <AnexoInline
+                        comprovativoUrl={p.comprovativo_url}
+                        onOpen={() => setLightboxUrl(p.comprovativo_url)}
+                        canAct={p.status === 'pending'}
+                        updating={updatingId === p.id}
+                        onConfirm={() => respond(p.id, 'confirmed')}
+                        onReject={() => respond(p.id, 'rejected')}
+                      />
+                    </td>
+                  </tr>
+                )}
+                </Fragment>
               )
             })}
           </tbody>
@@ -999,6 +1110,7 @@ function CheckoutItemsByType({ types }: { types: string[] }) {
   const [pedidos, setPedidos] = useState<CheckoutPedido[] | null>(null)
   const [updatingKey, setUpdatingKey] = useState<string | null>(null)
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null)
+  const [expandedKey, setExpandedKey] = useState<string | null>(null)
 
   const load = () => {
     fetch('/api/admin/checkout-pagamentos')
@@ -1058,6 +1170,7 @@ function CheckoutItemsByType({ types }: { types: string[] }) {
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-gray-200 text-xs font-bold uppercase tracking-wide text-gray-500 dark:border-zinc-700 dark:text-zinc-400">
+              <th className="w-8 px-2 py-2"> </th>
               <th className="px-4 py-2 text-left whitespace-nowrap">Data</th>
               <th className="px-4 py-2 text-left">Cliente</th>
               <th className="px-4 py-2 text-left">Item</th>
@@ -1074,8 +1187,20 @@ function CheckoutItemsByType({ types }: { types: string[] }) {
               const key = `${p.id}-${itemIndex}`
               const outrosItens = (p.items || []).filter((_, i) => i !== itemIndex).map((i) => i.name)
               const meta = ITEM_STATUS_META[itemStatus] || ITEM_STATUS_META.pending
+              const isExpanded = expandedKey === key
               return (
-                <tr key={key} className="hover:bg-gray-50 dark:hover:bg-zinc-800/30">
+                <Fragment key={key}>
+                <tr className="hover:bg-gray-50 dark:hover:bg-zinc-800/30">
+                  <td className="px-2 py-2.5">
+                    <button
+                      type="button"
+                      onClick={() => setExpandedKey(isExpanded ? null : key)}
+                      className="text-gray-400 hover:text-gray-700 dark:text-zinc-500 dark:hover:text-zinc-200"
+                      title="Ver anexo"
+                    >
+                      {isExpanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+                    </button>
+                  </td>
                   <td className="whitespace-nowrap px-4 py-2.5 text-gray-500 dark:text-zinc-400">
                     {new Date(p.created_at).toLocaleDateString('pt-PT')}
                   </td>
@@ -1136,6 +1261,21 @@ function CheckoutItemsByType({ types }: { types: string[] }) {
                     )}
                   </td>
                 </tr>
+                {isExpanded && (
+                  <tr className="bg-gray-50 dark:bg-zinc-900/40">
+                    <td colSpan={9} className="px-4 py-4">
+                      <AnexoInline
+                        comprovativoUrl={p.comprovativo_url}
+                        onOpen={() => setLightboxUrl(p.comprovativo_url)}
+                        canAct={itemStatus === 'pending'}
+                        updating={updatingKey === key}
+                        onConfirm={() => respond(p.id, itemIndex, 'paid')}
+                        onReject={() => respond(p.id, itemIndex, 'failed')}
+                      />
+                    </td>
+                  </tr>
+                )}
+                </Fragment>
               )
             })}
           </tbody>
