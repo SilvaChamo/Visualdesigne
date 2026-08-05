@@ -8,6 +8,7 @@ import {
   Target,
   Users,
   FileText,
+  ClipboardList,
   Settings,
   ChevronLeft,
   ChevronRight,
@@ -50,6 +51,7 @@ type FlatItem = {
 
 const FLAT_ITEMS: FlatItem[] = [
   { id: 'dashboard', label: 'Dashboard', icon: Home },
+  { id: 'encomendas', label: 'Encomendas', icon: ClipboardList },
   { id: 'domains', label: 'O Meu Site', icon: Globe },
   { id: 'webmail', label: 'Webmail', icon: Mail },
   { id: 'mailmarketing', label: 'Mailmarketing', icon: Target },
@@ -71,6 +73,8 @@ interface ClientSidebarProps {
   cliente?: { nome?: string; email?: string } | null;
   isMobile?: boolean;
   readOnly?: boolean;
+  /** Só mostra o item "Encomendas" quando o cliente tiver pelo menos uma. */
+  hasEncomendas?: boolean;
 }
 
 export function ClientSidebar({
@@ -81,6 +85,7 @@ export function ClientSidebar({
   cliente,
   isMobile = false,
   readOnly = false,
+  hasEncomendas = false,
 }: ClientSidebarProps) {
   const currentSidebarWidth = isCollapsed ? 64 : 250;
   const [expandedMenu, setExpandedMenu] = React.useState<string | null>(null);
@@ -89,7 +94,7 @@ export function ClientSidebar({
         { id: 'meus-produtos', label: 'Os meus produtos', icon: Home },
         { id: 'domains', label: 'Os meus sites', icon: Globe },
       ]
-    : FLAT_ITEMS;
+    : FLAT_ITEMS.filter((item) => item.id !== 'encomendas' || hasEncomendas);
   const expandableMenus = readOnly ? [] : CLIENT_MENU_DEFS;
 
   React.useEffect(() => {

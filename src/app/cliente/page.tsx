@@ -17,6 +17,7 @@ import {
 } from 'lucide-react'
 import { ClientProductsHub } from '@/components/client/ClientProductsHub'
 import { ClientSidebar } from '@/components/client/ClientSidebar'
+import { EncomendasListSection } from '@/components/encomendas/EncomendasListSection'
 import { usePanelSidebarCollapsed } from '@/hooks/usePanelSidebarCollapsed'
 import { clientSectionLabel } from '@/lib/panel-client-menu'
 import { PanelHeader } from '@/components/panel/PanelHeader'
@@ -3274,6 +3275,16 @@ function ClientPageContent() {
   const [selectedDNSDomain, setSelectedDNSDomain] = useState<string>('')
   const [sessionUser, setSessionUser] = useState<string | null>(null)
   const [cliente, setCliente] = useState<any>(null)
+  // Encomendas de design (VisualDesign) — o cliente pode ter chegado aqui por
+  // já ter hospedagem, mas também ter encomendas por acompanhar; o item só
+  // aparece no menu quando existir pelo menos uma.
+  const [hasEncomendas, setHasEncomendas] = useState(false)
+  useEffect(() => {
+    fetch('/api/cotacoes')
+      .then((r) => r.json())
+      .then((data) => { if (data.success) setHasEncomendas(Array.isArray(data.quotations) && data.quotations.length > 0) })
+      .catch(() => {})
+  }, [])
 
   // Estados para gestão de contas de email
   const [mostrarAdicionarConta, setMostrarAdicionarConta] = useState(false)
@@ -3417,6 +3428,8 @@ function ClientPageContent() {
       case 'dashboard':
       case 'meus-produtos':
         return <ClientProductsHub onNavigate={setActiveSection} />
+      case 'encomendas':
+        return <EncomendasListSection />
       case 'domains':
         return <ListWebsitesSection
           sites={directAdminSites}
@@ -3656,6 +3669,7 @@ function ClientPageContent() {
         cliente={cliente}
         isMobile={isMobile}
         readOnly={clientReadOnly}
+        hasEncomendas={hasEncomendas}
       />
 
       <div className="flex min-w-0 flex-1 flex-col overflow-hidden bg-white dark:bg-zinc-950">

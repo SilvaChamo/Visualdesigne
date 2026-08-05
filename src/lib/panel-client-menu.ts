@@ -77,6 +77,7 @@ export const CLIENT_SECTION_LABELS: Record<string, string> = {
   facturas: 'Facturas',
   conta: 'Conta',
   'emails-new': 'E-mail',
+  encomendas: 'Encomendas',
 };
 
 export function clientSectionLabel(sectionId: string): string {
