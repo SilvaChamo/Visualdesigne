@@ -9,6 +9,7 @@
  */
 
 import crypto from 'crypto';
+import { profileName } from '@/lib/profile-db';
 
 const DYNADOT_ENV = process.env.DYNADOT_ENV === 'production' ? 'production' : 'sandbox';
 const BASE_URL =
@@ -24,7 +25,7 @@ export function mapProfileToDynadotContact(
   profile: Record<string, unknown> | null | undefined,
   userEmail: string,
 ) {
-  const name = String(profile?.nome || 'Utilizador').trim();
+  const name = profileName(profile as { name?: string; nome?: string } | null, 'Utilizador').trim();
 
   let rawPhone = String(profile?.telefone || '').replace(/[\s\-()]/g, '');
   if (!rawPhone) rawPhone = '840000000';

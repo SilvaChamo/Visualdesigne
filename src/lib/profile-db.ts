@@ -16,6 +16,23 @@ export type ProfileRow = {
 const PROFILE_COLUMNS =
   'id, user_id, email, role, name, da_username, da_password_encrypted, da_domain, da_provisioned_at, reseller_tier';
 
+/** Campos WHOIS obrigatórios antes de deixar comprar um domínio (ver dynadot-adapter.ts). */
+const WHOIS_REQUIRED_FIELDS = ['telefone', 'morada', 'cidade'] as const;
+
+/** Confirma que o perfil tem os dados mínimos para um registo WHOIS real (não genérico). */
+export async function isProfileWhoisComplete(admin: SupabaseClient, authUserId: string): Promise<boolean> {
+  const { data } = await admin
+    .from('profiles')
+    .select('telefone, morada, cidade')
+    .or(profileAuthOrFilter(authUserId))
+    .maybeSingle();
+  if (!data) return false;
+  return WHOIS_REQUIRED_FIELDS.every((f) => {
+    const value = (data as Record<string, unknown>)[f];
+    return typeof value === 'string' && value.trim().length > 0;
+  });
+}
+
 /** Filtro PostgREST para perfil ligado ao Auth (suporta `user_id` e legado `id`). */
 export function profileAuthOrFilter(authUserId: string): string {
   return `user_id.eq.${authUserId},id.eq.${authUserId}`;

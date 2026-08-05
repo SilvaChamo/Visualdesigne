@@ -2684,6 +2684,10 @@ function ContaSection() {
         user_id: user.id,
         name: dados.nome,
         email: dados.email,
+        telefone: (dados as any).telefone || null,
+        empresa: (dados as any).empresa || null,
+        morada: (dados as any).morada || null,
+        cidade: (dados as any).cidade || null,
         updated_at: new Date().toISOString(),
       }
 

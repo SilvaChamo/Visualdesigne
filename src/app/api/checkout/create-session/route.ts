@@ -3,6 +3,7 @@ import { createClient } from '@/utils/supabase/server';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { getStripe, isStripeConfigured, mznToUsdCents } from '@/lib/stripe';
 import { resolveCartItems, type CatalogCartItem } from '@/lib/package-catalog';
+import { isProfileWhoisComplete } from '@/lib/profile-db';
 
 export async function POST(request: NextRequest) {
   try {
@@ -45,6 +46,17 @@ export async function POST(request: NextRequest) {
     if (!admin) {
       console.error('[checkout/create-session] Supabase service role não configurado.');
       return NextResponse.json({ error: 'Pagamento por cartão ainda não está configurado. Tente novamente mais tarde.' }, { status: 503 });
+    }
+
+    const hasDomain = resolved.some((r) => r.item.type === 'domain');
+    if (hasDomain && !(await isProfileWhoisComplete(admin, user.id))) {
+      return NextResponse.json(
+        {
+          error:
+            'Antes de comprar um domínio precisa de completar o telefone, morada e cidade em "A Minha Conta" — são os dados usados no registo oficial do domínio.',
+        },
+        { status: 400 },
+      );
     }
 
     const { data: session, error: insertError } = await admin
