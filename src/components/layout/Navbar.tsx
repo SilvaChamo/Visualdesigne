@@ -276,14 +276,12 @@ export function Navbar() {
 
           {/* Coluna Direita: Ícones limpos com tooltips instantâneos */}
           <div className="flex items-center gap-5">
-            {authUser && (
-              <NotificationsPanel
-                userEmail={authUser.email ?? undefined}
-                buttonClassName="text-slate-300 hover:text-red-500 transition-colors relative"
-                iconClassName="w-4 h-4"
-                badgeClassName="absolute -top-1.5 -right-1.5 w-3.5 h-3.5 bg-red-500 text-white text-[8px] font-bold rounded-full flex items-center justify-center"
-              />
-            )}
+            <NotificationsPanel
+              userEmail={authUser?.email ?? undefined}
+              buttonClassName="text-slate-300 hover:text-red-500 transition-colors relative"
+              iconClassName="w-4 h-4"
+              badgeClassName="absolute -top-1.5 -right-1.5 w-3.5 h-3.5 bg-red-500 text-white text-[8px] font-bold rounded-full flex items-center justify-center"
+            />
 
             <button
               onClick={() => setIsCartOpen(true)}
