@@ -2634,6 +2634,8 @@ function ContaSection() {
           email: user.email || '',
           telefone: profile.telefone || '',
           empresa: profile.empresa || '',
+          nuit: profile.nuit || '',
+          site: profile.site || '',
           morada: profile.morada || '',
           cidade: profile.cidade || ''
         })
@@ -2641,7 +2643,7 @@ function ContaSection() {
         setDados({
           nome: user.user_metadata?.nome || '',
           email: user.email || '',
-          telefone: '', empresa: '', morada: '', cidade: ''
+          telefone: '', empresa: '', nuit: '', site: '', morada: '', cidade: ''
         })
       }
     } finally {
@@ -2686,6 +2688,8 @@ function ContaSection() {
         email: dados.email,
         telefone: (dados as any).telefone || null,
         empresa: (dados as any).empresa || null,
+        nuit: (dados as any).nuit || null,
+        site: (dados as any).site || null,
         morada: (dados as any).morada || null,
         cidade: (dados as any).cidade || null,
         updated_at: new Date().toISOString(),
@@ -2725,6 +2729,8 @@ function ContaSection() {
               { label: 'Email', field: 'email' },
               { label: 'Telefone', field: 'telefone' },
               { label: 'Empresa', field: 'empresa' },
+              { label: 'NUIT', field: 'nuit' },
+              { label: 'Site', field: 'site' },
               { label: 'Morada', field: 'morada' },
               { label: 'Cidade', field: 'cidade' },
             ].map(({ label, field }) => (
