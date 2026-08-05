@@ -15,6 +15,7 @@ import { groupIntoBatches, groupBatchesByBrand, filterBatchesByBucket, type Batc
 import { useBatchNumeros, displayNumero } from '@/lib/use-batch-numeros'
 import { QuotationHistoryTimeline } from '@/components/quotations/QuotationHistoryTimeline'
 import { QuotationMessagesThread } from '@/components/quotations/QuotationMessagesThread'
+import { QuotationAttachmentsPanel } from '@/components/quotations/QuotationAttachmentsPanel'
 import { QuotationBatchExpenses } from '@/components/quotations/QuotationBatchExpenses'
 import { useAdminSectionChrome } from '@/components/admin/AdminSectionChrome'
 import { Spinner } from '@/components/ui/spinner'
@@ -542,15 +543,17 @@ export function CotacoesSection() {
   )
 }
 
-type BatchTab = 'itens' | 'mensagem' | 'cotacao' | 'factura' | 'historico' | 'empresa'
+type BatchTab = 'itens' | 'mensagem' | 'anexos' | 'cotacao' | 'factura' | 'historico' | 'empresa'
 
 // 'factura' só entra na lista quando a encomenda já tem factura emitida (ver
 // hasFactura em BatchCard) — antes de 'approved' não há número nenhum.
-// Anexos e Layouts deixaram de ser abas — vivem dentro da própria conversa
-// em "Mensagem" (QuotationMessagesThread já mostra layouts + anexos inline).
+// Layouts continuam só dentro da conversa em "Mensagem". Anexos (sobretudo
+// comprovativos de pagamento) ganharam aba própria para nunca ficarem
+// enterrados numa conversa longa sem a equipa reparar.
 const BATCH_TABS: { id: BatchTab; label: string }[] = [
   { id: 'itens', label: 'Itens da encomenda' },
   { id: 'mensagem', label: 'Mensagem' },
+  { id: 'anexos', label: 'Anexos' },
   { id: 'historico', label: 'Histórico' },
   { id: 'empresa', label: 'Dados da empresa' },
   { id: 'cotacao', label: 'Cotação' },
@@ -976,6 +979,11 @@ function BatchCard({
             {activeTab === 'mensagem' && (
               <div className="mx-auto max-w-xl">
                 <QuotationMessagesThread quotationId={anchor.id} viewerRole="admin" />
+              </div>
+            )}
+            {activeTab === 'anexos' && (
+              <div className="mx-auto max-w-xl">
+                <QuotationAttachmentsPanel quotationId={anchor.id} />
               </div>
             )}
             {activeTab === 'historico' && <QuotationHistoryTimeline quotationId={anchor.id} />}

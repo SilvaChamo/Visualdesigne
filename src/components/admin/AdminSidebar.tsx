@@ -222,6 +222,48 @@ export function AdminSidebar({
     };
   }, []);
 
+  // Pagamentos manuais (M-Pesa/Transferência) pendentes de confirmação — evita
+  // que fiquem esquecidos na Contabilidade à espera de a equipa reparar sozinha.
+  const [pendingPagamentos, setPendingPagamentos] = React.useState(0);
+  React.useEffect(() => {
+    let cancelled = false;
+    const fetchPending = () => {
+      fetch('/api/admin/checkout-pagamentos')
+        .then((r) => r.json())
+        .then((data) => {
+          if (!cancelled && data?.success) setPendingPagamentos(data.stats?.pendentes || 0);
+        })
+        .catch(() => {});
+    };
+    fetchPending();
+    const interval = setInterval(fetchPending, 30000);
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+  }, []);
+
+  // Encomendas (quotation_requests) com comprovativo/pagamento à espera de
+  // confirmação — mesmo objectivo do balão da Contabilidade, para esta área.
+  const [pendingEncomendas, setPendingEncomendas] = React.useState(0);
+  React.useEffect(() => {
+    let cancelled = false;
+    const fetchPending = () => {
+      fetch('/api/admin/cotacoes/pending-count')
+        .then((r) => r.json())
+        .then((data) => {
+          if (!cancelled && data?.success) setPendingEncomendas(data.stats?.pendentes || 0);
+        })
+        .catch(() => {});
+    };
+    fetchPending();
+    const interval = setInterval(fetchPending, 30000);
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+  }, []);
+
   const handleParentClick = (item: MenuItem) => {
     if (!item.subItems?.length) {
       setExpandedMenu(null);
@@ -350,6 +392,24 @@ export function AdminSidebar({
                             }`}
                           >
                             {unreadNotifications > 99 ? '99+' : unreadNotifications}
+                          </span>
+                        )}
+                        {item.id === 'contabilidade' && pendingPagamentos > 0 && (
+                          <span
+                            className={`flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-red-600 px-1 text-[11px] font-bold text-white ${
+                              isCollapsed ? 'absolute right-1 top-1' : 'ml-auto'
+                            }`}
+                          >
+                            {pendingPagamentos > 99 ? '99+' : pendingPagamentos}
+                          </span>
+                        )}
+                        {item.id === 'cotacoes' && pendingEncomendas > 0 && (
+                          <span
+                            className={`flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-red-600 px-1 text-[11px] font-bold text-white ${
+                              isCollapsed ? 'absolute right-1 top-1' : 'ml-auto'
+                            }`}
+                          >
+                            {pendingEncomendas > 99 ? '99+' : pendingEncomendas}
                           </span>
                         )}
                         {!isCollapsed && item.subItems && (
