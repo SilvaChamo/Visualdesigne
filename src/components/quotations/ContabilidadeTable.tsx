@@ -7,6 +7,7 @@ import {
   panelTabBar, panelTabBtn, panelTabBtnActive, panelTabBtnInactive,
 } from '@/lib/panel-ui'
 import { formatMt } from '@/lib/pricing-catalog'
+import { PedidoAccordionRow, type PedidoCliente } from './PedidoAccordionRow'
 
 // Valores negativos (lucro pode ficar negativo quando os custos ultrapassam
 // a receita) saem sempre a vermelho, seja qual for a tabela/linha.
@@ -90,7 +91,7 @@ function openDocumentPopup(itemId: string, tipo?: 'factura', fase?: 'adiantament
   window.open(`/cotacao/${itemId}${query}`, `documento-${itemId}-${tipo ?? 'cotacao'}-${fase ?? ''}`, `width=${w},height=${h},left=${left},top=${top},resizable=yes,scrollbars=yes`)
 }
 
-type ContabilidadeTab = 'balanco' | 'cotacoes' | 'facturas' | 'creditos' | 'renovacoes' | 'eliminadas'
+type ContabilidadeTab = 'balanco' | 'cotacoes' | 'facturas' | 'creditos' | 'renovacoes' | 'dominios' | 'hospedagem' | 'emails' | 'eliminadas'
 
 const TABS: { id: ContabilidadeTab; label: string }[] = [
   { id: 'balanco', label: 'Balanço' },
@@ -98,6 +99,9 @@ const TABS: { id: ContabilidadeTab; label: string }[] = [
   { id: 'facturas', label: 'Facturas' },
   { id: 'creditos', label: 'Créditos' },
   { id: 'renovacoes', label: 'Renovações' },
+  { id: 'dominios', label: 'Domínios' },
+  { id: 'hospedagem', label: 'Hospedagem' },
+  { id: 'emails', label: 'E-mails' },
   { id: 'eliminadas', label: 'Eliminadas' },
 ]
 
@@ -159,6 +163,9 @@ export function ContabilidadeTable() {
       {activeTab === 'facturas' && <RegistosTable registos={registos} variant="factura" />}
       {activeTab === 'creditos' && <ResellerCreditsTable />}
       {activeTab === 'renovacoes' && <RenewalPaymentsTable />}
+      {activeTab === 'dominios' && <CheckoutItemsByType types={['domain']} />}
+      {activeTab === 'hospedagem' && <CheckoutItemsByType types={['hosting', 'ssl']} />}
+      {activeTab === 'emails' && <CheckoutItemsByType types={['email']} />}
       {activeTab === 'eliminadas' && <EliminadasTable registos={eliminados} onChanged={load} />}
     </div>
   )
@@ -233,80 +240,24 @@ function ResellerCreditsTable() {
   }
 
   return (
-    <div className={`${panelSectionCard} overflow-hidden`}>
-      <div className="overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b border-gray-200 text-xs font-bold uppercase tracking-wide text-gray-500 dark:border-zinc-700 dark:text-zinc-400">
-              <th className="px-4 py-2 text-left whitespace-nowrap">Data</th>
-              <th className="px-4 py-2 text-left">Revendedor</th>
-              <th className="px-4 py-2 text-right whitespace-nowrap">Valor</th>
-              <th className="px-4 py-2 text-left whitespace-nowrap">Método</th>
-              <th className="px-4 py-2 text-left whitespace-nowrap">Comprovativo</th>
-              <th className="px-4 py-2 text-right whitespace-nowrap">Estado</th>
-              <th className="px-4 py-2 text-right whitespace-nowrap"> </th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-100 dark:divide-zinc-800">
-            {pedidos.map((p) => {
-              const meta = CREDITO_STATUS_META[p.status]
-              return (
-                <tr key={p.id} className="hover:bg-gray-50 dark:hover:bg-zinc-800/30">
-                  <td className="whitespace-nowrap px-4 py-2.5 text-gray-500 dark:text-zinc-400">
-                    {new Date(p.created_at).toLocaleDateString('pt-PT')}
-                  </td>
-                  <td className="max-w-[12rem] truncate px-4 py-2.5 font-medium text-gray-900 dark:text-white">
-                    {p.da_username}{p.email ? <span className="text-gray-400 dark:text-zinc-500"> · {p.email}</span> : null}
-                  </td>
-                  <td className="whitespace-nowrap px-4 py-2.5 text-right font-bold tabular-nums text-gray-900 dark:text-white">
-                    {formatMt(p.valor_mt)} MT
-                  </td>
-                  <td className="whitespace-nowrap px-4 py-2.5 text-gray-500 dark:text-zinc-400">
-                    {METODO_LABEL[p.metodo_pagamento] || p.metodo_pagamento}
-                  </td>
-                  <td className="whitespace-nowrap px-4 py-2.5">
-                    {p.comprovativo_url ? (
-                      <a href={p.comprovativo_url} target="_blank" rel="noopener noreferrer" className="text-xs font-medium text-red-600 hover:underline dark:text-red-400">
-                        Ver ficheiro
-                      </a>
-                    ) : (
-                      <span className="text-xs text-gray-400 dark:text-zinc-500">Sem comprovativo</span>
-                    )}
-                  </td>
-                  <td className="whitespace-nowrap px-4 py-2.5 text-right">
-                    <span className={`px-2.5 py-1 rounded-full text-xs font-bold ${meta.className}`}>{meta.label}</span>
-                    {p.status === 'rejected' && p.rejection_reason && (
-                      <p className="mt-1 text-xs text-gray-400 dark:text-zinc-500">{p.rejection_reason}</p>
-                    )}
-                  </td>
-                  <td className="whitespace-nowrap px-4 py-2.5 text-right">
-                    {p.status === 'pending' && (
-                      <div className="flex items-center justify-end gap-2">
-                        <button
-                          type="button"
-                          disabled={updatingId === p.id}
-                          onClick={() => respond(p.id, 'confirmed')}
-                          className="text-xs font-medium text-green-600 hover:underline disabled:opacity-50 dark:text-green-400"
-                        >
-                          Confirmar
-                        </button>
-                        <button
-                          type="button"
-                          disabled={updatingId === p.id}
-                          onClick={() => respond(p.id, 'rejected')}
-                          className="text-xs font-medium text-rose-600 hover:underline disabled:opacity-50 dark:text-rose-400"
-                        >
-                          Rejeitar
-                        </button>
-                      </div>
-                    )}
-                  </td>
-                </tr>
-              )
-            })}
-          </tbody>
-        </table>
-      </div>
+    <div className="space-y-3">
+      {pedidos.map((p) => (
+        <PedidoAccordionRow
+          key={p.id}
+          dataCreated={p.created_at}
+          cliente={{ nome: p.da_username, email: p.email }}
+          resumo="Carregamento de saldo (revendedor)"
+          valorMt={p.valor_mt}
+          metodoLabel={METODO_LABEL[p.metodo_pagamento] || p.metodo_pagamento}
+          status={CREDITO_STATUS_META[p.status]}
+          comprovativoUrl={p.comprovativo_url}
+          rejectionReason={p.rejection_reason}
+          canAct={p.status === 'pending'}
+          updating={updatingId === p.id}
+          onConfirm={() => respond(p.id, 'confirmed')}
+          onReject={() => respond(p.id, 'rejected')}
+        />
+      ))}
     </div>
   )
 }
@@ -796,6 +747,7 @@ type RenewalPedido = {
   comprovativo_url: string | null
   rejection_reason: string | null
   created_at: string
+  cliente: PedidoCliente | null
 }
 
 function RenewalPaymentsTable() {
@@ -847,82 +799,143 @@ function RenewalPaymentsTable() {
   }
 
   return (
-    <div className={`${panelSectionCard} overflow-hidden`}>
-      <div className="overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b border-gray-200 text-xs font-bold uppercase tracking-wide text-gray-500 dark:border-zinc-700 dark:text-zinc-400">
-              <th className="px-4 py-2 text-left whitespace-nowrap">Data</th>
-              <th className="px-4 py-2 text-left">Serviço</th>
-              <th className="px-4 py-2 text-left whitespace-nowrap">Tipo</th>
-              <th className="px-4 py-2 text-right whitespace-nowrap">Valor</th>
-              <th className="px-4 py-2 text-left whitespace-nowrap">Método</th>
-              <th className="px-4 py-2 text-left whitespace-nowrap">Comprovativo</th>
-              <th className="px-4 py-2 text-right whitespace-nowrap">Estado</th>
-              <th className="px-4 py-2 text-right whitespace-nowrap"> </th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-100 dark:divide-zinc-800">
-            {pedidos.map((p) => {
-              const meta = CREDITO_STATUS_META[p.status]
-              return (
-                <tr key={p.id} className="hover:bg-gray-50 dark:hover:bg-zinc-800/30">
-                  <td className="whitespace-nowrap px-4 py-2.5 text-gray-500 dark:text-zinc-400">
-                    {new Date(p.created_at).toLocaleDateString('pt-PT')}
-                  </td>
-                  <td className="max-w-[12rem] truncate px-4 py-2.5 font-medium text-gray-900 dark:text-white">{p.service_name}</td>
-                  <td className="whitespace-nowrap px-4 py-2.5 text-gray-500 dark:text-zinc-400">
-                    {p.renewal_type === 'domain' ? 'Domínio' : 'Hospedagem'}
-                  </td>
-                  <td className="whitespace-nowrap px-4 py-2.5 text-right font-bold tabular-nums text-gray-900 dark:text-white">
-                    {formatMt(p.valor_mt)} MT
-                  </td>
-                  <td className="whitespace-nowrap px-4 py-2.5 text-gray-500 dark:text-zinc-400">
-                    {METODO_LABEL[p.metodo_pagamento] || p.metodo_pagamento}
-                  </td>
-                  <td className="whitespace-nowrap px-4 py-2.5">
-                    {p.comprovativo_url ? (
-                      <a href={p.comprovativo_url} target="_blank" rel="noopener noreferrer" className="text-xs font-medium text-red-600 hover:underline dark:text-red-400">
-                        Ver ficheiro
-                      </a>
-                    ) : (
-                      <span className="text-xs text-gray-400 dark:text-zinc-500">Sem comprovativo</span>
-                    )}
-                  </td>
-                  <td className="whitespace-nowrap px-4 py-2.5 text-right">
-                    <span className={`px-2.5 py-1 rounded-full text-xs font-bold ${meta.className}`}>{meta.label}</span>
-                    {p.status === 'rejected' && p.rejection_reason && (
-                      <p className="mt-1 text-xs text-gray-400 dark:text-zinc-500">{p.rejection_reason}</p>
-                    )}
-                  </td>
-                  <td className="whitespace-nowrap px-4 py-2.5 text-right">
-                    {p.status === 'pending' && (
-                      <div className="flex items-center justify-end gap-2">
-                        <button
-                          type="button"
-                          disabled={updatingId === p.id}
-                          onClick={() => respond(p.id, 'confirmed')}
-                          className="text-xs font-medium text-green-600 hover:underline disabled:opacity-50 dark:text-green-400"
-                        >
-                          Confirmar
-                        </button>
-                        <button
-                          type="button"
-                          disabled={updatingId === p.id}
-                          onClick={() => respond(p.id, 'rejected')}
-                          className="text-xs font-medium text-rose-600 hover:underline disabled:opacity-50 dark:text-rose-400"
-                        >
-                          Rejeitar
-                        </button>
-                      </div>
-                    )}
-                  </td>
-                </tr>
-              )
-            })}
-          </tbody>
-        </table>
-      </div>
+    <div className="space-y-3">
+      {pedidos.map((p) => (
+        <PedidoAccordionRow
+          key={p.id}
+          dataCreated={p.created_at}
+          cliente={p.cliente || {}}
+          resumo={`${p.service_name} (renovação de ${p.renewal_type === 'domain' ? 'domínio' : 'hospedagem'})`}
+          valorMt={p.valor_mt}
+          metodoLabel={METODO_LABEL[p.metodo_pagamento] || p.metodo_pagamento}
+          status={CREDITO_STATUS_META[p.status]}
+          comprovativoUrl={p.comprovativo_url}
+          rejectionReason={p.rejection_reason}
+          canAct={p.status === 'pending'}
+          updating={updatingId === p.id}
+          onConfirm={() => respond(p.id, 'confirmed')}
+          onReject={() => respond(p.id, 'rejected')}
+        />
+      ))}
+    </div>
+  )
+}
+
+type CheckoutItem = {
+  name: string
+  type: string
+  status?: 'pending' | 'paid' | 'failed'
+  rejectionReason?: string | null
+}
+
+type CheckoutPedido = {
+  id: string
+  user_id: string
+  user_email: string | null
+  cliente: PedidoCliente | null
+  items: CheckoutItem[]
+  total_mt: number
+  metodo_pagamento: string
+  status: 'pending' | 'paid' | 'failed' | 'expired'
+  comprovativo_url: string | null
+  created_at: string
+}
+
+const ITEM_STATUS_META: Record<'pending' | 'paid' | 'failed' | 'expired', { label: string; className: string }> = {
+  pending: { label: 'Pendente', className: 'bg-amber-100 text-amber-700 dark:bg-amber-950/30 dark:text-amber-400' },
+  paid: { label: 'Confirmado', className: 'bg-green-100 text-green-700 dark:bg-green-950/30 dark:text-green-400' },
+  failed: { label: 'Rejeitado', className: 'bg-rose-100 text-rose-700 dark:bg-rose-950/30 dark:text-rose-400' },
+  expired: { label: 'Expirado', className: 'bg-gray-100 text-gray-700 dark:bg-zinc-800 dark:text-zinc-400' },
+}
+
+/**
+ * Itens de um tipo (domínio/hospedagem/e-mail) de compras novas do carrinho
+ * pagas por M-Pesa/Transferência — Cartão via Stripe não aparece aqui. Um
+ * pedido pode ter itens de tipos diferentes (ex: domínio + hospedagem juntos);
+ * cada item é aprovado separadamente (mesma lógica das Encomendas), por isso
+ * aqui iteramos item a item, não pedido a pedido — o mesmo pedido pode
+ * aparecer neste separador e noutro, cada vez só com o item relevante.
+ */
+function CheckoutItemsByType({ types }: { types: string[] }) {
+  const [pedidos, setPedidos] = useState<CheckoutPedido[] | null>(null)
+  const [updatingKey, setUpdatingKey] = useState<string | null>(null)
+
+  const load = () => {
+    fetch('/api/admin/checkout-pagamentos')
+      .then((r) => r.json())
+      .then((data) => { if (data.success) setPedidos(data.pedidos) })
+      .catch((error) => console.error('Erro ao carregar pagamentos do carrinho:', error))
+  }
+
+  useEffect(() => {
+    load()
+  }, [])
+
+  const respond = async (pedidoId: string, itemIndex: number, status: 'paid' | 'failed') => {
+    let rejectionReason: string | null = null
+    if (status === 'failed') {
+      rejectionReason = window.prompt('Motivo da rejeição (opcional):', '')
+      if (rejectionReason === null) return
+    } else if (!window.confirm('Confirmar este item? O produto é activado de imediato.')) {
+      return
+    }
+
+    const key = `${pedidoId}-${itemIndex}`
+    setUpdatingKey(key)
+    try {
+      const res = await fetch(`/api/admin/checkout-pagamentos/${pedidoId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ itemIndex, status, rejectionReason }),
+      })
+      const data = await res.json()
+      if (!data.success) throw new Error(data.error || 'Não foi possível actualizar o item.')
+      load()
+    } catch (error: any) {
+      window.alert(error.message || 'Falha ao comunicar com o servidor.')
+    } finally {
+      setUpdatingKey(null)
+    }
+  }
+
+  if (!pedidos) {
+    return <div className="text-center py-12 text-sm text-gray-400 dark:text-zinc-500">A carregar pagamentos do carrinho...</div>
+  }
+
+  const rows = pedidos.flatMap((p) =>
+    (p.items || [])
+      .map((item, itemIndex) => ({ pedido: p, item, itemIndex }))
+      .filter(({ item }) => types.includes(item.type)),
+  )
+
+  if (rows.length === 0) {
+    return <div className={`${panelSectionCard} p-8 text-center text-sm text-gray-500 dark:text-zinc-400`}>Ainda não há pedidos de pagamento manual do carrinho nesta categoria.</div>
+  }
+
+  return (
+    <div className="space-y-3">
+      {rows.map(({ pedido: p, item, itemIndex }) => {
+        const itemStatus = item.status ?? p.status
+        const key = `${p.id}-${itemIndex}`
+        const resumo = (p.items || []).length > 1 ? `${item.name} (+ ${(p.items || []).filter((_, i) => i !== itemIndex).map((i) => i.name).join(', ')})` : item.name
+        return (
+          <PedidoAccordionRow
+            key={key}
+            dataCreated={p.created_at}
+            cliente={p.cliente || { email: p.user_email }}
+            resumo={resumo}
+            valorMt={p.total_mt}
+            metodoLabel={METODO_LABEL[p.metodo_pagamento] || p.metodo_pagamento}
+            status={ITEM_STATUS_META[itemStatus] || ITEM_STATUS_META.pending}
+            comprovativoUrl={p.comprovativo_url}
+            rejectionReason={item.rejectionReason}
+            canAct={itemStatus === 'pending'}
+            updating={updatingKey === key}
+            onConfirm={() => respond(p.id, itemIndex, 'paid')}
+            onReject={() => respond(p.id, itemIndex, 'failed')}
+          />
+        )
+      })}
     </div>
   )
 }

@@ -224,11 +224,12 @@ export function AdminSidebar({
 
   // Pagamentos manuais (M-Pesa/Transferência) pendentes de confirmação — evita
   // que fiquem esquecidos na Contabilidade à espera de a equipa reparar sozinha.
+  // Soma créditos + renovações + itens de compras (domínio/hospedagem/e-mail).
   const [pendingPagamentos, setPendingPagamentos] = React.useState(0);
   React.useEffect(() => {
     let cancelled = false;
     const fetchPending = () => {
-      fetch('/api/admin/checkout-pagamentos')
+      fetch('/api/admin/contabilidade-pendentes')
         .then((r) => r.json())
         .then((data) => {
           if (!cancelled && data?.success) setPendingPagamentos(data.stats?.pendentes || 0);
