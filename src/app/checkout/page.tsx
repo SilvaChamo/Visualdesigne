@@ -1,12 +1,14 @@
 'use client';
 
-import React, { useState, Suspense } from 'react';
+import React, { useState, useEffect, useRef, Suspense } from 'react';
 import { useCart } from '@/contexts/CartContext';
 import { supabase } from '@/lib/supabase-client';
 import { useAuth } from '@/components/auth/AuthProvider';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { RenewalCheckout } from './RenewalCheckout';
+import { MPESA_NUMBER, BANK_NAME, BANK_ACCOUNT, BANK_NIB } from '@/lib/quotation-payment-info';
+import { formatMt } from '@/lib/pricing-catalog';
 import {
   CreditCard,
   Lock,
@@ -19,9 +21,34 @@ import {
   Mail,
   Shield,
   Eye,
-  EyeOff
+  EyeOff,
+  Smartphone,
+  Landmark,
+  Upload,
+  ShieldCheck,
+  BadgeCheck,
+  Clock,
+  Zap,
+  Printer,
+  FileDown,
+  ArrowLeft,
+  Info
 } from 'lucide-react';
 import { Spinner } from '@/components/ui/spinner';
+
+type MetodoPagamento = 'stripe' | 'mpesa' | 'transferencia';
+
+const METODO_META: Record<MetodoPagamento, { label: string; icon: typeof Smartphone }> = {
+  transferencia: { label: 'Transferência Bancária', icon: Landmark },
+  mpesa: { label: 'M-Pesa', icon: Smartphone },
+  stripe: { label: 'Cartão (Stripe)', icon: CreditCard },
+};
+
+type ManualSession = {
+  id: string;
+  status: 'pending' | 'paid' | 'failed' | 'expired';
+  comprovativo_url: string | null;
+};
 
 function CheckoutContent() {
   const { items, total, clearCart } = useCart();
@@ -32,6 +59,7 @@ function CheckoutContent() {
   const renewalId = searchParams.get('renewalId');
 
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [metodoPagamento, setMetodoPagamento] = useState<MetodoPagamento>('transferencia');
 
   // Account Form State (For unauthenticated users)
   const [accountForm, setAccountForm] = useState({
@@ -53,6 +81,34 @@ function CheckoutContent() {
   // Flow State
   const [status, setStatus] = useState<'idle' | 'registering' | 'redirecting' | 'error'>('idle');
   const [errorMessage, setErrorMessage] = useState('');
+
+  // Pedido de pagamento manual (M-Pesa/Transferência) criado — fica visível
+  // até a equipa confirmar/rejeitar; substitui o botão "Pagar" por um
+  // resumo + upload de comprovativo (mesmo padrão de /cotacao/[id]/pagamento).
+  const [manualSession, setManualSession] = useState<ManualSession | null>(null);
+  const [uploadingComprovativo, setUploadingComprovativo] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Sondagem do estado enquanto o pedido manual está pendente — a equipa
+  // confirma no painel admin, sem o cliente ter de recarregar a página.
+  useEffect(() => {
+    if (!manualSession || manualSession.status !== 'pending') return;
+    let cancelled = false;
+    const poll = async () => {
+      try {
+        const res = await fetch(`/api/checkout/session-status?session_id=${manualSession.id}`);
+        const data = await res.json();
+        if (cancelled || !data.success) return;
+        if (data.session.status !== 'pending') {
+          setManualSession((prev) => (prev ? { ...prev, status: data.session.status } : prev));
+        }
+      } catch {
+        /* tenta novamente no próximo intervalo */
+      }
+    };
+    const interval = setInterval(poll, 4000);
+    return () => { cancelled = true; clearInterval(interval); };
+  }, [manualSession]);
 
   const handlePay = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -118,23 +174,59 @@ function CheckoutContent() {
         }
       }
 
-      setStatus('redirecting');
-      const res = await fetch('/api/checkout/create-session', {
+      if (metodoPagamento === 'stripe') {
+        setStatus('redirecting');
+        const res = await fetch('/api/checkout/create-session', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ items }),
+        });
+        const data = await res.json();
+        if (!res.ok || !data.success || !data.url) {
+          throw new Error(data.error || 'Não foi possível iniciar o pagamento com Stripe.');
+        }
+        // Redirecciona para o Stripe Checkout hospedado — o webhook confirma o pagamento
+        // e activa os produtos; esta página não marca nada como "pago" directamente.
+        window.location.href = data.url;
+        return;
+      }
+
+      // M-Pesa / Transferência — regista o pedido como pendente; a equipa
+      // confirma manualmente depois de ver o comprovativo (ver /api/admin/checkout-pagamentos).
+      const res = await fetch('/api/checkout/manual-session', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ items }),
+        body: JSON.stringify({ items, metodoPagamento }),
       });
       const data = await res.json();
-      if (!res.ok || !data.success || !data.url) {
-        throw new Error(data.error || 'Não foi possível iniciar o pagamento com Stripe.');
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || 'Não foi possível registar o pedido de pagamento.');
       }
-      // Redirecciona para o Stripe Checkout hospedado — o webhook confirma o pagamento
-      // e activa os produtos; esta página não marca nada como "pago" directamente.
-      window.location.href = data.url;
+      setManualSession({ id: data.session.id, status: 'pending', comprovativo_url: null });
+      clearCart();
+      setStatus('idle');
+      setIsSubmitting(false);
     } catch (err: any) {
       setErrorMessage(err.message || 'Falha ao comunicar com o servidor de registo.');
       setStatus('error');
       setIsSubmitting(false);
+    }
+  };
+
+  const handleUploadComprovativo = async (file: File) => {
+    if (!manualSession) return;
+    setUploadingComprovativo(true);
+    try {
+      const form = new FormData();
+      form.append('file', file);
+      const res = await fetch(`/api/checkout/${manualSession.id}/comprovativo`, { method: 'POST', body: form });
+      const data = await res.json();
+      if (!res.ok || !data.success) throw new Error(data.error || 'Não foi possível enviar o comprovativo.');
+      setManualSession((prev) => (prev ? { ...prev, comprovativo_url: data.session.comprovativo_url } : prev));
+    } catch (err: any) {
+      window.alert(err.message || 'Falha ao enviar o comprovativo.');
+    } finally {
+      setUploadingComprovativo(false);
     }
   };
 
@@ -179,11 +271,94 @@ function CheckoutContent() {
     ssl: <Shield className="w-4 h-4 text-green-650 dark:text-green-400" />,
   };
 
+  const clientName = authUser?.user_metadata?.full_name || authUser?.user_metadata?.nome || authUser?.email?.split('@')[0];
+
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-zinc-950 pt-32 pb-16 transition-colors duration-200">
       <div className="max-w-7xl mx-auto px-4 mt-4">
 
-        {items.length === 0 ? (
+        {manualSession ? (
+          <div className="max-w-2xl mx-auto">
+            {manualSession.status === 'paid' ? (
+              <div className="bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-lg p-10 text-center space-y-4 shadow-sm">
+                <CheckCircle2 className="w-14 h-14 text-green-500 mx-auto" />
+                <h2 className="text-xl font-bold text-slate-800 dark:text-zinc-100 font-panel">Pagamento confirmado</h2>
+                <p className="text-sm text-slate-500 dark:text-zinc-400">Os seus produtos já foram activados.</p>
+                <button
+                  onClick={() => router.push('/cliente')}
+                  className="bg-red-600 hover:bg-red-700 text-white font-bold py-3 px-6 rounded-md transition-colors"
+                >
+                  Ir para o Painel
+                </button>
+              </div>
+            ) : manualSession.status === 'failed' ? (
+              <div className="bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-lg p-10 text-center space-y-4 shadow-sm">
+                <AlertCircle className="w-14 h-14 text-rose-500 mx-auto" />
+                <h2 className="text-xl font-bold text-slate-800 dark:text-zinc-100 font-panel">Pagamento não confirmado</h2>
+                <p className="text-sm text-slate-500 dark:text-zinc-400">
+                  A nossa equipa não conseguiu confirmar este pagamento. Contacte o suporte ou tente novamente.
+                </p>
+                <button
+                  onClick={() => setManualSession(null)}
+                  className="bg-red-600 hover:bg-red-700 text-white font-bold py-3 px-6 rounded-md transition-colors"
+                >
+                  Voltar ao Checkout
+                </button>
+              </div>
+            ) : (
+              <div className="bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-lg p-6 shadow-sm space-y-5">
+                <div className="flex items-center gap-2 text-blue-700 dark:text-blue-400">
+                  <Clock className="w-5 h-5" />
+                  <h3 className="font-bold text-sm">Pedido registado — a aguardar confirmação</h3>
+                </div>
+
+                <div className="bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200 dark:border-zinc-800 rounded-lg p-4 text-sm text-zinc-700 dark:text-zinc-300 space-y-0.5">
+                  {metodoPagamento === 'mpesa' ? (
+                    <p>Envie o valor para <span className="font-bold">{MPESA_NUMBER}</span>.</p>
+                  ) : (
+                    <>
+                      <p>{BANK_NAME}</p>
+                      <p>Conta BCI: <span className="font-bold">{BANK_ACCOUNT}</span></p>
+                      <p>NIB: <span className="font-bold">{BANK_NIB}</span></p>
+                    </>
+                  )}
+                </div>
+
+                {manualSession.comprovativo_url ? (
+                  <div className="flex items-center gap-2 text-sm text-green-700 bg-green-50 border border-green-200 rounded-md p-3">
+                    <CheckCircle2 className="w-4 h-4 shrink-0" /> Comprovativo enviado — a aguardar confirmação da equipa.
+                  </div>
+                ) : (
+                  <>
+                    <p className="text-sm text-slate-600 dark:text-zinc-300">
+                      Depois de pagar, anexe o comprovativo para acelerar a confirmação.
+                    </p>
+                    <label className="flex items-center justify-center gap-2 w-full px-4 py-3 border-2 border-dashed border-slate-300 dark:border-zinc-700 rounded-md text-sm text-slate-600 dark:text-zinc-300 hover:border-red-400 hover:text-red-600 cursor-pointer transition-colors">
+                      {uploadingComprovativo ? <Spinner className="w-4 h-4" /> : <Upload className="w-4 h-4" />}
+                      {uploadingComprovativo ? 'A enviar...' : 'Anexar comprovativo de pagamento'}
+                      <input
+                        ref={fileInputRef}
+                        type="file"
+                        accept="image/*,.pdf"
+                        className="hidden"
+                        disabled={uploadingComprovativo}
+                        onChange={(e) => { const f = e.target.files?.[0]; if (f) handleUploadComprovativo(f); }}
+                      />
+                    </label>
+                  </>
+                )}
+
+                <button
+                  type="button"
+                  onClick={() => router.push('/cliente')}
+                  className="w-full border border-slate-200 dark:border-zinc-800 text-slate-600 dark:text-zinc-400 font-bold py-2.5 rounded-md text-sm hover:bg-slate-50 dark:hover:bg-zinc-800 transition-colors"
+                >
+                  Ir para o Painel (acompanhar depois)
+                </button>
+              </div>
+            )}
+          </div>
+        ) : items.length === 0 ? (
           <div className="bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-lg p-12 text-center max-w-lg mx-auto space-y-6 shadow-sm">
             <ShoppingCart className="w-16 h-16 text-slate-300 dark:text-zinc-700 mx-auto" />
             <h2 className="text-xl font-bold text-slate-800 dark:text-zinc-100 font-panel">O seu carrinho está vazio</h2>
@@ -200,8 +375,26 @@ function CheckoutContent() {
         ) : (
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
 
-            {/* Left Column: Form and loading steps */}
-            <div className="lg:col-span-8 space-y-5">
+            {/* Left Column: Account data / form and loading steps */}
+            <div className="lg:col-span-9 space-y-5">
+
+              {/* Dados da conta — só quando já tem sessão iniciada; para quem não
+                  tem conta, é o próprio formulário abaixo que cumpre este papel. */}
+              {isAuthenticated === true && (status === 'idle' || status === 'error') && (
+                <div className="bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-lg p-6 shadow-sm">
+                  <p className="text-xs font-bold uppercase tracking-wide text-slate-400 dark:text-zinc-500 mb-3">Dados da Conta</p>
+                  <div className="grid grid-cols-2 gap-4 text-sm">
+                    <div>
+                      <span className="text-xs text-slate-400 dark:text-zinc-500 block mb-0.5">Cliente</span>
+                      <span className="font-bold text-slate-800 dark:text-zinc-100">{clientName}</span>
+                    </div>
+                    <div>
+                      <span className="text-xs text-slate-400 dark:text-zinc-500 block mb-0.5">Email</span>
+                      <span className="font-bold text-slate-800 dark:text-zinc-100 truncate block">{authUser?.email}</span>
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {/* PROCESSING STEPS */}
               {(status === 'registering' || status === 'redirecting') && (
@@ -248,69 +441,71 @@ function CheckoutContent() {
                         </p>
                       </div>
 
-                      <div className="space-y-8">
-                        {/* Informação pessoal */}
-                        <div>
-                          <h3 className="text-xl font-bold text-slate-800 dark:text-zinc-50 mb-4">Informação pessoal</h3>
-                          <div className="grid grid-cols-2 gap-4">
-                            <div>
-                              <label className="text-xs font-bold text-slate-600 dark:text-zinc-400 mb-1.5 block">Nome</label>
-                              <input type="text" value={accountForm.name} onChange={e => setAccountForm(p => ({ ...p, name: e.target.value }))} className="w-full px-4 py-3 border border-slate-200 dark:border-zinc-800 bg-slate-50 dark:bg-zinc-950 text-slate-800 dark:text-zinc-100 rounded-md text-sm outline-none focus:ring-1 focus:ring-blue-500" />
-                            </div>
-                            <div>
-                              <label className="text-xs font-bold text-slate-600 dark:text-zinc-400 mb-1.5 block">Sobrenome</label>
-                              <input type="text" value={accountForm.sobrenome} onChange={e => setAccountForm(p => ({ ...p, sobrenome: e.target.value }))} className="w-full px-4 py-3 border border-slate-200 dark:border-zinc-800 bg-slate-50 dark:bg-zinc-950 text-slate-800 dark:text-zinc-100 rounded-md text-sm outline-none focus:ring-1 focus:ring-blue-500" />
-                            </div>
-                            <div>
-                              <label className="text-xs font-bold text-slate-600 dark:text-zinc-400 mb-1.5 block">E-mail</label>
-                              <input type="email" value={accountForm.email} onChange={e => setAccountForm(p => ({ ...p, email: e.target.value }))} className="w-full px-4 py-3 border border-slate-200 dark:border-zinc-800 bg-slate-50 dark:bg-zinc-950 text-slate-800 dark:text-zinc-100 rounded-md text-sm outline-none focus:ring-1 focus:ring-blue-500" />
-                            </div>
-                            <div>
-                              <label className="text-xs font-bold text-slate-600 dark:text-zinc-400 mb-1.5 block">Telefone</label>
-                              <div className="flex border border-slate-200 dark:border-zinc-800 rounded-md bg-slate-50 dark:bg-zinc-950 overflow-hidden focus-within:ring-1 focus-within:ring-blue-500">
-                                <div className="relative flex items-center border-r border-slate-200 dark:border-zinc-800 bg-slate-100 dark:bg-zinc-900">
-                                  <select className="pl-3 pr-8 py-3 bg-transparent text-sm text-slate-700 dark:text-zinc-300 outline-none cursor-pointer appearance-none w-full h-full">
-                                    <option value="+258">🇲🇿 +258</option>
-                                    <option value="+244">🇦🇴 +244</option>
-                                    <option value="+351">🇵🇹 +351</option>
-                                    <option value="+55">🇧🇷 +55</option>
-                                  </select>
-                                  <svg className="w-3 h-3 text-slate-400 absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path></svg>
-                                </div>
-                                <input type="tel" value={accountForm.telefone} onChange={e => setAccountForm(p => ({ ...p, telefone: e.target.value }))} className="flex-1 min-w-0 px-3 py-3 bg-transparent text-slate-800 dark:text-zinc-100 text-sm outline-none" />
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-8">
+                        {/* Dados da pessoa responsável */}
+                        <div className="space-y-4">
+                          <h3 className="text-xs font-bold uppercase tracking-wide text-slate-400 dark:text-zinc-500 pb-3 border-b border-slate-100 dark:border-zinc-800">
+                            Dados da Pessoa Responsável
+                          </h3>
+                          <div>
+                            <label className="text-xs font-bold text-slate-600 dark:text-zinc-400 mb-1.5 block">Nome</label>
+                            <input type="text" value={accountForm.name} onChange={e => setAccountForm(p => ({ ...p, name: e.target.value }))} className="w-full px-4 py-3 border border-slate-200 dark:border-zinc-800 bg-slate-50 dark:bg-zinc-950 text-slate-800 dark:text-zinc-100 rounded-md text-sm outline-none focus:ring-1 focus:ring-blue-500" />
+                          </div>
+                          <div>
+                            <label className="text-xs font-bold text-slate-600 dark:text-zinc-400 mb-1.5 block">Sobrenome</label>
+                            <input type="text" value={accountForm.sobrenome} onChange={e => setAccountForm(p => ({ ...p, sobrenome: e.target.value }))} className="w-full px-4 py-3 border border-slate-200 dark:border-zinc-800 bg-slate-50 dark:bg-zinc-950 text-slate-800 dark:text-zinc-100 rounded-md text-sm outline-none focus:ring-1 focus:ring-blue-500" />
+                          </div>
+                          <div>
+                            <label className="text-xs font-bold text-slate-600 dark:text-zinc-400 mb-1.5 block">E-mail</label>
+                            <input type="email" value={accountForm.email} onChange={e => setAccountForm(p => ({ ...p, email: e.target.value }))} className="w-full px-4 py-3 border border-slate-200 dark:border-zinc-800 bg-slate-50 dark:bg-zinc-950 text-slate-800 dark:text-zinc-100 rounded-md text-sm outline-none focus:ring-1 focus:ring-blue-500" />
+                          </div>
+                          <div>
+                            <label className="text-xs font-bold text-slate-600 dark:text-zinc-400 mb-1.5 block">Telefone</label>
+                            <div className="flex border border-slate-200 dark:border-zinc-800 rounded-md bg-slate-50 dark:bg-zinc-950 overflow-hidden focus-within:ring-1 focus-within:ring-blue-500">
+                              <div className="relative flex items-center border-r border-slate-200 dark:border-zinc-800 bg-slate-100 dark:bg-zinc-900">
+                                <select className="pl-3 pr-8 py-3 bg-transparent text-sm text-slate-700 dark:text-zinc-300 outline-none cursor-pointer appearance-none w-full h-full">
+                                  <option value="+258">🇲🇿 +258</option>
+                                  <option value="+244">🇦🇴 +244</option>
+                                  <option value="+351">🇵🇹 +351</option>
+                                  <option value="+55">🇧🇷 +55</option>
+                                </select>
+                                <svg className="w-3 h-3 text-slate-400 absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path></svg>
                               </div>
+                              <input type="tel" value={accountForm.telefone} onChange={e => setAccountForm(p => ({ ...p, telefone: e.target.value }))} className="flex-1 min-w-0 px-3 py-3 bg-transparent text-slate-800 dark:text-zinc-100 text-sm outline-none" />
                             </div>
-                            <div className="col-span-2">
-                              <div className="flex justify-between items-end mb-1.5">
-                                <label className="text-xs font-bold text-slate-600 dark:text-zinc-400 block">Palavra-passe para a conta (mín. 6 caracteres)</label>
-                                <button type="button" onClick={() => { setAccountForm(p => ({ ...p, password: Math.random().toString(36).slice(-6) + Math.random().toString(36).slice(-2).toUpperCase() + '@' })); setShowPassword(true); }} className="text-[10px] font-bold text-blue-600 dark:text-blue-400 hover:underline">Gerar senha segura</button>
-                              </div>
-                              <div className="relative">
-                                <input type={showPassword ? 'text' : 'password'} value={accountForm.password} onChange={e => setAccountForm(p => ({ ...p, password: e.target.value }))} className="w-full px-4 py-3 border border-slate-200 dark:border-zinc-800 bg-slate-50 dark:bg-zinc-950 text-slate-800 dark:text-zinc-100 rounded-md text-sm outline-none focus:ring-1 focus:ring-blue-500 pr-10" />
-                                <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-zinc-300">
-                                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                                </button>
-                              </div>
+                          </div>
+                          <div>
+                            <div className="flex justify-between items-end mb-1.5">
+                              <label className="text-xs font-bold text-slate-600 dark:text-zinc-400 block">Palavra-passe para a conta (mín. 6 caracteres)</label>
+                              <button type="button" onClick={() => { setAccountForm(p => ({ ...p, password: Math.random().toString(36).slice(-6) + Math.random().toString(36).slice(-2).toUpperCase() + '@' })); setShowPassword(true); }} className="text-[10px] font-bold text-blue-600 dark:text-blue-400 hover:underline">Gerar senha segura</button>
+                            </div>
+                            <div className="relative">
+                              <input type={showPassword ? 'text' : 'password'} value={accountForm.password} onChange={e => setAccountForm(p => ({ ...p, password: e.target.value }))} className="w-full px-4 py-3 border border-slate-200 dark:border-zinc-800 bg-slate-50 dark:bg-zinc-950 text-slate-800 dark:text-zinc-100 rounded-md text-sm outline-none focus:ring-1 focus:ring-blue-500 pr-10" />
+                              <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-zinc-300">
+                                {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                              </button>
                             </div>
                           </div>
                         </div>
 
-                        {/* Endereço de cobrança */}
-                        <div className="pt-6 border-t border-dashed border-slate-200 dark:border-zinc-800">
-                          <h3 className="text-xl font-bold text-slate-800 dark:text-zinc-50 mb-4">Endereço de cobrança</h3>
+                        {/* Dados da empresa */}
+                        <div className="space-y-4 md:pl-8 md:border-l border-slate-100 dark:border-zinc-800">
+                          <h3 className="text-xs font-bold uppercase tracking-wide text-slate-400 dark:text-zinc-500 pb-3 border-b border-slate-100 dark:border-zinc-800">
+                            Dados da Empresa
+                          </h3>
+                          <div>
+                            <label className="text-xs font-bold text-slate-600 dark:text-zinc-400 mb-1.5 block">Empresa (opcional)</label>
+                            <input type="text" value={accountForm.empresa} onChange={e => setAccountForm(p => ({ ...p, empresa: e.target.value }))} className="w-full px-4 py-3 border border-slate-200 dark:border-zinc-800 bg-slate-50 dark:bg-zinc-950 text-slate-800 dark:text-zinc-100 rounded-md text-sm outline-none focus:ring-1 focus:ring-blue-500" />
+                          </div>
+                          <div>
+                            <label className="text-xs font-bold text-slate-600 dark:text-zinc-400 mb-1.5 block">Endereço</label>
+                            <input type="text" value={accountForm.endereco} onChange={e => setAccountForm(p => ({ ...p, endereco: e.target.value }))} className="w-full px-4 py-3 border border-slate-200 dark:border-zinc-800 bg-slate-50 dark:bg-zinc-950 text-slate-800 dark:text-zinc-100 rounded-md text-sm outline-none focus:ring-1 focus:ring-blue-500" />
+                          </div>
+                          <div>
+                            <label className="text-xs font-bold text-slate-600 dark:text-zinc-400 mb-1.5 block">Endereço 2</label>
+                            <input type="text" value={accountForm.endereco2} onChange={e => setAccountForm(p => ({ ...p, endereco2: e.target.value }))} className="w-full px-4 py-3 border border-slate-200 dark:border-zinc-800 bg-slate-50 dark:bg-zinc-950 text-slate-800 dark:text-zinc-100 rounded-md text-sm outline-none focus:ring-1 focus:ring-blue-500" />
+                          </div>
                           <div className="grid grid-cols-2 gap-4">
-                            <div>
-                              <label className="text-xs font-bold text-slate-600 dark:text-zinc-400 mb-1.5 block">Empresa (opcional)</label>
-                              <input type="text" value={accountForm.empresa} onChange={e => setAccountForm(p => ({ ...p, empresa: e.target.value }))} className="w-full px-4 py-3 border border-slate-200 dark:border-zinc-800 bg-slate-50 dark:bg-zinc-950 text-slate-800 dark:text-zinc-100 rounded-md text-sm outline-none focus:ring-1 focus:ring-blue-500" />
-                            </div>
-                            <div>
-                              <label className="text-xs font-bold text-slate-600 dark:text-zinc-400 mb-1.5 block">Endereço</label>
-                              <input type="text" value={accountForm.endereco} onChange={e => setAccountForm(p => ({ ...p, endereco: e.target.value }))} className="w-full px-4 py-3 border border-slate-200 dark:border-zinc-800 bg-slate-50 dark:bg-zinc-950 text-slate-800 dark:text-zinc-100 rounded-md text-sm outline-none focus:ring-1 focus:ring-blue-500" />
-                            </div>
-                            <div>
-                              <label className="text-xs font-bold text-slate-600 dark:text-zinc-400 mb-1.5 block">Endereço 2</label>
-                              <input type="text" value={accountForm.endereco2} onChange={e => setAccountForm(p => ({ ...p, endereco2: e.target.value }))} className="w-full px-4 py-3 border border-slate-200 dark:border-zinc-800 bg-slate-50 dark:bg-zinc-950 text-slate-800 dark:text-zinc-100 rounded-md text-sm outline-none focus:ring-1 focus:ring-blue-500" />
-                            </div>
                             <div>
                               <label className="text-xs font-bold text-slate-600 dark:text-zinc-400 mb-1.5 block">Cidade</label>
                               <input type="text" value={accountForm.cidade} onChange={e => setAccountForm(p => ({ ...p, cidade: e.target.value }))} className="w-full px-4 py-3 border border-slate-200 dark:border-zinc-800 bg-slate-50 dark:bg-zinc-950 text-slate-800 dark:text-zinc-100 rounded-md text-sm outline-none focus:ring-1 focus:ring-blue-500" />
@@ -319,11 +514,13 @@ function CheckoutContent() {
                               <label className="text-xs font-bold text-slate-600 dark:text-zinc-400 mb-1.5 block">Estado</label>
                               <input type="text" value={accountForm.estado} onChange={e => setAccountForm(p => ({ ...p, estado: e.target.value }))} className="w-full px-4 py-3 border border-slate-200 dark:border-zinc-800 bg-slate-50 dark:bg-zinc-950 text-slate-800 dark:text-zinc-100 rounded-md text-sm outline-none focus:ring-1 focus:ring-blue-500" />
                             </div>
+                          </div>
+                          <div className="grid grid-cols-2 gap-4">
                             <div>
                               <label className="text-xs font-bold text-slate-600 dark:text-zinc-400 mb-1.5 block">Código Postal</label>
                               <input type="text" value={accountForm.codigoPostal} onChange={e => setAccountForm(p => ({ ...p, codigoPostal: e.target.value }))} className="w-full px-4 py-3 border border-slate-200 dark:border-zinc-800 bg-slate-50 dark:bg-zinc-950 text-slate-800 dark:text-zinc-100 rounded-md text-sm outline-none focus:ring-1 focus:ring-blue-500" />
                             </div>
-                            <div className="col-span-2">
+                            <div>
                               <label className="text-xs font-bold text-slate-600 dark:text-zinc-400 mb-1.5 block">País</label>
                               <select value={accountForm.pais} onChange={e => setAccountForm(p => ({ ...p, pais: e.target.value }))} className="w-full px-4 py-3 border border-slate-200 dark:border-zinc-800 bg-slate-50 dark:bg-zinc-950 text-slate-800 dark:text-zinc-100 rounded-md text-sm outline-none focus:ring-1 focus:ring-blue-500">
                                 <option value="Mozambique">Mozambique</option>
@@ -335,36 +532,114 @@ function CheckoutContent() {
                     </div>
                   )}
 
+                  <div className="bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-lg p-6 shadow-sm">
+                    <h3 className="text-[11px] font-bold uppercase tracking-wide text-emerald-600 dark:text-emerald-400 flex items-center gap-1.5 mb-4">
+                      <ShoppingCart className="w-3.5 h-3.5" />
+                      Resumo da Compra
+                    </h3>
+
+                    <div className="divide-y divide-slate-100 dark:divide-zinc-800/40">
+                      {items.map((item) => (
+                        <div key={item.id} className="py-3 flex justify-between items-start gap-4">
+                          <div className="flex gap-2.5 items-start">
+                            <div className="w-8 h-8 rounded-lg bg-slate-50 dark:bg-zinc-950 border border-slate-100 dark:border-zinc-850 flex items-center justify-center flex-shrink-0 mt-0.5">
+                              {typeIcon[item.type] || <Globe className="w-4 h-4 text-slate-400" />}
+                            </div>
+                            <div>
+                              <span className="inline-block px-1.5 py-0.2 bg-slate-100 dark:bg-zinc-800 text-[8px] font-bold text-slate-500 dark:text-zinc-400 rounded uppercase tracking-wider mb-0.5">
+                                {typeLabel[item.type] || item.type}
+                              </span>
+                              <h4 className="font-bold text-slate-800 dark:text-zinc-100 text-sm break-all leading-tight">{item.name}</h4>
+                              <span className="text-[10px] text-slate-400 block mt-0.5">Período: {item.period} {item.period === 1 ? 'ano' : 'anos'}</span>
+                            </div>
+                          </div>
+                          <div className="text-right flex-shrink-0">
+                            <span className="font-bold text-slate-800 dark:text-zinc-100 text-sm">{formatMt(item.price)} MT</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+
+                    <div className="pt-3 mt-1 border-t border-dashed border-slate-200 dark:border-zinc-800 space-y-1.5">
+                      <div className="flex justify-between items-center text-sm text-slate-500 dark:text-zinc-400">
+                        <span>Subtotal</span>
+                        <span>{formatMt(total)} MT</span>
+                      </div>
+                      <div className="flex justify-between items-center text-sm text-emerald-600 dark:text-emerald-400">
+                        <span>Impostos e IVA</span>
+                        <span className="font-bold">0.00 MT (Grátis)</span>
+                      </div>
+                      <div className="pt-2 border-t border-slate-100 dark:border-zinc-800 flex justify-between items-center">
+                        <span className="font-black text-slate-800 dark:text-zinc-100 text-sm uppercase">Total</span>
+                        <span className="font-black text-xl text-emerald-600 dark:text-emerald-400">{formatMt(total)} MT</span>
+                      </div>
+                    </div>
+                  </div>
+
                   <div className="bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-lg p-6 space-y-5 shadow-sm">
                     <div>
                       <h2 className="text-xl font-bold text-slate-800 dark:text-zinc-50 font-panel">Finalizar Pagamento</h2>
                       <p className="text-xs text-slate-400 dark:text-zinc-550 mt-1">
-                        Pagamento seguro por cartão, através da Stripe.
+                        Escolha o método de pagamento ao lado e conclua a compra.
                       </p>
                     </div>
 
-                    <div className="p-4 rounded-lg bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-100 dark:border-indigo-800/60 flex items-start gap-3">
-                      <div className="p-3 rounded-md bg-indigo-100 dark:bg-indigo-800/40 flex-shrink-0">
-                        <CreditCard className="w-6 h-6 text-indigo-600 dark:text-indigo-300" />
+                    {metodoPagamento === 'stripe' ? (
+                      <div className="p-4 rounded-lg bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-100 dark:border-indigo-800/60 flex items-start gap-3">
+                        <div className="p-3 rounded-md bg-indigo-100 dark:bg-indigo-800/40 flex-shrink-0">
+                          <CreditCard className="w-6 h-6 text-indigo-600 dark:text-indigo-300" />
+                        </div>
+                        <div>
+                          <h4 className="font-bold text-sm text-indigo-800 dark:text-indigo-300">
+                            Pagamento seguro por cartão (Stripe)
+                          </h4>
+                          <p className="text-xs text-indigo-600 dark:text-indigo-400 mt-1 leading-relaxed">
+                            Ao clicar em "Pagar", será encaminhado para a página segura da Stripe para introduzir os dados do cartão. Este site nunca vê nem guarda o número do seu cartão.
+                          </p>
+                        </div>
                       </div>
-                      <div>
-                        <h4 className="font-bold text-sm text-indigo-800 dark:text-indigo-300">
-                          Pagamento seguro por cartão (Stripe)
-                        </h4>
-                        <p className="text-xs text-indigo-600 dark:text-indigo-400 mt-1 leading-relaxed">
-                          Ao clicar em "Pagar", será encaminhado para a página segura da Stripe para introduzir os dados do cartão. Este site nunca vê nem guarda o número do seu cartão.
-                        </p>
+                    ) : metodoPagamento === 'mpesa' ? (
+                      <div className="p-4 rounded-lg bg-red-50 dark:bg-red-900/10 border border-red-100 dark:border-red-800/60 flex items-start gap-3">
+                        <div className="p-3 rounded-md bg-red-100 dark:bg-red-800/30 flex-shrink-0">
+                          <Smartphone className="w-6 h-6 text-red-600 dark:text-red-300" />
+                        </div>
+                        <div>
+                          <h4 className="font-bold text-sm text-red-800 dark:text-red-300">
+                            M-Pesa
+                          </h4>
+                          <p className="text-xs text-red-700 dark:text-red-400 mt-1 leading-relaxed">
+                            Ao clicar em "Pagar", o pedido fica registado e vai receber o número M-Pesa para concluir — depois anexa o comprovativo e a nossa equipa confirma a activação.
+                          </p>
+                        </div>
                       </div>
-                    </div>
+                    ) : (
+                      <div className="p-4 rounded-lg bg-amber-50 dark:bg-amber-900/10 border border-amber-100 dark:border-amber-800/60 flex items-start gap-3">
+                        <div className="p-3 rounded-md bg-amber-100 dark:bg-amber-800/30 flex-shrink-0">
+                          <Landmark className="w-6 h-6 text-amber-600 dark:text-amber-300" />
+                        </div>
+                        <div>
+                          <h4 className="font-bold text-sm text-amber-800 dark:text-amber-300">
+                            Transferência Bancária
+                          </h4>
+                          <p className="text-xs text-amber-700 dark:text-amber-400 mt-1 leading-relaxed">
+                            Ao clicar em "Pagar", o pedido fica registado e vai receber os dados de transferência para concluir — depois anexa o comprovativo e a nossa equipa confirma a activação.
+                          </p>
+                        </div>
+                      </div>
+                    )}
 
                     <div className="mt-2 flex justify-start gap-3">
                       <button
                         type="button"
                         onClick={handlePay}
                         disabled={isSubmitting}
-                        className="bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 disabled:cursor-not-allowed text-white font-bold py-3 px-6 rounded-md flex items-center justify-center gap-2 transition-all cursor-pointer"
+                        className={`disabled:opacity-60 disabled:cursor-not-allowed text-white font-bold py-3 px-6 rounded-md flex items-center justify-center gap-2 transition-all cursor-pointer ${
+                          metodoPagamento === 'mpesa'
+                            ? 'bg-red-600 hover:bg-red-700'
+                            : 'bg-indigo-600 hover:bg-indigo-700'
+                        }`}
                       >
-                        <Lock className="w-5 h-5 animate-pulse" /> {isSubmitting ? 'A abrir pagamento seguro...' : `Pagar ${total} MT`}
+                        <Lock className="w-5 h-5 animate-pulse" /> {isSubmitting ? 'A processar...' : `Pagar ${formatMt(total)} MT`}
                       </button>
                       <button
                         type="button"
@@ -380,51 +655,100 @@ function CheckoutContent() {
               )}
             </div>
 
-            {/* Right Column: Cart summary */}
-            <div className="lg:col-span-4">
-              <div className="bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-lg p-6 space-y-4 shadow-sm sticky top-28">
-                <h3 className="font-bold text-slate-800 dark:text-zinc-50 text-base flex items-center gap-2 border-b border-slate-100 dark:border-zinc-850 pb-3 font-panel">
-                  <ShoppingCart className="w-5 h-5 text-red-600" />
-                  Resumo da Compra
-                </h3>
+            {/* Right Column: Payment method */}
+            <div className="lg:col-span-3 space-y-5 sticky top-28">
+              <div className="bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-lg p-5 space-y-4 shadow-sm">
+                <div>
+                  <span className="text-[11px] font-bold uppercase tracking-wide text-slate-400 dark:text-zinc-500">Valor Total</span>
+                  <p className="text-2xl font-black text-slate-900 dark:text-zinc-50 mt-0.5">{formatMt(total)} MT</p>
+                </div>
 
-                <div className="divide-y divide-slate-100 dark:divide-zinc-800/40 max-h-80 overflow-y-auto pr-1">
-                  {items.map((item) => (
-                    <div key={item.id} className="py-3 flex justify-between items-start gap-4">
-                      <div className="flex gap-2.5 items-start">
-                        <div className="w-8 h-8 rounded-lg bg-slate-50 dark:bg-zinc-950 border border-slate-100 dark:border-zinc-850 flex items-center justify-center flex-shrink-0 mt-0.5">
-                          {typeIcon[item.type] || <Globe className="w-4 h-4 text-slate-400" />}
-                        </div>
-                        <div>
-                          <span className="inline-block px-1.5 py-0.2 bg-slate-100 dark:bg-zinc-800 text-[8px] font-bold text-slate-500 dark:text-zinc-400 rounded uppercase tracking-wider mb-0.5">
-                            {typeLabel[item.type] || item.type}
-                          </span>
-                          <h4 className="font-bold text-slate-800 dark:text-zinc-100 text-xs break-all leading-tight">{item.name}</h4>
-                          <span className="text-[10px] text-slate-400 block mt-0.5">Período: {item.period} {item.period === 1 ? 'ano' : 'anos'}</span>
-                        </div>
-                      </div>
-                      <div className="text-right flex-shrink-0">
-                        <span className="font-bold text-slate-800 dark:text-zinc-100 text-sm">{item.price} MT</span>
-                      </div>
+                <div>
+                  <label htmlFor="checkout-metodo-pagamento" className="text-[11px] font-bold uppercase tracking-wide text-slate-400 dark:text-zinc-500 block mb-1.5">
+                    Método de Pagamento
+                  </label>
+                  <select
+                    id="checkout-metodo-pagamento"
+                    value={metodoPagamento}
+                    disabled={status !== 'idle' && status !== 'error'}
+                    onChange={(e) => setMetodoPagamento(e.target.value as MetodoPagamento)}
+                    className="w-full px-3 py-2.5 border border-slate-200 dark:border-zinc-800 rounded-md text-sm font-bold text-slate-800 dark:text-zinc-100 bg-slate-50 dark:bg-zinc-950 outline-none focus:ring-1 focus:ring-indigo-500 disabled:opacity-60 disabled:cursor-not-allowed"
+                  >
+                    {Object.entries(METODO_META).map(([value, meta]) => (
+                      <option key={value} value={value}>{meta.label}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="text-sm space-y-1.5 pt-2 border-t border-dashed border-slate-200 dark:border-zinc-800">
+                  {metodoPagamento === 'mpesa' && (
+                    <div className="space-y-2">
+                      <p className="text-slate-700 dark:text-zinc-300">Número M-Pesa: <span className="font-mono font-bold">{MPESA_NUMBER}</span></p>
+                      <button
+                        type="button"
+                        onClick={handlePay}
+                        disabled={isSubmitting || (status !== 'idle' && status !== 'error')}
+                        className="w-full flex items-center justify-center gap-2 bg-red-600 hover:bg-red-700 disabled:opacity-60 disabled:cursor-not-allowed text-white font-bold py-3 rounded-md transition-colors cursor-pointer"
+                      >
+                        <Smartphone className="w-4 h-4" />
+                        Pagar Agora
+                        <span className="italic font-black tracking-tight">m-pesa</span>
+                      </button>
+                      <p className="text-[11px] text-center text-slate-400 dark:text-zinc-500">Clique aqui para Pagar com M-Pesa</p>
                     </div>
-                  ))}
+                  )}
+                  {metodoPagamento === 'transferencia' && (
+                    <>
+                      <p className="text-slate-700 dark:text-zinc-300">Titular: <span className="font-medium">{BANK_NAME}</span></p>
+                      <p className="text-slate-700 dark:text-zinc-300">Nº Conta: <span className="font-mono font-bold">{BANK_ACCOUNT}</span></p>
+                      <p className="text-slate-700 dark:text-zinc-300">NIB: <span className="font-mono font-bold">{BANK_NIB}</span></p>
+                    </>
+                  )}
+                  {metodoPagamento === 'stripe' && (
+                    <p className="text-slate-500 dark:text-zinc-400 text-xs leading-relaxed">
+                      Clique em "Pagar {formatMt(total)} MT" à esquerda para continuar para a página segura da Stripe.
+                    </p>
+                  )}
                 </div>
 
-                <div className="pt-4 border-t border-slate-100 dark:border-zinc-800 space-y-2">
-                  <div className="flex justify-between items-center text-xs text-slate-400">
-                    <span>Subtotal</span>
-                    <span>{total} MT</span>
-                  </div>
-                  <div className="flex justify-between items-center text-xs text-slate-400">
-                    <span>Impostos e IVA</span>
-                    <span className="text-green-600 dark:text-green-400 font-bold">0.00 MT (Grátis)</span>
-                  </div>
-                  <div className="pt-3 border-t border-dashed border-slate-200 dark:border-zinc-800 flex justify-between items-center">
-                    <span className="font-black text-slate-800 dark:text-zinc-200 text-sm font-panel">Total</span>
-                    <span className="font-black text-xl text-red-600 dark:text-red-400">{total} MT</span>
-                  </div>
+                <div className="flex items-center justify-center gap-2 pt-1">
+                  <span className="inline-flex items-center gap-1 text-[11px] font-bold text-slate-500 dark:text-zinc-400 bg-slate-100 dark:bg-zinc-800 px-2 py-1 rounded">
+                    <ShieldCheck className="w-3.5 h-3.5 text-green-600" /> SSL Seguro
+                  </span>
+                  <span className="inline-flex items-center gap-1 text-[11px] font-bold text-slate-500 dark:text-zinc-400 bg-slate-100 dark:bg-zinc-800 px-2 py-1 rounded">
+                    <BadgeCheck className="w-3.5 h-3.5 text-green-600" /> PCI Compliant
+                  </span>
                 </div>
+              </div>
 
+              <div className="bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-lg overflow-hidden shadow-sm">
+                <p className="px-5 pt-4 pb-1 text-[11px] font-bold uppercase tracking-wide text-slate-400 dark:text-zinc-500 flex items-center gap-1.5">
+                  <Zap className="w-3.5 h-3.5" /> Ações Rápidas
+                </p>
+                <button type="button" onClick={() => window.print()} className="w-full flex items-center gap-2.5 px-5 py-3 text-sm text-slate-700 dark:text-zinc-300 hover:bg-slate-50 dark:hover:bg-zinc-800 border-t border-slate-100 dark:border-zinc-800">
+                  <Printer className="w-4 h-4 text-slate-400" /> Imprimir Fatura
+                </button>
+                <button type="button" onClick={() => window.print()} className="w-full flex items-center gap-2.5 px-5 py-3 text-sm text-slate-700 dark:text-zinc-300 hover:bg-slate-50 dark:hover:bg-zinc-800 border-t border-slate-100 dark:border-zinc-800">
+                  <FileDown className="w-4 h-4 text-slate-400" /> Download PDF
+                </button>
+                <button type="button" onClick={() => router.push('/cliente')} className="w-full flex items-center gap-2.5 px-5 py-3 text-sm text-slate-700 dark:text-zinc-300 hover:bg-slate-50 dark:hover:bg-zinc-800 border-t border-slate-100 dark:border-zinc-800">
+                  <ArrowLeft className="w-4 h-4 text-slate-400" /> Retornar ao Painel
+                </button>
+              </div>
+
+              <div className="bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-lg p-5 shadow-sm">
+                <p className="text-[11px] font-bold uppercase tracking-wide text-slate-400 dark:text-zinc-500 flex items-center gap-1.5 mb-2">
+                  <Info className="w-3.5 h-3.5" /> Informações Importantes
+                </p>
+                <p className="text-xs text-slate-500 dark:text-zinc-400 leading-relaxed">
+                  Pagamentos por M-Pesa ou Transferência são confirmados manualmente pela nossa equipa — o serviço é activado assim que o comprovativo for verificado.
+                </p>
+                <p className="text-xs text-slate-500 dark:text-zinc-400 leading-relaxed mt-1.5">
+                  Pagamentos por Cartão (Stripe) são confirmados e activados automaticamente.
+                </p>
+                <p className="text-xs text-slate-500 dark:text-zinc-400 leading-relaxed mt-1.5">
+                  Em caso de dúvidas, entre em contacto com o nosso suporte técnico.
+                </p>
               </div>
             </div>
 
