@@ -1,5 +1,5 @@
 // Automação completa de um domínio comprado através do carrinho: regista o
-// domínio a sério no registador (Spaceship), cria a zona na Cloudflare,
+// domínio a sério no registador (Dynadot), cria a zona na Cloudflare,
 // aponta os nameservers do domínio para lá, aplica os registos de e-mail
 // (MX/SPF/DMARC/DKIM/mail-ftp-pop-smtp — reaproveita domain-email-auth.ts,
 // que já sabe usar a Cloudflare assim que a zona existir) e cria o
@@ -10,7 +10,7 @@
 // o cliente já possuía e só está a apontar para cá passam por um caminho
 // diferente (attach-email-domain), nunca por aqui.
 
-import { spaceshipAPI, checkAvailability, mapProfileToSpaceshipContact } from '@/lib/spaceship-adapter';
+import { dynadotAPI, checkAvailability, mapProfileToDynadotContact } from '@/lib/dynadot-adapter';
 import { createCloudflareZone } from '@/lib/cloudflare-dns';
 import { provisionEmailAuthForDomain, type DnsAutomationResult } from '@/lib/domain-email-auth';
 import { ensureBrevoSender } from '@/lib/brevo-domain-auth';
@@ -39,9 +39,9 @@ export async function autoProvisionPurchasedDomain(input: {
   const steps: DomainAutoProvisionStep[] = [];
 
   // 1) Registar o domínio — idempotente: se já existir na nossa conta da
-  //    Spaceship (ex: nova tentativa depois de uma falha a meio), salta o
+  //    Dynadot (ex: nova tentativa depois de uma falha a meio), salta o
   //    registo em vez de tentar comprar outra vez.
-  const existing = await spaceshipAPI.getDomainDetails(domain);
+  const existing = await dynadotAPI.getDomainDetails(domain);
   if (existing.success) {
     steps.push({ step: 'registo', ok: true, detail: 'Domínio já estava registado (tentativa anterior ou registo directo).' });
   } else {
@@ -55,13 +55,13 @@ export async function autoProvisionPurchasedDomain(input: {
       return { domain, ok: false, steps };
     }
 
-    const contact = await spaceshipAPI.createContact(mapProfileToSpaceshipContact(input.profile, input.userEmail));
+    const contact = await dynadotAPI.createContact(mapProfileToDynadotContact(input.profile, input.userEmail));
     if (!contact.success) {
       steps.push({ step: 'registo', ok: false, error: `Falha a criar contacto WHOIS: ${contact.error}` });
       return { domain, ok: false, steps };
     }
 
-    const registered = await spaceshipAPI.registerDomain(domain, contact.contactId, 1, true);
+    const registered = await dynadotAPI.registerDomain(domain, contact.contactId, 1, true);
     if (!registered.success) {
       steps.push({ step: 'registo', ok: false, error: registered.error });
       return { domain, ok: false, steps };
@@ -85,7 +85,7 @@ export async function autoProvisionPurchasedDomain(input: {
 
   // 3) Apontar os nameservers do domínio para a Cloudflare
   if (zone.nameServers.length >= 2) {
-    const ns = await spaceshipAPI.setNameservers(domain, zone.nameServers);
+    const ns = await dynadotAPI.setNameservers(domain, zone.nameServers);
     steps.push(
       ns.success
         ? { step: 'nameservers', ok: true, detail: ns.hosts.join(', ') }

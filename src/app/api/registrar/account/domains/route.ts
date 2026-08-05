@@ -1,10 +1,10 @@
 import { NextResponse } from 'next/server';
 import { requireAdminOrReseller } from '@/lib/panel-api-auth';
 import { readImpersonateDaUsername } from '@/lib/panel-api-context';
-import { spaceshipAPI } from '@/lib/spaceship-adapter';
+import { dynadotAPI } from '@/lib/dynadot-adapter';
 
 /**
- * Lista domínios na conta Spaceship (registador) — conta única partilhada por toda a
+ * Lista domínios na conta Dynadot (registador) — conta única partilhada por toda a
  * empresa, sem coluna de posse por revendedor. Stopgap: admin-only até existir rastreio
  * de posse por domínio (ver AUDITORIA_PAINEL_PLANO_CORRECAO.md, P1-6).
  */
@@ -19,7 +19,7 @@ export async function GET() {
     return NextResponse.json({ success: false, error: 'Acção restrita a administradores.' }, { status: 403 });
   }
 
-  const result = await spaceshipAPI.listAllDomains();
+  const result = await dynadotAPI.listAllDomains();
   if (!result.success) {
     return NextResponse.json(
       { success: false, error: result.error || 'Erro ao listar domínios' },

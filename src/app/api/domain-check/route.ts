@@ -1,11 +1,11 @@
 import { NextResponse } from 'next/server';
-import { checkAvailability } from '@/lib/spaceship-adapter';
+import { checkAvailability } from '@/lib/dynadot-adapter';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 
 export async function POST(req: Request) {
   try {
     const { domain, tld } = await req.json();
-    console.log(`[API] Verificando domínio: ${domain} com TLD: ${tld} (via Spaceship)`);
+    console.log(`[API] Verificando domínio: ${domain} com TLD: ${tld} (via Dynadot)`);
     
     if (!domain) {
       return NextResponse.json({ status: 'ERROR', message: 'Domínio não fornecido' }, { status: 400 });
@@ -71,7 +71,6 @@ export async function POST(req: Request) {
     return NextResponse.json({
       available: result.available,
       domain: fullDomain,
-      price: result.price,
       currency: result.currency || 'USD',
     });
   } catch (error) {

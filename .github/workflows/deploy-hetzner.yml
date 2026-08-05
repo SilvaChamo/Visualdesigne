@@ -54,6 +54,18 @@ jobs:
           script: |
             set -e
             cd /opt/visualdesign-site
+            touch .env.local
+            set_env_var() {
+              local key="$1" value="$2"
+              if grep -q "^${key}=" .env.local; then
+                sed -i "s|^${key}=.*|${key}=${value}|" .env.local
+              else
+                echo "${key}=${value}" >> .env.local
+              fi
+            }
+            set_env_var DYNADOT_ENV "production"
+            set_env_var DYNADOT_API_KEY "${{ secrets.DYNADOT_API_KEY }}"
+            set_env_var DYNADOT_SECRET_KEY "${{ secrets.DYNADOT_SECRET_KEY }}"
             npm ci
             npm run build
             pm2 restart visualdesign-site || pm2 start npm --name "visualdesign-site" -- start -- -p 3003

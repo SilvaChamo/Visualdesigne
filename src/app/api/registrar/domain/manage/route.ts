@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAdminOrReseller } from '@/lib/panel-api-auth';
-import { spaceshipAPI } from '@/lib/spaceship-adapter';
+import { dynadotAPI } from '@/lib/dynadot-adapter';
 
-/** Detalhes e acções de gestão de domínio no registador (Spaceship). */
+/** Detalhes e acções de gestão de domínio no registador (Dynadot). */
 export async function GET(request: NextRequest) {
   const auth = await requireAdminOrReseller();
   if ('error' in auth) return auth.error;
@@ -12,7 +12,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ success: false, error: 'Domínio obrigatório' }, { status: 400 });
   }
 
-  const result = await spaceshipAPI.getDomainDetails(domain);
+  const result = await dynadotAPI.getDomainDetails(domain);
   if (!result.success) {
     return NextResponse.json({ success: false, error: result.error }, { status: 400 });
   }
@@ -46,7 +46,7 @@ export async function POST(request: NextRequest) {
   }
 
   if (action === 'unlock' || action === 'auth-code') {
-    // A conta de registador (Spaceship) é única e partilhada por toda a empresa — sem um
+    // A conta de registador (Dynadot) é única e partilhada por toda a empresa — sem um
     // registo de "este domínio pertence a este revendedor" não há forma segura de deixar um
     // revendedor desbloquear transferência ou obter o código EPP de um domínio que pode nem
     // ser seu. Estas duas acções permitem sequestrar um domínio, por isso ficam admin-only
@@ -60,7 +60,7 @@ export async function POST(request: NextRequest) {
   }
 
   if (action === 'unlock') {
-    const result = await spaceshipAPI.setTransferLock(domain, false);
+    const result = await dynadotAPI.setTransferLock(domain, false);
     if (!result.success) {
       return NextResponse.json({ success: false, error: result.error }, { status: 400 });
     }
@@ -68,14 +68,13 @@ export async function POST(request: NextRequest) {
   }
 
   if (action === 'auth-code') {
-    const result = await spaceshipAPI.getTransferAuthCode(domain);
+    const result = await dynadotAPI.getTransferAuthCode(domain);
     if (!result.success) {
       return NextResponse.json({ success: false, error: result.error }, { status: 400 });
     }
     return NextResponse.json({
       success: true,
       authCode: result.authCode,
-      expires: result.expires,
       message: 'Código de transferência obtido.',
     });
   }
@@ -84,7 +83,7 @@ export async function POST(request: NextRequest) {
     if (typeof body.isEnabled !== 'boolean') {
       return NextResponse.json({ success: false, error: 'isEnabled obrigatório' }, { status: 400 });
     }
-    const result = await spaceshipAPI.setAutoRenew(domain, body.isEnabled);
+    const result = await dynadotAPI.setAutoRenew(domain, body.isEnabled);
     if (!result.success) {
       return NextResponse.json({ success: false, error: result.error }, { status: 400 });
     }

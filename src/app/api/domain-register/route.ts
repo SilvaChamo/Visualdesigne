@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { requireAdminOrReseller } from '@/lib/panel-api-auth';
-import { checkAvailability, spaceshipAPI, mapProfileToSpaceshipContact } from '@/lib/spaceship-adapter';
+import { checkAvailability, dynadotAPI, mapProfileToDynadotContact } from '@/lib/dynadot-adapter';
 import { createClient } from '@/utils/supabase/server';
 
 export async function POST(req: Request) {
@@ -23,7 +23,7 @@ export async function POST(req: Request) {
 
     const clean = String(domain).toLowerCase().trim();
 
-    // 1. Verificar disponibilidade real via Spaceship
+    // 1. Verificar disponibilidade real via Dynadot
     const check = await checkAvailability(clean);
     if (!check.available) {
       return NextResponse.json(
@@ -44,12 +44,12 @@ export async function POST(req: Request) {
       console.error('[API] Erro ao carregar perfil do utilizador:', profileError);
     }
 
-    // 3. Mapear perfil para dados de contacto WHOIS da Spaceship
-    const contactData = mapProfileToSpaceshipContact(profile, auth.user.email || '');
-    console.log('[API] Criando contacto WHOIS na Spaceship com dados:', contactData);
+    // 3. Mapear perfil para dados de contacto WHOIS da Dynadot
+    const contactData = mapProfileToDynadotContact(profile, auth.user.email || '');
+    console.log('[API] Criando contacto WHOIS na Dynadot com dados:', contactData);
 
-    // 4. Criar contacto na Spaceship
-    const contactResult = await spaceshipAPI.createContact(contactData);
+    // 4. Criar contacto na Dynadot
+    const contactResult = await dynadotAPI.createContact(contactData);
     if (!contactResult.success) {
       return NextResponse.json(
         {
@@ -63,14 +63,13 @@ export async function POST(req: Request) {
     console.log(`[API] Contacto WHOIS criado com sucesso. ID: ${contactResult.contactId}`);
 
     // 5. Registar domínio utilizando o ID de contacto criado
-    console.log(`[API] Iniciando compra do domínio ${clean} na Spaceship...`);
-    const registerResult = await spaceshipAPI.registerDomain(clean, contactResult.contactId, 1, true);
+    console.log(`[API] Iniciando compra do domínio ${clean} na Dynadot...`);
+    const registerResult = await dynadotAPI.registerDomain(clean, contactResult.contactId, 1, true);
 
     if (registerResult.success) {
       return NextResponse.json({
         success: true,
         message: `Domínio ${clean} registado com sucesso!`,
-        operationId: registerResult.operationId,
         raw: registerResult.raw,
       });
     }

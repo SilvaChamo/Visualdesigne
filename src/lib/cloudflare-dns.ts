@@ -64,7 +64,7 @@ export async function findCloudflareZoneId(domain: string): Promise<string | nul
  * Cria uma zona nova na Cloudflare para um domínio recém-registado (ex: logo
  * a seguir a uma compra através do painel). Devolve os nameservers que a
  * Cloudflare atribuiu — têm de ser postos no registador (ver
- * spaceship-adapter.ts -> setNameservers) para a zona passar a ser a
+ * dynadot-adapter.ts -> setNameservers) para a zona passar a ser a
  * autoritativa de verdade. Idempotente: se a zona já existir, devolve-a em
  * vez de tentar criar outra vez.
  */
