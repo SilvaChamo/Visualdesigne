@@ -9,6 +9,7 @@ import Link from 'next/link';
 import { RenewalCheckout } from './RenewalCheckout';
 import { MPESA_NUMBER, BANK_NAME, BANK_ACCOUNT, BANK_NIB } from '@/lib/quotation-payment-info';
 import { formatMt } from '@/lib/pricing-catalog';
+import { profileAuthOrFilter } from '@/lib/profile-db';
 import {
   CreditCard,
   Lock,
@@ -32,16 +33,20 @@ import {
   Printer,
   FileDown,
   ArrowLeft,
-  Info
+  Info,
+  Building2,
+  UserCircle,
+  Wallet
 } from 'lucide-react';
 import { Spinner } from '@/components/ui/spinner';
 
-type MetodoPagamento = 'stripe' | 'mpesa' | 'transferencia';
+type MetodoPagamento = 'stripe' | 'mpesa' | 'transferencia' | 'saldo';
 
 const METODO_META: Record<MetodoPagamento, { label: string; icon: typeof Smartphone }> = {
   transferencia: { label: 'Transferência Bancária', icon: Landmark },
   mpesa: { label: 'M-Pesa', icon: Smartphone },
   stripe: { label: 'Cartão (Stripe)', icon: CreditCard },
+  saldo: { label: 'Saldo da Conta', icon: Wallet },
 };
 
 type ManualSession = {
@@ -61,6 +66,18 @@ function CheckoutContent() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [metodoPagamento, setMetodoPagamento] = useState<MetodoPagamento>('transferencia');
 
+  // Saldo do revendedor (reseller_credits) — null enquanto não se sabe, ou
+  // se a conta nem é de revendedor (a rota devolve 403, ignorado em silêncio:
+  // a opção "Saldo da Conta" simplesmente não aparece no select).
+  const [saldoDisponivel, setSaldoDisponivel] = useState<number | null>(null);
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    fetch('/api/reseller/credito')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => { if (data?.success) setSaldoDisponivel(data.saldoMt); })
+      .catch(() => {});
+  }, [isAuthenticated]);
+
   // Account Form State (For unauthenticated users)
   const [accountForm, setAccountForm] = useState({
     name: '',
@@ -77,6 +94,19 @@ function CheckoutContent() {
     pais: 'Mozambique'
   });
   const [showPassword, setShowPassword] = useState(false);
+
+  // Morada/telefone do perfil (WHOIS) — para o card "Faturado Para" de quem já
+  // tem conta; não vem no user_metadata, só na tabela profiles.
+  const [profileExtra, setProfileExtra] = useState<{ telefone?: string | null; morada?: string | null; cidade?: string | null } | null>(null);
+  useEffect(() => {
+    if (!authUser) return;
+    supabase
+      .from('profiles')
+      .select('telefone, morada, cidade')
+      .or(profileAuthOrFilter(authUser.id))
+      .maybeSingle()
+      .then(({ data }: { data: { telefone?: string | null; morada?: string | null; cidade?: string | null } | null }) => setProfileExtra(data));
+  }, [authUser]);
 
   // Flow State
   const [status, setStatus] = useState<'idle' | 'registering' | 'redirecting' | 'error'>('idle');
@@ -174,6 +204,23 @@ function CheckoutContent() {
         }
       }
 
+      if (metodoPagamento === 'saldo') {
+        // Saldo do revendedor já é "dinheiro confirmado" — não fica pendente
+        // como M-Pesa/Transferência, activa e redirecciona logo para o sucesso.
+        const res = await fetch('/api/checkout/saldo-session', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ items }),
+        });
+        const data = await res.json();
+        if (!res.ok || !data.success) {
+          throw new Error(data.error || 'Não foi possível pagar com o saldo.');
+        }
+        clearCart();
+        router.push(`/checkout/sucesso?session_id=${data.session.id}`);
+        return;
+      }
+
       if (metodoPagamento === 'stripe') {
         setStatus('redirecting');
         const res = await fetch('/api/checkout/create-session', {
@@ -256,7 +303,7 @@ function CheckoutContent() {
     }
     return (
       <div className="min-h-screen bg-slate-50 dark:bg-zinc-950 pt-32 pb-16 transition-colors duration-200">
-        <div className="max-w-7xl mx-auto px-4 mt-4">
+        <div className="max-w-7xl mx-auto px-5 mt-4">
           <RenewalCheckout renewalId={renewalId} />
         </div>
       </div>
@@ -275,7 +322,7 @@ function CheckoutContent() {
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-zinc-950 pt-32 pb-16 transition-colors duration-200">
-      <div className="max-w-7xl mx-auto px-4 mt-4">
+      <div className="max-w-7xl mx-auto px-5 mt-4">
 
         {manualSession ? (
           <div className="max-w-2xl mx-auto">
@@ -381,17 +428,31 @@ function CheckoutContent() {
               {/* Dados da conta — só quando já tem sessão iniciada; para quem não
                   tem conta, é o próprio formulário abaixo que cumpre este papel. */}
               {isAuthenticated === true && (status === 'idle' || status === 'error') && (
-                <div className="bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-lg p-6 shadow-sm">
-                  <p className="text-xs font-bold uppercase tracking-wide text-slate-400 dark:text-zinc-500 mb-3">Dados da Conta</p>
-                  <div className="grid grid-cols-2 gap-4 text-sm">
-                    <div>
-                      <span className="text-xs text-slate-400 dark:text-zinc-500 block mb-0.5">Cliente</span>
-                      <span className="font-bold text-slate-800 dark:text-zinc-100">{clientName}</span>
-                    </div>
-                    <div>
-                      <span className="text-xs text-slate-400 dark:text-zinc-500 block mb-0.5">Email</span>
-                      <span className="font-bold text-slate-800 dark:text-zinc-100 truncate block">{authUser?.email}</span>
-                    </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-lg p-6 shadow-sm">
+                    <p className="text-[11px] font-bold uppercase tracking-wide text-red-600 dark:text-red-400 flex items-center gap-1.5 mb-3">
+                      <Building2 className="w-3.5 h-3.5" /> Faturado Por
+                    </p>
+                    <p className="font-bold text-slate-800 dark:text-zinc-100 text-sm">VisualDESIGN Services, Lda.</p>
+                    <p className="text-xs text-slate-500 dark:text-zinc-400 mt-2 leading-relaxed">
+                      Av. Karl Marx, 177, Maputo — Moçambique
+                    </p>
+                    <p className="text-xs text-slate-500 dark:text-zinc-400 mt-1">info@visualdesignmoz.com</p>
+                    <p className="text-xs text-slate-500 dark:text-zinc-400 mt-2">NUIT: 400597243</p>
+                  </div>
+
+                  <div className="bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-lg p-6 shadow-sm">
+                    <p className="text-[11px] font-bold uppercase tracking-wide text-red-600 dark:text-red-400 flex items-center gap-1.5 mb-3">
+                      <UserCircle className="w-3.5 h-3.5" /> Faturado Para
+                    </p>
+                    <p className="font-bold text-slate-800 dark:text-zinc-100 text-sm">{clientName}</p>
+                    <p className="text-xs text-slate-500 dark:text-zinc-400 mt-2">
+                      Endereço: {[profileExtra?.morada, profileExtra?.cidade].filter(Boolean).join(', ')}
+                    </p>
+                    <p className="text-xs text-slate-500 dark:text-zinc-400 mt-1 truncate">Email: {authUser?.email}</p>
+                    <p className="text-xs text-slate-500 dark:text-zinc-400 mt-1">
+                      Contacto: {profileExtra?.telefone || authUser?.user_metadata?.telefone || ''}
+                    </p>
                   </div>
                 </div>
               )}
@@ -449,21 +510,21 @@ function CheckoutContent() {
                           </h3>
                           <div>
                             <label className="text-xs font-bold text-slate-600 dark:text-zinc-400 mb-1.5 block">Nome</label>
-                            <input type="text" value={accountForm.name} onChange={e => setAccountForm(p => ({ ...p, name: e.target.value }))} className="w-full px-4 py-3 border border-slate-200 dark:border-zinc-800 bg-slate-50 dark:bg-zinc-950 text-slate-800 dark:text-zinc-100 rounded-md text-sm outline-none focus:ring-1 focus:ring-blue-500" />
+                            <input type="text" value={accountForm.name} onChange={e => setAccountForm(p => ({ ...p, name: e.target.value }))} className="w-full px-4 py-2 border border-slate-200 dark:border-zinc-800 bg-slate-50 dark:bg-zinc-950 text-slate-800 dark:text-zinc-100 rounded-md text-sm outline-none focus:ring-1 focus:ring-blue-500" />
                           </div>
                           <div>
                             <label className="text-xs font-bold text-slate-600 dark:text-zinc-400 mb-1.5 block">Sobrenome</label>
-                            <input type="text" value={accountForm.sobrenome} onChange={e => setAccountForm(p => ({ ...p, sobrenome: e.target.value }))} className="w-full px-4 py-3 border border-slate-200 dark:border-zinc-800 bg-slate-50 dark:bg-zinc-950 text-slate-800 dark:text-zinc-100 rounded-md text-sm outline-none focus:ring-1 focus:ring-blue-500" />
+                            <input type="text" value={accountForm.sobrenome} onChange={e => setAccountForm(p => ({ ...p, sobrenome: e.target.value }))} className="w-full px-4 py-2 border border-slate-200 dark:border-zinc-800 bg-slate-50 dark:bg-zinc-950 text-slate-800 dark:text-zinc-100 rounded-md text-sm outline-none focus:ring-1 focus:ring-blue-500" />
                           </div>
                           <div>
                             <label className="text-xs font-bold text-slate-600 dark:text-zinc-400 mb-1.5 block">E-mail</label>
-                            <input type="email" value={accountForm.email} onChange={e => setAccountForm(p => ({ ...p, email: e.target.value }))} className="w-full px-4 py-3 border border-slate-200 dark:border-zinc-800 bg-slate-50 dark:bg-zinc-950 text-slate-800 dark:text-zinc-100 rounded-md text-sm outline-none focus:ring-1 focus:ring-blue-500" />
+                            <input type="email" value={accountForm.email} onChange={e => setAccountForm(p => ({ ...p, email: e.target.value }))} className="w-full px-4 py-2 border border-slate-200 dark:border-zinc-800 bg-slate-50 dark:bg-zinc-950 text-slate-800 dark:text-zinc-100 rounded-md text-sm outline-none focus:ring-1 focus:ring-blue-500" />
                           </div>
                           <div>
                             <label className="text-xs font-bold text-slate-600 dark:text-zinc-400 mb-1.5 block">Telefone</label>
                             <div className="flex border border-slate-200 dark:border-zinc-800 rounded-md bg-slate-50 dark:bg-zinc-950 overflow-hidden focus-within:ring-1 focus-within:ring-blue-500">
                               <div className="relative flex items-center border-r border-slate-200 dark:border-zinc-800 bg-slate-100 dark:bg-zinc-900">
-                                <select className="pl-3 pr-8 py-3 bg-transparent text-sm text-slate-700 dark:text-zinc-300 outline-none cursor-pointer appearance-none w-full h-full">
+                                <select className="pl-3 pr-8 py-2 bg-transparent text-sm text-slate-700 dark:text-zinc-300 outline-none cursor-pointer appearance-none w-full h-full">
                                   <option value="+258">🇲🇿 +258</option>
                                   <option value="+244">🇦🇴 +244</option>
                                   <option value="+351">🇵🇹 +351</option>
@@ -471,7 +532,7 @@ function CheckoutContent() {
                                 </select>
                                 <svg className="w-3 h-3 text-slate-400 absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path></svg>
                               </div>
-                              <input type="tel" value={accountForm.telefone} onChange={e => setAccountForm(p => ({ ...p, telefone: e.target.value }))} className="flex-1 min-w-0 px-3 py-3 bg-transparent text-slate-800 dark:text-zinc-100 text-sm outline-none" />
+                              <input type="tel" value={accountForm.telefone} onChange={e => setAccountForm(p => ({ ...p, telefone: e.target.value }))} className="flex-1 min-w-0 px-3 py-2 bg-transparent text-slate-800 dark:text-zinc-100 text-sm outline-none" />
                             </div>
                           </div>
                           <div>
@@ -480,7 +541,7 @@ function CheckoutContent() {
                               <button type="button" onClick={() => { setAccountForm(p => ({ ...p, password: Math.random().toString(36).slice(-6) + Math.random().toString(36).slice(-2).toUpperCase() + '@' })); setShowPassword(true); }} className="text-[10px] font-bold text-blue-600 dark:text-blue-400 hover:underline">Gerar senha segura</button>
                             </div>
                             <div className="relative">
-                              <input type={showPassword ? 'text' : 'password'} value={accountForm.password} onChange={e => setAccountForm(p => ({ ...p, password: e.target.value }))} className="w-full px-4 py-3 border border-slate-200 dark:border-zinc-800 bg-slate-50 dark:bg-zinc-950 text-slate-800 dark:text-zinc-100 rounded-md text-sm outline-none focus:ring-1 focus:ring-blue-500 pr-10" />
+                              <input type={showPassword ? 'text' : 'password'} value={accountForm.password} onChange={e => setAccountForm(p => ({ ...p, password: e.target.value }))} className="w-full px-4 py-2 border border-slate-200 dark:border-zinc-800 bg-slate-50 dark:bg-zinc-950 text-slate-800 dark:text-zinc-100 rounded-md text-sm outline-none focus:ring-1 focus:ring-blue-500 pr-10" />
                               <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-zinc-300">
                                 {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                               </button>
@@ -495,34 +556,34 @@ function CheckoutContent() {
                           </h3>
                           <div>
                             <label className="text-xs font-bold text-slate-600 dark:text-zinc-400 mb-1.5 block">Empresa (opcional)</label>
-                            <input type="text" value={accountForm.empresa} onChange={e => setAccountForm(p => ({ ...p, empresa: e.target.value }))} className="w-full px-4 py-3 border border-slate-200 dark:border-zinc-800 bg-slate-50 dark:bg-zinc-950 text-slate-800 dark:text-zinc-100 rounded-md text-sm outline-none focus:ring-1 focus:ring-blue-500" />
+                            <input type="text" value={accountForm.empresa} onChange={e => setAccountForm(p => ({ ...p, empresa: e.target.value }))} className="w-full px-4 py-2 border border-slate-200 dark:border-zinc-800 bg-slate-50 dark:bg-zinc-950 text-slate-800 dark:text-zinc-100 rounded-md text-sm outline-none focus:ring-1 focus:ring-blue-500" />
                           </div>
                           <div>
                             <label className="text-xs font-bold text-slate-600 dark:text-zinc-400 mb-1.5 block">Endereço</label>
-                            <input type="text" value={accountForm.endereco} onChange={e => setAccountForm(p => ({ ...p, endereco: e.target.value }))} className="w-full px-4 py-3 border border-slate-200 dark:border-zinc-800 bg-slate-50 dark:bg-zinc-950 text-slate-800 dark:text-zinc-100 rounded-md text-sm outline-none focus:ring-1 focus:ring-blue-500" />
+                            <input type="text" value={accountForm.endereco} onChange={e => setAccountForm(p => ({ ...p, endereco: e.target.value }))} className="w-full px-4 py-2 border border-slate-200 dark:border-zinc-800 bg-slate-50 dark:bg-zinc-950 text-slate-800 dark:text-zinc-100 rounded-md text-sm outline-none focus:ring-1 focus:ring-blue-500" />
                           </div>
                           <div>
                             <label className="text-xs font-bold text-slate-600 dark:text-zinc-400 mb-1.5 block">Endereço 2</label>
-                            <input type="text" value={accountForm.endereco2} onChange={e => setAccountForm(p => ({ ...p, endereco2: e.target.value }))} className="w-full px-4 py-3 border border-slate-200 dark:border-zinc-800 bg-slate-50 dark:bg-zinc-950 text-slate-800 dark:text-zinc-100 rounded-md text-sm outline-none focus:ring-1 focus:ring-blue-500" />
+                            <input type="text" value={accountForm.endereco2} onChange={e => setAccountForm(p => ({ ...p, endereco2: e.target.value }))} className="w-full px-4 py-2 border border-slate-200 dark:border-zinc-800 bg-slate-50 dark:bg-zinc-950 text-slate-800 dark:text-zinc-100 rounded-md text-sm outline-none focus:ring-1 focus:ring-blue-500" />
                           </div>
                           <div className="grid grid-cols-2 gap-4">
                             <div>
                               <label className="text-xs font-bold text-slate-600 dark:text-zinc-400 mb-1.5 block">Cidade</label>
-                              <input type="text" value={accountForm.cidade} onChange={e => setAccountForm(p => ({ ...p, cidade: e.target.value }))} className="w-full px-4 py-3 border border-slate-200 dark:border-zinc-800 bg-slate-50 dark:bg-zinc-950 text-slate-800 dark:text-zinc-100 rounded-md text-sm outline-none focus:ring-1 focus:ring-blue-500" />
+                              <input type="text" value={accountForm.cidade} onChange={e => setAccountForm(p => ({ ...p, cidade: e.target.value }))} className="w-full px-4 py-2 border border-slate-200 dark:border-zinc-800 bg-slate-50 dark:bg-zinc-950 text-slate-800 dark:text-zinc-100 rounded-md text-sm outline-none focus:ring-1 focus:ring-blue-500" />
                             </div>
                             <div>
                               <label className="text-xs font-bold text-slate-600 dark:text-zinc-400 mb-1.5 block">Estado</label>
-                              <input type="text" value={accountForm.estado} onChange={e => setAccountForm(p => ({ ...p, estado: e.target.value }))} className="w-full px-4 py-3 border border-slate-200 dark:border-zinc-800 bg-slate-50 dark:bg-zinc-950 text-slate-800 dark:text-zinc-100 rounded-md text-sm outline-none focus:ring-1 focus:ring-blue-500" />
+                              <input type="text" value={accountForm.estado} onChange={e => setAccountForm(p => ({ ...p, estado: e.target.value }))} className="w-full px-4 py-2 border border-slate-200 dark:border-zinc-800 bg-slate-50 dark:bg-zinc-950 text-slate-800 dark:text-zinc-100 rounded-md text-sm outline-none focus:ring-1 focus:ring-blue-500" />
                             </div>
                           </div>
                           <div className="grid grid-cols-2 gap-4">
                             <div>
                               <label className="text-xs font-bold text-slate-600 dark:text-zinc-400 mb-1.5 block">Código Postal</label>
-                              <input type="text" value={accountForm.codigoPostal} onChange={e => setAccountForm(p => ({ ...p, codigoPostal: e.target.value }))} className="w-full px-4 py-3 border border-slate-200 dark:border-zinc-800 bg-slate-50 dark:bg-zinc-950 text-slate-800 dark:text-zinc-100 rounded-md text-sm outline-none focus:ring-1 focus:ring-blue-500" />
+                              <input type="text" value={accountForm.codigoPostal} onChange={e => setAccountForm(p => ({ ...p, codigoPostal: e.target.value }))} className="w-full px-4 py-2 border border-slate-200 dark:border-zinc-800 bg-slate-50 dark:bg-zinc-950 text-slate-800 dark:text-zinc-100 rounded-md text-sm outline-none focus:ring-1 focus:ring-blue-500" />
                             </div>
                             <div>
                               <label className="text-xs font-bold text-slate-600 dark:text-zinc-400 mb-1.5 block">País</label>
-                              <select value={accountForm.pais} onChange={e => setAccountForm(p => ({ ...p, pais: e.target.value }))} className="w-full px-4 py-3 border border-slate-200 dark:border-zinc-800 bg-slate-50 dark:bg-zinc-950 text-slate-800 dark:text-zinc-100 rounded-md text-sm outline-none focus:ring-1 focus:ring-blue-500">
+                              <select value={accountForm.pais} onChange={e => setAccountForm(p => ({ ...p, pais: e.target.value }))} className="w-full px-4 py-2 border border-slate-200 dark:border-zinc-800 bg-slate-50 dark:bg-zinc-950 text-slate-800 dark:text-zinc-100 rounded-md text-sm outline-none focus:ring-1 focus:ring-blue-500">
                                 <option value="Mozambique">Mozambique</option>
                               </select>
                             </div>
@@ -533,7 +594,7 @@ function CheckoutContent() {
                   )}
 
                   <div className="bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-lg p-6 shadow-sm">
-                    <h3 className="text-[11px] font-bold uppercase tracking-wide text-emerald-600 dark:text-emerald-400 flex items-center gap-1.5 mb-4">
+                    <h3 className="text-[11px] font-bold uppercase tracking-wide text-red-600 dark:text-red-400 flex items-center gap-1.5 mb-4">
                       <ShoppingCart className="w-3.5 h-3.5" />
                       Resumo da Compra
                     </h3>
@@ -553,9 +614,6 @@ function CheckoutContent() {
                               <span className="text-[10px] text-slate-400 block mt-0.5">Período: {item.period} {item.period === 1 ? 'ano' : 'anos'}</span>
                             </div>
                           </div>
-                          <div className="text-right flex-shrink-0">
-                            <span className="font-bold text-slate-800 dark:text-zinc-100 text-sm">{formatMt(item.price)} MT</span>
-                          </div>
                         </div>
                       ))}
                     </div>
@@ -565,13 +623,13 @@ function CheckoutContent() {
                         <span>Subtotal</span>
                         <span>{formatMt(total)} MT</span>
                       </div>
-                      <div className="flex justify-between items-center text-sm text-emerald-600 dark:text-emerald-400">
+                      <div className="flex justify-between items-center text-sm text-red-600 dark:text-red-400">
                         <span>Impostos e IVA</span>
-                        <span className="font-bold">0.00 MT (Grátis)</span>
+                        <span className="font-bold">0.00 MT</span>
                       </div>
                       <div className="pt-2 border-t border-slate-100 dark:border-zinc-800 flex justify-between items-center">
                         <span className="font-black text-slate-800 dark:text-zinc-100 text-sm uppercase">Total</span>
-                        <span className="font-black text-xl text-emerald-600 dark:text-emerald-400">{formatMt(total)} MT</span>
+                        <span className="font-black text-xl text-red-600 dark:text-red-400">{formatMt(total)} MT</span>
                       </div>
                     </div>
                   </div>
@@ -584,7 +642,21 @@ function CheckoutContent() {
                       </p>
                     </div>
 
-                    {metodoPagamento === 'stripe' ? (
+                    {metodoPagamento === 'saldo' ? (
+                      <div className="p-4 rounded-lg bg-teal-50 dark:bg-teal-900/10 border border-teal-100 dark:border-teal-800/60 flex items-start gap-3">
+                        <div className="p-3 rounded-md bg-teal-100 dark:bg-teal-800/30 flex-shrink-0">
+                          <Wallet className="w-6 h-6 text-teal-600 dark:text-teal-300" />
+                        </div>
+                        <div>
+                          <h4 className="font-bold text-sm text-teal-800 dark:text-teal-300">
+                            Saldo da Conta
+                          </h4>
+                          <p className="text-xs text-teal-700 dark:text-teal-400 mt-1 leading-relaxed">
+                            Ao clicar em "Pagar", o valor é descontado de imediato do seu saldo (Créditos) e os produtos são activados na hora — sem esperar confirmação.
+                          </p>
+                        </div>
+                      </div>
+                    ) : metodoPagamento === 'stripe' ? (
                       <div className="p-4 rounded-lg bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-100 dark:border-indigo-800/60 flex items-start gap-3">
                         <div className="p-3 rounded-md bg-indigo-100 dark:bg-indigo-800/40 flex-shrink-0">
                           <CreditCard className="w-6 h-6 text-indigo-600 dark:text-indigo-300" />
@@ -632,11 +704,13 @@ function CheckoutContent() {
                       <button
                         type="button"
                         onClick={handlePay}
-                        disabled={isSubmitting}
+                        disabled={isSubmitting || (metodoPagamento === 'saldo' && (saldoDisponivel ?? 0) < total)}
                         className={`disabled:opacity-60 disabled:cursor-not-allowed text-white font-bold py-3 px-6 rounded-md flex items-center justify-center gap-2 transition-all cursor-pointer ${
                           metodoPagamento === 'mpesa'
                             ? 'bg-red-600 hover:bg-red-700'
-                            : 'bg-indigo-600 hover:bg-indigo-700'
+                            : metodoPagamento === 'saldo'
+                              ? 'bg-teal-600 hover:bg-teal-700'
+                              : 'bg-indigo-600 hover:bg-indigo-700'
                         }`}
                       >
                         <Lock className="w-5 h-5 animate-pulse" /> {isSubmitting ? 'A processar...' : `Pagar ${formatMt(total)} MT`}
@@ -674,13 +748,27 @@ function CheckoutContent() {
                     onChange={(e) => setMetodoPagamento(e.target.value as MetodoPagamento)}
                     className="w-full px-3 py-2.5 border border-slate-200 dark:border-zinc-800 rounded-md text-sm font-bold text-slate-800 dark:text-zinc-100 bg-slate-50 dark:bg-zinc-950 outline-none focus:ring-1 focus:ring-indigo-500 disabled:opacity-60 disabled:cursor-not-allowed"
                   >
-                    {Object.entries(METODO_META).map(([value, meta]) => (
-                      <option key={value} value={value}>{meta.label}</option>
-                    ))}
+                    {Object.entries(METODO_META)
+                      .filter(([value]) => value !== 'saldo' || saldoDisponivel !== null)
+                      .map(([value, meta]) => (
+                        <option key={value} value={value}>{meta.label}</option>
+                      ))}
                   </select>
                 </div>
 
                 <div className="text-sm space-y-1.5 pt-2 border-t border-dashed border-slate-200 dark:border-zinc-800">
+                  {metodoPagamento === 'saldo' && (
+                    <div className="space-y-1">
+                      <p className="text-slate-700 dark:text-zinc-300">
+                        Saldo disponível: <span className="font-mono font-bold">{formatMt(saldoDisponivel ?? 0)} MT</span>
+                      </p>
+                      {(saldoDisponivel ?? 0) < total && (
+                        <p className="text-xs text-rose-600 dark:text-rose-400">
+                          Saldo insuficiente para esta compra — carregue mais saldo no seu painel de revendedor.
+                        </p>
+                      )}
+                    </div>
+                  )}
                   {metodoPagamento === 'mpesa' && (
                     <div className="space-y-2">
                       <p className="text-slate-700 dark:text-zinc-300">Número M-Pesa: <span className="font-mono font-bold">{MPESA_NUMBER}</span></p>
@@ -725,13 +813,13 @@ function CheckoutContent() {
                 <p className="px-5 pt-4 pb-1 text-[11px] font-bold uppercase tracking-wide text-slate-400 dark:text-zinc-500 flex items-center gap-1.5">
                   <Zap className="w-3.5 h-3.5" /> Ações Rápidas
                 </p>
-                <button type="button" onClick={() => window.print()} className="w-full flex items-center gap-2.5 px-5 py-3 text-sm text-slate-700 dark:text-zinc-300 hover:bg-slate-50 dark:hover:bg-zinc-800 border-t border-slate-100 dark:border-zinc-800">
+                <button type="button" onClick={() => window.print()} className="w-full flex items-center gap-2.5 px-5 py-3 text-sm text-slate-700 dark:text-zinc-300 hover:bg-slate-50 dark:hover:bg-zinc-800 hover:text-red-600 dark:hover:text-red-400 cursor-pointer border-t border-slate-100 dark:border-zinc-800">
                   <Printer className="w-4 h-4 text-slate-400" /> Imprimir Fatura
                 </button>
-                <button type="button" onClick={() => window.print()} className="w-full flex items-center gap-2.5 px-5 py-3 text-sm text-slate-700 dark:text-zinc-300 hover:bg-slate-50 dark:hover:bg-zinc-800 border-t border-slate-100 dark:border-zinc-800">
+                <button type="button" onClick={() => window.print()} className="w-full flex items-center gap-2.5 px-5 py-3 text-sm text-slate-700 dark:text-zinc-300 hover:bg-slate-50 dark:hover:bg-zinc-800 hover:text-red-600 dark:hover:text-red-400 cursor-pointer border-t border-slate-100 dark:border-zinc-800">
                   <FileDown className="w-4 h-4 text-slate-400" /> Download PDF
                 </button>
-                <button type="button" onClick={() => router.push('/cliente')} className="w-full flex items-center gap-2.5 px-5 py-3 text-sm text-slate-700 dark:text-zinc-300 hover:bg-slate-50 dark:hover:bg-zinc-800 border-t border-slate-100 dark:border-zinc-800">
+                <button type="button" onClick={() => router.push('/cliente')} className="w-full flex items-center gap-2.5 px-5 py-3 text-sm text-slate-700 dark:text-zinc-300 hover:bg-slate-50 dark:hover:bg-zinc-800 hover:text-red-600 dark:hover:text-red-400 cursor-pointer border-t border-slate-100 dark:border-zinc-800">
                   <ArrowLeft className="w-4 h-4 text-slate-400" /> Retornar ao Painel
                 </button>
               </div>
@@ -741,9 +829,10 @@ function CheckoutContent() {
                   <Info className="w-3.5 h-3.5" /> Informações Importantes
                 </p>
                 <p className="text-xs text-slate-500 dark:text-zinc-400 leading-relaxed">
-                  Pagamentos por M-Pesa ou Transferência são confirmados manualmente pela nossa equipa — o serviço é activado assim que o comprovativo for verificado.
+                  Pagamentos por M-Pesa ou Transferência são, por enquanto, confirmados manualmente pela nossa equipa — o serviço é activado assim que o comprovativo for verificado.
                 </p>
-                <p className="text-xs text-slate-500 dark:text-zinc-400 leading-relaxed mt-1.5">
+                <div className="border-t border-dashed border-slate-200 dark:border-zinc-800 my-3" />
+                <p className="text-xs text-slate-500 dark:text-zinc-400 leading-relaxed">
                   Pagamentos por Cartão (Stripe) são confirmados e activados automaticamente.
                 </p>
                 <p className="text-xs text-slate-500 dark:text-zinc-400 leading-relaxed mt-1.5">
