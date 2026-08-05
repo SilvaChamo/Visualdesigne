@@ -29,9 +29,18 @@ interface Notification {
 
 interface NotificationsPanelProps {
   userEmail?: string
+  /** Estilo do botão-sino — por omissão fica bem num header claro (painel); passar algo escuro para barras pretas. */
+  buttonClassName?: string
+  iconClassName?: string
+  badgeClassName?: string
 }
 
-export function NotificationsPanel({ userEmail }: NotificationsPanelProps) {
+export function NotificationsPanel({
+  userEmail,
+  buttonClassName = 'relative p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors',
+  iconClassName = 'w-6 h-6',
+  badgeClassName = 'absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-xs font-bold rounded-full flex items-center justify-center',
+}: NotificationsPanelProps) {
   const [notifications, setNotifications] = useState<Notification[]>([])
   const [unreadCount, setUnreadCount] = useState(0)
   const [isOpen, setIsOpen] = useState(false)
@@ -141,11 +150,11 @@ export function NotificationsPanel({ userEmail }: NotificationsPanelProps) {
       {/* Botão do Sino */}
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="relative p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
+        className={buttonClassName}
       >
-        <Bell className="w-6 h-6" />
+        <Bell className={iconClassName} />
         {unreadCount > 0 && (
-          <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-xs font-bold rounded-full flex items-center justify-center">
+          <span className={badgeClassName}>
             {unreadCount > 9 ? '9+' : unreadCount}
           </span>
         )}
