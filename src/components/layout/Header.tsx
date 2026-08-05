@@ -160,6 +160,7 @@ export function Header({ isScrolled = false }: { isScrolled?: boolean }) {
   const showEncomendasLink = userRole !== 'admin' && userRole !== 'manager'
 
   const pathname = usePathname()
+  const isCheckout = pathname.startsWith('/checkout')
 
   const navigation = useMemo(() => {
     if (pathname.startsWith('/visualdesign')) return designNavigation
@@ -247,9 +248,9 @@ export function Header({ isScrolled = false }: { isScrolled?: boolean }) {
 
           {/* Center Column - Navigation */}
           <div className="flex items-stretch justify-center">
-            <nav className="hidden lg:flex items-stretch justify-center w-full">
+            <nav className={cn('hidden items-stretch justify-center w-full', !isCheckout && 'lg:flex')}>
               <div className="flex items-stretch space-x-6">
-                {navigation.map((item) => {
+                {!isCheckout && navigation.map((item) => {
                   return (
                     <div 
                       key={item.id} 
@@ -365,6 +366,7 @@ export function Header({ isScrolled = false }: { isScrolled?: boolean }) {
                   'lg:hidden !bg-black dark:!bg-zinc-900 hover:!bg-red-600 dark:hover:!bg-zinc-800 !text-white dark:!text-white dark:hover:!text-white !border-gray-600 dark:!border-zinc-700'
                 )}
               />
+              {!isCheckout && (
               <button
                 onClick={toggleLang}
                 className={cn(
@@ -376,6 +378,7 @@ export function Header({ isScrolled = false }: { isScrolled?: boolean }) {
               >
                 {otherLangLabel}
               </button>
+              )}
               {user ? (
                 <>
                   <Link
