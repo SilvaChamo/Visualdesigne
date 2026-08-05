@@ -7,7 +7,7 @@ import {
   panelTabBar, panelTabBtn, panelTabBtnActive, panelTabBtnInactive,
 } from '@/lib/panel-ui'
 import { formatMt } from '@/lib/pricing-catalog'
-import { PedidoAccordionRow, type PedidoCliente } from './PedidoAccordionRow'
+import { ImageLightbox } from './ImageLightbox'
 
 // Valores negativos (lucro pode ficar negativo quando os custos ultrapassam
 // a receita) saem sempre a vermelho, seja qual for a tabela/linha.
@@ -194,6 +194,7 @@ const CREDITO_STATUS_META: Record<CreditoPedido['status'], { label: string; clas
 function ResellerCreditsTable() {
   const [pedidos, setPedidos] = useState<CreditoPedido[] | null>(null)
   const [updatingId, setUpdatingId] = useState<string | null>(null)
+  const [lightboxUrl, setLightboxUrl] = useState<string | null>(null)
 
   const load = () => {
     fetch('/api/admin/reseller-creditos')
@@ -240,24 +241,85 @@ function ResellerCreditsTable() {
   }
 
   return (
-    <div className="space-y-3">
-      {pedidos.map((p) => (
-        <PedidoAccordionRow
-          key={p.id}
-          dataCreated={p.created_at}
-          cliente={{ nome: p.da_username, email: p.email }}
-          resumo="Carregamento de saldo (revendedor)"
-          valorMt={p.valor_mt}
-          metodoLabel={METODO_LABEL[p.metodo_pagamento] || p.metodo_pagamento}
-          status={CREDITO_STATUS_META[p.status]}
-          comprovativoUrl={p.comprovativo_url}
-          rejectionReason={p.rejection_reason}
-          canAct={p.status === 'pending'}
-          updating={updatingId === p.id}
-          onConfirm={() => respond(p.id, 'confirmed')}
-          onReject={() => respond(p.id, 'rejected')}
-        />
-      ))}
+    <div className={`${panelSectionCard} overflow-hidden`}>
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b border-gray-200 text-xs font-bold uppercase tracking-wide text-gray-500 dark:border-zinc-700 dark:text-zinc-400">
+              <th className="px-4 py-2 text-left whitespace-nowrap">Data</th>
+              <th className="px-4 py-2 text-left">Revendedor</th>
+              <th className="px-4 py-2 text-right whitespace-nowrap">Valor</th>
+              <th className="px-4 py-2 text-left whitespace-nowrap">Método</th>
+              <th className="px-4 py-2 text-left whitespace-nowrap">Comprovativo</th>
+              <th className="px-4 py-2 text-right whitespace-nowrap">Estado</th>
+              <th className="px-4 py-2 text-right whitespace-nowrap"> </th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-100 dark:divide-zinc-800">
+            {pedidos.map((p) => {
+              const meta = CREDITO_STATUS_META[p.status]
+              return (
+                <tr key={p.id} className="hover:bg-gray-50 dark:hover:bg-zinc-800/30">
+                  <td className="whitespace-nowrap px-4 py-2.5 text-gray-500 dark:text-zinc-400">
+                    {new Date(p.created_at).toLocaleDateString('pt-PT')}
+                  </td>
+                  <td className="max-w-[12rem] truncate px-4 py-2.5 font-medium text-gray-900 dark:text-white">
+                    {p.da_username}{p.email ? <span className="text-gray-400 dark:text-zinc-500"> · {p.email}</span> : null}
+                  </td>
+                  <td className="whitespace-nowrap px-4 py-2.5 text-right font-bold tabular-nums text-gray-900 dark:text-white">
+                    {formatMt(p.valor_mt)} MT
+                  </td>
+                  <td className="whitespace-nowrap px-4 py-2.5 text-gray-500 dark:text-zinc-400">
+                    {METODO_LABEL[p.metodo_pagamento] || p.metodo_pagamento}
+                  </td>
+                  <td className="whitespace-nowrap px-4 py-2.5">
+                    {p.comprovativo_url ? (
+                      <button
+                        type="button"
+                        onClick={() => setLightboxUrl(p.comprovativo_url)}
+                        className="text-xs font-medium text-red-600 hover:underline dark:text-red-400"
+                      >
+                        Ver ficheiro
+                      </button>
+                    ) : (
+                      <span className="text-xs text-gray-400 dark:text-zinc-500">Sem comprovativo</span>
+                    )}
+                  </td>
+                  <td className="whitespace-nowrap px-4 py-2.5 text-right">
+                    <span className={`px-2.5 py-1 rounded-full text-xs font-bold ${meta.className}`}>{meta.label}</span>
+                    {p.status === 'rejected' && p.rejection_reason && (
+                      <p className="mt-1 text-xs text-gray-400 dark:text-zinc-500">{p.rejection_reason}</p>
+                    )}
+                  </td>
+                  <td className="whitespace-nowrap px-4 py-2.5 text-right">
+                    {p.status === 'pending' && (
+                      <div className="flex items-center justify-end gap-2">
+                        <button
+                          type="button"
+                          disabled={updatingId === p.id}
+                          onClick={() => respond(p.id, 'confirmed')}
+                          className="text-xs font-medium text-green-600 hover:underline disabled:opacity-50 dark:text-green-400"
+                        >
+                          Confirmar
+                        </button>
+                        <button
+                          type="button"
+                          disabled={updatingId === p.id}
+                          onClick={() => respond(p.id, 'rejected')}
+                          className="text-xs font-medium text-rose-600 hover:underline disabled:opacity-50 dark:text-rose-400"
+                        >
+                          Rejeitar
+                        </button>
+                      </div>
+                    )}
+                  </td>
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
+      </div>
+      {lightboxUrl && <ImageLightbox url={lightboxUrl} onClose={() => setLightboxUrl(null)} />}
     </div>
   )
 }
@@ -736,6 +798,15 @@ function EliminadasTable({ registos, onChanged }: { registos: RegistoRow[]; onCh
   )
 }
 
+type Cliente = {
+  nome?: string | null
+  email?: string | null
+  telefone?: string | null
+  morada?: string | null
+  cidade?: string | null
+  empresa?: string | null
+}
+
 type RenewalPedido = {
   id: string
   user_id: string
@@ -747,12 +818,13 @@ type RenewalPedido = {
   comprovativo_url: string | null
   rejection_reason: string | null
   created_at: string
-  cliente: PedidoCliente | null
+  cliente: Cliente | null
 }
 
 function RenewalPaymentsTable() {
   const [pedidos, setPedidos] = useState<RenewalPedido[] | null>(null)
   const [updatingId, setUpdatingId] = useState<string | null>(null)
+  const [lightboxUrl, setLightboxUrl] = useState<string | null>(null)
 
   const load = () => {
     fetch('/api/admin/renewal-pagamentos')
@@ -799,24 +871,91 @@ function RenewalPaymentsTable() {
   }
 
   return (
-    <div className="space-y-3">
-      {pedidos.map((p) => (
-        <PedidoAccordionRow
-          key={p.id}
-          dataCreated={p.created_at}
-          cliente={p.cliente || {}}
-          resumo={`${p.service_name} (renovação de ${p.renewal_type === 'domain' ? 'domínio' : 'hospedagem'})`}
-          valorMt={p.valor_mt}
-          metodoLabel={METODO_LABEL[p.metodo_pagamento] || p.metodo_pagamento}
-          status={CREDITO_STATUS_META[p.status]}
-          comprovativoUrl={p.comprovativo_url}
-          rejectionReason={p.rejection_reason}
-          canAct={p.status === 'pending'}
-          updating={updatingId === p.id}
-          onConfirm={() => respond(p.id, 'confirmed')}
-          onReject={() => respond(p.id, 'rejected')}
-        />
-      ))}
+    <div className={`${panelSectionCard} overflow-hidden`}>
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b border-gray-200 text-xs font-bold uppercase tracking-wide text-gray-500 dark:border-zinc-700 dark:text-zinc-400">
+              <th className="px-4 py-2 text-left whitespace-nowrap">Data</th>
+              <th className="px-4 py-2 text-left">Cliente</th>
+              <th className="px-4 py-2 text-left">Serviço</th>
+              <th className="px-4 py-2 text-left whitespace-nowrap">Tipo</th>
+              <th className="px-4 py-2 text-right whitespace-nowrap">Valor</th>
+              <th className="px-4 py-2 text-left whitespace-nowrap">Método</th>
+              <th className="px-4 py-2 text-left whitespace-nowrap">Comprovativo</th>
+              <th className="px-4 py-2 text-right whitespace-nowrap">Estado</th>
+              <th className="px-4 py-2 text-right whitespace-nowrap"> </th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-100 dark:divide-zinc-800">
+            {pedidos.map((p) => {
+              const meta = CREDITO_STATUS_META[p.status]
+              return (
+                <tr key={p.id} className="hover:bg-gray-50 dark:hover:bg-zinc-800/30">
+                  <td className="whitespace-nowrap px-4 py-2.5 text-gray-500 dark:text-zinc-400">
+                    {new Date(p.created_at).toLocaleDateString('pt-PT')}
+                  </td>
+                  <td className="max-w-[12rem] truncate px-4 py-2.5 text-gray-500 dark:text-zinc-400">
+                    {p.cliente?.nome || p.cliente?.empresa || p.cliente?.email || '—'}
+                  </td>
+                  <td className="max-w-[12rem] truncate px-4 py-2.5 font-medium text-gray-900 dark:text-white">{p.service_name}</td>
+                  <td className="whitespace-nowrap px-4 py-2.5 text-gray-500 dark:text-zinc-400">
+                    {p.renewal_type === 'domain' ? 'Domínio' : 'Hospedagem'}
+                  </td>
+                  <td className="whitespace-nowrap px-4 py-2.5 text-right font-bold tabular-nums text-gray-900 dark:text-white">
+                    {formatMt(p.valor_mt)} MT
+                  </td>
+                  <td className="whitespace-nowrap px-4 py-2.5 text-gray-500 dark:text-zinc-400">
+                    {METODO_LABEL[p.metodo_pagamento] || p.metodo_pagamento}
+                  </td>
+                  <td className="whitespace-nowrap px-4 py-2.5">
+                    {p.comprovativo_url ? (
+                      <button
+                        type="button"
+                        onClick={() => setLightboxUrl(p.comprovativo_url)}
+                        className="text-xs font-medium text-red-600 hover:underline dark:text-red-400"
+                      >
+                        Ver ficheiro
+                      </button>
+                    ) : (
+                      <span className="text-xs text-gray-400 dark:text-zinc-500">Sem comprovativo</span>
+                    )}
+                  </td>
+                  <td className="whitespace-nowrap px-4 py-2.5 text-right">
+                    <span className={`px-2.5 py-1 rounded-full text-xs font-bold ${meta.className}`}>{meta.label}</span>
+                    {p.status === 'rejected' && p.rejection_reason && (
+                      <p className="mt-1 text-xs text-gray-400 dark:text-zinc-500">{p.rejection_reason}</p>
+                    )}
+                  </td>
+                  <td className="whitespace-nowrap px-4 py-2.5 text-right">
+                    {p.status === 'pending' && (
+                      <div className="flex items-center justify-end gap-2">
+                        <button
+                          type="button"
+                          disabled={updatingId === p.id}
+                          onClick={() => respond(p.id, 'confirmed')}
+                          className="text-xs font-medium text-green-600 hover:underline disabled:opacity-50 dark:text-green-400"
+                        >
+                          Confirmar
+                        </button>
+                        <button
+                          type="button"
+                          disabled={updatingId === p.id}
+                          onClick={() => respond(p.id, 'rejected')}
+                          className="text-xs font-medium text-rose-600 hover:underline disabled:opacity-50 dark:text-rose-400"
+                        >
+                          Rejeitar
+                        </button>
+                      </div>
+                    )}
+                  </td>
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
+      </div>
+      {lightboxUrl && <ImageLightbox url={lightboxUrl} onClose={() => setLightboxUrl(null)} />}
     </div>
   )
 }
@@ -832,7 +971,7 @@ type CheckoutPedido = {
   id: string
   user_id: string
   user_email: string | null
-  cliente: PedidoCliente | null
+  cliente: Cliente | null
   items: CheckoutItem[]
   total_mt: number
   metodo_pagamento: string
@@ -859,6 +998,7 @@ const ITEM_STATUS_META: Record<'pending' | 'paid' | 'failed' | 'expired', { labe
 function CheckoutItemsByType({ types }: { types: string[] }) {
   const [pedidos, setPedidos] = useState<CheckoutPedido[] | null>(null)
   const [updatingKey, setUpdatingKey] = useState<string | null>(null)
+  const [lightboxUrl, setLightboxUrl] = useState<string | null>(null)
 
   const load = () => {
     fetch('/api/admin/checkout-pagamentos')
@@ -913,29 +1053,95 @@ function CheckoutItemsByType({ types }: { types: string[] }) {
   }
 
   return (
-    <div className="space-y-3">
-      {rows.map(({ pedido: p, item, itemIndex }) => {
-        const itemStatus = item.status ?? p.status
-        const key = `${p.id}-${itemIndex}`
-        const resumo = (p.items || []).length > 1 ? `${item.name} (+ ${(p.items || []).filter((_, i) => i !== itemIndex).map((i) => i.name).join(', ')})` : item.name
-        return (
-          <PedidoAccordionRow
-            key={key}
-            dataCreated={p.created_at}
-            cliente={p.cliente || { email: p.user_email }}
-            resumo={resumo}
-            valorMt={p.total_mt}
-            metodoLabel={METODO_LABEL[p.metodo_pagamento] || p.metodo_pagamento}
-            status={ITEM_STATUS_META[itemStatus] || ITEM_STATUS_META.pending}
-            comprovativoUrl={p.comprovativo_url}
-            rejectionReason={item.rejectionReason}
-            canAct={itemStatus === 'pending'}
-            updating={updatingKey === key}
-            onConfirm={() => respond(p.id, itemIndex, 'paid')}
-            onReject={() => respond(p.id, itemIndex, 'failed')}
-          />
-        )
-      })}
+    <div className={`${panelSectionCard} overflow-hidden`}>
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b border-gray-200 text-xs font-bold uppercase tracking-wide text-gray-500 dark:border-zinc-700 dark:text-zinc-400">
+              <th className="px-4 py-2 text-left whitespace-nowrap">Data</th>
+              <th className="px-4 py-2 text-left">Cliente</th>
+              <th className="px-4 py-2 text-left">Item</th>
+              <th className="px-4 py-2 text-right whitespace-nowrap">Valor</th>
+              <th className="px-4 py-2 text-left whitespace-nowrap">Método</th>
+              <th className="px-4 py-2 text-left whitespace-nowrap">Comprovativo</th>
+              <th className="px-4 py-2 text-right whitespace-nowrap">Estado</th>
+              <th className="px-4 py-2 text-right whitespace-nowrap"> </th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-100 dark:divide-zinc-800">
+            {rows.map(({ pedido: p, item, itemIndex }) => {
+              const itemStatus = item.status ?? p.status
+              const key = `${p.id}-${itemIndex}`
+              const outrosItens = (p.items || []).filter((_, i) => i !== itemIndex).map((i) => i.name)
+              const meta = ITEM_STATUS_META[itemStatus] || ITEM_STATUS_META.pending
+              return (
+                <tr key={key} className="hover:bg-gray-50 dark:hover:bg-zinc-800/30">
+                  <td className="whitespace-nowrap px-4 py-2.5 text-gray-500 dark:text-zinc-400">
+                    {new Date(p.created_at).toLocaleDateString('pt-PT')}
+                  </td>
+                  <td className="max-w-[12rem] truncate px-4 py-2.5 text-gray-500 dark:text-zinc-400">
+                    {p.cliente?.nome || p.cliente?.empresa || p.user_email || '—'}
+                  </td>
+                  <td className="max-w-[16rem] truncate px-4 py-2.5 font-medium text-gray-900 dark:text-white">
+                    {item.name}
+                    {outrosItens.length > 0 && (
+                      <span className="text-gray-400 dark:text-zinc-500"> (+ {outrosItens.join(', ')})</span>
+                    )}
+                  </td>
+                  <td className="whitespace-nowrap px-4 py-2.5 text-right font-bold tabular-nums text-gray-900 dark:text-white">
+                    {formatMt(p.total_mt)} MT
+                  </td>
+                  <td className="whitespace-nowrap px-4 py-2.5 text-gray-500 dark:text-zinc-400">
+                    {METODO_LABEL[p.metodo_pagamento] || p.metodo_pagamento}
+                  </td>
+                  <td className="whitespace-nowrap px-4 py-2.5">
+                    {p.comprovativo_url ? (
+                      <button
+                        type="button"
+                        onClick={() => setLightboxUrl(p.comprovativo_url)}
+                        className="text-xs font-medium text-red-600 hover:underline dark:text-red-400"
+                      >
+                        Ver ficheiro
+                      </button>
+                    ) : (
+                      <span className="text-xs text-gray-400 dark:text-zinc-500">Sem comprovativo</span>
+                    )}
+                  </td>
+                  <td className="whitespace-nowrap px-4 py-2.5 text-right">
+                    <span className={`px-2.5 py-1 rounded-full text-xs font-bold ${meta.className}`}>{meta.label}</span>
+                    {itemStatus === 'failed' && item.rejectionReason && (
+                      <p className="mt-1 text-xs text-gray-400 dark:text-zinc-500">{item.rejectionReason}</p>
+                    )}
+                  </td>
+                  <td className="whitespace-nowrap px-4 py-2.5 text-right">
+                    {itemStatus === 'pending' && (
+                      <div className="flex items-center justify-end gap-2">
+                        <button
+                          type="button"
+                          disabled={updatingKey === key}
+                          onClick={() => respond(p.id, itemIndex, 'paid')}
+                          className="text-xs font-medium text-green-600 hover:underline disabled:opacity-50 dark:text-green-400"
+                        >
+                          Confirmar
+                        </button>
+                        <button
+                          type="button"
+                          disabled={updatingKey === key}
+                          onClick={() => respond(p.id, itemIndex, 'failed')}
+                          className="text-xs font-medium text-rose-600 hover:underline disabled:opacity-50 dark:text-rose-400"
+                        >
+                          Rejeitar
+                        </button>
+                      </div>
+                    )}
+                  </td>
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
+      </div>
+      {lightboxUrl && <ImageLightbox url={lightboxUrl} onClose={() => setLightboxUrl(null)} />}
     </div>
   )
 }
