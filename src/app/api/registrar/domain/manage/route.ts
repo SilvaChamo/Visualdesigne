@@ -12,7 +12,10 @@ export async function GET(request: NextRequest) {
   const auth = await requireDaAccessForDomain(domain);
   if ('error' in auth) return auth.error;
 
-  const result = await dynadotAPI.getDomainDetails(domain);
+  const [result, dnssec] = await Promise.all([
+    dynadotAPI.getDomainDetails(domain),
+    dynadotAPI.getDnssecStatus(domain),
+  ]);
   if (!result.success) {
     return NextResponse.json({ success: false, error: result.error }, { status: 400 });
   }
@@ -25,6 +28,8 @@ export async function GET(request: NextRequest) {
     expireDate: result.expireDate,
     status: result.status,
     nameservers: result.nameservers,
+    privacyEnabled: result.privacyEnabled,
+    dnssecEnabled: dnssec.success ? dnssec.enabled : null,
   });
 }
 
@@ -49,12 +54,16 @@ export async function POST(request: NextRequest) {
   const auth = await requireDaAccessForDomain(domain);
   if ('error' in auth) return auth.error;
 
-  if (action === 'unlock') {
-    const result = await dynadotAPI.setTransferLock(domain, false);
+  if (action === 'unlock' || action === 'lock') {
+    const result = await dynadotAPI.setTransferLock(domain, action === 'lock');
     if (!result.success) {
       return NextResponse.json({ success: false, error: result.error }, { status: 400 });
     }
-    return NextResponse.json({ success: true, isLocked: result.isLocked, message: 'Bloqueio de transferência removido.' });
+    return NextResponse.json({
+      success: true,
+      isLocked: result.isLocked,
+      message: action === 'lock' ? 'Domínio bloqueado para transferência.' : 'Bloqueio de transferência removido.',
+    });
   }
 
   if (action === 'auth-code') {

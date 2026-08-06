@@ -2,9 +2,9 @@
 
 import { useEffect, useState } from 'react'
 import {
-  Globe, Server, Cloud, LockOpen, RefreshCw, Key, Copy, Calendar,
-  Mail, ExternalLink, Trash2, CheckCircle, XCircle, ShieldCheck,
-  ChevronDown, ChevronRight, ArrowRightLeft, Plus,
+  Globe, Server, Cloud, Lock, LockOpen, RefreshCw, Key, Copy, Calendar,
+  Mail, ExternalLink, Trash2, CheckCircle, XCircle, ShieldCheck, ShieldAlert,
+  ChevronDown, ChevronRight, ArrowRightLeft, Plus, PlusCircle,
 } from 'lucide-react'
 import { Spinner } from '@/components/ui/spinner'
 import { panelBtnPrimary, panelBtnSecondary, panelField } from '@/lib/panel-ui'
@@ -16,6 +16,8 @@ type RegistrarInfo = {
   expireDate: string
   status: string
   nameservers: string[]
+  privacyEnabled: boolean | null
+  dnssecEnabled: boolean | null
 }
 
 type HealthCheck = { ok: boolean; detail: string }
@@ -67,7 +69,7 @@ export function DomainDetailSection({ domain, sites, onNavigate, onRefresh, setA
   }
 
   const [registrarLoading, setRegistrarLoading] = useState(false)
-  const [registrar, setRegistrar] = useState<RegistrarInfo>({ isLocked: null, autoRenew: null, expireDate: '', status: '', nameservers: [] })
+  const [registrar, setRegistrar] = useState<RegistrarInfo>({ isLocked: null, autoRenew: null, expireDate: '', status: '', nameservers: [], privacyEnabled: null, dnssecEnabled: null })
   const [authCode, setAuthCode] = useState('')
   const [authCodeExpires, setAuthCodeExpires] = useState('')
 
@@ -102,6 +104,8 @@ export function DomainDetailSection({ domain, sites, onNavigate, onRefresh, setA
           expireDate: data.expireDate || '',
           status: data.status || '',
           nameservers: ns,
+          privacyEnabled: typeof data.privacyEnabled === 'boolean' ? data.privacyEnabled : null,
+          dnssecEnabled: typeof data.dnssecEnabled === 'boolean' ? data.dnssecEnabled : null,
         })
         setNsDraft(ns.length > 0 ? ns : ['', ''])
       }
@@ -156,7 +160,7 @@ export function DomainDetailSection({ domain, sites, onNavigate, onRefresh, setA
   }
 
   useEffect(() => {
-    setRegistrar({ isLocked: null, autoRenew: null, expireDate: '', status: '', nameservers: [] })
+    setRegistrar({ isLocked: null, autoRenew: null, expireDate: '', status: '', nameservers: [], privacyEnabled: null, dnssecEnabled: null })
     setAuthCode('')
     setAuthCodeExpires('')
     setHealth(null)
@@ -169,21 +173,23 @@ export function DomainDetailSection({ domain, sites, onNavigate, onRefresh, setA
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [domain])
 
-  const handleUnlockTransfer = async () => {
+  const handleToggleLock = async () => {
+    if (registrar.isLocked === null) return
+    const wantLock = !registrar.isLocked
     setRegistrarLoading(true)
     try {
       const res = await fetch('/api/registrar/domain/manage', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ domain, action: 'unlock' }),
+        body: JSON.stringify({ domain, action: wantLock ? 'lock' : 'unlock' }),
       })
       const data = await res.json()
       if (data.success) {
-        setRegistrar((prev) => ({ ...prev, isLocked: false }))
-        showMsg(data.message || 'Domínio desbloqueado para transferência.')
+        setRegistrar((prev) => ({ ...prev, isLocked: wantLock }))
+        showMsg(data.message || (wantLock ? 'Domínio bloqueado para transferência.' : 'Domínio desbloqueado para transferência.'))
       } else {
-        showMsg(data.error || 'Erro ao desbloquear', 'error')
+        showMsg(data.error || 'Erro ao alterar bloqueio', 'error')
       }
     } catch (e: unknown) {
       showMsg(e instanceof Error ? e.message : 'Erro de ligação', 'error')
@@ -503,12 +509,10 @@ export function DomainDetailSection({ domain, sites, onNavigate, onRefresh, setA
                       {registrar.isLocked ? 'Bloqueado — desbloqueie antes de transferir' : 'Desbloqueado — pronto para transferência'}
                     </p>
                   </div>
-                  {registrar.isLocked !== false && (
-                    <button type="button" onClick={() => void handleUnlockTransfer()} disabled={registrarLoading} className={panelBtnPrimary}>
-                      {registrarLoading ? <Spinner className="h-4 w-4" /> : <LockOpen className="h-4 w-4" />}
-                      Desbloquear
-                    </button>
-                  )}
+                  <button type="button" onClick={() => void handleToggleLock()} disabled={registrarLoading} className={panelBtnPrimary}>
+                    {registrarLoading ? <Spinner className="h-4 w-4" /> : registrar.isLocked ? <LockOpen className="h-4 w-4" /> : <Lock className="h-4 w-4" />}
+                    {registrar.isLocked ? 'Desbloquear' : 'Bloquear'}
+                  </button>
                 </div>
               </div>
 
@@ -617,34 +621,9 @@ export function DomainDetailSection({ domain, sites, onNavigate, onRefresh, setA
         <div className="space-y-4">
           <div className="rounded border border-gray-200 bg-white dark:border-zinc-700 dark:bg-zinc-900">
             <div className="border-b border-gray-100 px-4 py-3 dark:border-zinc-800">
-              <h3 className="text-xs font-bold uppercase text-gray-500 dark:text-zinc-500">Acções</h3>
+              <h3 className="text-xs font-bold uppercase text-gray-500 dark:text-zinc-500">Gerenciar</h3>
             </div>
             <div className="divide-y divide-gray-100 dark:divide-zinc-800">
-              <button
-                type="button"
-                onClick={() => onNavigate?.('dns-central', { domain })}
-                className="flex w-full items-center justify-between px-4 py-3 text-left text-sm text-gray-700 hover:text-red-600 dark:text-zinc-300 dark:hover:text-red-400"
-              >
-                Editar Zona de DNS
-                <Cloud className="h-4 w-4 shrink-0" />
-              </button>
-              <button
-                type="button"
-                onClick={() => setNsOpen(true)}
-                disabled={registrar.isLocked === null}
-                className="flex w-full items-center justify-between px-4 py-3 text-left text-sm text-gray-700 hover:text-red-600 disabled:opacity-50 dark:text-zinc-300 dark:hover:text-red-400"
-              >
-                Alterar nameservers
-                <Server className="h-4 w-4 shrink-0" />
-              </button>
-              <button
-                type="button"
-                onClick={() => onNavigate?.('cadastrar-renovacao', { domain })}
-                className="flex w-full items-center justify-between px-4 py-3 text-left text-sm text-gray-700 hover:text-red-600 dark:text-zinc-300 dark:hover:text-red-400"
-              >
-                Renovar manualmente
-                <Calendar className="h-4 w-4 shrink-0" />
-              </button>
               <button
                 type="button"
                 onClick={() => void handleToggleAutoRenew()}
@@ -652,7 +631,7 @@ export function DomainDetailSection({ domain, sites, onNavigate, onRefresh, setA
                 className="flex w-full items-center justify-between px-4 py-3 text-left text-sm text-gray-700 hover:text-red-600 disabled:opacity-50 dark:text-zinc-300 dark:hover:text-red-400"
               >
                 <span>
-                  Renovação automática
+                  Renovação Automática
                   {registrar.autoRenew !== null && (
                     <span className="mt-0.5 block text-xs text-gray-500 dark:text-zinc-500">
                       {registrar.autoRenew ? 'Activa' : 'Inactiva'}
@@ -663,14 +642,85 @@ export function DomainDetailSection({ domain, sites, onNavigate, onRefresh, setA
               </button>
               <button
                 type="button"
+                onClick={() => setNsOpen(true)}
+                disabled={registrar.isLocked === null}
+                className="flex w-full items-center justify-between px-4 py-3 text-left text-sm text-gray-700 hover:text-red-600 disabled:opacity-50 dark:text-zinc-300 dark:hover:text-red-400"
+              >
+                Servidores de Nome
+                <Server className="h-4 w-4 shrink-0" />
+              </button>
+              <button
+                type="button"
+                onClick={() => void handleToggleLock()}
+                disabled={registrarLoading || registrar.isLocked === null}
+                className="flex w-full items-center justify-between px-4 py-3 text-left text-sm text-gray-700 hover:text-red-600 disabled:opacity-50 dark:text-zinc-300 dark:hover:text-red-400"
+              >
+                <span>
+                  Trava de Registo
+                  {registrar.isLocked !== null && (
+                    <span className="mt-0.5 block text-xs text-gray-500 dark:text-zinc-500">
+                      {registrar.isLocked ? 'Bloqueado' : 'Desbloqueado'}
+                    </span>
+                  )}
+                </span>
+                {registrarLoading ? <Spinner className="h-4 w-4 shrink-0" /> : registrar.isLocked ? <Lock className="h-4 w-4 shrink-0" /> : <LockOpen className="h-4 w-4 shrink-0" />}
+              </button>
+              <button
+                type="button"
                 onClick={() => showMsg('Disponível em breve — a gestão de WHOIS ainda não está ligada ao registador.', 'error')}
                 className="flex w-full items-center justify-between px-4 py-3 text-left text-sm text-gray-400 dark:text-zinc-600"
               >
                 <span>
-                  Actualizar WHOIS
+                  Informações de Contacto
                   <span className="mt-0.5 block text-xs text-gray-400 dark:text-zinc-600">Em breve</span>
                 </span>
                 <ShieldCheck className="h-4 w-4 shrink-0" />
+              </button>
+              <button
+                type="button"
+                onClick={() => onNavigate?.('dns-central', { domain })}
+                className="flex w-full items-center justify-between px-4 py-3 text-left text-sm text-gray-700 hover:text-red-600 dark:text-zinc-300 dark:hover:text-red-400"
+              >
+                Gerenciar DNS
+                <Cloud className="h-4 w-4 shrink-0" />
+              </button>
+              <button
+                type="button"
+                onClick={() => void handleFetchAuthCode()}
+                disabled={registrarLoading}
+                className="flex w-full items-center justify-between px-4 py-3 text-left text-sm text-gray-700 hover:text-red-600 disabled:opacity-50 dark:text-zinc-300 dark:hover:text-red-400"
+              >
+                Obter código EPP
+                {registrarLoading ? <Spinner className="h-4 w-4 shrink-0" /> : <Key className="h-4 w-4 shrink-0" />}
+              </button>
+              <div className="flex w-full items-center justify-between px-4 py-3 text-sm text-gray-700 dark:text-zinc-300">
+                <span>
+                  Protecção de Privacidade
+                  <span className="mt-0.5 block text-xs text-gray-500 dark:text-zinc-500">
+                    {registrar.privacyEnabled === null ? '—' : registrar.privacyEnabled ? 'Activa (dados WHOIS ocultos)' : 'Inactiva'}
+                  </span>
+                </span>
+                <ShieldCheck className={`h-4 w-4 shrink-0 ${registrar.privacyEnabled ? 'text-green-600' : 'text-gray-400'}`} />
+              </div>
+              <div className="flex w-full items-center justify-between px-4 py-3 text-sm text-gray-700 dark:text-zinc-300">
+                <span>
+                  DNSSEC
+                  <span className="mt-0.5 block text-xs text-gray-500 dark:text-zinc-500">
+                    {registrar.dnssecEnabled === null ? '—' : registrar.dnssecEnabled ? 'Configurado' : 'Não configurado'}
+                  </span>
+                </span>
+                <ShieldAlert className={`h-4 w-4 shrink-0 ${registrar.dnssecEnabled ? 'text-green-600' : 'text-gray-400'}`} />
+              </div>
+              <button
+                type="button"
+                onClick={() => showMsg('O registador não disponibiliza redireccionamento de URL por API. Use "Redireccionar domínio" mais abaixo, que funciona através da hospedagem.', 'error')}
+                className="flex w-full items-center justify-between px-4 py-3 text-left text-sm text-gray-400 dark:text-zinc-600"
+              >
+                <span>
+                  Encaminhamento de URL
+                  <span className="mt-0.5 block text-xs text-gray-400 dark:text-zinc-600">Não suportado pelo registador</span>
+                </span>
+                <ArrowRightLeft className="h-4 w-4 shrink-0" />
               </button>
               <button
                 type="button"
@@ -687,6 +737,38 @@ export function DomainDetailSection({ domain, sites, onNavigate, onRefresh, setA
               >
                 Abrir site
                 <ExternalLink className="h-4 w-4 shrink-0" />
+              </button>
+            </div>
+          </div>
+
+          <div className="rounded border border-gray-200 bg-white dark:border-zinc-700 dark:bg-zinc-900">
+            <div className="border-b border-gray-100 px-4 py-3 dark:border-zinc-800">
+              <h3 className="text-xs font-bold uppercase text-gray-500 dark:text-zinc-500">Ações</h3>
+            </div>
+            <div className="divide-y divide-gray-100 dark:divide-zinc-800">
+              <button
+                type="button"
+                onClick={() => onNavigate?.('cadastrar-renovacao', { domain })}
+                className="flex w-full items-center justify-between px-4 py-3 text-left text-sm text-gray-700 hover:text-red-600 dark:text-zinc-300 dark:hover:text-red-400"
+              >
+                Renovar Domínio
+                <RefreshCw className="h-4 w-4 shrink-0" />
+              </button>
+              <button
+                type="button"
+                onClick={() => window.open('/servicos/dominios', '_blank', 'noopener,noreferrer')}
+                className="flex w-full items-center justify-between px-4 py-3 text-left text-sm text-gray-700 hover:text-red-600 dark:text-zinc-300 dark:hover:text-red-400"
+              >
+                Registrar Novo Domínio
+                <PlusCircle className="h-4 w-4 shrink-0" />
+              </button>
+              <button
+                type="button"
+                onClick={() => onNavigate?.('transferir-dominio')}
+                className="flex w-full items-center justify-between px-4 py-3 text-left text-sm text-gray-700 hover:text-red-600 dark:text-zinc-300 dark:hover:text-red-400"
+              >
+                Transferir um Domínio
+                <ArrowRightLeft className="h-4 w-4 shrink-0" />
               </button>
             </div>
           </div>

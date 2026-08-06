@@ -187,6 +187,7 @@ type DynadotDomainInfo = {
   locked?: 'Yes' | 'No';
   renew_option?: string;
   status?: string;
+  privacy?: string;
 };
 
 export type DynadotDomainRow = {
@@ -223,6 +224,7 @@ export const dynadotAPI = {
         expireDate?: string;
         status?: string;
         nameservers?: string[];
+        privacyEnabled?: boolean;
       }
     | { success: false; error: string }
   > {
@@ -243,7 +245,22 @@ export const dynadotAPI = {
       nameservers: (info.glueInfo?.name_server_settings?.name_servers || [])
         .map((n) => n.server_name)
         .filter(Boolean),
+      privacyEnabled: /privacy/i.test(info.privacy || ''),
     };
+  },
+
+  /** Estado do DNSSEC — lista vazia significa que não está configurado. */
+  async getDnssecStatus(
+    domain: string,
+  ): Promise<{ success: true; enabled: boolean; recordCount: number } | { success: false; error: string }> {
+    const clean = domain.toLowerCase().trim();
+    const result = await dynadotFetch<{ dnssec_info_list?: unknown[] }>(
+      'GET',
+      `/restful/v1/domains/${encodeURIComponent(clean)}/dnssec`,
+    );
+    if (!result.ok) return { success: false, error: result.error };
+    const count = result.data.dnssec_info_list?.length || 0;
+    return { success: true, enabled: count > 0, recordCount: count };
   },
 
   async getTransferAuthCode(domain: string): Promise<
