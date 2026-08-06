@@ -1,16 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { requireAdminOrReseller } from '@/lib/panel-api-auth';
+import { requireDaAccessForDomain } from '@/lib/panel-domain-access';
 import { dynadotAPI } from '@/lib/dynadot-adapter';
 
 /** Detalhes e acções de gestão de domínio no registador (Dynadot). */
 export async function GET(request: NextRequest) {
-  const auth = await requireAdminOrReseller();
-  if ('error' in auth) return auth.error;
-
   const domain = request.nextUrl.searchParams.get('domain')?.trim().toLowerCase();
   if (!domain) {
     return NextResponse.json({ success: false, error: 'Domínio obrigatório' }, { status: 400 });
   }
+
+  const auth = await requireDaAccessForDomain(domain);
+  if ('error' in auth) return auth.error;
 
   const result = await dynadotAPI.getDomainDetails(domain);
   if (!result.success) {
@@ -24,14 +24,12 @@ export async function GET(request: NextRequest) {
     autoRenew: result.autoRenew,
     expireDate: result.expireDate,
     status: result.status,
+    nameservers: result.nameservers,
   });
 }
 
 export async function POST(request: NextRequest) {
-  const auth = await requireAdminOrReseller();
-  if ('error' in auth) return auth.error;
-
-  let body: { domain?: string; action?: string; isEnabled?: boolean };
+  let body: { domain?: string; action?: string; isEnabled?: boolean; nameservers?: string[] };
   try {
     body = await request.json();
   } catch {
@@ -45,19 +43,11 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: false, error: 'Domínio e acção obrigatórios' }, { status: 400 });
   }
 
-  if (action === 'unlock' || action === 'auth-code') {
-    // A conta de registador (Dynadot) é única e partilhada por toda a empresa — sem um
-    // registo de "este domínio pertence a este revendedor" não há forma segura de deixar um
-    // revendedor desbloquear transferência ou obter o código EPP de um domínio que pode nem
-    // ser seu. Estas duas acções permitem sequestrar um domínio, por isso ficam admin-only
-    // até existir rastreio de posse por domínio.
-    if (auth.user.role !== 'admin') {
-      return NextResponse.json(
-        { success: false, error: 'Acção restrita a administradores.' },
-        { status: 403 },
-      );
-    }
-  }
+  // unlock/auth-code/set-nameservers dão acesso efectivo a levar o domínio para outro
+  // registador ou reapontá-lo para outro lado — só quem realmente é dono do domínio
+  // (staff, ou o cliente confirmado dono via requireDaAccessForDomain) pode chamar isto.
+  const auth = await requireDaAccessForDomain(domain);
+  if ('error' in auth) return auth.error;
 
   if (action === 'unlock') {
     const result = await dynadotAPI.setTransferLock(domain, false);
@@ -76,6 +66,27 @@ export async function POST(request: NextRequest) {
       success: true,
       authCode: result.authCode,
       message: 'Código de transferência obtido.',
+    });
+  }
+
+  if (action === 'set-nameservers') {
+    const nameservers = Array.isArray(body.nameservers)
+      ? body.nameservers.map((n) => String(n).trim()).filter(Boolean)
+      : [];
+    if (nameservers.length < 2) {
+      return NextResponse.json(
+        { success: false, error: 'Indique pelo menos 2 nameservers.' },
+        { status: 400 },
+      );
+    }
+    const result = await dynadotAPI.setNameservers(domain, nameservers);
+    if (!result.success) {
+      return NextResponse.json({ success: false, error: result.error }, { status: 400 });
+    }
+    return NextResponse.json({
+      success: true,
+      nameservers: result.hosts,
+      message: 'Nameservers actualizados.',
     });
   }
 

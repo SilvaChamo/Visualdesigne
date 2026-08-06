@@ -18,6 +18,8 @@ import {
 import { ClientProductsHub } from '@/components/client/ClientProductsHub'
 import { ClientSidebar } from '@/components/client/ClientSidebar'
 import { EncomendasListSection } from '@/components/encomendas/EncomendasListSection'
+import { EncomendasMensagensSection } from '@/components/encomendas/EncomendasMensagensSection'
+import { EncomendasPagamentosSection } from '@/components/encomendas/EncomendasPagamentosSection'
 import { usePanelSidebarCollapsed } from '@/hooks/usePanelSidebarCollapsed'
 import { clientSectionLabel } from '@/lib/panel-client-menu'
 import { PanelHeader } from '@/components/panel/PanelHeader'
@@ -27,6 +29,7 @@ import { WordPressHubSection } from '@/app/dashboard/WordPressHubSection'
 import { DNSCentralSection } from '@/app/dashboard/DNSCentralSection'
 import { RegistrarDomainsSection } from '@/app/dashboard/RegistrarDomainsSection'
 import { DomainTransferSection } from '@/app/dashboard/DomainTransferSection'
+import { DomainDetailSection } from '@/app/dashboard/DomainDetailSection'
 import {
   SubdomainsSection, DatabasesSection, FTPSection, EmailManagementSection,
   CPUsersSection, SSLSection, SecuritySection, PHPConfigSection,
@@ -3430,6 +3433,10 @@ function ClientPageContent() {
         return <ClientProductsHub onNavigate={setActiveSection} />
       case 'encomendas':
         return <EncomendasListSection />
+      case 'encomendas-mensagens':
+        return <EncomendasMensagensSection />
+      case 'encomendas-pagamentos':
+        return <EncomendasPagamentosSection />
       case 'domains':
         return <ListWebsitesSection
           sites={directAdminSites}
@@ -3560,8 +3567,7 @@ function ClientPageContent() {
         // return <SecuritySection sites={directAdminSites} /> // Removido - não usado no painel do cliente
         return <div className="p-5"><h1 className="text-2xl font-bold">Segurança</h1><p className="text-gray-500 mt-1">Secção não disponível no painel do cliente</p></div>
       case 'cp-php':
-        // return <PHPConfigSection sites={directAdminSites} /> // Removido - não usado no painel do cliente
-        return <div className="p-5"><h1 className="text-2xl font-bold">Configuração PHP</h1><p className="text-gray-500 mt-1">Secção não disponível no painel do cliente</p></div>
+        return <PHPConfigSection sites={directAdminSites} />
       case 'cp-api':
       case 'infrastructure':
         // return <APIConfigSection /> // Removido - não usado no painel do cliente
@@ -3602,6 +3608,19 @@ function ClientPageContent() {
         )
       case 'transferir-dominio':
         return <DomainTransferSection />
+      case 'domain-detail':
+        return (
+          <DomainDetailSection
+            domain={selectedDNSDomain || primaryDomain}
+            sites={directAdminSites}
+            clientMode
+            onNavigate={(section, opts) => {
+              if (opts?.domain) setSelectedDNSDomain(opts.domain)
+              setActiveSection(section)
+            }}
+            onRefresh={loadDirectAdminData}
+          />
+        )
       case 'domain-manager':
         return (
           <DomainManagerSection

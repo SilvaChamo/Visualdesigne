@@ -185,7 +185,14 @@ export const dynadotAPI = {
   },
 
   async getDomainDetails(domain: string): Promise<
-    | { success: true; isLocked?: boolean; autoRenew?: boolean; expireDate?: string; status?: string }
+    | {
+        success: true;
+        isLocked?: boolean;
+        autoRenew?: boolean;
+        expireDate?: string;
+        status?: string;
+        nameservers?: string[];
+      }
     | { success: false; error: string }
   > {
     const clean = domain.toLowerCase().trim();
@@ -202,6 +209,9 @@ export const dynadotAPI = {
       autoRenew: info.renew_option === 'auto-renew',
       expireDate: info.expiration ? new Date(info.expiration).toISOString().slice(0, 10) : undefined,
       status: info.status,
+      nameservers: (info.glueInfo?.name_server_settings?.name_servers || [])
+        .map((n) => n.server_name)
+        .filter(Boolean),
     };
   },
 

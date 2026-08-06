@@ -11,7 +11,7 @@ import { clearAllPanelClientCaches } from '@/lib/panel-session-cache-clear'
 import { directAdminAPI } from '@/lib/directadmin-api'
 import type {
   DirectAdminWebsite, DirectAdminSubdomain, DirectAdminUser, DirectAdminDatabase,
-  DirectAdminFTPAccount, DirectAdminEmail, DirectAdminPHPConfig, DirectAdminPackage
+  DirectAdminFTPAccount, DirectAdminEmail, DirectAdminPackage
 } from '@/lib/directadmin-api'
 import { syncUserToSupabase, removeUserFromSupabase, getUsersFromSupabase, syncWebsiteToSupabase, removeWebsiteFromSupabase, markWPInstalledInSupabase, syncPackageToSupabase, removePackageFromSupabase } from '@/lib/supabase-sync'
 import {
@@ -4063,29 +4063,9 @@ export function ResellerSection() {
 // ============================================================
 export function PHPConfigSection({ sites }: { sites: DirectAdminWebsite[] }) {
   const [selectedDomain, setSelectedDomain] = useState('')
-  const [config, setConfig] = useState<DirectAdminPHPConfig | null>(null)
-  const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [msg, setMsg] = useState('')
   const [phpVersion, setPhpVersion] = useState('PHP 8.1')
-
-  const loadConfig = async (domain: string) => {
-    if (!domain) return
-    setLoading(true); setMsg('')
-    const data = await directAdminAPI.getPHPConfig(domain)
-    setConfig(data || { phpVersion: 'PHP 8.1', maxExecutionTime: '30', memoryLimit: '256M', uploadMaxFilesize: '50M', postMaxSize: '50M', maxInputVars: '1000', maxInputTime: '60' })
-    if (data?.phpVersion) setPhpVersion(data.phpVersion)
-    setLoading(false)
-  }
-
-  const handleSave = async () => {
-    if (!selectedDomain || !config) return
-    setSaving(true); setMsg('')
-    const ok = await directAdminAPI.savePHPConfig({ domain: selectedDomain, config })
-    if (ok) setMsg('Configurações PHP guardadas!')
-    else setMsg('Erro ao guardar configurações.')
-    setSaving(false)
-  }
 
   const handleChangePHP = async () => {
     if (!selectedDomain) return
@@ -4096,10 +4076,6 @@ export function PHPConfigSection({ sites }: { sites: DirectAdminWebsite[] }) {
     setSaving(false)
   }
 
-  const updateConfig = (key: string, value: string) => {
-    if (config) setConfig({ ...config, [key]: value })
-  }
-
   return (
     <div className="space-y-6">
 
@@ -4107,7 +4083,7 @@ export function PHPConfigSection({ sites }: { sites: DirectAdminWebsite[] }) {
         <div className="flex flex-wrap gap-4 items-end mb-6">
           <div className="flex-1 min-w-[200px]">
             <label className="text-xs font-bold text-gray-600 uppercase block mb-1.5">Website</label>
-            <select value={selectedDomain} onChange={(e) => { setSelectedDomain(e.target.value); loadConfig(e.target.value) }}
+            <select value={selectedDomain} onChange={(e) => setSelectedDomain(e.target.value)}
               className="w-full px-3 py-2.5 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-red-500/20 focus:border-red-500">
               <option value="">Seleccione...</option>
               {sites.map(s => <option key={s.domain} value={s.domain}>{s.domain}</option>)}
@@ -4127,29 +4103,13 @@ export function PHPConfigSection({ sites }: { sites: DirectAdminWebsite[] }) {
 
         {msg && <div className={`mb-4 px-4 py-2.5 rounded text-sm font-medium ${msg.includes('!') && !msg.includes('Erro') ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-700 border border-red-200'}`}>{msg}</div>}
 
-        {loading ? <div className="py-12 text-center"><Spinner className="w-8 h-8 mx-auto" /></div> : config && (
-          <>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
-              {[
-                { key: 'maxExecutionTime', label: 'Max Execution Time', placeholder: '30', suffix: 's' },
-                { key: 'memoryLimit', label: 'Memory Limit', placeholder: '256M', suffix: '' },
-                { key: 'uploadMaxFilesize', label: 'Upload Max Filesize', placeholder: '50M', suffix: '' },
-                { key: 'postMaxSize', label: 'Post Max Size', placeholder: '50M', suffix: '' },
-                { key: 'maxInputVars', label: 'Max Input Vars', placeholder: '1000', suffix: '' },
-                { key: 'maxInputTime', label: 'Max Input Time', placeholder: '60', suffix: 's' },
-              ].map(f => (
-                <div key={f.key}>
-                  <label className="text-xs font-bold text-gray-600 uppercase block mb-1.5">{f.label}</label>
-                  <input value={(config as any)[f.key] || ''} onChange={(e) => updateConfig(f.key, e.target.value)}
-                    placeholder={f.placeholder} className="w-full px-3 py-2.5 border border-gray-300 rounded text-sm font-mono focus:ring-2 focus:ring-red-500/20 focus:border-red-500" />
-                </div>
-              ))}
-            </div>
-            <button onClick={handleSave} disabled={saving} className="bg-green-50 border border-green-300 text-green-600 hover:bg-green-100 px-5 py-2.5 rounded text-sm font-bold transition-all disabled:opacity-50 flex items-center gap-2">
-              {saving ? <Spinner className="w-4 h-4" /> : <Settings className="w-4 h-4" />} Guardar Configurações PHP
-            </button>
-          </>
-        )}
+        <div className="rounded border border-gray-200 bg-gray-50 px-4 py-3 text-xs text-gray-500">
+          Limites finos (memory_limit, upload_max_filesize, max_execution_time, etc.) não têm uma opção editável por aqui —
+          são geridos directamente no DirectAdmin, em "Select PHP Version" do domínio.
+          <a href={getDirectAdminAccessUrl()} target="_blank" rel="noopener noreferrer" className="ml-1 font-bold text-red-600 hover:underline">
+            Abrir no DirectAdmin →
+          </a>
+        </div>
       </div>
 
       {/* PHP Extensions */}

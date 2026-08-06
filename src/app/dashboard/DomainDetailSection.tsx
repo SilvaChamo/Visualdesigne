@@ -15,6 +15,7 @@ type RegistrarInfo = {
   autoRenew: boolean | null
   expireDate: string
   status: string
+  nameservers: string[]
 }
 
 type HealthCheck = { ok: boolean; detail: string }
@@ -33,6 +34,8 @@ interface Props {
   onNavigate?: (section: string, opts?: { domain?: string }) => void
   onRefresh?: () => void | Promise<void>
   setActiveSection?: (section: string) => void
+  /** Painel do cliente: esconde acções destrutivas/staff-only (eliminar domínio, redireccionamentos via server-exec). */
+  clientMode?: boolean
 }
 
 const getDaysUntilExpiration = (dateStr: string): number | null => {
@@ -51,7 +54,7 @@ const formatDateLabel = (dateStr?: string): string => {
   return parsed.toLocaleDateString('pt-PT')
 }
 
-export function DomainDetailSection({ domain, sites, onNavigate, onRefresh, setActiveSection }: Props) {
+export function DomainDetailSection({ domain, sites, onNavigate, onRefresh, setActiveSection, clientMode }: Props) {
   const site = sites.find((s) => s.domain?.toLowerCase() === domain?.toLowerCase())
   const isHostingActive = (site?.state || site?.status || 'Active') !== 'Suspended'
 
@@ -64,9 +67,13 @@ export function DomainDetailSection({ domain, sites, onNavigate, onRefresh, setA
   }
 
   const [registrarLoading, setRegistrarLoading] = useState(false)
-  const [registrar, setRegistrar] = useState<RegistrarInfo>({ isLocked: null, autoRenew: null, expireDate: '', status: '' })
+  const [registrar, setRegistrar] = useState<RegistrarInfo>({ isLocked: null, autoRenew: null, expireDate: '', status: '', nameservers: [] })
   const [authCode, setAuthCode] = useState('')
   const [authCodeExpires, setAuthCodeExpires] = useState('')
+
+  const [nsOpen, setNsOpen] = useState(false)
+  const [nsDraft, setNsDraft] = useState<string[]>([])
+  const [nsSaving, setNsSaving] = useState(false)
 
   const [healthLoading, setHealthLoading] = useState(false)
   const [health, setHealth] = useState<HealthResult>(null)
@@ -88,12 +95,15 @@ export function DomainDetailSection({ domain, sites, onNavigate, onRefresh, setA
       })
       const data = await res.json().catch(() => ({}))
       if (data.success) {
+        const ns = Array.isArray(data.nameservers) ? data.nameservers : []
         setRegistrar({
           isLocked: typeof data.isLocked === 'boolean' ? data.isLocked : null,
           autoRenew: typeof data.autoRenew === 'boolean' ? data.autoRenew : null,
           expireDate: data.expireDate || '',
           status: data.status || '',
+          nameservers: ns,
         })
+        setNsDraft(ns.length > 0 ? ns : ['', ''])
       }
     } catch {
       /* domínio pode ser só de hospedagem, sem registo neste registador */
@@ -146,11 +156,13 @@ export function DomainDetailSection({ domain, sites, onNavigate, onRefresh, setA
   }
 
   useEffect(() => {
-    setRegistrar({ isLocked: null, autoRenew: null, expireDate: '', status: '' })
+    setRegistrar({ isLocked: null, autoRenew: null, expireDate: '', status: '', nameservers: [] })
     setAuthCode('')
     setAuthCodeExpires('')
     setHealth(null)
     setRenewal(null)
+    setNsOpen(false)
+    setNsDraft(['', ''])
     void loadRegistrarInfo()
     void loadHealth()
     void loadRenewalInfo()
@@ -201,6 +213,34 @@ export function DomainDetailSection({ domain, sites, onNavigate, onRefresh, setA
       showMsg(e instanceof Error ? e.message : 'Erro de ligação', 'error')
     } finally {
       setRegistrarLoading(false)
+    }
+  }
+
+  const handleSaveNameservers = async () => {
+    const clean = nsDraft.map((n) => n.trim()).filter(Boolean)
+    if (clean.length < 2) {
+      showMsg('Indique pelo menos 2 nameservers.', 'error')
+      return
+    }
+    setNsSaving(true)
+    try {
+      const res = await fetch('/api/registrar/domain/manage', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ domain, action: 'set-nameservers', nameservers: clean }),
+      })
+      const data = await res.json()
+      if (data.success) {
+        setRegistrar((prev) => ({ ...prev, nameservers: data.nameservers || clean }))
+        showMsg(data.message || 'Nameservers actualizados.')
+      } else {
+        showMsg(data.error || 'Erro ao actualizar nameservers', 'error')
+      }
+    } catch (e: unknown) {
+      showMsg(e instanceof Error ? e.message : 'Erro de ligação', 'error')
+    } finally {
+      setNsSaving(false)
     }
   }
 
@@ -506,10 +546,61 @@ export function DomainDetailSection({ domain, sites, onNavigate, onRefresh, setA
                   </div>
                 )}
               </div>
+
+              <div className="mt-4 rounded border border-gray-100 p-4 dark:border-zinc-800">
+                <button
+                  type="button"
+                  onClick={() => setNsOpen((v) => !v)}
+                  className="flex w-full items-center justify-between text-left"
+                >
+                  <span>
+                    <span className="block text-sm font-medium text-gray-900 dark:text-zinc-100">Nameservers do domínio</span>
+                    <span className="mt-0.5 block text-xs text-gray-500 dark:text-zinc-500">
+                      {registrar.nameservers.length > 0 ? registrar.nameservers.join(', ') : 'A usar os nameservers por defeito'}
+                    </span>
+                  </span>
+                  {nsOpen ? <ChevronDown className="h-4 w-4 shrink-0 text-gray-400" /> : <ChevronRight className="h-4 w-4 shrink-0 text-gray-400" />}
+                </button>
+                {nsOpen && (
+                  <div className="mt-3 space-y-2">
+                    <p className="text-xs text-gray-500 dark:text-zinc-500">
+                      Cuidado: alterar os nameservers muda para onde o domínio aponta (DNS, site, e-mail). Só altere se souber o que está a fazer.
+                    </p>
+                    {nsDraft.map((ns, idx) => (
+                      <div key={idx} className="flex items-center gap-2">
+                        <input
+                          value={ns}
+                          onChange={(e) => setNsDraft((prev) => prev.map((v, i) => (i === idx ? e.target.value : v)))}
+                          placeholder={`ns${idx + 1}.exemplo.com`}
+                          className={`${panelField} min-w-0 flex-1 font-mono`}
+                        />
+                        {nsDraft.length > 2 && (
+                          <button
+                            type="button"
+                            onClick={() => setNsDraft((prev) => prev.filter((_, i) => i !== idx))}
+                            className="shrink-0 text-gray-300 hover:text-red-600 dark:text-zinc-600 dark:hover:text-red-500"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                    <div className="flex flex-wrap items-center gap-2 pt-1">
+                      <button type="button" onClick={() => setNsDraft((prev) => [...prev, ''])} className={panelBtnSecondary}>
+                        <Plus className="h-4 w-4" /> Adicionar
+                      </button>
+                      <button type="button" onClick={() => void handleSaveNameservers()} disabled={nsSaving} className={panelBtnPrimary}>
+                        {nsSaving ? <Spinner className="h-4 w-4" /> : <Server className="h-4 w-4" />}
+                        Guardar nameservers
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
           )}
 
-          {site && (
+          {site && !clientMode && (
             <div className="rounded border border-gray-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-900">
               <p className="mb-3 text-xs font-bold uppercase text-gray-500 dark:text-zinc-500">Zona perigosa</p>
               <button
@@ -539,8 +630,9 @@ export function DomainDetailSection({ domain, sites, onNavigate, onRefresh, setA
               </button>
               <button
                 type="button"
-                onClick={() => onNavigate?.('cp-dns-nameserver', { domain })}
-                className="flex w-full items-center justify-between px-4 py-3 text-left text-sm text-gray-700 hover:text-red-600 dark:text-zinc-300 dark:hover:text-red-400"
+                onClick={() => setNsOpen(true)}
+                disabled={registrar.isLocked === null}
+                className="flex w-full items-center justify-between px-4 py-3 text-left text-sm text-gray-700 hover:text-red-600 disabled:opacity-50 dark:text-zinc-300 dark:hover:text-red-400"
               >
                 Alterar nameservers
                 <Server className="h-4 w-4 shrink-0" />
@@ -599,6 +691,7 @@ export function DomainDetailSection({ domain, sites, onNavigate, onRefresh, setA
             </div>
           </div>
 
+          {!clientMode && (
           <div className="rounded border border-gray-200 bg-white dark:border-zinc-700 dark:bg-zinc-900">
             <button
               type="button"
@@ -667,6 +760,7 @@ export function DomainDetailSection({ domain, sites, onNavigate, onRefresh, setA
               </div>
             )}
           </div>
+          )}
 
           {site && (
             <div className="rounded border border-gray-200 bg-white p-4 text-sm dark:border-zinc-700 dark:bg-zinc-900">

@@ -79,6 +79,34 @@ async function alertAdminOfTrackingFailure(context: string, message: string) {
 }
 
 /**
+ * Avisa o próprio cliente (não só o admin) quando o registo automático do
+ * domínio que ele acabou de pagar falha a meio — sem isto o cliente via
+ * "pagamento confirmado" e nada mais, sem saber que o domínio não chegou a
+ * ficar registado no registador até um admin reparar na notificação interna.
+ */
+async function notifyClientOfDomainProvisionResult(
+  admin: SupabaseClient,
+  userId: string,
+  domain: string,
+  ok: boolean,
+  detail: string,
+) {
+  try {
+    await admin.from('notifications').insert({
+      user_id: userId,
+      title: ok ? 'Domínio registado' : 'Domínio: é preciso a nossa ajuda',
+      message: ok
+        ? `O domínio ${domain} ficou registado e configurado com sucesso.`
+        : `Houve um problema a concluir o registo do domínio ${domain}. A nossa equipa já foi avisada e vai tratar disto — se preferir, contacte o suporte com este domínio.`,
+      type: ok ? 'success' : 'error',
+      category: 'system',
+    });
+  } catch {
+    /* uma notificação falhada nunca deve impedir o checkout de terminar */
+  }
+}
+
+/**
  * Activa os produtos comprados (domínio/hospedagem/email) e promove a conta guest -> client.
  * Só deve ser chamada depois de o pagamento estar confirmado (webhook Stripe), nunca a partir
  * de um pedido directo do browser.
@@ -171,6 +199,7 @@ export async function fulfillCheckout(
         const task = async () => {
           const result = await autoProvisionPurchasedDomain({
             domain: domainName,
+            years,
             profile: profileForDomain,
             userEmail: email || '',
             displayName,
@@ -179,6 +208,15 @@ export async function fulfillCheckout(
             const failed = result.steps.filter((s) => !s.ok).map((s) => `${s.step}: ${s.error}`).join(' | ');
             console.error('[checkout-fulfillment] auto-provisionamento de domínio incompleto:', domainName, failed);
             await alertAdminOfTrackingFailure('auto-provisionamento de domínio', `${domainName}: ${failed}`);
+            // O passo 'registo' é o único que realmente impede o domínio de existir no
+            // registador — falhas nos passos seguintes (Cloudflare/DNS/Brevo) já deixam o
+            // domínio activo e o cliente não precisa de ser alarmado por essas.
+            const registoStep = result.steps.find((s) => s.step === 'registo');
+            if (registoStep && !registoStep.ok) {
+              await notifyClientOfDomainProvisionResult(admin, userId, domainName, false, failed);
+            }
+          } else {
+            await notifyClientOfDomainProvisionResult(admin, userId, domainName, true, '');
           }
         };
         try {

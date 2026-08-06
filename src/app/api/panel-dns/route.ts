@@ -6,11 +6,12 @@ import {
 } from '@/lib/da-credential-store';
 import { scheduleDaSync } from '@/lib/da-sync-engine';
 import { getDaSyncAdmin } from '@/lib/da-sync-schema';
-import { requireAdminResellerOrManager } from '@/lib/panel-api-auth';
+import { requireDaAccessForDomain } from '@/lib/panel-domain-access';
+import type { PanelStaffAuthSuccess } from '@/lib/panel-api-auth';
 import { resolvePanelDaContext } from '@/lib/panel-api-context';
 import { getMirrorSiteOwner, isMirrorStale, listMirrorDns } from '@/lib/panel-mirror-read';
 import { deleteMirrorDnsById, upsertMirrorDns } from '@/lib/panel-mirror-write';
-import { resolveDirectAdminCredentials } from '@/lib/directadmin-credentials';
+import { resolveDirectAdminCredentials, resolveDirectAdminCredentialsForDomainOwner } from '@/lib/directadmin-credentials';
 
 async function canAccessDomain(
   role: 'admin' | 'reseller' | 'manager',
@@ -47,18 +48,30 @@ async function resolveDaCreds(
 
 export async function GET(req: NextRequest) {
   try {
-    const auth = await requireAdminResellerOrManager();
-    if ('error' in auth) return auth.error;
-
     const domain = new URL(req.url).searchParams.get('domain')?.trim();
     if (!domain) {
       return NextResponse.json({ success: false, error: 'Domínio obrigatório' }, { status: 400 });
     }
 
-    const { impersonating, mirrorScope, daApi } = await resolvePanelDaContext(auth);
+    // Cliente 'dono' do domínio (verificado contra o mirror) pode ver/editar a
+    // sua própria zona DNS; staff (admin/reseller/manager) continua igual.
+    const auth = await requireDaAccessForDomain(domain);
+    if ('error' in auth) return auth.error;
 
-    if (!(await canAccessDomain(auth.user.role, auth.user.id, domain, impersonating))) {
-      return NextResponse.json({ success: false, error: 'Sem acesso a este domínio' }, { status: 403 });
+    let mirrorScope: Awaited<ReturnType<typeof resolvePanelDaContext>>['mirrorScope'];
+    let daApi: Awaited<ReturnType<typeof resolvePanelDaContext>>['daApi'];
+
+    if (auth.user.role === 'client') {
+      const { getDirectAdminAPIForAuth } = await import('@/lib/directadmin-adapter');
+      daApi = await getDirectAdminAPIForAuth({ id: auth.user.id, email: auth.user.email, role: 'admin' });
+      mirrorScope = { role: 'admin', userId: auth.user.id };
+    } else {
+      const ctx = await resolvePanelDaContext(auth as PanelStaffAuthSuccess);
+      if (!(await canAccessDomain(auth.user.role, auth.user.id, domain, ctx.impersonating))) {
+        return NextResponse.json({ success: false, error: 'Sem acesso a este domínio' }, { status: 403 });
+      }
+      mirrorScope = ctx.mirrorScope;
+      daApi = ctx.daApi;
     }
 
     const stale = await isMirrorStale(120);
@@ -100,9 +113,6 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    const auth = await requireAdminResellerOrManager();
-    if ('error' in auth) return auth.error;
-
     const body = await req.json();
     const domain = String(body.domainName || body.domain || '').trim();
     const name = String(body.name || '').trim();
@@ -114,13 +124,20 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: false, error: 'Campos incompletos' }, { status: 400 });
     }
 
-    const { impersonating } = await resolvePanelDaContext(auth);
+    const auth = await requireDaAccessForDomain(domain);
+    if ('error' in auth) return auth.error;
 
-    if (!(await canAccessDomain(auth.user.role, auth.user.id, domain, impersonating))) {
-      return NextResponse.json({ success: false, error: 'Sem acesso a este domínio' }, { status: 403 });
+    let creds: Awaited<ReturnType<typeof resolveDaCreds>>;
+    if (auth.user.role === 'client') {
+      creds = await resolveDirectAdminCredentialsForDomainOwner(domain);
+    } else {
+      const { impersonating } = await resolvePanelDaContext(auth as PanelStaffAuthSuccess);
+      if (!(await canAccessDomain(auth.user.role, auth.user.id, domain, impersonating))) {
+        return NextResponse.json({ success: false, error: 'Sem acesso a este domínio' }, { status: 403 });
+      }
+      creds = await resolveDaCreds(auth.user.role, auth.user.id, impersonating);
     }
 
-    const creds = await resolveDaCreds(auth.user.role, auth.user.id, impersonating);
     const result = await daAddDnsRecord(creds, { domain, name, type, value, ttl });
     if (!result.ok) {
       return NextResponse.json({ success: false, error: result.error || 'Falha ao criar registo' }, { status: 502 });
@@ -145,9 +162,6 @@ export async function POST(req: NextRequest) {
 
 export async function DELETE(req: NextRequest) {
   try {
-    const auth = await requireAdminResellerOrManager();
-    if ('error' in auth) return auth.error;
-
     const body = await req.json();
     const domain = String(body.domainName || body.domain || '').trim();
     const id = String(body.id || '').trim();
@@ -156,10 +170,18 @@ export async function DELETE(req: NextRequest) {
       return NextResponse.json({ success: false, error: 'Domínio e registo obrigatórios' }, { status: 400 });
     }
 
-    const { impersonating } = await resolvePanelDaContext(auth);
+    const auth = await requireDaAccessForDomain(domain);
+    if ('error' in auth) return auth.error;
 
-    if (!(await canAccessDomain(auth.user.role, auth.user.id, domain, impersonating))) {
-      return NextResponse.json({ success: false, error: 'Sem acesso a este domínio' }, { status: 403 });
+    let creds: Awaited<ReturnType<typeof resolveDaCreds>>;
+    if (auth.user.role === 'client') {
+      creds = await resolveDirectAdminCredentialsForDomainOwner(domain);
+    } else {
+      const { impersonating } = await resolvePanelDaContext(auth as PanelStaffAuthSuccess);
+      if (!(await canAccessDomain(auth.user.role, auth.user.id, domain, impersonating))) {
+        return NextResponse.json({ success: false, error: 'Sem acesso a este domínio' }, { status: 403 });
+      }
+      creds = await resolveDaCreds(auth.user.role, auth.user.id, impersonating);
     }
 
     const admin = getDaSyncAdmin();
@@ -178,7 +200,6 @@ export async function DELETE(req: NextRequest) {
       return NextResponse.json({ success: false, error: 'Registo não encontrado' }, { status: 404 });
     }
 
-    const creds = await resolveDaCreds(auth.user.role, auth.user.id, impersonating);
     const result = await daDeleteDnsRecord(creds, {
       domain,
       name: String(row.name),

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAdminOrReseller } from '@/lib/panel-api-auth';
+import { requireDaAccessForDomain } from '@/lib/panel-domain-access';
 import { resolvePanelDaContext } from '@/lib/panel-api-context';
 import { scheduleDaSync } from '@/lib/da-sync-engine';
 import { mirrorAfterDaMutation, mutationSucceeded } from '@/lib/panel-mirror-write';
@@ -41,7 +42,30 @@ const MUTATION_ACTIONS = new Set([
  * Revendedores usam credenciais DIRECTADMIN_RESELLER_* (Osher Collective).
  */
 
-async function resolveApi() {
+// Acções que um cliente comum (dono do domínio, não staff) pode chamar directamente
+// sobre o SEU PRÓPRIO domínio — sempre com verificação de posse via
+// requireDaAccessForDomain. Tudo o resto (criar/apagar contas, pacotes, execCommand,
+// firewall, backups, WordPress, etc.) continua estritamente admin/revendedor.
+const CLIENT_SAFE_ACTIONS = new Set([
+  'issueSSL', 'replaceSSL', 'deleteSSL', 'cancelSslRenewal', 'setForceSsl', 'getSslCertificate',
+  'changePHPVersion',
+]);
+
+async function resolveApi(action?: string, domain?: string) {
+  if (action && CLIENT_SAFE_ACTIONS.has(action)) {
+    const auth = await requireDaAccessForDomain(domain || '');
+    if ('error' in auth) return { error: auth.error } as const;
+
+    if (auth.user.role === 'client') {
+      const { getDirectAdminAPIForAuth } = await import('@/lib/directadmin-adapter');
+      const daApi = await getDirectAdminAPIForAuth({ id: auth.user.id, email: auth.user.email, role: 'admin' });
+      return { daApi, user: auth.user, mirrorScope: { role: 'admin' as const, userId: auth.user.id } } as const;
+    }
+
+    const ctx = await resolvePanelDaContext(auth as Parameters<typeof resolvePanelDaContext>[0]);
+    return { daApi: ctx.daApi, user: auth.user, mirrorScope: ctx.mirrorScope } as const;
+  }
+
   const auth = await requireAdminOrReseller();
   if ('error' in auth) return { error: auth.error } as const;
   const ctx = await resolvePanelDaContext(auth);
@@ -50,17 +74,17 @@ async function resolveApi() {
 
 export async function POST(req: NextRequest) {
   try {
-    const resolved = await resolveApi();
-    if ('error' in resolved) return resolved.error;
-
-    const { daApi, user, mirrorScope } = resolved;
-
     const body = await req.json();
     const { action, params = {}, timeoutMs } = body;
 
     if (!action) {
       return NextResponse.json({ success: false, error: 'action é obrigatória' }, { status: 400 });
     }
+
+    const resolved = await resolveApi(action, String(params.domain || params.hostname || ''));
+    if ('error' in resolved) return resolved.error;
+
+    const { daApi, user, mirrorScope } = resolved;
 
     let data: unknown;
 

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import dns from 'dns';
 import tls from 'tls';
-import { requireAdminOrReseller } from '@/lib/panel-api-auth';
+import { requireDaAccessForDomain } from '@/lib/panel-domain-access';
 
 type CheckResult = { ok: boolean; detail: string };
 
@@ -60,13 +60,13 @@ function checkSsl(domain: string): Promise<CheckResult> {
 }
 
 export async function GET(req: NextRequest) {
-  const auth = await requireAdminOrReseller();
-  if ('error' in auth) return auth.error;
-
   const domain = req.nextUrl.searchParams.get('domain')?.trim().toLowerCase();
   if (!domain) {
     return NextResponse.json({ success: false, error: 'Domínio obrigatório' }, { status: 400 });
   }
+
+  const auth = await requireDaAccessForDomain(domain);
+  if ('error' in auth) return auth.error;
 
   const [dnsResult, serverResult, sslResult] = await Promise.all([
     checkDns(domain),

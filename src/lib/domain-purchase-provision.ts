@@ -31,11 +31,13 @@ export type DomainAutoProvisionResult = {
 
 export async function autoProvisionPurchasedDomain(input: {
   domain: string;
+  years?: number;
   profile: Record<string, unknown> | null;
   userEmail: string;
   displayName?: string;
 }): Promise<DomainAutoProvisionResult> {
   const domain = input.domain.trim().toLowerCase();
+  const years = Math.max(1, Math.round(input.years || 1));
   const steps: DomainAutoProvisionStep[] = [];
 
   // 1) Registar o domínio — idempotente: se já existir na nossa conta da
@@ -61,7 +63,7 @@ export async function autoProvisionPurchasedDomain(input: {
       return { domain, ok: false, steps };
     }
 
-    const registered = await dynadotAPI.registerDomain(domain, contact.contactId, 1, true);
+    const registered = await dynadotAPI.registerDomain(domain, contact.contactId, years, true);
     if (!registered.success) {
       steps.push({ step: 'registo', ok: false, error: registered.error });
       return { domain, ok: false, steps };
