@@ -51,6 +51,11 @@ jobs:
           port: ${{ secrets.HETZNER_PORT }}
           username: ${{ secrets.HETZNER_USER }}
           key: ${{ secrets.HETZNER_SSH_KEY }}
+          # 'npm ci && npm run build' corre aqui outra vez, agora no próprio
+          # servidor — em picos de carga/rede facilmente passa dos 10 min por
+          # omissão desta acção, que corta a ligação a meio (foi o que aconteceu
+          # nos deploys recentes, interrompendo antes até do pm2 restart correr).
+          command_timeout: 30m
           script: |
             set -e
             cd /opt/visualdesign-site
