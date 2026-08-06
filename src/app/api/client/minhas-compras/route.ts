@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/utils/supabase/server';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
+import { getAttachmentSignedUrls } from '@/lib/quotation-attachments-bucket';
 
 /**
  * #10: histórico de compras do próprio cliente (carrinho/checkout) — até
@@ -30,8 +31,13 @@ export async function GET() {
       .order('created_at', { ascending: false });
     if (error) throw error;
 
-    const compras = (data || []).map((s) => ({
+    // #11: bucket privado — comprovativo_url guardado é só o caminho, gera-se
+    // aqui um URL temporário assinado para o próprio cliente poder abrir.
+    const signedUrls = await getAttachmentSignedUrls((data || []).map((s) => s.comprovativo_url));
+
+    const compras = (data || []).map((s, idx) => ({
       ...s,
+      comprovativo_url: signedUrls[idx],
       items: (s.items as Array<Record<string, unknown>>).map((item) => ({
         ...item,
         status: item.status ?? s.status,

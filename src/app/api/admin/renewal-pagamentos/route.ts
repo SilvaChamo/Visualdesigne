@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { requireAdminOrReseller } from '@/lib/panel-api-auth';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
+import { getAttachmentSignedUrls } from '@/lib/quotation-attachments-bucket';
 
 // Lista todos os pedidos de pagamento de renovação, para a equipa
 // confirmar/rejeitar depois de verificar o pagamento manual (M-Pesa/banco).
@@ -57,8 +58,11 @@ export async function GET() {
       });
     }
 
-    const pedidos = (data || []).map((s) => ({
+    // #11: bucket privado — comprovativo_url guardado é só o caminho.
+    const signedUrls = await getAttachmentSignedUrls((data || []).map((s) => s.comprovativo_url));
+    const pedidos = (data || []).map((s, idx) => ({
       ...s,
+      comprovativo_url: signedUrls[idx],
       cliente: profileById[s.user_id] || null,
     }));
 

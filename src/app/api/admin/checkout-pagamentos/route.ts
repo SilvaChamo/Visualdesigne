@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { requireAdminOrReseller } from '@/lib/panel-api-auth';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
+import { getAttachmentSignedUrls } from '@/lib/quotation-attachments-bucket';
 
 // Lista os pedidos de pagamento manual (M-Pesa/Transferência) de compras
 // novas do carrinho, para a equipa confirmar/rejeitar. Pagamentos por
@@ -62,8 +63,13 @@ export async function GET() {
     // não têm `status` gravado por item: nesse caso herda o estado do pedido
     // inteiro (linha), para não aparecerem como "pendentes" à toa se o pedido
     // já tiver sido confirmado/rejeitado antes desta funcionalidade existir.
-    const pedidos = (data || []).map((s) => ({
+    // #11: bucket privado — o URL guardado é só o caminho, gera-se aqui um
+    // URL temporário assinado para a equipa poder abrir o comprovativo.
+    const signedUrls = await getAttachmentSignedUrls((data || []).map((s) => s.comprovativo_url));
+
+    const pedidos = (data || []).map((s, idx) => ({
       ...s,
+      comprovativo_url: signedUrls[idx],
       user_email: profileById[s.user_id]?.email || null,
       cliente: profileById[s.user_id] || null,
       items: (s.items as Array<Record<string, unknown>>).map((item) => ({

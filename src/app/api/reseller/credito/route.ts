@@ -3,6 +3,7 @@ import { requireAdminResellerOrManager } from '@/lib/panel-api-auth';
 import { resolveResellerPanelContext } from '@/lib/panel-reseller-context';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { notifyQuoteTeam } from '@/lib/notify-quote-team';
+import { getAttachmentSignedUrls } from '@/lib/quotation-attachments-bucket';
 
 const VALID_METHODS = ['mpesa', 'transferencia', 'stripe'];
 
@@ -35,10 +36,14 @@ export async function GET() {
     return NextResponse.json({ error: 'Não foi possível carregar os pedidos.' }, { status: 500 });
   }
 
+  // #11: bucket privado — comprovativo_url guardado é só o caminho.
+  const signedUrls = await getAttachmentSignedUrls((pedidos || []).map((p) => p.comprovativo_url));
+  const pedidosComUrl = (pedidos || []).map((p, idx) => ({ ...p, comprovativo_url: signedUrls[idx] }));
+
   return NextResponse.json({
     success: true,
     saldoMt: Number(credito?.saldo_mt) || 0,
-    pedidos: pedidos || [],
+    pedidos: pedidosComUrl,
   });
 }
 

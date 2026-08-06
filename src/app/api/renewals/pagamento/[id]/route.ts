@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/utils/supabase/server';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { resolveRoleForAuthUser } from '@/lib/server-auth-role';
+import { getAttachmentSignedUrl } from '@/lib/quotation-attachments-bucket';
 
 // Estado de um único pedido de pagamento de renovação — usado pela página
 // /renovacao/[id] (link do email e do sucesso do Stripe). Acessível pelo
@@ -69,8 +70,16 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
     console.error('[renewals/pagamento] Falha ao obter nº de factura:', invoiceErr);
   }
 
+  const comprovativoSignedUrl = await getAttachmentSignedUrl(pedido.comprovativo_url);
+
   return NextResponse.json({
     success: true,
-    pedido: { ...pedido, invoice_number: invoiceNumber, invoice_date: invoiceDate, expiration_date: expirationDate },
+    pedido: {
+      ...pedido,
+      comprovativo_url: comprovativoSignedUrl,
+      invoice_number: invoiceNumber,
+      invoice_date: invoiceDate,
+      expiration_date: expirationDate,
+    },
   });
 }

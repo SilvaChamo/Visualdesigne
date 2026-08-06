@@ -4,6 +4,7 @@ import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { resolveRoleForAuthUser } from '@/lib/server-auth-role';
 import { getResellerDaUsername } from '@/lib/directadmin-credentials';
 import { loadResellerCredentialsByUserId } from '@/lib/da-credential-store';
+import { getAttachmentSignedUrl } from '@/lib/quotation-attachments-bucket';
 
 // Estado de um único pedido de carregamento — usado pela página /credito/[id]
 // (link do email de notificação e do sucesso do Stripe). Acessível pelo
@@ -42,5 +43,6 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
     }
   }
 
-  return NextResponse.json({ success: true, pedido });
+  const signedUrl = await getAttachmentSignedUrl(pedido.comprovativo_url);
+  return NextResponse.json({ success: true, pedido: { ...pedido, comprovativo_url: signedUrl } });
 }

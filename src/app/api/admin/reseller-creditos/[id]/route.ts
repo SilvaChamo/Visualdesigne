@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { requireAdminOrReseller } from '@/lib/panel-api-auth';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { confirmResellerCreditRequest } from '@/lib/reseller-credit';
+import { getAttachmentSignedUrl } from '@/lib/quotation-attachments-bucket';
 
 // Confirma (soma ao saldo) ou rejeita um pedido de carregamento — só depois
 // de a equipa verificar manualmente que o M-Pesa/transferência entrou. Um
@@ -34,7 +35,8 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
         return NextResponse.json({ success: false, error: result.error || 'Não foi possível confirmar.' }, { status: 409 });
       }
       const { data } = await supabase.from('reseller_credit_requests').select('*').eq('id', id).single();
-      return NextResponse.json({ success: true, pedido: data });
+      const signedUrl = await getAttachmentSignedUrl(data?.comprovativo_url);
+      return NextResponse.json({ success: true, pedido: data ? { ...data, comprovativo_url: signedUrl } : data });
     }
 
     const { data: pedido, error: pedidoError } = await supabase
@@ -57,7 +59,8 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       .single();
     if (error) throw error;
 
-    return NextResponse.json({ success: true, pedido: data });
+    const signedUrl = await getAttachmentSignedUrl(data?.comprovativo_url);
+    return NextResponse.json({ success: true, pedido: { ...data, comprovativo_url: signedUrl } });
   } catch (error: any) {
     console.error('[admin/reseller-creditos PATCH] error:', error);
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });

@@ -3,7 +3,7 @@ import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { resolveQuotationAccess } from '@/lib/quotation-access';
 import { notifyQuoteTeam } from '@/lib/notify-quote-team';
 import { notifyQuoteClientNewMessage } from '@/lib/notify-quote-client';
-import { ensureQuotationAttachmentsBucket, QUOTATION_ATTACHMENTS_BUCKET } from '@/lib/quotation-attachments-bucket';
+import { ensureQuotationAttachmentsBucket, QUOTATION_ATTACHMENTS_BUCKET, getAttachmentSignedUrl, getAttachmentSignedUrls } from '@/lib/quotation-attachments-bucket';
 
 const MAX_SIZE_BYTES = 10 * 1024 * 1024; // 10MB
 const ALLOWED_TYPES: Record<string, 'image' | 'pdf'> = {
@@ -38,7 +38,11 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
     return NextResponse.json({ error: 'Não foi possível carregar as mensagens.' }, { status: 500 });
   }
 
-  return NextResponse.json({ success: true, mensagens: data || [] });
+  // #11: bucket privado — attachment_url guardado é só o caminho.
+  const signedUrls = await getAttachmentSignedUrls((data || []).map((m) => m.attachment_url));
+  const mensagens = (data || []).map((m, idx) => ({ ...m, attachment_url: signedUrls[idx] }));
+
+  return NextResponse.json({ success: true, mensagens });
 }
 
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -86,8 +90,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         return NextResponse.json({ error: 'Não foi possível enviar o ficheiro.' }, { status: 500 });
       }
 
-      const { data: publicData } = admin.storage.from(QUOTATION_ATTACHMENTS_BUCKET).getPublicUrl(uploadData.path);
-      attachment = { url: publicData.publicUrl, name: file.name, type: kind };
+      attachment = { url: uploadData.path, name: file.name, type: kind };
     }
   } else {
     const body = await request.json().catch(() => ({}));
@@ -118,6 +121,10 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   if (error) {
     console.error('[cotacoes/[id]/mensagens] insert error:', error);
     return NextResponse.json({ error: 'Não foi possível enviar a mensagem.' }, { status: 500 });
+  }
+
+  if (inserted.attachment_url) {
+    inserted.attachment_url = await getAttachmentSignedUrl(inserted.attachment_url);
   }
 
   const quotation = access.quotation;

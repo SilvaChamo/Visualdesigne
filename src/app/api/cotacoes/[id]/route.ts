@@ -3,7 +3,7 @@ import { createClient } from '@/utils/supabase/server';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { findItem, CUSTOM_CATEGORIA_ID } from '@/lib/pricing-catalog';
 import { notifyQuoteTeam } from '@/lib/notify-quote-team';
-import { QUOTATION_ATTACHMENTS_BUCKET } from '@/lib/quotation-attachments-bucket';
+import { QUOTATION_ATTACHMENTS_BUCKET, extractStoragePath } from '@/lib/quotation-attachments-bucket';
 import { QUOTATION_LAYOUTS_BUCKET } from '@/lib/quotation-layouts-bucket';
 import { computeBatchStatus } from '@/lib/quotation-status-labels';
 import { resolveRoleForAuthUser } from '@/lib/server-auth-role';
@@ -406,7 +406,7 @@ export async function DELETE(_request: NextRequest, { params }: { params: Promis
 
     if (attachments && attachments.length > 0) {
       const paths = attachments
-        .map((a) => a.file_url.split(`${QUOTATION_ATTACHMENTS_BUCKET}/`)[1])
+        .map((a) => extractStoragePath(a.file_url))
         .filter((p): p is string => Boolean(p));
       if (paths.length > 0) {
         await admin.storage.from(QUOTATION_ATTACHMENTS_BUCKET).remove(paths);

@@ -5,7 +5,7 @@ import { notifyQuoteClientStatusChange, notifyQuoteClientPriceDefined } from '@/
 import { computeBatchStatus } from '@/lib/quotation-status-labels';
 import { batchNumero } from '@/lib/quotation-batch';
 import { computeNumeroMap, letterForCategoria } from '@/lib/quotation-numero';
-import { QUOTATION_ATTACHMENTS_BUCKET } from '@/lib/quotation-attachments-bucket';
+import { QUOTATION_ATTACHMENTS_BUCKET, extractStoragePath } from '@/lib/quotation-attachments-bucket';
 import { QUOTATION_LAYOUTS_BUCKET } from '@/lib/quotation-layouts-bucket';
 import { computeUnreadByBatch } from '@/lib/quotation-unread';
 
@@ -425,7 +425,7 @@ export async function DELETE(request: Request) {
         .eq('quotation_id', itemId);
       if (attachments && attachments.length > 0) {
         const paths = attachments
-          .map((a) => a.file_url.split(`${QUOTATION_ATTACHMENTS_BUCKET}/`)[1])
+          .map((a) => extractStoragePath(a.file_url))
           .filter((p): p is string => Boolean(p));
         if (paths.length > 0) await supabase.storage.from(QUOTATION_ATTACHMENTS_BUCKET).remove(paths);
       }
@@ -497,7 +497,7 @@ export async function DELETE(request: Request) {
 
     if (attachments && attachments.length > 0) {
       const paths = attachments
-        .map((a) => a.file_url.split(`${QUOTATION_ATTACHMENTS_BUCKET}/`)[1])
+        .map((a) => extractStoragePath(a.file_url))
         .filter((p): p is string => Boolean(p));
       if (paths.length > 0) {
         await supabase.storage.from(QUOTATION_ATTACHMENTS_BUCKET).remove(paths);

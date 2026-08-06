@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/utils/supabase/server';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
-import { ensureQuotationAttachmentsBucket, QUOTATION_ATTACHMENTS_BUCKET } from '@/lib/quotation-attachments-bucket';
+import { ensureQuotationAttachmentsBucket, QUOTATION_ATTACHMENTS_BUCKET, getAttachmentSignedUrl } from '@/lib/quotation-attachments-bucket';
 import { compressImageToMaxSize } from '@/lib/image-compress';
 
 const MAX_SIZE_BYTES = 10 * 1024 * 1024;
@@ -69,11 +69,12 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     return NextResponse.json({ error: 'Não foi possível enviar o ficheiro.' }, { status: 500 });
   }
 
-  const { data: publicData } = admin.storage.from(QUOTATION_ATTACHMENTS_BUCKET).getPublicUrl(uploadData.path);
-
+  // #11: grava o caminho no bucket, não um URL público — o bucket é privado
+  // agora, o URL para mostrar/descarregar é sempre gerado na hora (assinado,
+  // temporário), nunca guardado permanentemente.
   const { data: updated, error: updateError } = await admin
     .from('checkout_sessions')
-    .update({ comprovativo_url: publicData.publicUrl })
+    .update({ comprovativo_url: uploadData.path })
     .eq('id', id)
     .select()
     .single();
@@ -82,5 +83,6 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     return NextResponse.json({ error: 'Não foi possível registar o comprovativo.' }, { status: 500 });
   }
 
-  return NextResponse.json({ success: true, session: updated });
+  const signedUrl = await getAttachmentSignedUrl(updated.comprovativo_url);
+  return NextResponse.json({ success: true, session: { ...updated, comprovativo_url: signedUrl } });
 }

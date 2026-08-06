@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { resolveQuotationAccess } from '@/lib/quotation-access';
-import { ensureQuotationAttachmentsBucket, QUOTATION_ATTACHMENTS_BUCKET } from '@/lib/quotation-attachments-bucket';
+import { ensureQuotationAttachmentsBucket, QUOTATION_ATTACHMENTS_BUCKET, getAttachmentSignedUrl, getAttachmentSignedUrls } from '@/lib/quotation-attachments-bucket';
 import { compressImageToMaxSize } from '@/lib/image-compress';
 
 const MAX_SIZE_BYTES = 10 * 1024 * 1024; // 10MB, mesmo limite por omissão de MultiFileUpload
@@ -27,7 +27,11 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
     return NextResponse.json({ error: 'Não foi possível carregar os anexos.' }, { status: 500 });
   }
 
-  return NextResponse.json({ success: true, anexos: data || [] });
+  // #11: bucket privado — file_url guardado é só o caminho.
+  const signedUrls = await getAttachmentSignedUrls((data || []).map((a) => a.file_url));
+  const anexos = (data || []).map((a, idx) => ({ ...a, file_url: signedUrls[idx] }));
+
+  return NextResponse.json({ success: true, anexos });
 }
 
 // Upload directo (não passa por /api/storage-upload, que não valida dono
@@ -77,15 +81,13 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     return NextResponse.json({ error: 'Não foi possível enviar o ficheiro.' }, { status: 500 });
   }
 
-  const { data: publicData } = admin.storage.from(QUOTATION_ATTACHMENTS_BUCKET).getPublicUrl(uploadData.path);
-
   const { data: inserted, error: insertError } = await admin
     .from('quotation_attachments')
     .insert({
       quotation_id: id,
       uploaded_by_role: access.role,
       file_name: file.name,
-      file_url: publicData.publicUrl,
+      file_url: uploadData.path,
       file_size_bytes: buffer.length,
     })
     .select()
@@ -96,5 +98,6 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     return NextResponse.json({ error: 'Não foi possível registar o anexo.' }, { status: 500 });
   }
 
-  return NextResponse.json({ success: true, anexo: inserted });
+  const signedUrl = await getAttachmentSignedUrl(inserted.file_url);
+  return NextResponse.json({ success: true, anexo: { ...inserted, file_url: signedUrl } });
 }

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireAdminResellerOrManager } from '@/lib/panel-api-auth';
 import { resolveResellerPanelContext } from '@/lib/panel-reseller-context';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
-import { ensureQuotationAttachmentsBucket, QUOTATION_ATTACHMENTS_BUCKET } from '@/lib/quotation-attachments-bucket';
+import { ensureQuotationAttachmentsBucket, QUOTATION_ATTACHMENTS_BUCKET, getAttachmentSignedUrl } from '@/lib/quotation-attachments-bucket';
 import { compressImageToMaxSize } from '@/lib/image-compress';
 
 const MAX_SIZE_BYTES = 10 * 1024 * 1024; // 10MB, mesmo limite dos anexos de cotação
@@ -74,11 +74,9 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     return NextResponse.json({ error: 'Não foi possível enviar o ficheiro.' }, { status: 500 });
   }
 
-  const { data: publicData } = supabase.storage.from(QUOTATION_ATTACHMENTS_BUCKET).getPublicUrl(uploadData.path);
-
   const { data: updated, error: updateError } = await supabase
     .from('reseller_credit_requests')
-    .update({ comprovativo_url: publicData.publicUrl })
+    .update({ comprovativo_url: uploadData.path })
     .eq('id', id)
     .select()
     .single();
@@ -87,5 +85,6 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     return NextResponse.json({ error: 'Não foi possível registar o comprovativo.' }, { status: 500 });
   }
 
-  return NextResponse.json({ success: true, pedido: updated });
+  const signedUrl = await getAttachmentSignedUrl(updated.comprovativo_url);
+  return NextResponse.json({ success: true, pedido: { ...updated, comprovativo_url: signedUrl } });
 }
