@@ -9,6 +9,7 @@ import { ConditionalFooter } from "@/components/layout/ConditionalFooter";
 import { ConditionalMain } from "@/components/layout/ConditionalMain";
 import { PWAInstallPrompt } from "@/components/PWAInstallPrompt";
 import { CartProvider } from "@/contexts/CartContext";
+import { CurrencyProvider } from "@/contexts/CurrencyContext";
 import { CartDrawer } from "@/components/cart/CartDrawer";
 import { ThemeProvider } from "@/contexts/ThemeContext";
 import { OrganizationJsonLd } from "@/components/seo/OrganizationJsonLd";
@@ -95,13 +96,15 @@ export default function RootLayout({
           <AuthProvider>
             <OAuthCodeRedirect />
             <CartProvider>
-              <I18nProvider>
-                <ConditionalNavbar />
-                <ConditionalMain>{children}</ConditionalMain>
-                <ConditionalFooter />
-                <CartDrawer />
-                <PWAInstallPrompt />
-              </I18nProvider>
+              <CurrencyProvider>
+                <I18nProvider>
+                  <ConditionalNavbar />
+                  <ConditionalMain>{children}</ConditionalMain>
+                  <ConditionalFooter />
+                  <CartDrawer />
+                  <PWAInstallPrompt />
+                </I18nProvider>
+              </CurrencyProvider>
             </CartProvider>
           </AuthProvider>
         </ThemeProvider>

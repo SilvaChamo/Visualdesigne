@@ -5,14 +5,14 @@ import { useI18n } from '@/lib/i18n'
 import Link from 'next/link'
 import { useCart } from '@/contexts/CartContext'
 import { ArrowLeft, HardDrive, Mail, Send, Megaphone, Globe, GitBranch, FolderOpen, Database, Lock, LifeBuoy } from 'lucide-react'
-import { getHostingCyclePrice, getHostingMonthlyEquivalent, formatHostingPrice } from '@/lib/hosting-plans'
+import { getHostingCyclePrice, getHostingMonthlyEquivalent } from '@/lib/hosting-plans'
+import { useCurrency } from '@/contexts/CurrencyContext'
 
 export default function PrecosHospedagem() {
   const { t } = useI18n()
   const { addItem, setIsCartOpen } = useCart()
+  const { formatPrice } = useCurrency()
   const [billingCycle, setBillingCycle] = useState<'monthly' | 'semiannual' | 'annual'>('monthly')
-
-  const formatPrice = formatHostingPrice
 
   const getPlanPrice = (basePrice: number) => {
     const mainPrice = getHostingCyclePrice(basePrice, billingCycle)
@@ -20,7 +20,7 @@ export default function PrecosHospedagem() {
     const savings = basePrice - monthlyEquivalent
     const cycleSuffix =
       billingCycle === 'semiannual' ? '/6 meses' : billingCycle === 'annual' ? '/12 meses' : `/${t('pricing.hosting.month')}`
-    const savingsText = savings > 0 ? `Poupe ${formatPrice(savings)} MT/mês!` : ''
+    const savingsText = savings > 0 ? `Poupe ${formatPrice(savings)}/mês!` : ''
 
     return {
       price: formatPrice(mainPrice),
@@ -198,7 +198,7 @@ export default function PrecosHospedagem() {
                     }`}>{t(plan.nameKey)}</h4>
                     <div className="flex flex-col items-center justify-center mt-0">
                       <span className={`text-3xl font-black ${plan.popular ? 'text-red-500' : 'text-red-600 dark:text-red-500'}`}>
-                        {planPrice} MT
+                        {planPrice}
                       </span>
                       {savingsText && (
                         <span className="bg-zinc-950 dark:bg-white text-white dark:text-zinc-950 text-[8px] sm:text-[9px] font-extrabold px-1.5 py-0.5 rounded-sm whitespace-nowrap mt-1">

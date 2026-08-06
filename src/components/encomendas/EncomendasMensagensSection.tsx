@@ -41,8 +41,8 @@ export function EncomendasMensagensSection({
   const numeros = useBatchNumeros();
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-[400px_1fr] gap-4 lg:gap-6 min-h-0 h-full">
-      <div className="space-y-3 lg:overflow-y-auto">
+    <div className="grid grid-cols-1 lg:grid-cols-[400px_1fr] gap-4 lg:gap-6 items-start">
+      <div className="space-y-3">
         {loading && (
           <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg p-5 text-sm text-gray-500 dark:text-zinc-400">
             A carregar...
@@ -85,14 +85,14 @@ export function EncomendasMensagensSection({
         })}
       </div>
 
-      <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg overflow-hidden min-h-[500px] p-4">
+      <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg min-h-[500px] p-4">
         {selectedId ? (
-          <div className="mx-auto max-w-xl h-full">
+          <div className="mx-auto max-w-xl">
             <QuotationMessagesThread quotationId={selectedId} viewerRole="client" onSent={onMessageSent} />
           </div>
         ) : (
           !loading && (
-            <div className="flex items-center justify-center h-full min-h-[460px] text-sm text-gray-400 dark:text-zinc-500">
+            <div className="flex items-center justify-center min-h-[460px] text-sm text-gray-400 dark:text-zinc-500">
               Seleccione uma encomenda para conversar com a equipa.
             </div>
           )

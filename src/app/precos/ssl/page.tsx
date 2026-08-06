@@ -3,11 +3,13 @@
 import { useI18n } from '@/lib/i18n'
 import Link from 'next/link'
 import { useCart } from '@/contexts/CartContext'
+import { useCurrency } from '@/contexts/CurrencyContext'
 import { ArrowLeft } from 'lucide-react'
 
 export default function PrecosSSL() {
   const { t } = useI18n()
   const { addItem, setIsCartOpen } = useCart()
+  const { formatPrice } = useCurrency()
 
   return (
     <div className="min-h-screen bg-white">
@@ -36,7 +38,7 @@ export default function PrecosSSL() {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <div className="bg-white rounded-lg shadow-lg p-6 hover:shadow-xl transition-shadow">
               <h4 className="text-xl font-bold text-black mb-4">{t('pricing.hosting.basic')}</h4>
-              <div className="text-3xl font-bold text-red-600 mb-4">800 MZN<span className="text-lg font-normal">/ano</span></div>
+              <div className="text-3xl font-bold text-red-600 mb-4">{formatPrice(800)}<span className="text-lg font-normal">/ano</span></div>
               <ul className="space-y-2 mb-6">
                 <li className="flex items-center"><span className="text-green-500 mr-2">✓</span> {t('pricing.ssl.dv')}</li>
                 <li className="flex items-center"><span className="text-green-500 mr-2">✓</span> 128-bit Encryption</li>
@@ -55,7 +57,7 @@ export default function PrecosSSL() {
 
             <div className="bg-white rounded-lg shadow-lg p-6 hover:shadow-xl transition-shadow border-2 border-red-500">
               <h4 className="text-xl font-bold text-black mb-4">{t('pricing.hosting.pro')}</h4>
-              <div className="text-3xl font-bold text-red-600 mb-4">1.500 MZN<span className="text-lg font-normal">/ano</span></div>
+              <div className="text-3xl font-bold text-red-600 mb-4">{formatPrice(1500)}<span className="text-lg font-normal">/ano</span></div>
               <ul className="space-y-2 mb-6">
                 <li className="flex items-center"><span className="text-green-500 mr-2">✓</span> {t('pricing.ssl.ov')}</li>
                 <li className="flex items-center"><span className="text-green-500 mr-2">✓</span> 256-bit Encryption</li>
@@ -75,7 +77,7 @@ export default function PrecosSSL() {
 
             <div className="bg-white rounded-lg shadow-lg p-6 hover:shadow-xl transition-shadow">
               <h4 className="text-xl font-bold text-black mb-4">{t('pricing.ssl.ev')}</h4>
-              <div className="text-3xl font-bold text-red-600 mb-4">3.000 MZN<span className="text-lg font-normal">/ano</span></div>
+              <div className="text-3xl font-bold text-red-600 mb-4">{formatPrice(3000)}<span className="text-lg font-normal">/ano</span></div>
               <ul className="space-y-2 mb-6">
                 <li className="flex items-center"><span className="text-green-500 mr-2">✓</span> {t('pricing.ssl.ev')} (Extended)</li>
                 <li className="flex items-center"><span className="text-green-500 mr-2">✓</span> 256-bit Encryption</li>

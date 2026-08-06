@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useRef, Suspense } from 'react';
 import { useCart } from '@/contexts/CartContext';
+import { useCurrency } from '@/contexts/CurrencyContext';
 import { supabase } from '@/lib/supabase-client';
 import { useAuth } from '@/components/auth/AuthProvider';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -64,9 +65,17 @@ function CheckoutContent() {
   const isAuthenticated = authLoading ? null : !!authUser;
   const searchParams = useSearchParams();
   const renewalId = searchParams.get('renewalId');
+  const { currency, formatPrice } = useCurrency();
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [metodoPagamento, setMetodoPagamento] = useState<MetodoPagamento>('transferencia');
+
+  // M-Pesa/Transferência/Saldo não processam USD — se o cliente troca a
+  // moeda no topo do site enquanto está no checkout, o método tem de
+  // acompanhar para nunca ficar um valor em USD "por pagar" com M-Pesa.
+  useEffect(() => {
+    if (currency === 'USD' && metodoPagamento !== 'stripe') setMetodoPagamento('stripe');
+  }, [currency, metodoPagamento]);
 
   // Saldo do revendedor (reseller_credits) — null enquanto não se sabe, ou
   // se a conta nem é de revendedor (a rota devolve 403, ignorado em silêncio:
@@ -632,7 +641,7 @@ function CheckoutContent() {
                             </div>
                           </div>
                           <div className="text-right flex-shrink-0">
-                            <span className="font-bold text-base text-slate-800 dark:text-zinc-100">{formatMt(item.price)} MT</span>
+                            <span className="font-bold text-base text-slate-800 dark:text-zinc-100">{formatPrice(item.price)}</span>
                           </div>
                         </div>
                       ))}
@@ -641,15 +650,15 @@ function CheckoutContent() {
                     <div className="pt-3 mt-1 border-t border-dashed border-slate-300 dark:border-zinc-700 space-y-1.5">
                       <div className="flex justify-between items-center text-base text-slate-500 dark:text-zinc-400">
                         <span>Subtotal</span>
-                        <span>{formatMt(total)} MT</span>
+                        <span>{formatPrice(total)}</span>
                       </div>
                       <div className="flex justify-between items-center text-base text-slate-500 dark:text-zinc-400">
                         <span>Impostos e IVA</span>
-                        <span>{formatMt(0)} MT</span>
+                        <span>{formatPrice(0)}</span>
                       </div>
                       <div className="pt-2 border-t border-dashed border-slate-300 dark:border-zinc-700 flex justify-between items-center">
                         <span className="font-black text-slate-800 dark:text-zinc-100 text-sm uppercase">Total</span>
-                        <span className="font-black text-xl text-red-600 dark:text-red-400">{formatMt(total)} MT</span>
+                        <span className="font-black text-xl text-red-600 dark:text-red-400">{formatPrice(total)}</span>
                       </div>
                     </div>
                   </div>
@@ -733,7 +742,7 @@ function CheckoutContent() {
                               : 'bg-indigo-600 hover:bg-indigo-700'
                         }`}
                       >
-                        <Lock className="w-5 h-5 animate-pulse" /> {isSubmitting ? 'A processar...' : `Pagar ${formatMt(total)} MT`}
+                        <Lock className="w-5 h-5 animate-pulse" /> {isSubmitting ? 'A processar...' : `Pagar ${formatPrice(total)}`}
                       </button>
                       <button
                         type="button"
@@ -754,7 +763,7 @@ function CheckoutContent() {
               <div className="bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-lg p-5 space-y-4 shadow-sm">
                 <div>
                   <span className="text-xs font-bold uppercase tracking-wide text-slate-600 dark:text-zinc-300">Valor Total</span>
-                  <p className="text-2xl font-black text-slate-900 dark:text-zinc-50 mt-0.5">{formatMt(total)} MT</p>
+                  <p className="text-2xl font-black text-slate-900 dark:text-zinc-50 mt-0.5">{formatPrice(total)}</p>
                 </div>
 
                 <div>
@@ -770,10 +779,19 @@ function CheckoutContent() {
                   >
                     {Object.entries(METODO_META)
                       .filter(([value]) => value !== 'saldo' || saldoDisponivel !== null)
+                      // Em USD só o Cartão processa o pagamento — M-Pesa/Transferência
+                      // são sempre MZN (redes moçambicanas), e o Saldo é um crédito
+                      // interno também em MZN.
+                      .filter(([value]) => currency === 'MZN' || value === 'stripe')
                       .map(([value, meta]) => (
                         <option key={value} value={value}>{meta.label}</option>
                       ))}
                   </select>
+                  {currency === 'USD' && (
+                    <p className="text-[11px] text-slate-400 dark:text-zinc-500 mt-1.5">
+                      Em USD só é possível pagar por Cartão — M-Pesa e Transferência são sempre em MZN.
+                    </p>
+                  )}
                 </div>
 
                 <div className="text-sm space-y-1.5 pt-2 border-t border-dashed border-slate-200 dark:border-zinc-800">
@@ -814,7 +832,7 @@ function CheckoutContent() {
                   )}
                   {metodoPagamento === 'stripe' && (
                     <p className="text-slate-500 dark:text-zinc-400 text-xs leading-relaxed">
-                      Clique em "Pagar {formatMt(total)} MT" à esquerda para continuar para a página segura da Stripe.
+                      Clique em "Pagar {formatPrice(total)}" à esquerda para continuar para a página segura da Stripe.
                     </p>
                   )}
                 </div>

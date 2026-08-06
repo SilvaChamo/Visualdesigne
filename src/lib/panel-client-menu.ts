@@ -4,6 +4,15 @@ import { resolveSectionId } from '@/lib/panel-admin-menu';
 /** Menus com subsecções — alinhado ao painel admin */
 export const CLIENT_MENU_DEFS: PanelMenuItemDef[] = [
   {
+    id: 'nov-encomendas',
+    label: 'Encomendas',
+    subItems: [
+      { id: 'encomendas', label: 'Encomendas' },
+      { id: 'encomendas-mensagens', label: 'Mensagens' },
+      { id: 'encomendas-pagamentos', label: 'Pagamentos' },
+    ],
+  },
+  {
     id: 'nov-dominios',
     label: 'Domínios & DNS',
     subItems: [
@@ -26,6 +35,9 @@ export const CLIENT_MENU_DEFS: PanelMenuItemDef[] = [
 ];
 
 export const CLIENT_SECTION_TO_PARENT: Record<string, string> = {
+  encomendas: 'nov-encomendas',
+  'encomendas-mensagens': 'nov-encomendas',
+  'encomendas-pagamentos': 'nov-encomendas',
   'dns-central': 'nov-dominios',
   'domain-manager': 'nov-dominios',
   'cp-dns-nameserver': 'nov-dominios',
@@ -78,6 +90,8 @@ export const CLIENT_SECTION_LABELS: Record<string, string> = {
   conta: 'Conta',
   'emails-new': 'E-mail',
   encomendas: 'Encomendas',
+  'encomendas-mensagens': 'Mensagens',
+  'encomendas-pagamentos': 'Pagamentos',
 };
 
 export function clientSectionLabel(sectionId: string): string {

@@ -3,7 +3,8 @@
 import { useState, useRef, useLayoutEffect, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { ArrowRight, ChevronDown, ShoppingCart, Sparkles } from 'lucide-react'
-import { BRANDS, CATEGORIES, categoriesForBrand, findCategory, formatMt, SELECAO_STORAGE_KEY, CUSTOM_CATEGORIA_ID, type SelectedCatalogItem } from '@/lib/pricing-catalog'
+import { BRANDS, CATEGORIES, categoriesForBrand, findCategory, SELECAO_STORAGE_KEY, CUSTOM_CATEGORIA_ID, type SelectedCatalogItem } from '@/lib/pricing-catalog'
+import { useCurrency } from '@/contexts/CurrencyContext'
 import { Loader2 } from 'lucide-react'
 import { NotchSection } from '@/components/home/NotchSection'
 import { Spinner } from '@/components/ui/spinner'
@@ -19,6 +20,7 @@ const flatBrandOf = (id: string) => id.slice('flat:'.length)
 function PrecosContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
+  const { formatPrice } = useCurrency()
   const initialCategory = findCategory(searchParams.get('categoria') || '')
   const initialBrandId = initialCategory?.brand ?? BRANDS[0].id
   const initialActiveId = initialCategory
@@ -265,7 +267,7 @@ function PrecosContent() {
                           />
                           <span className="flex-1 text-sm font-medium text-zinc-800 dark:text-zinc-200">{item.name}</span>
                           <span className="text-sm font-bold text-red-600 dark:text-red-500 whitespace-nowrap">
-                            {item.sobConsulta ? 'Sob Consulta' : item.startingAt ? `A partir de ${formatMt(item.price)} MT` : `${formatMt(item.price)} MT`}
+                            {item.sobConsulta ? 'Sob Consulta' : item.startingAt ? `A partir de ${formatPrice(item.price)}` : formatPrice(item.price)}
                           </span>
                         </label>
                       ))}

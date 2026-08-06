@@ -51,7 +51,6 @@ type FlatItem = {
 
 const FLAT_ITEMS: FlatItem[] = [
   { id: 'dashboard', label: 'Dashboard', icon: Home },
-  { id: 'encomendas', label: 'Encomendas', icon: ClipboardList },
   { id: 'domains', label: 'O Meu Site', icon: Globe },
   { id: 'webmail', label: 'Webmail', icon: Mail },
   { id: 'mailmarketing', label: 'Mailmarketing', icon: Target },
@@ -61,6 +60,7 @@ const FLAT_ITEMS: FlatItem[] = [
 ];
 
 const EXPANDABLE_ICONS: Record<string, React.ElementType> = {
+  'nov-encomendas': ClipboardList,
   'nov-dominios': Globe,
   'nov-wordpress': WordPressMenuIcon,
 };
@@ -97,10 +97,14 @@ export function ClientSidebar({
         { id: 'meus-produtos', label: 'Os meus produtos', icon: Home },
         { id: 'domains', label: 'Os meus sites', icon: Globe },
       ]
-    : FLAT_ITEMS.filter((item) => item.id !== 'encomendas' || hasEncomendas);
+    : FLAT_ITEMS;
   const expandableMenus = readOnly
     ? []
-    : CLIENT_MENU_DEFS.filter((menu) => menu.id !== 'nov-dominios' || hasDomains);
+    : CLIENT_MENU_DEFS.filter((menu) => {
+        if (menu.id === 'nov-encomendas') return hasEncomendas;
+        if (menu.id === 'nov-dominios') return hasDomains;
+        return true;
+      });
 
   React.useEffect(() => {
     const parent = clientMenuParentForSection(activeSection);

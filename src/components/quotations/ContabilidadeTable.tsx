@@ -111,6 +111,23 @@ export function ContabilidadeTable() {
   const [eliminados, setEliminados] = useState<RegistoRow[] | null>(null)
   const [fechos, setFechos] = useState<FechoRow[] | null>(null)
   const [activeTab, setActiveTab] = useState<ContabilidadeTab>('balanco')
+  // Balão por separador (Créditos/Renovações/Domínios/Hospedagem/E-mails) —
+  // para não ter de ir a cada separador só para ver onde há algo pendente.
+  const [pendentesPorTab, setPendentesPorTab] = useState<Partial<Record<ContabilidadeTab, number>>>({})
+
+  useEffect(() => {
+    const loadPendentes = () => {
+      fetch('/api/admin/contabilidade-pendentes')
+        .then((r) => r.json())
+        .then((data) => {
+          if (data?.success && data.stats?.porTab) setPendentesPorTab(data.stats.porTab)
+        })
+        .catch(() => {})
+    }
+    loadPendentes()
+    const interval = setInterval(loadPendentes, 30000)
+    return () => clearInterval(interval)
+  }, [])
 
   const load = () => {
     fetch('/api/admin/contabilidade')
@@ -139,16 +156,24 @@ export function ContabilidadeTable() {
       <div className={`${panelSectionCard} mb-4 px-4 pt-2`}>
         <div className={panelTabBar}>
           <div className="flex flex-wrap items-end gap-5">
-            {TABS.map((t) => (
-              <button
-                key={t.id}
-                type="button"
-                onClick={() => setActiveTab(t.id)}
-                className={`${panelTabBtn} ${activeTab === t.id ? panelTabBtnActive : panelTabBtnInactive}`}
-              >
-                {t.label}
-              </button>
-            ))}
+            {TABS.map((t) => {
+              const pendente = pendentesPorTab[t.id] || 0
+              return (
+                <button
+                  key={t.id}
+                  type="button"
+                  onClick={() => setActiveTab(t.id)}
+                  className={`relative ${panelTabBtn} ${activeTab === t.id ? panelTabBtnActive : panelTabBtnInactive}`}
+                >
+                  {t.label}
+                  {pendente > 0 && (
+                    <span className="ml-1.5 inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-red-600 text-white text-[10px] font-bold">
+                      {pendente}
+                    </span>
+                  )}
+                </button>
+              )
+            })}
           </div>
         </div>
       </div>

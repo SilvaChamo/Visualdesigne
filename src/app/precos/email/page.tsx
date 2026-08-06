@@ -3,11 +3,13 @@
 import { useI18n } from '@/lib/i18n'
 import Link from 'next/link'
 import { useCart } from '@/contexts/CartContext'
+import { useCurrency } from '@/contexts/CurrencyContext'
 import { ArrowLeft } from 'lucide-react'
 
 export default function PrecosEmail() {
   const { t } = useI18n()
   const { addItem, setIsCartOpen } = useCart()
+  const { formatPrice } = useCurrency()
 
   return (
     <div className="min-h-screen bg-white">
@@ -36,7 +38,7 @@ export default function PrecosEmail() {
           <div className="max-w-md mx-auto">
             <div className="bg-white rounded-lg shadow-lg p-6 border-2 border-red-500">
               <h4 className="text-xl font-bold text-black mb-4">Email Básico</h4>
-              <div className="text-3xl font-bold text-red-600 mb-4">680 MT<span className="text-lg font-normal">/{t('pricing.hosting.month')}</span></div>
+              <div className="text-3xl font-bold text-red-600 mb-4">{formatPrice(680)}<span className="text-lg font-normal">/{t('pricing.hosting.month')}</span></div>
               <ul className="space-y-2 mb-6">
                 <li className="flex items-center"><span className="text-green-500 mr-2">✓</span> 10 GB {t('pricing.hosting.storage')}</li>
                 <li className="flex items-center"><span className="text-green-500 mr-2">✓</span> 10 {t('pricing.email.features.1')}</li>

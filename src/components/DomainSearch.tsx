@@ -8,7 +8,9 @@ import { DomainPricingCarousel } from '@/components/DomainPricingCarousel'
 import { DOMAIN_TLD_PRICES, formatMtPrice } from '@/lib/domain-tld-prices'
 import { Spinner } from '@/components/ui/spinner'
 import { panelTabBtn, panelTabList } from '@/lib/panel-ui'
-import { getHostingPlan, getHostingCyclePrice, getHostingMonthlyEquivalent, formatHostingPrice } from '@/lib/hosting-plans'
+import { getHostingPlan, getHostingCyclePrice, getHostingMonthlyEquivalent } from '@/lib/hosting-plans'
+import { useCurrency } from '@/contexts/CurrencyContext'
+import { MZN_TO_USD_RATE } from '@/lib/currency'
 
 interface SearchResult {
   domain: string
@@ -53,6 +55,11 @@ export default function DomainSearch({
 }: DomainSearchProps) {
   const { t } = useI18n()
   const { addItem, setIsCartOpen } = useCart()
+  const { formatPrice } = useCurrency()
+  // Os preços de domínio vêm em USD (catálogo de TLDs) — converte sempre
+  // para MT primeiro (o valor real cobrado) antes de formatar na moeda
+  // escolhida, para nunca divergir do que o checkout depois calcula.
+  const formatDomainPrice = (usdPrice: number) => formatPrice(usdPrice * MZN_TO_USD_RATE)
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedTLD, setSelectedTLD] = useState('.com')
   const [results, setResults] = useState<SearchResult[]>([])

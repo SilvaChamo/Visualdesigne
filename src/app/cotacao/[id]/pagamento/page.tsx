@@ -125,6 +125,7 @@ function CotacaoPagamentoContent() {
           </p>
           <Link
             href="/encomendas"
+            target={embed ? '_top' : undefined}
             className="inline-block mt-2 bg-red-600 hover:bg-red-700 text-white font-bold px-6 py-2.5 rounded-md text-sm transition-colors"
           >
             Ir para as Minhas Encomendas

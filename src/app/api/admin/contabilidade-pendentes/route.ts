@@ -28,14 +28,37 @@ export async function GET() {
       supabase.from('checkout_sessions').select('items').neq('metodo_pagamento', 'stripe').eq('status', 'pending'),
     ]);
 
-    const comprasPendentes = (compras.data || []).reduce((sum, s) => {
-      const items = (s.items as Array<{ status?: string }>) || [];
-      return sum + items.filter((i) => (i.status ?? 'pending') === 'pending').length;
-    }, 0);
+    // Por tipo de item — para os balões de cada separador (Domínios/Hospedagem/
+    // E-mails), não só o total geral do menu "Contabilidade".
+    let dominios = 0;
+    let hospedagem = 0;
+    let emails = 0;
+    for (const s of compras.data || []) {
+      const items = (s.items as Array<{ status?: string; type?: string }>) || [];
+      for (const item of items) {
+        if ((item.status ?? 'pending') !== 'pending') continue;
+        if (item.type === 'domain') dominios += 1;
+        else if (item.type === 'hosting' || item.type === 'ssl') hospedagem += 1;
+        else if (item.type === 'email') emails += 1;
+      }
+    }
+    const comprasPendentes = dominios + hospedagem + emails;
 
     const pendentes = (creditos.count || 0) + (renovacoes.count || 0) + comprasPendentes;
 
-    return NextResponse.json({ success: true, stats: { pendentes } });
+    return NextResponse.json({
+      success: true,
+      stats: {
+        pendentes,
+        porTab: {
+          creditos: creditos.count || 0,
+          renovacoes: renovacoes.count || 0,
+          dominios,
+          hospedagem,
+          emails,
+        },
+      },
+    });
   } catch (error: any) {
     console.error('[admin/contabilidade-pendentes GET] error:', error);
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });

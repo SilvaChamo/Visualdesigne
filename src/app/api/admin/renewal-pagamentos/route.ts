@@ -26,15 +26,35 @@ export async function GET() {
     // Dados do cliente (nome/telefone/morada/cidade/empresa) para o painel
     // "Dados do cliente" na Contabilidade — mesmo padrão do checkout-pagamentos.
     const userIds = Array.from(new Set((data || []).map((s) => s.user_id).filter(Boolean)));
-    const profileById: Record<string, { name?: string; email?: string; telefone?: string; morada?: string; cidade?: string; empresa?: string }> = {};
+    const profileById: Record<string, { nome?: string; email?: string; telefone?: string; morada?: string; cidade?: string; empresa?: string }> = {};
     if (userIds.length > 0) {
       const { data: profiles } = await supabase
         .from('profiles')
         .select('user_id, name, email, telefone, morada, cidade, empresa')
         .in('user_id', userIds);
       for (const p of profiles || []) {
-        if (p.user_id) profileById[p.user_id] = p;
+        if (p.user_id) profileById[p.user_id] = { nome: p.name, email: p.email, telefone: p.telefone, morada: p.morada, cidade: p.cidade, empresa: p.empresa };
       }
+    }
+
+    // Contas por Google (OAuth) nunca passam por /api/auth/register — não
+    // têm linha em profiles. Sem isto a coluna "Cliente" ficava sempre "—"
+    // para elas, mesmo a conta tendo nome/email reais no próprio Auth.
+    const missingIds = userIds.filter((id) => !profileById[id]?.nome && !profileById[id]?.email);
+    if (missingIds.length > 0) {
+      const authUsers = await Promise.all(
+        missingIds.map((id) => supabase.auth.admin.getUserById(id).catch(() => null)),
+      );
+      authUsers.forEach((res, idx) => {
+        const user = res?.data?.user;
+        if (!user) return;
+        const id = missingIds[idx];
+        profileById[id] = {
+          ...profileById[id],
+          nome: profileById[id]?.nome || user.user_metadata?.full_name || user.user_metadata?.name || undefined,
+          email: profileById[id]?.email || user.email || undefined,
+        };
+      });
     }
 
     const pedidos = (data || []).map((s) => ({

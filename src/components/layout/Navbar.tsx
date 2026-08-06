@@ -7,16 +7,15 @@ import { useI18n } from '@/lib/i18n'
 import { Globe, User, ShoppingCart, HelpCircle, Rocket, Server, CreditCard, Shield, Grid, Layers, Package, BookOpen, Lock, Camera, Palette, Monitor, Mail, FileText, Megaphone, PenTool, Film, Search as SearchIcon } from 'lucide-react'
 import Link from 'next/link'
 import { useCart } from '@/contexts/CartContext'
+import { useCurrency } from '@/contexts/CurrencyContext'
 import { cn } from '@/lib/utils'
 import { PANEL_LOGIN_HREF } from '@/lib/panel-origin'
 import { ThemeToggle } from '@/components/theme/ThemeToggle'
-import { useAuth } from '@/components/auth/AuthProvider'
-import { NotificationsPanel } from '@/components/dashboard/NotificationsPanel'
 
 export function Navbar() {
   const { t } = useI18n()
   const { items, setIsCartOpen } = useCart()
-  const { user: authUser } = useAuth()
+  const { currency, setCurrency } = useCurrency()
   const router = useRouter()
   const [showLaunchpad, setShowLaunchpad] = useState(false)
   const [showTopBar, setShowTopBar] = useState(true)
@@ -276,12 +275,20 @@ export function Navbar() {
 
           {/* Coluna Direita: Ícones limpos com tooltips instantâneos */}
           <div className="flex items-center gap-5">
-            <NotificationsPanel
-              userEmail={authUser?.email ?? undefined}
-              buttonClassName="text-slate-300 hover:text-red-500 transition-colors relative"
-              iconClassName="w-4 h-4"
-              badgeClassName="absolute -top-1.5 -right-1.5 w-3.5 h-3.5 bg-red-500 text-white text-[8px] font-bold rounded-full flex items-center justify-center"
-            />
+            {/* Notificações removidas daqui — eram do admin, mas esta barra é
+                pública (home page), visível a qualquer visitante. Mostra em vez
+                disso o selector de moeda para pagamento de encomendas/serviços:
+                USD paga por Cartão (Stripe cobra sempre em dólar); MZN paga por
+                Cartão, M-Pesa ou Transferência — ver useCurrency() no checkout. */}
+            <select
+              value={currency}
+              onChange={(e) => setCurrency(e.target.value as 'MZN' | 'USD')}
+              className="bg-transparent text-slate-300 text-xs font-bold tracking-wide outline-none cursor-pointer hover:text-red-500 transition-colors [&>option]:text-black"
+              title="Moeda de pagamento das encomendas e serviços"
+            >
+              <option value="MZN">MZN (MT)</option>
+              <option value="USD">USD ($)</option>
+            </select>
 
             <button
               onClick={() => setIsCartOpen(true)}
