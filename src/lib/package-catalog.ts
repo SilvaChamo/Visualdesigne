@@ -25,6 +25,7 @@ const EMAIL_CATALOG: Record<string, { name: string; monthly: number; annual: num
 };
 
 const HOSTING_CYCLES: HostingBillingCycle[] = ['monthly', 'semiannual', 'annual'];
+const HOSTING_CYCLE_MONTHS: Record<HostingBillingCycle, number> = { monthly: 1, semiannual: 6, annual: 12 };
 
 export type ResolvedCartItem = {
   item: CatalogCartItem;
@@ -70,16 +71,18 @@ export async function resolveCartItems(items: CatalogCartItem[]): Promise<Catalo
         rejected.push(item);
         continue;
       }
-      // O carrinho envia o preço já resolvido (mensal, semestral ou anual) com period fixo em 1;
-      // só aceitamos o valor se corresponder exatamente a um dos três ciclos oficiais do plano.
-      const priceMt = HOSTING_CYCLES.map((cycle) => getHostingCyclePrice(plan.basePrice, cycle)).find(
-        (price) => price === item.price
-      );
-      if (priceMt === undefined) {
+      // O carrinho envia o preço já resolvido (mensal, semestral ou anual); só
+      // aceitamos o valor se corresponder exatamente a um dos três ciclos
+      // oficiais do plano — e #2: o `period` (em meses, usado para calcular a
+      // validade do serviço) tem de bater certo com esse mesmo ciclo. Sem
+      // isto, um `period` incoerente com o preço passava despercebido (ex.:
+      // preço anual com period=1 dava 12 meses de pagamento por 1 de serviço).
+      const cycle = HOSTING_CYCLES.find((c) => getHostingCyclePrice(plan.basePrice, c) === item.price);
+      if (cycle === undefined || (item.period || 1) !== HOSTING_CYCLE_MONTHS[cycle]) {
         rejected.push(item);
         continue;
       }
-      resolved.push({ item, priceMt });
+      resolved.push({ item, priceMt: item.price });
       continue;
     }
 

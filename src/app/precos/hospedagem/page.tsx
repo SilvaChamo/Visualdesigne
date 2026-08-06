@@ -221,7 +221,7 @@ export default function PrecosHospedagem() {
                     </ul>
                     <button
                       onClick={() => {
-                        addItem({ id: plan.id, type: 'hosting', name: `Alojamento Web ${t(plan.nameKey)}`, price: rawPrice, period: 1 })
+                        addItem({ id: plan.id, type: 'hosting', name: `Alojamento Web ${t(plan.nameKey)}`, price: rawPrice, period: billingCycle === 'annual' ? 12 : billingCycle === 'semiannual' ? 6 : 1 })
                         setIsCartOpen(true)
                       }}
                       className={`w-full py-3 rounded-lg font-medium transition-colors ${
