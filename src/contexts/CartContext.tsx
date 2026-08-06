@@ -9,6 +9,8 @@ export type CartItem = {
   price: number;
   period: number; // in years
   renewPrice?: number;
+  /** Só presente numa transferência de domínio (não um registo novo) — código EPP. */
+  authCode?: string;
 };
 
 interface CartContextType {

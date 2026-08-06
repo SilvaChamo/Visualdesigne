@@ -7,6 +7,9 @@ export type CatalogCartItem = {
   name: string;
   price: number;
   period: number;
+  /** Presente só quando o item é uma transferência de domínio de outro registador
+   * (não um registo novo) — código de autorização (EPP) do dono actual. */
+  authCode?: string;
 };
 
 /** Mesma fórmula usada em toda a app para converter USD -> MT (ver src/lib/domain-tld-prices.ts). */
@@ -56,7 +59,10 @@ export async function resolveCartItems(items: CatalogCartItem[]): Promise<Catalo
         continue;
       }
       const years = Math.max(1, item.period || 1);
-      resolved.push({ item, priceMt: usdToMt(tld.price * years) });
+      // Transferência de outro registador usa o preço de transferência (normalmente
+      // já inclui 1 ano), não o de registo novo.
+      const unitPrice = item.authCode ? tld.transfer : tld.price;
+      resolved.push({ item, priceMt: usdToMt(unitPrice * years) });
       continue;
     }
 

@@ -140,6 +140,60 @@ export async function fulfillCheckout(
     const years = item.period || 1;
     const expires = addYears(new Date(), years);
 
+    if (item.type === 'domain' && item.authCode) {
+      // Transferência de outro registador — nunca assumir posse já: o
+      // domínio só passa a 'active' quando o registador antigo aprovar a
+      // sério (ver /api/domain-transfer/status, que consulta a Dynadot e
+      // actualiza isto). Sem isto, "Meus Domínios" mostraria como nosso um
+      // domínio que ainda pode ser rejeitado do outro lado.
+      const domainName = item.name.toLowerCase().trim();
+      const { error } = await supabase.from('domain_renewals').upsert(
+        {
+          user_id: userId,
+          domain_name: domainName,
+          registration_date: today,
+          expiration_date: expires,
+          renewal_price: item.price,
+          currency: 'MZN',
+          status: 'transferring',
+          registrar: 'VisualDesign',
+          notes: `Transferência pedida (${paymentMethod})`,
+        },
+        { onConflict: 'user_id,domain_name', ignoreDuplicates: false },
+      );
+      if (error) {
+        console.warn('[checkout-fulfillment] domain_renewals (transferência):', error.message);
+        await alertAdminOfTrackingFailure('domain_renewals (transferência)', error.message);
+      }
+      created.push(`transferência:${domainName}`);
+
+      if (admin) {
+        const { submitDomainTransfer } = await import('@/lib/domain-transfer-provision');
+        const task = async () => {
+          const result = await submitDomainTransfer(admin, userId, domainName, item.authCode!, years);
+          if (!result.ok) {
+            console.error('[checkout-fulfillment] falha ao submeter transferência:', domainName, result.error);
+            await alertAdminOfTrackingFailure('transferência de domínio', `${domainName}: ${result.error}`);
+            await notifyClientOfDomainProvisionResult(admin, userId, domainName, false, result.error);
+          } else {
+            await admin.from('notifications').insert({
+              user_id: userId,
+              title: 'Transferência de domínio pedida',
+              message: `O pedido de transferência de ${domainName} foi enviado ao registador. Isto pode demorar alguns dias — vai receber um aviso quando ficar concluído.`,
+              type: 'success',
+              category: 'system',
+            });
+          }
+        };
+        try {
+          after(task);
+        } catch {
+          void task().catch((err) => console.error('[checkout-fulfillment] transferência de domínio:', err));
+        }
+      }
+      continue;
+    }
+
     if (item.type === 'domain') {
       const domainName = item.name.toLowerCase().trim();
       const { error } = await supabase.from('domain_renewals').upsert(

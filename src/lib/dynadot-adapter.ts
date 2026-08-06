@@ -99,6 +99,7 @@ async function dynadotFetch<T = unknown>(
   method: string,
   path: string,
   body?: Record<string, unknown>,
+  successCodes: number[] = [200],
 ): Promise<{ ok: true; data: T } | { ok: false; error: string }> {
   const keys = getKeys();
   if (!keys) return { ok: false, error: 'Chaves de API do registador não configuradas' };
@@ -123,7 +124,7 @@ async function dynadotFetch<T = unknown>(
     });
     const json = (await res.json().catch(() => ({}))) as DynadotEnvelope<T>;
 
-    if (json.code !== 200) {
+    if (!successCodes.includes(json.code)) {
       return { ok: false, error: json.error?.description || json.message || `Erro do registador (código ${json.code})` };
     }
     return { ok: true, data: (json.data as T) ?? ({} as T) };
@@ -360,6 +361,59 @@ export const dynadotAPI = {
       success: true,
       message: `Domínio ${clean} registado com sucesso.`,
       raw: result.data,
+    };
+  },
+
+  /**
+   * Pede a transferência de um domínio de outro registador para a Dynadot,
+   * usando o código de autorização (EPP) do dono. Não é instantâneo — o
+   * registador antigo tem de aprovar (ou não fazer nada 5-7 dias, o que
+   * conta como aprovação silenciosa); ver getTransferStatus() para
+   * acompanhar o progresso. Descoberto por tentativa/erro em sandbox: exige
+   * privacy e duration mesmo não sendo um registo novo.
+   */
+  async initiateTransferIn(
+    domain: string,
+    authCode: string,
+    years = 1,
+  ): Promise<{ success: true } | { success: false; error: string }> {
+    const clean = domain.toLowerCase().trim();
+    const result = await dynadotFetch(
+      'POST',
+      `/restful/v1/domains/${encodeURIComponent(clean)}/transfer_in`,
+      { domain: { auth_code: authCode, privacy: 'full', duration: years } },
+      [200, 202],
+    );
+    if (!result.ok) return { success: false, error: result.error };
+    return { success: true };
+  },
+
+  /** Estado actual de um pedido de transferência já submetido. */
+  async getTransferStatus(domain: string): Promise<
+    | { success: true; status: string; orderId?: string; createdDate?: string; completedDate?: string | null }
+    | { success: false; error: string }
+  > {
+    const clean = domain.toLowerCase().trim();
+    const result = await dynadotFetch<{
+      domain_transfer_status_list?: Array<{
+        order_id: string;
+        transfer_status: string;
+        order_created_date: number;
+        order_completed_date: number;
+      }>;
+    }>('GET', `/restful/v1/domains/${encodeURIComponent(clean)}/transfer_status?transfer_type=transfer_in`);
+    if (!result.ok) return { success: false, error: result.error };
+    const entry = result.data.domain_transfer_status_list?.[0];
+    if (!entry) return { success: false, error: 'Nenhum pedido de transferência encontrado para este domínio' };
+    return {
+      success: true,
+      status: entry.transfer_status,
+      orderId: entry.order_id,
+      createdDate: entry.order_created_date ? new Date(entry.order_created_date).toISOString() : undefined,
+      completedDate:
+        entry.order_completed_date && entry.order_completed_date > 0
+          ? new Date(entry.order_completed_date).toISOString()
+          : null,
     };
   },
 
