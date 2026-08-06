@@ -61,6 +61,10 @@ export default function DomainSearch({
   const [actionLoading, setActionLoading] = useState<string | null>(null)
   const [resultsTab, setResultsTab] = useState<'domains' | 'pricing' | 'plans'>('domains')
   const [billingCycle, setBillingCycle] = useState<'mensal' | 'anual'>('anual')
+  // Anos de registo por domínio (o preço/checkout tem de reflectir o período
+  // realmente escolhido, não ficar sempre fixo em 1 ano).
+  const [selectedYears, setSelectedYears] = useState<Record<string, number>>({})
+  const getYears = (domain: string) => selectedYears[domain] || 1
 
   const searchRound = isAdmin || panelFieldRounding ? 'rounded' : 'rounded-lg'
   const fieldPaddingY = spacious ? 'py-2.5' : 'py-2'
@@ -189,9 +193,10 @@ export default function DomainSearch({
     const row = results.find((r) => r.domain === domain)
     if (row && row.price !== undefined) {
       setActionLoading(domain)
+      const years = getYears(domain)
       setTimeout(() => {
         setActionLoading(null)
-        const finalPrice = Math.round(row.price! * 65 * 1.5 * 1.075)
+        const finalPrice = Math.round(row.price! * 65 * 1.5 * 1.075) * years
         const finalRenewPrice = row.renewPrice ? Math.round(row.renewPrice * 65 * 1.5 * 1.075) : undefined
 
         addItem({
@@ -199,7 +204,7 @@ export default function DomainSearch({
           type: 'domain',
           name: domain,
           price: finalPrice,
-          period: 1,
+          period: years,
           renewPrice: finalRenewPrice,
         })
 
@@ -243,15 +248,30 @@ export default function DomainSearch({
             {result.error && !result.available ? (
               <span className="text-left text-xs font-medium text-red-500 sm:text-right">{result.error}</span>
             ) : result.price !== undefined ? (
-              <div className="flex flex-row flex-wrap items-center gap-x-2 gap-y-1">
-                <span className="text-lg font-bold text-zinc-700 dark:text-zinc-200">
-                  {calculatePrice(result.price)} MT
-                </span>
-                {result.renewPrice ? (
-                  <span className="text-[11px] font-medium text-zinc-500">
-                    Renovação: <span className="text-red-500">{calculatePrice(result.renewPrice)} MT</span>
+              <div className="flex flex-col items-start gap-1 sm:items-end">
+                <div className="flex flex-row flex-wrap items-center gap-x-2 gap-y-1">
+                  <span className="text-lg font-bold text-zinc-700 dark:text-zinc-200">
+                    {calculatePrice(result.price * getYears(result.domain))} MT
                   </span>
-                ) : null}
+                  {result.renewPrice ? (
+                    <span className="text-[11px] font-medium text-zinc-500">
+                      Renovação: <span className="text-red-500">{calculatePrice(result.renewPrice)} MT/ano</span>
+                    </span>
+                  ) : null}
+                </div>
+                {result.available && (
+                  <select
+                    value={getYears(result.domain)}
+                    onChange={(e) =>
+                      setSelectedYears((prev) => ({ ...prev, [result.domain]: Number(e.target.value) }))
+                    }
+                    className="rounded border border-zinc-300 bg-white px-2 py-1 text-xs font-medium text-zinc-700 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-300"
+                  >
+                    {[1, 2, 3, 5, 10].map((y) => (
+                      <option key={y} value={y}>{y} {y === 1 ? 'ano' : 'anos'}</option>
+                    ))}
+                  </select>
+                )}
               </div>
             ) : null}
           </div>

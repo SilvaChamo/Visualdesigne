@@ -93,6 +93,10 @@ export async function saveProfileForAuthUser(
     da_domain?: string | null;
     da_provisioned_at?: string | null;
     reseller_tier?: string | null;
+    telefone?: string | null;
+    empresa?: string | null;
+    morada?: string | null;
+    cidade?: string | null;
   },
 ): Promise<void> {
   const displayName = fields.name ?? fields.nome ?? undefined;
@@ -109,6 +113,10 @@ export async function saveProfileForAuthUser(
   if (fields.da_domain !== undefined) payload.da_domain = fields.da_domain;
   if (fields.da_provisioned_at !== undefined) payload.da_provisioned_at = fields.da_provisioned_at;
   if (fields.reseller_tier !== undefined) payload.reseller_tier = fields.reseller_tier;
+  if (fields.telefone !== undefined) payload.telefone = fields.telefone;
+  if (fields.empresa !== undefined) payload.empresa = fields.empresa;
+  if (fields.morada !== undefined) payload.morada = fields.morada;
+  if (fields.cidade !== undefined) payload.cidade = fields.cidade;
 
   if (existing?.id) {
     const { error } = await admin.from('profiles').update(payload).eq('id', existing.id);

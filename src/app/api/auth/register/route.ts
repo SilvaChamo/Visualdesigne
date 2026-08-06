@@ -5,7 +5,7 @@ import { PANEL_SLUG } from '@/lib/panel-tenant';
 
 export async function POST(request: NextRequest) {
   try {
-    const { email, password, nome, telefone, empresa, endereco, provincia, pais, emailEmpresa, contacto, honeypot } = await request.json();
+    const { email, password, nome, telefone, empresa, endereco, cidade, provincia, pais, emailEmpresa, contacto, honeypot } = await request.json();
 
     // Campo-armadilha: só bots que preenchem todos os campos do formulário
     // (incluindo os escondidos) chegam a mandar isto preenchido.
@@ -72,6 +72,10 @@ export async function POST(request: NextRequest) {
           email: normalizedEmail,
           role: 'guest',
           name: String(nome).trim() || normalizedEmail.split('@')[0],
+          telefone: String(telefone).trim(),
+          empresa: empresa ? String(empresa).trim() : undefined,
+          morada: endereco ? String(endereco).trim() : undefined,
+          cidade: cidade ? String(cidade).trim() : undefined,
         });
       } catch (profileError) {
         // Reverte o utilizador de Auth já criado para não deixar uma "conta fantasma"

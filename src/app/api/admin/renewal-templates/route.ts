@@ -15,10 +15,17 @@ const getServiceClient = () => {
 async function checkIsAdmin(): Promise<boolean> {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return false
+  if (!user) {
+    console.warn('[renewal-templates] Acesso restrito: sem sessão/utilizador autenticado.')
+    return false
+  }
 
   const adminEmails = ['admin@visualdesignmoz.com', 'silva.chamo@gmail.com', 'geral@visualdesignmoz.com', 'suporte@visualdesignmoz.com']
-  return adminEmails.includes(user.email || '') || user.user_metadata?.role === 'admin'
+  const isAdmin = adminEmails.includes((user.email || '').toLowerCase()) || user.user_metadata?.role === 'admin'
+  if (!isAdmin) {
+    console.warn(`[renewal-templates] Acesso restrito: utilizador ${user.email} não está na lista de admins.`)
+  }
+  return isAdmin
 }
 
 // GET - Carregar todos os templates

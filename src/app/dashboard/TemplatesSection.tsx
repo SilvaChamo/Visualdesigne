@@ -12,7 +12,6 @@ import {
   Eye,
   Code,
   Type,
-  Bold,
   Italic,
   Underline,
   AlignLeft,
@@ -25,9 +24,8 @@ import {
   Type as TypeIcon,
   Plus,
   Trash2,
-  Paintbrush,
-  Droplet,
-  AlertTriangle
+  AlertTriangle,
+  AlignVerticalSpaceAround
 } from 'lucide-react'
 import {
   defaultRenewalTemplates,
@@ -184,8 +182,8 @@ export function TemplatesSection() {
     if (!editorRef.current || !editingTemplate) return
     // Criar um botão CTA com span contentEditable dentro para permitir edição do texto
     const buttonHTML = `
-      <a href="{{renewalLink}}" style="display:inline-block;background:#dc2626;color:white;padding:12px 30px;text-decoration:none;border-radius:5px;font-weight:bold;cursor:pointer;">
-        <span contenteditable="true" style="outline:none;">CLIQUE AQUI</span>
+      <a href="{{renewalLink}}" class="vd-cta-btn-red" style="display:inline-block;background:#dc2626;color:white;padding:12px 30px;text-decoration:none;border-radius:5px;font-weight:bold;cursor:pointer;">
+        <span contenteditable="true" style="outline:none;" onbeforeinput="if((this.textContent||'').length<=1&&event.inputType&&event.inputType.indexOf('delete')===0)event.preventDefault();">CLIQUE AQUI</span>
       </a>
     `
     document.execCommand('insertHTML', false, buttonHTML)
@@ -355,7 +353,7 @@ export function TemplatesSection() {
     }
   }
 
-  const fontSizes = [8, 9, 10, 11, 12, 14, 16, 18, 20, 22, 23, 24, 26, 28, 36, 48, 72]
+  const fontSizes = [8, 9, 10, 11, 12, 13, 14, 16, 18, 20, 22, 23, 24, 26, 28, 36, 48, 72]
   const lineHeights = [1, 1.15, 1.3, 1.5, 1.6, 1.8, 2, 2.5]
   const fontSizeDropdownRef = useRef<HTMLDivElement>(null)
   const lineHeightDropdownRef = useRef<HTMLDivElement>(null)
@@ -363,6 +361,7 @@ export function TemplatesSection() {
   // Paleta de cores VisualDesign
   const [colorPickerOpen, setColorPickerOpen] = useState(false)
   const [currentTextColor, setCurrentTextColor] = useState('#000000')
+  const [currentFontSize, setCurrentFontSize] = useState(14)
   const colorPickerRef = useRef<HTMLDivElement>(null)
 
   const textColors = [
@@ -489,7 +488,7 @@ export function TemplatesSection() {
     const bg = prompt('Cor de fundo do destaque (hex):', '#f3f4f6') || '#f3f4f6'
     const bannerHTML = `
       <div style="display:block;width:100%;box-sizing:border-box;background:${bg};color:#374151;padding:16px 20px;margin:20px 0;">
-        <span contenteditable="true" style="outline:none;">Texto do destaque</span>
+        <span contenteditable="true" style="outline:none;" onbeforeinput="if((this.textContent||'').length<=1&&event.inputType&&event.inputType.indexOf('delete')===0)event.preventDefault();">Texto do destaque</span>
       </div>
     `
     document.execCommand('insertHTML', false, bannerHTML)
@@ -509,6 +508,7 @@ export function TemplatesSection() {
     const newContent = editorRef.current.innerHTML
     setEditingTemplate({ ...editingTemplate, emailBody: newContent })
     saveToHistory(newContent)
+    setCurrentFontSize(size)
     setFontSizeDropdownOpen(false)
   }
 
@@ -613,6 +613,137 @@ export function TemplatesSection() {
       }
     }
   }
+
+  // Impede que um botão/link (ex: "PAGAR AGORA") fique completamente vazio —
+  // um <a> sem nenhum carácter dentro é removido pelo próprio motor de edição
+  // do browser (mesmo quando se está a substituir a selecção por texto novo
+  // numa só operação, não só ao apagar), e o texto novo acaba fora do botão
+  // em vez de dentro dele.
+  const handleBeforeInput = (e: InputEvent) => {
+    const inputType = e.inputType
+    const selection = window.getSelection()
+    if (!selection || selection.rangeCount === 0 || !editorRef.current) return
+
+    if (inputType && inputType.startsWith('delete')) {
+      if (selection.isCollapsed) {
+        // Apagar um carácter de cada vez: o nó onde está o cursor resolve-se
+        // sempre a um nó de texto dentro do <a>, closest() funciona bem aqui.
+        const node = selection.anchorNode
+        const el = node instanceof Element ? node : node?.parentElement
+        const link = el?.closest('a')
+        if (link) {
+          if ((link.textContent || '').length <= 1) {
+            e.preventDefault()
+            return
+          }
+          // Mesmo com o link longe de ficar vazio, apagar exactamente a
+          // partir do início (ou do fim, para Delete) do seu texto sai do
+          // <a> e continua a apagar o que vem antes/depois — o cursor
+          // "foge" do botão e é aí que se começa a escrever a seguir.
+          // Bloqueia só nesse limite exacto, não durante o resto do apagar.
+          const textNode = node && node.nodeType === Node.TEXT_NODE ? node : null
+          const offset = selection.anchorOffset
+          const atStart = textNode === link.firstChild && offset === 0
+          const atEnd = textNode === link.lastChild && offset === (textNode?.textContent?.length ?? -1)
+          const isBackward = inputType.toLowerCase().includes('backward')
+          const isForward = inputType.toLowerCase().includes('forward')
+          if ((isBackward && atStart) || (isForward && atEnd)) {
+            e.preventDefault()
+          }
+        }
+        return
+      }
+      if (selectionWouldEmptyALink(selection)) {
+        e.preventDefault()
+      }
+      return
+    }
+
+    // Escrever mesmo no limite (início/fim) do texto de um botão — o browser
+    // trata essa posição como "fora" do link para efeitos de inserção (regra
+    // normal para não estender hiperligações sem querer) e o carácter novo
+    // aparece ao lado do botão, não dentro dele. Em vez de reescrever a
+    // inserção à mão (não fica fiável para a tecla seguinte, ver mais abaixo),
+    // estende a selecção em um carácter para dentro do link antes de deixar o
+    // browser escrever por cima da forma normal — substitui esse carácter da
+    // extremidade, mas mantém tudo dentro do botão de forma fiável.
+    if (selection.isCollapsed && (inputType === 'insertText' || inputType === 'insertCompositionText')) {
+      const node = selection.anchorNode
+      const el = node instanceof Element ? node : node?.parentElement
+      const link = el?.closest('a')
+      if (link && (link.textContent || '').length > 0) {
+        const textNode = node && node.nodeType === Node.TEXT_NODE ? node : null
+        const offset = selection.anchorOffset
+        const atStart = textNode === link.firstChild && offset === 0
+        const atEnd = textNode === link.lastChild && offset === (textNode?.textContent?.length ?? -1)
+        if (atStart) {
+          selection.modify('extend', 'forward', 'character')
+        } else if (atEnd) {
+          selection.modify('extend', 'backward', 'character')
+        }
+      }
+    }
+
+    // Escrever por cima de uma selecção que cobre um botão inteiro (ex:
+    // seleccionar "PAGAR AGORA" e começar logo a escrever o texto novo, sem
+    // apagar primeiro) — o browser trataria isto como "apagar a selecção e
+    // inserir", esvaziando o <a> a meio da operação. Em vez de reconstruir a
+    // inserção à mão (o motor de edição nativo do browser não reconhece de
+    // forma fiável uma selecção recriada por JavaScript para a tecla
+    // seguinte), encolhe-se a selecção em um carácter antes de deixar o
+    // browser tratar a inserção da forma normal — o <a> nunca fica vazio
+    // porque esse último carácter nunca chega a ser apagado. Sobra um
+    // carácter antigo no fim do botão, que se remove com um Backspace extra
+    // (já seguro nessa altura, o link já não está perto de ficar vazio).
+    if ((inputType === 'insertText' || inputType === 'insertReplacementText' || inputType === 'insertFromPaste') && !selection.isCollapsed) {
+      const link = selectionWouldEmptyALink(selection)
+      const linkTextNode = link?.firstChild
+      if (link && linkTextNode && linkTextNode.nodeType === Node.TEXT_NODE && (linkTextNode.textContent?.length ?? 0) > 0) {
+        // Independentemente de onde a selecção original terminava (pode ir
+        // parar a um parágrafo depois do botão), o novo limite fica sempre
+        // amarrado ao próprio nó de texto do link — encolhe sempre para
+        // dentro do botão, nunca cresce por engano (ao contrário de
+        // Selection.modify(), cuja direcção depende de qual ponta é o focus,
+        // imprevisível conforme como a selecção foi feita).
+        const range = selection.getRangeAt(0)
+        range.setEnd(linkTextNode, (linkTextNode.textContent?.length ?? 1) - 1)
+        selection.removeAllRanges()
+        selection.addRange(range)
+      }
+    }
+  }
+
+  // Se a selecção actual cobre por completo o texto de algum botão/link
+  // dentro do editor, devolve esse link (apagá-la/substituí-la esvaziaria o
+  // botão) — caso contrário devolve null. Testa por conteúdo em vez de
+  // comparar limites exactos da selecção porque posições equivalentes podem
+  // ser representadas de formas diferentes consoante a selecção atravessa
+  // limites de elementos (frágil de comparar directamente).
+  const selectionWouldEmptyALink = (selection: Selection): HTMLAnchorElement | null => {
+    if (!editorRef.current || selection.rangeCount === 0) return null
+    const range = selection.getRangeAt(0)
+    const selectedText = range.toString()
+    const links = editorRef.current.querySelectorAll('a')
+    for (const link of Array.from(links)) {
+      const linkText = link.textContent || ''
+      if (linkText.length === 0) continue
+      if (range.intersectsNode(link) && selectedText.includes(linkText)) {
+        return link
+      }
+    }
+    return null
+  }
+
+  // Liga o guard acima directamente ao DOM (addEventListener nativo, não a
+  // prop React onBeforeInput) — o evento beforeinput nativo do contentEditable
+  // já dispara e é cancelado antes do motor de edição do browser chegar a
+  // remover o <a> vazio; a versão via prop React chegava tarde de mais.
+  useEffect(() => {
+    const el = editorRef.current
+    if (!el) return
+    el.addEventListener('beforeinput', handleBeforeInput, true)
+    return () => el.removeEventListener('beforeinput', handleBeforeInput, true)
+  }, [editingTemplate?.id, editorMode])
 
   // Remove qualquer fundo/cor de fundo do HTML colado — texto copiado de fora
   // (ou da própria caixa "Variáveis Disponíveis", que tem fundo azul) não pode
@@ -865,16 +996,7 @@ export function TemplatesSection() {
       {/* Header — título/descrição e, na mesma linha, os tabs de tipos de template
           (Salvar/Cancelar/Eliminar Definitivamente passaram para a barra de menu
           principal do dashboard, ver o useEffect de useAdminSectionChrome acima). */}
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <div>
-          <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
-            <Palette className="w-5 h-5 text-purple-600" />
-            Editor de Templates de Notificação
-          </h3>
-          <p className="text-sm text-gray-500 mt-1">
-            Personalize as mensagens de renovação enviadas aos clientes
-          </p>
-        </div>
+      <div className="flex flex-wrap items-center justify-end gap-4">
         <div className="flex flex-wrap items-center justify-end gap-2">
           {templates.map(template => (
             <button
@@ -914,7 +1036,7 @@ export function TemplatesSection() {
         <div className="space-y-4">
           {editingTemplate ? (
             <div className="space-y-4 bg-white rounded-xl border border-gray-200 shadow-sm p-6">
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
                       Nome do Template
@@ -926,20 +1048,6 @@ export function TemplatesSection() {
                       className="w-full px-3 py-2 border border-gray-300 rounded"
                     />
                   </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Dias antes do vencimento
-                    </label>
-                    <input
-                      type="number"
-                      value={editingTemplate.daysBefore}
-                      onChange={(e) => setEditingTemplate({ ...editingTemplate, daysBefore: parseInt(e.target.value) })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded"
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
                       Tipo
@@ -1066,10 +1174,10 @@ export function TemplatesSection() {
                       <div className="w-px h-5 bg-gray-300 mx-1" />
                       <button
                         onClick={() => document.execCommand('bold', false, undefined)}
-                        className="p-1.5 hover:bg-white hover:shadow rounded transition-all"
+                        className="w-7 p-1.5 hover:bg-white hover:shadow rounded transition-all flex items-center justify-center"
                         title="Negrito (Ctrl+B)"
                       >
-                        <Bold className="w-4 h-4 text-gray-700" />
+                        <span className="font-bold text-gray-700 text-sm leading-none">B</span>
                       </button>
                       <button
                         onClick={() => document.execCommand('italic', false, undefined)}
@@ -1090,12 +1198,10 @@ export function TemplatesSection() {
                       <div className="relative" ref={colorPickerRef}>
                         <button
                           onClick={() => setColorPickerOpen(!colorPickerOpen)}
-                          className="flex items-center gap-1 px-2 py-1.5 hover:bg-white hover:shadow rounded transition-all border border-gray-300 bg-white"
+                          className="w-4 h-4 rounded border border-gray-300 hover:scale-110 transition-transform"
+                          style={{ backgroundColor: currentTextColor }}
                           title="Paleta de Cores"
-                        >
-                          <Paintbrush className="w-4 h-4 text-gray-700" />
-                          <Droplet className="w-3 h-3" style={{ color: currentTextColor }} />
-                        </button>
+                        />
                         {colorPickerOpen && (
                           <div className="absolute top-full left-0 mt-1 bg-white border border-gray-300 rounded-lg shadow-lg z-50 p-3 min-w-[220px]">
                             {/* Cores do texto */}
@@ -1170,7 +1276,7 @@ export function TemplatesSection() {
                           className="flex items-center gap-1 px-2 py-1.5 hover:bg-white hover:shadow rounded transition-all border border-gray-300 bg-white"
                           title="Tamanho da Fonte"
                         >
-                          <span className="text-xs font-medium text-gray-700 min-w-[20px]">Size</span>
+                          <span className="text-xs font-medium text-gray-700 min-w-[20px]">{currentFontSize}</span>
                           <svg className="w-3 h-3 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                           </svg>
@@ -1196,7 +1302,7 @@ export function TemplatesSection() {
                           className="flex items-center gap-1 px-2 py-1.5 hover:bg-white hover:shadow rounded transition-all border border-gray-300 bg-white"
                           title="Altura da Linha"
                         >
-                          <span className="text-xs font-medium text-gray-700">Altura</span>
+                          <AlignVerticalSpaceAround className="w-4 h-4 text-gray-700" />
                           <svg className="w-3 h-3 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                           </svg>

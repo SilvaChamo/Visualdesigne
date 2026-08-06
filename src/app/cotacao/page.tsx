@@ -297,7 +297,17 @@ function CotacaoContent() {
           { key: 'empresa', label: 'Empresa', icon: Building2 },
           { key: 'responsavel', label: 'Responsável', icon: User },
         ];
-  const STEPS = isPanelEmbed
+  // No painel embutido só se salta directo para "Serviço" se já houver dados
+  // institucionais de uma cotação anterior — sem isso, o pedido falhava sempre
+  // com "Preencha todos os campos obrigatórios" sem o cliente ver nenhum campo
+  // para corrigir (primeira cotação de sempre não tem "última" para pré-preencher).
+  const hasUsableEntityData =
+    tipoCliente === 'individual'
+      ? Boolean(empresa && telefoneInstitucionalPreenchido && emailInstitucional)
+      : Boolean(
+          empresa && telefoneInstitucionalPreenchido && emailInstitucional && responsavel && telefoneResponsavelPreenchido && emailResponsavel,
+        );
+  const STEPS = isPanelEmbed && hasUsableEntityData
     ? [{ key: 'servico', label: 'Serviço', icon: Package }]
     : isAuthenticated
     ? [...baseSteps, { key: 'servico', label: 'Serviço', icon: Package }]

@@ -36,8 +36,7 @@ import {
   Info,
   Building2,
   UserCircle,
-  Wallet,
-  Receipt
+  Wallet
 } from 'lucide-react';
 import { Spinner } from '@/components/ui/spinner';
 
@@ -57,91 +56,6 @@ type ManualSession = {
   created_at: string;
   items: { type: string }[];
 };
-
-/** Rótulo do último passo da fatura consoante o que foi comprado. */
-function purchaseActiveLabel(list: { type: string }[]): string {
-  const types = new Set(list.map((i) => i.type));
-  if (types.has('domain') && types.has('hosting')) return 'Domínio/Hospedagem Activos';
-  if (types.has('domain')) return 'Domínio Activo';
-  if (types.has('hosting')) return 'Hospedagem Activa';
-  if (types.has('email')) return 'Email Activo';
-  return 'Compra Activa';
-}
-
-/** Barra "Status da Fatura" — acende os passos consoante o estado do pedido manual (M-Pesa/Transferência). */
-function StatusDaFaturaCard({
-  manualSession,
-  purchasedLabel,
-  createdAt,
-}: {
-  manualSession: ManualSession | null;
-  purchasedLabel: string;
-  createdAt: string;
-}) {
-  const sessionStatus = manualSession?.status ?? null;
-
-  const stepState = (i: number): 'done' | 'active' | 'pending' => {
-    if (sessionStatus === 'paid') return 'done';
-    if (sessionStatus === 'failed') return i <= 1 ? 'done' : 'pending';
-    if (sessionStatus === 'pending' || sessionStatus === 'expired') {
-      return i === 0 ? 'done' : i === 1 ? 'active' : 'pending';
-    }
-    return i === 0 ? 'done' : 'pending';
-  };
-
-  const steps = [
-    { label: 'Fatura Criada', sub: createdAt },
-    { label: 'Aguardando Pagamento', sub: null as string | null },
-    { label: 'Pagamento Confirmado', sub: null as string | null },
-    { label: purchasedLabel, sub: null as string | null },
-  ];
-
-  return (
-    <div className="bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-lg p-6 shadow-sm">
-      <p className="text-xs font-bold uppercase tracking-wide text-red-600 dark:text-red-400 flex items-center gap-1.5 mb-8">
-        <Receipt className="w-3.5 h-3.5" /> Status da Fatura
-      </p>
-      <div className="flex items-start">
-        {steps.map((step, i) => {
-          const state = stepState(i);
-          return (
-            <div key={step.label} className="flex items-center flex-1 last:flex-none">
-              <div className="flex flex-col items-center text-center w-28 shrink-0">
-                <span
-                  className={`text-xs font-bold mb-1.5 ${
-                    state === 'pending' ? 'text-slate-300 dark:text-zinc-600' : 'text-slate-500 dark:text-zinc-400'
-                  }`}
-                >
-                  {i + 1}
-                </span>
-                <div
-                  className={`w-5 h-5 rounded-full border-2 ${
-                    state === 'done'
-                      ? 'bg-red-600 border-red-600'
-                      : state === 'active'
-                        ? 'bg-white dark:bg-zinc-900 border-amber-500 ring-4 ring-amber-200 dark:ring-amber-900/40'
-                        : 'bg-white dark:bg-zinc-900 border-slate-200 dark:border-zinc-700'
-                  }`}
-                />
-                <span
-                  className={`mt-2 text-xs font-bold leading-tight ${
-                    state === 'pending' ? 'text-slate-400 dark:text-zinc-500' : 'text-slate-800 dark:text-zinc-100'
-                  }`}
-                >
-                  {step.label}
-                </span>
-                {step.sub && <span className="text-[10px] text-slate-400 dark:text-zinc-500 mt-0.5">{step.sub}</span>}
-              </div>
-              {i < steps.length - 1 && (
-                <div className={`h-px flex-1 mt-[-38px] ${state === 'done' ? 'bg-red-600' : 'bg-slate-200 dark:bg-zinc-800'}`} />
-              )}
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
 
 function CheckoutContent() {
   const { items, total, clearCart } = useCart();
@@ -247,6 +161,12 @@ function CheckoutContent() {
         setIsSubmitting(false);
         return;
       }
+      if (!accountForm.telefone.trim()) {
+        setErrorMessage('Por favor, introduza o seu Telefone para criar a conta.');
+        setStatus('error');
+        setIsSubmitting(false);
+        return;
+      }
       if (accountForm.password.length < 6) {
         setErrorMessage('A Palavra-passe é demasiado curta. Deve ter no mínimo 6 caracteres.');
         setStatus('error');
@@ -264,7 +184,12 @@ function CheckoutContent() {
           body: JSON.stringify({
             email: accountForm.email,
             password: accountForm.password,
-            nome: accountForm.name
+            nome: `${accountForm.name} ${accountForm.sobrenome}`.trim(),
+            telefone: accountForm.telefone,
+            empresa: accountForm.empresa,
+            endereco: accountForm.endereco,
+            cidade: accountForm.cidade,
+            pais: accountForm.pais,
           })
         });
         const data = await res.json();
@@ -420,11 +345,6 @@ function CheckoutContent() {
 
         {manualSession ? (
           <div className="max-w-2xl mx-auto space-y-5">
-            <StatusDaFaturaCard
-              manualSession={manualSession}
-              purchasedLabel={purchaseActiveLabel(manualSession.items)}
-              createdAt={new Date(manualSession.created_at).toLocaleDateString('pt-PT')}
-            />
             {manualSession.status === 'paid' ? (
               <div className="bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-lg p-10 text-center space-y-4 shadow-sm">
                 <CheckCircle2 className="w-14 h-14 text-green-500 mx-auto" />
@@ -573,17 +493,15 @@ function CheckoutContent() {
                   <div>
                     <h4 className="font-bold text-red-800 dark:text-red-300 text-sm font-panel">Falha na Transação</h4>
                     <p className="text-xs text-red-700 dark:text-red-400 mt-1 leading-normal">{errorMessage}</p>
-                    {errorMessage.toLowerCase().includes('login') || errorMessage.toLowerCase().includes('já existe') ? (
+                    {(errorMessage.toLowerCase().includes('login') || errorMessage.toLowerCase().includes('já existe')) && (
                       <Link href={`/auth/login?redirect=${encodeURIComponent('/checkout')}`} className="mt-4 bg-red-600 text-white font-bold text-xs px-4 py-2 rounded-lg hover:bg-red-700 transition-colors inline-block">
                         Fazer Login
                       </Link>
-                    ) : (
-                      <button
-                        onClick={() => setStatus('idle')}
-                        className="mt-4 bg-red-600 text-white font-bold text-xs px-4 py-2 rounded-lg hover:bg-red-700 transition-colors inline-block"
-                      >
-                        Voltar para corrigir
-                      </button>
+                    )}
+                    {errorMessage.toLowerCase().includes('a minha conta') && (
+                      <Link href="/cliente?section=conta" className="mt-4 bg-red-600 text-white font-bold text-xs px-4 py-2 rounded-lg hover:bg-red-700 transition-colors inline-block">
+                        Completar Dados
+                      </Link>
                     )}
                   </div>
                 </div>
@@ -720,7 +638,7 @@ function CheckoutContent() {
                       ))}
                     </div>
 
-                    <div className="pt-3 mt-1 border-t border-slate-300 dark:border-zinc-700 space-y-1.5">
+                    <div className="pt-3 mt-1 border-t border-dashed border-slate-300 dark:border-zinc-700 space-y-1.5">
                       <div className="flex justify-between items-center text-base text-slate-500 dark:text-zinc-400">
                         <span>Subtotal</span>
                         <span>{formatMt(total)} MT</span>
@@ -729,18 +647,12 @@ function CheckoutContent() {
                         <span>Impostos e IVA</span>
                         <span>{formatMt(0)} MT</span>
                       </div>
-                      <div className="pt-2 border-t border-slate-300 dark:border-zinc-700 flex justify-between items-center">
+                      <div className="pt-2 border-t border-dashed border-slate-300 dark:border-zinc-700 flex justify-between items-center">
                         <span className="font-black text-slate-800 dark:text-zinc-100 text-sm uppercase">Total</span>
                         <span className="font-black text-xl text-red-600 dark:text-red-400">{formatMt(total)} MT</span>
                       </div>
                     </div>
                   </div>
-
-                  <StatusDaFaturaCard
-                    manualSession={manualSession}
-                    purchasedLabel={purchaseActiveLabel(items)}
-                    createdAt={new Date().toLocaleDateString('pt-PT')}
-                  />
 
                   <div className="bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-lg p-6 space-y-5 shadow-sm">
                     <div>

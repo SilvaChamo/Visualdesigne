@@ -41,6 +41,8 @@ const EMAIL_CLIENT_RESET_STYLE = `<style type="text/css">
     body { margin: 0 !important; padding: 0 !important; width: 100% !important; -webkit-text-size-adjust: 100%; -ms-text-size-adjust: 100%; }
     table { mso-table-lspace: 0pt !important; mso-table-rspace: 0pt !important; }
     img { -ms-interpolation-mode: bicubic; border: 0; outline: none; }
+    .vd-cta-btn:hover { background: #dc2626 !important; }
+    .vd-cta-btn-red:hover { background: #000000 !important; }
   </style>`
 
 // Ícones de redes sociais (mesmo estilo circular usado em EmailTemplates.tsx).
@@ -138,7 +140,7 @@ export function buildSimpleNotificationEmailHtml(params: {
   <title>${title}</title>
   ${EMAIL_CLIENT_RESET_STYLE}
 </head>
-<body marginwidth="0" marginheight="0" topmargin="0" leftmargin="0" style="margin: 0; padding: 0; width: 100%; font-family: 'Exo 2', sans-serif; background: #f3f4f6;">
+<body marginwidth="0" marginheight="0" topmargin="0" leftmargin="0" style="margin: 0; padding: 0; width: 100%; font-family: 'Exo 2', sans-serif; font-size: 14px; background: #f3f4f6;">
   <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:0; padding:0; font-family: 'Exo 2', sans-serif;">
     ${emailHeader(NOTIFICATION_COMPANY_NAME)}
     <tr>
@@ -178,7 +180,7 @@ export const getUrgencyColor = (urgency: string): string => {
 // Sem caixa/cartão nem linha de destaque — a cor de urgência (getUrgencyColor)
 // passou a ficar só no cartão "Preview ao Vivo" do dashboard, não no email.
 export const wrapContentInFrame = (content: string, _urgency: string) => `
-<div style="font-family: 'Exo 2', sans-serif;">
+<div style="font-family: 'Exo 2', sans-serif; font-size: 14px; color: #1f2937;">
   ${content}
 </div>
   `.trim()
@@ -226,7 +228,7 @@ export const defaultRenewalTemplates: RenewalTemplate[] = [
 </div>
 <p><strong>Observação:</strong> Para prosseguir com o pagamento clique no botão pagar agora.</p>
 <div style="text-align:left;margin:24px 0;">
-  <a href="{{renewalLink}}" style="display:inline-block;background:#dc2626;color:white;padding:12px 30px;text-decoration:none;border-radius:5px;font-weight:bold;font-size:14px;">PAGAR AGORA</a>
+  <a href="{{renewalLink}}" class="vd-cta-btn-red" style="display:inline-block;background:#dc2626;color:white;padding:12px 30px;text-decoration:none;border-radius:5px;font-weight:bold;font-size:14px;">PAGAR AGORA</a>
 </div>
 <p style="font-size:14px;color:#64748b;">Renovando com antecedência, você garante continuidade do serviço sem interrupções e evita taxas de reativação.</p>
     `.trim(),
@@ -249,7 +251,7 @@ export const defaultRenewalTemplates: RenewalTemplate[] = [
   <p style="margin:8px 0;"><strong>💰 Investimento:</strong> {{renewalPrice}}</p>
 </div>
 <div style="text-align:left;margin:24px 0;">
-  <a href="{{renewalLink}}" style="display:inline-block;background:#3b82f6;color:white;padding:10px 24px;text-decoration:none;border-radius:4px;font-weight:bold;font-size:14px;">RENOVAR AGORA →</a>
+  <a href="{{renewalLink}}" class="vd-cta-btn" style="display:inline-block;background:#000000;color:white;padding:10px 24px;text-decoration:none;border-radius:4px;font-weight:bold;font-size:14px;">RENOVAR AGORA →</a>
 </div>
 <p>Evite contratempos e renove com tranquilidade.</p>
     `.trim(),
@@ -287,7 +289,7 @@ export const defaultRenewalTemplates: RenewalTemplate[] = [
 </div>
 
 <div style="text-align:left;margin:24px 0;">
-  <a href="{{renewalLink}}" style="display:inline-block;background:#ca8a04;color:white;padding:10px 24px;text-decoration:none;border-radius:4px;font-weight:bold;font-size:14px;">🛡️ PROTEJA SEU SERVIÇO AGORA →</a>
+  <a href="{{renewalLink}}" class="vd-cta-btn" style="display:inline-block;background:#000000;color:white;padding:10px 24px;text-decoration:none;border-radius:4px;font-weight:bold;font-size:14px;">🛡️ PROTEJA SEU SERVIÇO AGORA →</a>
 </div>
 
 <p>
@@ -333,7 +335,7 @@ Olá {{clientName}},
 
 <div style="background: #dbeafe; border: 2px solid #2563eb; padding: 15px; margin: 20px 0; text-align: left;">
   <p style="margin: 0 0 10px 0; font-weight: bold; color: #1e40af;">🛡️ PROTEJA SEU SERVIÇO AGORA</p>
-  <a href="{{renewalLink}}" style="background: #dc2626; color: white; padding: 10px 24px; text-decoration: none; border-radius: 4px; font-weight: bold; display: inline-block;">
+  <a href="{{renewalLink}}" class="vd-cta-btn-red" style="background: #dc2626; color: white; padding: 10px 24px; text-decoration: none; border-radius: 4px; font-weight: bold; display: inline-block;">
     RENOVAR AGORA →
   </a>
   <p style="margin: 10px 0 0 0; font-size: 14px; color: #1e40af;">
@@ -389,7 +391,7 @@ Equipe {{companyName}}
 
 <div style="background: #dbeafe; border: 2px solid #2563eb; padding: 15px; margin: 20px 0; text-align: left;">
   <p style="margin: 0 0 10px 0; font-weight: bold; color: #1e40af;">⏰ ACÇÃO IMEDIATA NECESSÁRIA!</p>
-  <a href="{{renewalLink}}" style="background: #dc2626; color: white; padding: 10px 24px; text-decoration: none; border-radius: 4px; font-weight: bold; display: inline-block;">
+  <a href="{{renewalLink}}" class="vd-cta-btn-red" style="background: #dc2626; color: white; padding: 10px 24px; text-decoration: none; border-radius: 4px; font-weight: bold; display: inline-block;">
     RENOVAR AGORA →
   </a>
   <p style="margin: 10px 0 0 0; font-size: 14px; color: #1e40af;">
@@ -443,7 +445,7 @@ Olá {{clientName}},
 
 <div style="background: #dbeafe; border: 2px solid #2563eb; padding: 15px; margin: 20px 0; text-align: left;">
   <p style="margin: 0 0 10px 0; font-weight: bold; color: #1e40af;">🛡️ PROTEJA SEU SERVIÇO AGORA</p>
-  <a href="{{renewalLink}}" style="background: #dc2626; color: white; padding: 10px 24px; text-decoration: none; border-radius: 4px; font-weight: bold; display: inline-block;">
+  <a href="{{renewalLink}}" class="vd-cta-btn-red" style="background: #dc2626; color: white; padding: 10px 24px; text-decoration: none; border-radius: 4px; font-weight: bold; display: inline-block;">
     RENOVAR AGORA →
   </a>
   <p style="margin: 10px 0 0 0; font-size: 14px; color: #1e40af;">
@@ -508,7 +510,7 @@ Equipe {{companyName}}
 </div>
 
 <div style="text-align: left; margin: 24px 0;">
-  <a href="{{renewalLink}}" style="background: #dc2626; color: white; padding: 10px 24px; text-decoration: none; border-radius: 4px; font-weight: bold; font-size: 14px; display: inline-block;">
+  <a href="{{renewalLink}}" class="vd-cta-btn-red" style="background: #dc2626; color: white; padding: 10px 24px; text-decoration: none; border-radius: 4px; font-weight: bold; font-size: 14px; display: inline-block;">
     🛡️ RENOVAR AGORA →
   </a>
   <p style="margin-top: 15px; font-size: 16px;">
@@ -690,7 +692,7 @@ export function processTemplate(
   <title>${processed.emailSubject}</title>
   ${EMAIL_CLIENT_RESET_STYLE}
 </head>
-<body marginwidth="0" marginheight="0" topmargin="0" leftmargin="0" style="margin: 0; padding: 0; width: 100%; font-family: 'Exo 2', sans-serif; background: #f3f4f6;">
+<body marginwidth="0" marginheight="0" topmargin="0" leftmargin="0" style="margin: 0; padding: 0; width: 100%; font-family: 'Exo 2', sans-serif; font-size: 14px; background: #f3f4f6;">
   <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:0; padding:0; font-family: 'Exo 2', sans-serif;">
     ${header}
     <tr>
