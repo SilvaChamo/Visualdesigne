@@ -339,7 +339,24 @@ export async function fulfillCheckout(
     }
 
     if (item.type === 'hosting') {
-      const domainName = item.name.toLowerCase().trim();
+      // #6: o domínio de destino nunca vem de `name` (nome comercial do
+      // plano, ex. "Alojamento Web Básico") — isso fazia a criação da conta
+      // no DirectAdmin falhar sempre e a hospedagem ficar presa em
+      // "a provisionar". Vem de `hostingDomain`, pedido no checkout.
+      const rawHostingDomain = (item.hostingDomain || '').toLowerCase().trim();
+      const hostingDomainValid = /^(?=.{1,253}$)([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,}$/.test(
+        rawHostingDomain,
+      );
+      if (!hostingDomainValid) {
+        // Sem domínio válido não há nada para provisionar a sério — regista o
+        // pedido para o admin tratar manualmente em vez de criar uma conta
+        // com um "domínio" inválido (o que falhava sempre no DirectAdmin).
+        await alertAdminOfTrackingFailure(
+          'hospedagem sem domínio válido',
+          `Compra de hospedagem (${item.name}, ${paymentMethod}) chegou sem um domínio de destino válido — utilizador ${userId}. Não foi provisionada automaticamente; precisa de ser associada a um domínio manualmente.`,
+        );
+      }
+      const domainName = hostingDomainValid ? rawHostingDomain : '';
       const packageName = await resolveHostingPackageName(item.id);
       // Só há algo para provisionar no servidor se houver admin client e email —
       // sem isso o bloco abaixo nem tenta, por isso o estado fica 'active' de
@@ -380,8 +397,11 @@ export async function fulfillCheckout(
       // plano (after()), sem bloquear o checkout — mas o resultado é sempre
       // usado para actualizar o estado real e, se falhar, avisar o admin.
       // Nova tentativa automática mais tarde continua a acontecer via
-      // provisionPendingPanelAccounts (sync periódico).
-      if (admin && email) {
+      // provisionPendingPanelAccounts (sync periódico). #6: sem um domínio
+      // válido não há nada de real para provisionar — fica 'pending' à
+      // espera de um admin associar o domínio certo, em vez de criar uma
+      // conta com um domínio inventado (ex.: "<username>.com").
+      if (admin && email && hostingDomainValid) {
         try {
           if (!sharedHostingPassword) sharedHostingPassword = generateProvisionerPassword();
           const daUsername = await pickAvailableMirrorUsername(domainName.split('.')[0] || email.split('@')[0]);

@@ -16,6 +16,8 @@ import { getHostingPlan, getHostingCyclePrice, type HostingBillingCycle } from '
 const DOMAIN_REGISTRATION_YEARS = [1, 2, 3, 5, 10];
 const HOSTING_CYCLE_MONTHS: Record<HostingBillingCycle, number> = { monthly: 1, semiannual: 6, annual: 12 };
 const HOSTING_CYCLE_LABELS: Record<HostingBillingCycle, string> = { monthly: 'Mensal', semiannual: 'Semestral', annual: 'Anual' };
+// #6: um item de hospedagem só pode ser activado com um domínio real associado.
+const HOSTING_DOMAIN_REGEX = /^(?=.{1,253}$)([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,}$/i;
 import { profileAuthOrFilter } from '@/lib/profile-db';
 import {
   CreditCard,
@@ -65,7 +67,7 @@ type ManualSession = {
 };
 
 function CheckoutContent() {
-  const { items, total, clearCart, updateItemPeriod } = useCart();
+  const { items, total, clearCart, updateItemPeriod, updateItemHostingDomain } = useCart();
   const router = useRouter();
   const { user: authUser, loading: authLoading } = useAuth();
   const isAuthenticated = authLoading ? null : !!authUser;
@@ -210,6 +212,18 @@ function CheckoutContent() {
     if (isSubmitting) return; // Evita duplo-clique / duplo pagamento
     setIsSubmitting(true);
     setErrorMessage('');
+
+    // #6: sem um domínio válido, a hospedagem fica presa em "a provisionar"
+    // para sempre — bloquear aqui em vez de deixar chegar ao servidor.
+    const hostingWithoutDomain = items.find(
+      (item) => item.type === 'hosting' && !HOSTING_DOMAIN_REGEX.test(item.hostingDomain || ''),
+    );
+    if (hostingWithoutDomain) {
+      setErrorMessage(`Indique um domínio válido para "${hostingWithoutDomain.name}" antes de continuar.`);
+      setStatus('error');
+      setIsSubmitting(false);
+      return;
+    }
 
     if (isAuthenticated === false) {
       if (!accountForm.name.trim()) {
@@ -780,9 +794,42 @@ function CheckoutContent() {
                                     ))}
                                   </select>
                                 </label>
-                              ) : (
+                              ) : null}
+                              {item.type === 'hosting' ? (
+                                <div className="mt-1.5">
+                                  <label className="flex items-center gap-1.5">
+                                    <span className="text-[10px] text-slate-400 whitespace-nowrap">Domínio:</span>
+                                    <input
+                                      type="text"
+                                      value={item.hostingDomain || ''}
+                                      onChange={(e) => updateItemHostingDomain(item.id, e.target.value.toLowerCase().trim())}
+                                      placeholder="ex: oseudominio.co.mz"
+                                      className={`w-full rounded border px-1.5 py-0.5 text-[10px] font-bold text-slate-600 dark:text-zinc-300 bg-white dark:bg-zinc-950 ${
+                                        item.hostingDomain && !HOSTING_DOMAIN_REGEX.test(item.hostingDomain)
+                                          ? 'border-red-400'
+                                          : 'border-slate-200 dark:border-zinc-800'
+                                      }`}
+                                    />
+                                  </label>
+                                  {items.some((i) => i.type === 'domain') && (
+                                    <div className="flex flex-wrap gap-1 mt-1">
+                                      {items.filter((i) => i.type === 'domain').map((domainItem) => (
+                                        <button
+                                          key={domainItem.id}
+                                          type="button"
+                                          onClick={() => updateItemHostingDomain(item.id, domainItem.name.toLowerCase().trim())}
+                                          className="text-[9px] px-1.5 py-0.5 rounded bg-slate-100 dark:bg-zinc-800 text-slate-500 dark:text-zinc-400 hover:bg-slate-200 dark:hover:bg-zinc-700"
+                                        >
+                                          Usar {domainItem.name}
+                                        </button>
+                                      ))}
+                                    </div>
+                                  )}
+                                </div>
+                              ) : null}
+                              {item.type !== 'domain' && item.type !== 'hosting' ? (
                                 <span className="text-[10px] text-slate-400 block mt-0.5">Período: {item.period} {item.period === 1 ? 'mês' : 'meses'}</span>
-                              )}
+                              ) : null}
                             </div>
                           </div>
                           <div className="text-right flex-shrink-0">

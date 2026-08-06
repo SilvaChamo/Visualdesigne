@@ -11,6 +11,9 @@ export type CatalogCartItem = {
   /** Presente só quando o item é uma transferência de domínio de outro registador
    * (não um registo novo) — código de autorização (EPP) do dono actual. */
   authCode?: string;
+  /** #6: domínio de destino de um item de hospedagem — nunca usar `name`
+   * (nome comercial do plano) como domínio. */
+  hostingDomain?: string;
 };
 
 /**

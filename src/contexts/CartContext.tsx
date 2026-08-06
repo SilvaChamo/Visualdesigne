@@ -11,6 +11,11 @@ export type CartItem = {
   renewPrice?: number;
   /** Só presente numa transferência de domínio (não um registo novo) — código EPP. */
   authCode?: string;
+  /** #6: domínio a que esta hospedagem se destina — nunca derivar do `name`
+   * (nome comercial do plano, ex. "Alojamento Web Básico"), que não é um
+   * domínio válido e faz a activação no DirectAdmin falhar sempre. Pedido no
+   * checkout antes de deixar pagar. */
+  hostingDomain?: string;
 };
 
 interface CartContextType {
@@ -21,6 +26,8 @@ interface CartContextType {
    * anos de domínios no carrinho/checkout. O preço vem já recalculado por
    * quem chama (ver domainRegistrationPriceMt), nunca recalculado aqui. */
   updateItemPeriod: (id: string, period: number, price: number) => void;
+  /** #6: define o domínio de destino de um item de hospedagem já no carrinho. */
+  updateItemHostingDomain: (id: string, hostingDomain: string) => void;
   clearCart: () => void;
   total: number;
   isCartOpen: boolean;
@@ -69,6 +76,10 @@ export function CartProvider({ children }: { children: ReactNode }) {
     setItems((prev) => prev.map((item) => (item.id === id ? { ...item, period, price } : item)));
   };
 
+  const updateItemHostingDomain = (id: string, hostingDomain: string) => {
+    setItems((prev) => prev.map((item) => (item.id === id ? { ...item, hostingDomain } : item)));
+  };
+
   const clearCart = () => {
     setItems([]);
   };
@@ -76,7 +87,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
   const total = items.reduce((acc, item) => acc + item.price, 0);
 
   return (
-    <CartContext.Provider value={{ items, addItem, removeItem, updateItemPeriod, clearCart, total, isCartOpen, setIsCartOpen }}>
+    <CartContext.Provider value={{ items, addItem, removeItem, updateItemPeriod, updateItemHostingDomain, clearCart, total, isCartOpen, setIsCartOpen }}>
       {children}
     </CartContext.Provider>
   );
