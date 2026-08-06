@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/utils/supabase/server';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { getStripe, isStripeConfigured, mznToUsdCents } from '@/lib/stripe';
-import { resolveCartItems, type CatalogCartItem } from '@/lib/package-catalog';
+import { resolveCartItems, toValidatedCartItems, type CatalogCartItem } from '@/lib/package-catalog';
 import { isProfileWhoisComplete } from '@/lib/profile-db';
 
 export async function POST(request: NextRequest) {
@@ -63,7 +63,7 @@ export async function POST(request: NextRequest) {
       .from('checkout_sessions')
       .insert({
         user_id: user.id,
-        items: resolved.map((r) => r.item),
+        items: toValidatedCartItems(resolved),
         total_mt: totalMt,
         currency: 'usd',
         status: 'pending',

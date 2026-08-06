@@ -110,3 +110,15 @@ export async function resolveCartItems(items: CatalogCartItem[]): Promise<Catalo
 
   return { resolved, rejected };
 }
+
+/**
+ * #12: converte itens resolvidos de volta para CatalogCartItem, mas com o
+ * preço VALIDADO pelo servidor (`priceMt`) — nunca `r.item.price` (o valor
+ * originalmente enviado pelo browser). A cobrança em si já usava sempre
+ * `priceMt`; isto fecha o resto: o que fica gravado em checkout_sessions.items
+ * e o que chega a fulfillCheckout (ex.: domain_renewals.renewal_price) também
+ * passam a ser sempre o valor confirmado no servidor.
+ */
+export function toValidatedCartItems(resolved: ResolvedCartItem[]): CatalogCartItem[] {
+  return resolved.map((r) => ({ ...r.item, price: r.priceMt }));
+}

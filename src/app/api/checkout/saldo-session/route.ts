@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/utils/supabase/server';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
-import { resolveCartItems, type CatalogCartItem } from '@/lib/package-catalog';
+import { resolveCartItems, toValidatedCartItems, type CatalogCartItem } from '@/lib/package-catalog';
 import { isProfileWhoisComplete } from '@/lib/profile-db';
 import { deductResellerBalance, refundResellerBalance } from '@/lib/reseller-balance';
 import { fulfillCheckout } from '@/lib/checkout-fulfillment';
@@ -93,7 +93,7 @@ export async function POST(request: NextRequest) {
     }
 
     try {
-      await fulfillCheckout(admin, user.id, resolved.map((r) => r.item), 'saldo');
+      await fulfillCheckout(admin, user.id, toValidatedCartItems(resolved), 'saldo');
     } catch (err) {
       console.error('[checkout/saldo-session] fulfillCheckout falhou, a devolver saldo:', err);
       await refundResellerBalance(admin, daUsername, totalMt);
