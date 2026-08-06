@@ -19,8 +19,8 @@ import {
 } from '@/lib/panel-ui';
 import { dispatchPanelMenuPrivilegesUpdated } from '@/hooks/usePanelMenuPrivileges';
 import {
+  MANAGER_PRIVILEGE_MENU_DEFS,
   RESELLER_PRIVILEGE_MENU_DEFS,
-  RESELLER_PRIVILEGE_MENU_LABELS,
   defaultManagerMenuPrivileges,
   defaultResellerMenuPrivileges,
   menuSubPrivilegeKey,
@@ -30,7 +30,7 @@ import {
   resolveResellerMenuPrivileges,
   type ResellerMenuPrivilegesConfig,
 } from '@/lib/panel-menu-privileges';
-import { isMenuHeaderSubItem as isHeader } from '@/lib/panel-admin-menu';
+import { isMenuHeaderSubItem as isHeader, type PanelMenuItemDef } from '@/lib/panel-admin-menu';
 import {
   readPanelMenuPrivilegesCache,
   writePanelMenuPrivilegesCache,
@@ -38,6 +38,11 @@ import {
 } from '@/lib/panel-menu-privileges-cache';
 
 type PanelTab = PanelMenuPrivilegesRole;
+
+/** Cada separador reflecte o menu REAL do respectivo painel — nunca uma lista à parte. */
+function menuDefsForTab(tab: PanelTab): PanelMenuItemDef[] {
+  return tab === 'manager' ? MANAGER_PRIVILEGE_MENU_DEFS : RESELLER_PRIVILEGE_MENU_DEFS;
+}
 
 const PANEL_TABS: { id: PanelTab; label: string; description: string }[] = [
   {
@@ -171,6 +176,7 @@ export function ResellerMenuPermissionsConfig() {
 
   const privileges = privilegesByTab[activeTab];
   const activeTabMeta = PANEL_TABS.find((tab) => tab.id === activeTab)!;
+  const activeMenuDefs = menuDefsForTab(activeTab);
 
   const refreshPrivileges = useCallback(async (tab: PanelTab) => {
     setLoading((prev) => ({ ...prev, [tab]: true }));
@@ -196,7 +202,7 @@ export function ResellerMenuPermissionsConfig() {
 
   const markDirty = () => setSavedStatus(false);
 
-  const renderPrivilegeGroup = (item: (typeof RESELLER_PRIVILEGE_MENU_DEFS)[number]) => {
+  const renderPrivilegeGroup = (item: PanelMenuItemDef) => {
     const children = item.subItems?.filter((sub) => !isHeader(sub.id));
     const parentEnabled = privileges.reseller?.[item.id] !== false;
     const isOpen = expandedMenuId === item.id;
@@ -204,7 +210,7 @@ export function ResellerMenuPermissionsConfig() {
     return (
       <MenuPrivilegeGroup
         key={item.id}
-        title={RESELLER_PRIVILEGE_MENU_LABELS[item.id] || item.label}
+        title={item.label}
         checked={parentEnabled}
         isOpen={isOpen}
         onOpenChange={(open) => {
@@ -214,7 +220,7 @@ export function ResellerMenuPermissionsConfig() {
           markDirty();
           setPrivilegesByTab((prev) => ({
             ...prev,
-            [activeTab]: patchResellerMenuToggle(prev[activeTab], item.id, enabled),
+            [activeTab]: patchResellerMenuToggle(prev[activeTab], item.id, enabled, activeMenuDefs),
           }));
         }}
       >
@@ -231,7 +237,7 @@ export function ResellerMenuPermissionsConfig() {
               markDirty();
               setPrivilegesByTab((prev) => ({
                 ...prev,
-                [activeTab]: patchResellerSubToggle(prev[activeTab], item.id, child.id, enabled),
+                [activeTab]: patchResellerSubToggle(prev[activeTab], item.id, child.id, enabled, activeMenuDefs),
               }));
             }}
           />
@@ -240,8 +246,8 @@ export function ResellerMenuPermissionsConfig() {
     );
   };
 
-  const leftColumnItems = RESELLER_PRIVILEGE_MENU_DEFS.filter((_, index) => index % 2 === 0);
-  const rightColumnItems = RESELLER_PRIVILEGE_MENU_DEFS.filter((_, index) => index % 2 === 1);
+  const leftColumnItems = activeMenuDefs.filter((_, index) => index % 2 === 0);
+  const rightColumnItems = activeMenuDefs.filter((_, index) => index % 2 === 1);
 
   const handleSave = async () => {
     setSaving(true);
@@ -339,7 +345,7 @@ export function ResellerMenuPermissionsConfig() {
           ) : (
             <>
               <div className="flex flex-col gap-4 lg:hidden">
-                {RESELLER_PRIVILEGE_MENU_DEFS.map(renderPrivilegeGroup)}
+                {activeMenuDefs.map(renderPrivilegeGroup)}
               </div>
               <div className="hidden items-start gap-4 lg:flex">
                 <div className="flex min-w-0 flex-1 flex-col gap-4">

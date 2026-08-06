@@ -1,26 +1,25 @@
 import {
   NEW_MENU_ITEM_DEFS,
+  RESELLER_MAIN_MENU_DEFS,
   isMenuHeaderSubItem,
   type PanelMenuItemDef,
 } from '@/lib/panel-admin-menu';
 
-/** Menu admin (sem Dashboard) — opções dos painéis Revendedor e Profissional. */
-export const RESELLER_PRIVILEGE_MENU_DEFS: PanelMenuItemDef[] = NEW_MENU_ITEM_DEFS.filter(
+/**
+ * Menu real do painel Profissional/manager (sem Dashboard) — é o mesmo menu do
+ * painel admin, filtrado por estes privilégios (ver dashboard/page.tsx).
+ */
+export const MANAGER_PRIVILEGE_MENU_DEFS: PanelMenuItemDef[] = NEW_MENU_ITEM_DEFS.filter(
   (item) => item.id !== 'dashboard',
 );
 
-export const RESELLER_PRIVILEGE_MENU_LABELS: Record<string, string> = Object.fromEntries(
-  RESELLER_PRIVILEGE_MENU_DEFS.map((item) => [item.id, item.label]),
-);
-
-/** Grupos do menu revendedor que usam privilégios de outro grupo do menu admin. */
-const RESELLER_SIDEBAR_PRIVILEGE_PARENT: Record<string, string> = {
-  'nov-definicoes': 'nov-sistema',
-};
-
-function sidebarPrivilegeParent(menuParentId: string): string {
-  return RESELLER_SIDEBAR_PRIVILEGE_PARENT[menuParentId] ?? menuParentId;
-}
+/**
+ * Menu real do painel Revendedor (sem Dashboard) — tem de ser exactamente
+ * RESELLER_MAIN_MENU_DEFS, que é o que o ResellerSidebar renderiza de facto.
+ * Usar qualquer outra lista aqui faz os toggles mentirem (ligam/desligam
+ * itens que o revendedor nunca vê, ou deixam de fora itens reais do menu).
+ */
+export const RESELLER_PRIVILEGE_MENU_DEFS: PanelMenuItemDef[] = RESELLER_MAIN_MENU_DEFS;
 
 export type ResellerMenuKey = string;
 
@@ -60,13 +59,14 @@ const MANAGER_DEFAULT_DENIED_PARENTS = new Set(['utilizadores', 'nov-hospedagem'
 
 /** Perfil profissional (manager) — espelha restrições actuais do painel. */
 export function defaultManagerMenuPrivileges(): ResellerMenuPrivilegesConfig {
-  const base = defaultResellerMenuPrivileges();
-  const reseller = { ...base.reseller };
-  const resellerSub = { ...base.resellerSub };
+  const reseller = Object.fromEntries(
+    MANAGER_PRIVILEGE_MENU_DEFS.map((item) => [item.id, true]),
+  ) as Record<ResellerMenuKey, boolean>;
+  const resellerSub = defaultSubPrivileges(MANAGER_PRIVILEGE_MENU_DEFS);
 
   for (const parentId of MANAGER_DEFAULT_DENIED_PARENTS) {
     reseller[parentId] = false;
-    const parent = RESELLER_PRIVILEGE_MENU_DEFS.find((item) => item.id === parentId);
+    const parent = MANAGER_PRIVILEGE_MENU_DEFS.find((item) => item.id === parentId);
     for (const child of parent?.subItems ?? []) {
       if (isMenuHeaderSubItem(child.id)) continue;
       resellerSub[menuSubPrivilegeKey(parentId, child.id)] = false;
@@ -79,6 +79,7 @@ export function defaultManagerMenuPrivileges(): ResellerMenuPrivilegesConfig {
 function resolvePanelMenuPrivileges(
   raw: ResellerMenuPrivilegesConfig | null | undefined,
   defaults: () => ResellerMenuPrivilegesConfig,
+  menuDefs: PanelMenuItemDef[],
 ): ResellerMenuPrivilegesConfig {
   const defaultConfig = defaults();
   if (!raw) return defaultConfig;
@@ -90,11 +91,13 @@ function resolvePanelMenuPrivileges(
   if (raw.reseller?.clientes !== undefined) {
     mergedReseller.utilizadores = raw.reseller.clientes;
   }
+  // Migração: "Sistema" (admin/profissional) ↔ "Definições" (revendedor) trocaram de id
+  // consoante o painel — aceitar dados gravados sob qualquer um dos dois nomes.
   if (raw.reseller?.['nov-definicoes'] !== undefined) {
     mergedReseller['nov-sistema'] = raw.reseller['nov-definicoes'];
   }
-  if (raw.reseller?.newsletter !== undefined) {
-    mergedReseller.newsletter = raw.reseller.newsletter;
+  if (raw.reseller?.['nov-sistema'] !== undefined) {
+    mergedReseller['nov-definicoes'] = raw.reseller['nov-sistema'];
   }
   for (const [key, value] of Object.entries(raw.resellerSub || {})) {
     if (key.startsWith('clientes:')) {
@@ -105,6 +108,10 @@ function resolvePanelMenuPrivileges(
       const migrated = key.replace('nov-definicoes:', 'nov-sistema:');
       if (mergedSub[migrated] === undefined) mergedSub[migrated] = value;
     }
+    if (key.startsWith('nov-sistema:')) {
+      const migrated = key.replace('nov-sistema:', 'nov-definicoes:');
+      if (mergedSub[migrated] === undefined) mergedSub[migrated] = value;
+    }
     if (key.startsWith('nov-email:newsletter-')) {
       const migrated = key.replace('nov-email:', 'newsletter:');
       if (mergedSub[migrated] === undefined) mergedSub[migrated] = value;
@@ -112,7 +119,7 @@ function resolvePanelMenuPrivileges(
   }
 
   const reseller = Object.fromEntries(
-    RESELLER_PRIVILEGE_MENU_DEFS.map((item) => [
+    menuDefs.map((item) => [
       item.id,
       mergedReseller[item.id] !== false,
     ]),
@@ -120,7 +127,7 @@ function resolvePanelMenuPrivileges(
   reseller.dashboard = true;
 
   const resellerSub: Record<string, boolean> = {};
-  for (const parent of RESELLER_PRIVILEGE_MENU_DEFS) {
+  for (const parent of menuDefs) {
     if (!parent.subItems?.length) continue;
     for (const child of parent.subItems) {
       if (isMenuHeaderSubItem(child.id)) continue;
@@ -135,13 +142,13 @@ function resolvePanelMenuPrivileges(
 export function resolveResellerMenuPrivileges(
   raw: ResellerMenuPrivilegesConfig | null | undefined,
 ): ResellerMenuPrivilegesConfig {
-  return resolvePanelMenuPrivileges(raw, defaultResellerMenuPrivileges);
+  return resolvePanelMenuPrivileges(raw, defaultResellerMenuPrivileges, RESELLER_PRIVILEGE_MENU_DEFS);
 }
 
 export function resolveManagerMenuPrivileges(
   raw: ResellerMenuPrivilegesConfig | null | undefined,
 ): ResellerMenuPrivilegesConfig {
-  return resolvePanelMenuPrivileges(raw, defaultManagerMenuPrivileges);
+  return resolvePanelMenuPrivileges(raw, defaultManagerMenuPrivileges, MANAGER_PRIVILEGE_MENU_DEFS);
 }
 
 export function isResellerMenuEnabled(
@@ -218,14 +225,13 @@ export function filterMenuByPrivileges(
   privileges: ResellerMenuPrivilegesConfig,
 ): PanelMenuItemDef[] {
   return items
-    .filter((item) => isResellerMenuEnabled(privileges, sidebarPrivilegeParent(item.id)))
+    .filter((item) => isResellerMenuEnabled(privileges, item.id))
     .map((item) => {
       if (!item.subItems?.length) return item;
 
-      const privilegeParent = sidebarPrivilegeParent(item.id);
       const subItems = item.subItems.filter((sub) => {
         if (isMenuHeaderSubItem(sub.id)) return true;
-        return isResellerSubmenuEnabled(privileges, privilegeParent, sub.id);
+        return isResellerSubmenuEnabled(privileges, item.id, sub.id);
       });
 
       const hasNavigable = subItems.some((sub) => !isMenuHeaderSubItem(sub.id));
