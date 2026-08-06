@@ -29,15 +29,39 @@ export async function confirmRenewalPayment(
   const table = pedido.renewal_type === 'domain' ? 'domain_renewals' : 'hosting_renewals';
   const { data: renewal, error: renewalError } = await supabase
     .from(table)
-    .select('expiration_date')
+    .select('expiration_date, domain_name')
     .eq('id', pedido.renewal_id)
     .single();
   if (renewalError || !renewal) return { ok: false, error: 'Registo de renovação não encontrado.' };
 
-  const today = new Date();
-  const currentExpiration = new Date(renewal.expiration_date);
-  const base = currentExpiration > today ? currentExpiration : today;
-  const novaExpiracao = addYears(base, 1);
+  let novaExpiracao: string;
+
+  // Domínio: a renovação tem de acontecer a sério no registador (Dynadot), não
+  // só na nossa base de dados — sem isto, o cliente pagava-nos e o domínio
+  // continuava a expirar na mesma lá fora. Se o domínio nem sequer está na
+  // nossa conta Dynadot (registado noutro lado, só aponta para cá), cai para
+  // o comportamento antigo — aí só há bookkeeping interno para fazer mesmo.
+  if (pedido.renewal_type === 'domain' && renewal.domain_name) {
+    const { dynadotAPI } = await import('@/lib/dynadot-adapter');
+    const check = await dynadotAPI.getDomainDetails(renewal.domain_name);
+    if (check.success) {
+      const renewResult = await dynadotAPI.renewDomain(renewal.domain_name, 1);
+      if (!renewResult.success) {
+        return { ok: false, error: `Falha ao renovar no registador: ${renewResult.error}` };
+      }
+      novaExpiracao = renewResult.newExpireDate;
+    } else {
+      const today = new Date();
+      const currentExpiration = new Date(renewal.expiration_date);
+      const base = currentExpiration > today ? currentExpiration : today;
+      novaExpiracao = addYears(base, 1);
+    }
+  } else {
+    const today = new Date();
+    const currentExpiration = new Date(renewal.expiration_date);
+    const base = currentExpiration > today ? currentExpiration : today;
+    novaExpiracao = addYears(base, 1);
+  }
 
   const { error: updateRenewalError } = await supabase
     .from(table)

@@ -1,4 +1,4 @@
-import { DOMAIN_TLD_PRICES } from '@/lib/domain-tld-prices';
+import { getEffectiveTldPrices } from '@/lib/domain-price-sync';
 import { HOSTING_PLANS, getHostingCyclePrice, type HostingBillingCycle } from '@/lib/hosting-plans';
 
 export type CatalogCartItem = {
@@ -42,14 +42,15 @@ export type CatalogResolution = {
  * em vez de confiar no `price` que o browser envia. Itens que não sejam reconhecidos
  * são rejeitados (fail closed) — nunca ficam a passar com o preço enviado pelo cliente.
  */
-export function resolveCartItems(items: CatalogCartItem[]): CatalogResolution {
+export async function resolveCartItems(items: CatalogCartItem[]): Promise<CatalogResolution> {
   const resolved: ResolvedCartItem[] = [];
   const rejected: CatalogCartItem[] = [];
+  const tldPrices = await getEffectiveTldPrices();
 
   for (const item of items) {
     if (item.type === 'domain') {
       const domainName = (item.id || item.name || '').toLowerCase().trim();
-      const tld = DOMAIN_TLD_PRICES.find((t) => domainName.endsWith(t.value));
+      const tld = tldPrices.find((t) => domainName.endsWith(t.value));
       if (!tld) {
         rejected.push(item);
         continue;

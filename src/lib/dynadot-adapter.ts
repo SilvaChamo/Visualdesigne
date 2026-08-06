@@ -132,6 +132,36 @@ async function dynadotFetch<T = unknown>(
   }
 }
 
+/**
+ * A "API3" da Dynadot (legado, key+command por query string, sem assinatura
+ * HMAC) — a RESTful v1 usada no resto deste ficheiro não tem endpoint de
+ * preços; `tld_price` só existe na API3. Nunca usada para mutações, só
+ * consulta de preço, por isso o formato mais simples/antigo aqui não é
+ * problema de segurança.
+ */
+async function dynadotApi3Fetch(
+  command: string,
+  params: Record<string, string> = {},
+): Promise<{ ok: true; data: Record<string, unknown>; raw: unknown } | { ok: false; error: string; raw?: unknown }> {
+  const keys = getKeys();
+  if (!keys) return { ok: false, error: 'Chaves de API do registador não configuradas' };
+
+  const qs = new URLSearchParams({ key: keys.apiKey, command, ...params });
+  try {
+    const res = await fetch(`https://api.dynadot.com/api3.json?${qs.toString()}`);
+    const json = (await res.json().catch(() => ({}))) as {
+      Response?: { ResponseCode?: string; Error?: string; [key: string]: unknown };
+    };
+    const resp = json.Response;
+    if (!resp || String(resp.ResponseCode) !== '0') {
+      return { ok: false, error: resp?.Error || 'Erro na API3 da Dynadot', raw: json };
+    }
+    return { ok: true, data: resp as Record<string, unknown>, raw: json };
+  } catch (e: unknown) {
+    return { ok: false, error: e instanceof Error ? e.message : 'Erro ao contactar a API3 da Dynadot' };
+  }
+}
+
 /** Pesquisa de disponibilidade — não exige X-Signature. */
 export async function checkAvailability(domain: string) {
   const clean = domain.toLowerCase().trim();
@@ -330,6 +360,77 @@ export const dynadotAPI = {
       success: true,
       message: `Domínio ${clean} registado com sucesso.`,
       raw: result.data,
+    };
+  },
+
+  /**
+   * Preço real actual da Dynadot para uma extensão (TLD) — regista, renova e
+   * transferência, em USD. Usado para manter a nossa tabela de preços
+   * (domain-tld-prices.ts) sincronizada em vez de fixa no código. A API3 da
+   * Dynadot não documenta os nomes exactos dos campos da resposta de sucesso
+   * (só consegui confirmar o nome do comando e o formato de erro a partir
+   * daqui — o meu IP local não está autorizado, só o do servidor); por isso
+   * a leitura dos campos é tolerante a várias grafias possíveis e devolve o
+   * corpo em bruto (`raw`) sempre que não reconhece a forma da resposta, para
+   * nunca aplicar um preço adivinhado.
+   */
+  async getTldPrice(
+    tld: string,
+  ): Promise<
+    | { success: true; priceUsd: number; renewPriceUsd: number; transferPriceUsd?: number }
+    | { success: false; error: string; raw?: unknown }
+  > {
+    const clean = tld.replace(/^\./, '').toLowerCase().trim();
+    const result = await dynadotApi3Fetch('tld_price', { tld: clean });
+    if (!result.ok) return { success: false, error: result.error, raw: 'raw' in result ? result.raw : undefined };
+
+    const data = result.data;
+    const pick = (...keys: string[]): number | undefined => {
+      for (const k of keys) {
+        const v = data[k];
+        const n = typeof v === 'string' ? Number(v) : typeof v === 'number' ? v : undefined;
+        if (n !== undefined && Number.isFinite(n) && n > 0) return n;
+      }
+      return undefined;
+    };
+
+    const priceUsd = pick('Price', 'price', 'RegisterPrice', 'register_price', 'NewRegistrationPrice');
+    const renewPriceUsd = pick('RenewPrice', 'renew_price', 'RenewalPrice');
+    const transferPriceUsd = pick('TransferPrice', 'transfer_price');
+
+    if (priceUsd === undefined || renewPriceUsd === undefined) {
+      return { success: false, error: 'Formato de resposta de preço não reconhecido', raw: result.raw };
+    }
+
+    return { success: true, priceUsd, renewPriceUsd, transferPriceUsd };
+  },
+
+  /**
+   * Renova a sério no registador. A Dynadot exige o ano de expiração ACTUAL
+   * como confirmação (protecção contra corridas — renovar o domínio errado
+   * ou uma segunda vez sem dar por isso), por isso vamos sempre buscar
+   * getDomainDetails primeiro para saber que ano passar.
+   */
+  async renewDomain(
+    domain: string,
+    years = 1,
+  ): Promise<{ success: true; newExpireDate: string } | { success: false; error: string }> {
+    const clean = domain.toLowerCase().trim();
+    const details = await dynadotAPI.getDomainDetails(clean);
+    if (!details.success) return { success: false, error: details.error };
+    if (!details.expireDate) {
+      return { success: false, error: 'Data de expiração actual do domínio desconhecida' };
+    }
+    const currentYear = new Date(details.expireDate).getFullYear();
+    const result = await dynadotFetch<{ expiration_date: number }>(
+      'POST',
+      `/restful/v1/domains/${encodeURIComponent(clean)}/renew`,
+      { duration: years, year: currentYear },
+    );
+    if (!result.ok) return { success: false, error: result.error };
+    return {
+      success: true,
+      newExpireDate: new Date(result.data.expiration_date).toISOString().slice(0, 10),
     };
   },
 };

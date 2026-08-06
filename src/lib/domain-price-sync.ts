@@ -1,0 +1,104 @@
+// Sincroniza a tabela domain_tld_price_overrides com os preços reais da
+// Dynadot, extensão a extensão. Chamado pela rota de cron
+// /api/cron/sync-domain-prices — nunca corre no browser.
+import { createClient as createAdminClient } from '@supabase/supabase-js';
+import { dynadotAPI } from '@/lib/dynadot-adapter';
+import { DOMAIN_TLD_PRICES } from '@/lib/domain-tld-prices';
+
+export type DomainPriceSyncResult = {
+  updated: string[];
+  failed: { tld: string; error: string }[];
+};
+
+/** Pausa entre pedidos — 44 extensões a bater na API da Dynadot de seguida sem
+ * pausa arrisca rate-limit; isto não é urgente ao segundo. */
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+export async function syncAllTldPrices(): Promise<DomainPriceSyncResult> {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const result: DomainPriceSyncResult = { updated: [], failed: [] };
+  if (!supabaseUrl || !serviceKey) {
+    result.failed.push({ tld: '*', error: 'Supabase Service Role não configurado.' });
+    return result;
+  }
+  const admin = createAdminClient(supabaseUrl, serviceKey);
+
+  for (const entry of DOMAIN_TLD_PRICES) {
+    const tld = entry.value.replace(/^\./, '');
+    const price = await dynadotAPI.getTldPrice(tld);
+    if (!price.success) {
+      result.failed.push({ tld: entry.value, error: price.error });
+      await sleep(300);
+      continue;
+    }
+
+    const { error } = await admin.from('domain_tld_price_overrides').upsert(
+      {
+        tld: entry.value,
+        price_usd: price.priceUsd,
+        renew_price_usd: price.renewPriceUsd,
+        transfer_price_usd: price.transferPriceUsd ?? null,
+        updated_at: new Date().toISOString(),
+        source: 'dynadot',
+      },
+      { onConflict: 'tld' },
+    );
+    if (error) {
+      result.failed.push({ tld: entry.value, error: error.message });
+    } else {
+      result.updated.push(entry.value);
+    }
+    await sleep(300);
+  }
+
+  return result;
+}
+
+export type EffectiveTldPrice = { value: string; price: number; renewPrice: number; transfer: number };
+
+/**
+ * Preço efectivo por extensão: usa o valor sincronizado da Dynadot se existir
+ * (nunca mais velho que 30 dias — passado isso, prefere o valor fixo do
+ * código a arriscar um preço desactualizado sem ninguém reparar), senão cai
+ * na tabela fixa (domain-tld-prices.ts).
+ */
+export async function getEffectiveTldPrices(): Promise<EffectiveTldPrice[]> {
+  const base: EffectiveTldPrice[] = DOMAIN_TLD_PRICES.map((t) => ({
+    value: t.value,
+    price: t.price,
+    renewPrice: t.renewPrice,
+    transfer: t.transfer,
+  }));
+
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!supabaseUrl || !serviceKey) return base;
+
+  try {
+    const admin = createAdminClient(supabaseUrl, serviceKey);
+    const cutoff = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+    const { data } = await admin
+      .from('domain_tld_price_overrides')
+      .select('tld, price_usd, renew_price_usd, transfer_price_usd, updated_at')
+      .gte('updated_at', cutoff);
+
+    if (!data?.length) return base;
+
+    const overrides = new Map(data.map((row) => [row.tld, row]));
+    return base.map((entry) => {
+      const override = overrides.get(entry.value);
+      if (!override) return entry;
+      return {
+        value: entry.value,
+        price: Number(override.price_usd),
+        renewPrice: Number(override.renew_price_usd),
+        transfer: override.transfer_price_usd !== null ? Number(override.transfer_price_usd) : entry.transfer,
+      };
+    });
+  } catch {
+    return base;
+  }
+}

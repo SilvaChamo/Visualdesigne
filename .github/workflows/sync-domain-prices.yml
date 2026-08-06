@@ -1,0 +1,15 @@
+name: Sync domain prices
+
+on:
+  schedule:
+    # Segunda-feira às 06:00 UTC — preços de domínio mudam pouco, não vale a pena mais frequente.
+    - cron: '0 6 * * 1'
+  workflow_dispatch: {}
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Chamar endpoint de sincronização de preços
+        run: |
+          curl -sS -f "https://visualdesignmoz.com/api/cron/sync-domain-prices?secret=${{ secrets.CRON_SECRET }}"

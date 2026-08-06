@@ -42,7 +42,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Carrinho vazio.' }, { status: 400 });
     }
 
-    const { resolved, rejected } = resolveCartItems(items);
+    const { resolved, rejected } = await resolveCartItems(items);
     if (rejected.length > 0) {
       return NextResponse.json(
         {
