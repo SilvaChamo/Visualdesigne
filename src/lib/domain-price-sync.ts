@@ -57,7 +57,15 @@ export async function syncAllTldPrices(): Promise<DomainPriceSyncResult> {
   return result;
 }
 
-export type EffectiveTldPrice = { value: string; price: number; renewPrice: number; transfer: number };
+export type EffectiveTldPrice = {
+  value: string;
+  price: number;
+  renewPrice: number;
+  transfer: number;
+  /** Sempre vem da tabela fixa (domain-tld-prices.ts) — o sync da Dynadot só
+   * actualiza custos USD, nunca este valor de retalho decidido pelo negócio. */
+  fixedPurchasePriceMt?: number;
+};
 
 /**
  * Preço efectivo por extensão: usa o valor sincronizado da Dynadot se existir
@@ -71,6 +79,7 @@ export async function getEffectiveTldPrices(): Promise<EffectiveTldPrice[]> {
     price: t.price,
     renewPrice: t.renewPrice,
     transfer: t.transfer,
+    fixedPurchasePriceMt: t.fixedPurchasePriceMt,
   }));
 
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -96,6 +105,7 @@ export async function getEffectiveTldPrices(): Promise<EffectiveTldPrice[]> {
         price: Number(override.price_usd),
         renewPrice: Number(override.renew_price_usd),
         transfer: override.transfer_price_usd !== null ? Number(override.transfer_price_usd) : entry.transfer,
+        fixedPurchasePriceMt: entry.fixedPurchasePriceMt,
       };
     });
   } catch {

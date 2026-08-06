@@ -18,10 +18,11 @@ import {
   Info,
 } from 'lucide-react';
 import { Spinner } from '@/components/ui/spinner';
+import { useCurrency } from '@/contexts/CurrencyContext';
 import { useAuth } from '@/components/auth/AuthProvider';
-import { MPESA_NUMBER, BANK_NAME, BANK_ACCOUNT, BANK_NIB } from '@/lib/quotation-payment-info';
+import { MPESA_NUMBER, EMOLA_NUMBER, BANK_NAME, BANK_ACCOUNT, BANK_NIB } from '@/lib/quotation-payment-info';
 
-type MetodoPagamento = 'mpesa' | 'transferencia' | 'stripe';
+type MetodoPagamento = 'mpesa' | 'emola' | 'transferencia' | 'stripe';
 
 type Pedido = {
   id: string;
@@ -38,10 +39,6 @@ type Pedido = {
   expiration_date: string | null;
 };
 
-function formatMt(v: number) {
-  return new Intl.NumberFormat('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(v);
-}
-
 function formatDate(iso: string | null) {
   if (!iso) return null;
   return new Date(iso).toLocaleDateString('pt-MZ');
@@ -49,6 +46,7 @@ function formatDate(iso: string | null) {
 
 const METODO_META: Record<MetodoPagamento, { label: string; icon: typeof Smartphone }> = {
   mpesa: { label: 'M-Pesa', icon: Smartphone },
+  emola: { label: 'e-Mola', icon: Smartphone },
   transferencia: { label: 'Transferência Bancária', icon: Landmark },
   stripe: { label: 'Cartão (Stripe)', icon: CreditCard },
 };
@@ -61,6 +59,7 @@ export function RenewalCheckout({ renewalId }: { renewalId: string }) {
   const searchParams = useSearchParams();
   const justPaid = searchParams.get('success') === '1';
   const { user: authUser } = useAuth();
+  const { formatPrice } = useCurrency();
 
   const [pedido, setPedido] = useState<Pedido | null>(null);
   const [notFound, setNotFound] = useState(false);
@@ -249,7 +248,7 @@ export function RenewalCheckout({ renewalId }: { renewalId: string }) {
                 className="bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white font-bold py-3 px-6 rounded-md flex items-center justify-center gap-2 mx-auto transition-all"
               >
                 {payingStripe ? <Spinner className="w-4 h-4" /> : <Lock className="w-4 h-4" />}
-                {payingStripe ? 'A abrir pagamento seguro...' : `Pagar ${formatMt(pedido.valor_mt)} MT`}
+                {payingStripe ? 'A abrir pagamento seguro...' : `Pagar ${formatPrice(pedido.valor_mt)}`}
               </button>
             )}
           </div>
@@ -304,7 +303,7 @@ export function RenewalCheckout({ renewalId }: { renewalId: string }) {
           <div className="p-6 space-y-4">
             <div>
               <span className="text-[11px] font-bold uppercase tracking-wide text-slate-400">Valor Total</span>
-              <p className="text-3xl font-black text-slate-900 mt-0.5">MT {formatMt(pedido.valor_mt)}</p>
+              <p className="text-3xl font-black text-slate-900 mt-0.5">{formatPrice(pedido.valor_mt)}</p>
             </div>
 
             <div>
@@ -327,6 +326,9 @@ export function RenewalCheckout({ renewalId }: { renewalId: string }) {
               {pedido.metodo_pagamento === 'mpesa' && (
                 <p className="text-slate-700">Número M-Pesa: <span className="font-mono font-bold">{MPESA_NUMBER}</span></p>
               )}
+              {pedido.metodo_pagamento === 'emola' && (
+                <p className="text-slate-700">Número e-Mola: <span className="font-mono font-bold">{EMOLA_NUMBER}</span></p>
+              )}
               {pedido.metodo_pagamento === 'transferencia' && (
                 <>
                   <p className="text-slate-700">Titular: <span className="font-medium">{BANK_NAME}</span></p>
@@ -337,7 +339,7 @@ export function RenewalCheckout({ renewalId }: { renewalId: string }) {
               )}
               {pedido.metodo_pagamento === 'stripe' && (
                 <p className="text-slate-500 text-xs leading-relaxed">
-                  Clique em &quot;Pagar {formatMt(pedido.valor_mt)} MT&quot; à esquerda para continuar para a página segura da Stripe.
+                  Clique em &quot;Pagar {formatPrice(pedido.valor_mt)}&quot; à esquerda para continuar para a página segura da Stripe.
                 </p>
               )}
             </div>

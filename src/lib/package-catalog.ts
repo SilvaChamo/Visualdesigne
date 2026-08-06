@@ -1,4 +1,5 @@
 import { getEffectiveTldPrices } from '@/lib/domain-price-sync';
+import { domainRegistrationPriceMt, domainTransferPriceMt } from '@/lib/domain-tld-prices';
 import { HOSTING_PLANS, getHostingCyclePrice, type HostingBillingCycle } from '@/lib/hosting-plans';
 
 export type CatalogCartItem = {
@@ -11,11 +12,6 @@ export type CatalogCartItem = {
    * (não um registo novo) — código de autorização (EPP) do dono actual. */
   authCode?: string;
 };
-
-/** Mesma fórmula usada em toda a app para converter USD -> MT (ver src/lib/domain-tld-prices.ts). */
-function usdToMt(usd: number): number {
-  return Math.round(usd * 65 * 1.5 * 1.075);
-}
 
 /**
  * Único plano de email vendido através do carrinho (DomainSearch, CartDrawer,
@@ -60,9 +56,11 @@ export async function resolveCartItems(items: CatalogCartItem[]): Promise<Catalo
       }
       const years = Math.max(1, item.period || 1);
       // Transferência de outro registador usa o preço de transferência (normalmente
-      // já inclui 1 ano), não o de registo novo.
-      const unitPrice = item.authCode ? tld.transfer : tld.price;
-      resolved.push({ item, priceMt: usdToMt(unitPrice * years) });
+      // já inclui 1 ano), não o de registo novo — nunca o valor fixo de compra.
+      const priceMt = item.authCode
+        ? domainTransferPriceMt(tld, years)
+        : domainRegistrationPriceMt(tld, years);
+      resolved.push({ item, priceMt });
       continue;
     }
 

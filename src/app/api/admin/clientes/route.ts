@@ -673,14 +673,10 @@ export async function PATCH(req: NextRequest) {
         packageName,
       });
 
-      if (primaryDomain && (packageName !== undefined || adminEmail !== undefined)) {
-        await mirrorAfterDaMutation('modifyWebsite', {
-          domain: primaryDomain,
-          packageName,
-          adminEmail,
-        });
-      }
-
+      // Só espelha no Supabase depois de confirmar que o DirectAdmin aceitou a
+      // alteração — escrever antes (como acontecia aqui) deixava o Supabase a
+      // mostrar o pacote/email novo mesmo quando o servidor real ainda tinha o
+      // antigo, por até 60 min (janela do próximo scheduleDaSync).
       if (!pushed.ok) {
         schedulePanelServerProvision(userName, 1500);
         scheduleDaSync(1500);
@@ -689,6 +685,14 @@ export async function PATCH(req: NextRequest) {
           data,
           serverSynced: false,
           warning: 'Conta actualizada no painel. O servidor sincroniza quando estiver disponível.',
+        });
+      }
+
+      if (primaryDomain && (packageName !== undefined || adminEmail !== undefined)) {
+        await mirrorAfterDaMutation('modifyWebsite', {
+          domain: primaryDomain,
+          packageName,
+          adminEmail,
         });
       }
 

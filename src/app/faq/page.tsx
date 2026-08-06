@@ -11,7 +11,7 @@ export default function FAQPage() {
     },
     {
       question: "Que métodos de pagamento aceitam?",
-      answer: "Aceitamos pagamentos via M-Pesa, e-Mola, Cartão Visa/Mastercard e Transferência Bancária. Para pagamentos locais (M-Pesa/e-Mola), a activação é automática."
+      answer: "Aceitamos pagamentos via M-Pesa, e-Mola, Cartão Visa/Mastercard e Transferência Bancária. O pagamento por Cartão é confirmado e activado automaticamente. Para M-Pesa, e-Mola e Transferência Bancária, envia o comprovativo no painel e a nossa equipa confirma e activa o serviço, normalmente dentro de poucas horas."
     },
     {
       question: "O alojamento inclui certificados SSL grátis?",

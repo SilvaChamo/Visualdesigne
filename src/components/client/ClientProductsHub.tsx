@@ -208,32 +208,50 @@ export function ClientProductsHub({ onNavigate }: Props) {
             {products.hosting.length === 0 ? (
               <p className="text-sm text-gray-500">Nenhum pacote de hospedagem activo.</p>
             ) : (
-              products.hosting.map((h) => (
+              products.hosting.map((h) => {
+                const isProvisioning = h.status === 'pending';
+                return (
                 <div
                   key={h.id ?? h.domain}
                   className="flex flex-wrap items-center justify-between gap-3 p-4 bg-gray-50 rounded-lg border border-gray-100"
                 >
                   <div>
-                    <p className="font-bold text-gray-900">{h.domain}</p>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <p className="font-bold text-gray-900">{h.domain}</p>
+                      {isProvisioning && (
+                        <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full">
+                          A provisionar
+                        </span>
+                      )}
+                    </div>
                     <p className="text-xs text-gray-500 mt-1">
                       Plano: {h.plan || 'Standard'}
                       {h.expirationDate &&
                         ` · Renova: ${new Date(h.expirationDate).toLocaleDateString('pt-PT')}`}
                     </p>
+                    {isProvisioning && (
+                      <p className="text-xs text-amber-700 mt-1 flex items-center gap-1">
+                        <AlertCircle className="w-3.5 h-3.5" />
+                        Estamos a preparar a sua conta de hospedagem — pode demorar alguns minutos.
+                      </p>
+                    )}
                   </div>
                   <div className="flex flex-wrap gap-2">
                     <a
                       href="/api/client-directadmin-access"
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="text-xs font-bold border border-gray-300 px-4 py-2 rounded-lg hover:border-red-400"
+                      aria-disabled={isProvisioning}
+                      onClick={(e) => { if (isProvisioning) e.preventDefault(); }}
+                      className={`text-xs font-bold border border-gray-300 px-4 py-2 rounded-lg ${isProvisioning ? 'opacity-50 cursor-not-allowed' : 'hover:border-red-400'}`}
                     >
                       Direct Admin
                     </a>
                     <button
                       type="button"
                       onClick={() => onNavigate?.('webmail')}
-                      className="text-xs font-bold border border-gray-300 px-4 py-2 rounded-lg hover:border-red-400"
+                      disabled={isProvisioning}
+                      className="text-xs font-bold border border-gray-300 px-4 py-2 rounded-lg hover:border-red-400 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       Webmail
                     </button>
@@ -246,7 +264,8 @@ export function ClientProductsHub({ onNavigate }: Props) {
                     </button>
                   </div>
                 </div>
-              ))
+                );
+              })
             )}
             <div className="flex flex-wrap gap-3 pt-2">
               <button

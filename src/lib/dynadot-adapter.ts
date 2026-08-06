@@ -163,20 +163,37 @@ async function dynadotApi3Fetch(
   }
 }
 
-/** Pesquisa de disponibilidade — não exige X-Signature. */
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/**
+ * Pesquisa de disponibilidade — não exige X-Signature.
+ *
+ * A pesquisa de domínio na página inicial faz até 7 pedidos a esta API em
+ * paralelo (um por TLD popular) — sob esse pico de concorrência a Dynadot
+ * por vezes falha ou limita 1-2 pedidos, que nada têm a ver com o domínio em
+ * si (ver "Erro de verificação" reportado como falso "indisponível" na UI).
+ * Duas tentativas extra com pausa curta absorvem isso sem o utilizador notar.
+ */
 export async function checkAvailability(domain: string) {
   const clean = domain.toLowerCase().trim();
-  const result = await dynadotFetch<{ domain_name: string; available: 'Yes' | 'No' }>(
-    'GET',
-    `/restful/v1/domains/${encodeURIComponent(clean)}/search`,
-  );
-  if (!result.ok) {
-    return { available: false, error: result.error };
+  let lastError = '';
+  for (let attempt = 0; attempt < 3; attempt++) {
+    if (attempt > 0) await sleep(attempt * 500);
+    const result = await dynadotFetch<{ domain_name: string; available: 'Yes' | 'No' }>(
+      'GET',
+      `/restful/v1/domains/${encodeURIComponent(clean)}/search`,
+    );
+    if (result.ok) {
+      return {
+        available: result.data.available === 'Yes',
+        currency: 'USD',
+      };
+    }
+    lastError = result.error;
   }
-  return {
-    available: result.data.available === 'Yes',
-    currency: 'USD',
-  };
+  return { available: false, error: lastError };
 }
 
 type DynadotDomainInfo = {

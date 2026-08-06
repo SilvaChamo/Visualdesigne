@@ -5,10 +5,11 @@ import { Check, X, Loader2, Globe } from 'lucide-react'
 import { useI18n } from '@/lib/i18n'
 import { useCart } from '@/contexts/CartContext'
 import { DomainPricingCarousel } from '@/components/DomainPricingCarousel'
-import { DOMAIN_TLD_PRICES } from '@/lib/domain-tld-prices'
+import { DOMAIN_TLD_PRICES, domainRegistrationPriceMt, domainRenewalPriceMt } from '@/lib/domain-tld-prices'
 import { Spinner } from '@/components/ui/spinner'
 import { panelTabBtn, panelTabList } from '@/lib/panel-ui'
 import { getHostingPlan, getHostingCyclePrice, getHostingMonthlyEquivalent } from '@/lib/hosting-plans'
+import { EMAIL_BASICO_ID, EMAIL_BASICO_PRICE_MT } from '@/lib/package-catalog'
 import { useCurrency } from '@/contexts/CurrencyContext'
 import { MZN_TO_USD_RATE } from '@/lib/currency'
 
@@ -56,6 +57,7 @@ export default function DomainSearch({
   // para MT primeiro (o valor real cobrado) antes de formatar na moeda
   // escolhida, para nunca divergir do que o checkout depois calcula.
   const formatDomainPrice = (usdPrice: number) => formatPrice(usdPrice * MZN_TO_USD_RATE)
+  const findTld = (domain: string) => TLDS.find((t) => domain.toLowerCase().endsWith(t.value))
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedTLD, setSelectedTLD] = useState('.com')
   const [results, setResults] = useState<SearchResult[]>([])
@@ -64,10 +66,6 @@ export default function DomainSearch({
   const [actionLoading, setActionLoading] = useState<string | null>(null)
   const [resultsTab, setResultsTab] = useState<'domains' | 'pricing' | 'plans'>('domains')
   const [billingCycle, setBillingCycle] = useState<'mensal' | 'anual'>('anual')
-  // Anos de registo por domínio (o preço/checkout tem de reflectir o período
-  // realmente escolhido, não ficar sempre fixo em 1 ano).
-  const [selectedYears, setSelectedYears] = useState<Record<string, number>>({})
-  const getYears = (domain: string) => selectedYears[domain] || 1
 
   const searchRound = isAdmin || panelFieldRounding ? 'rounded' : 'rounded-lg'
   const fieldPaddingY = spacious ? 'py-2.5' : 'py-2'
@@ -94,7 +92,7 @@ export default function DomainSearch({
           {TLDS.map((domain) => (
             <tr key={domain.value} className="hover:bg-zinc-50/80 dark:hover:bg-zinc-800/40">
               <td className="p-3 font-semibold text-zinc-900 dark:text-zinc-100">{domain.label}</td>
-              <td className="p-3 text-zinc-600 dark:text-zinc-400">{formatDomainPrice(domain.price)}</td>
+              <td className="p-3 text-zinc-600 dark:text-zinc-400">{formatPrice(domainRegistrationPriceMt(domain, 1))}</td>
               <td className="p-3 text-zinc-600 dark:text-zinc-400">{formatDomainPrice(domain.renewPrice)}</td>
               <td className="p-3 text-zinc-600 dark:text-zinc-400">{formatDomainPrice(domain.transfer)}</td>
             </tr>
@@ -192,22 +190,63 @@ export default function DomainSearch({
     if (onResultsAction) onResultsAction([])
   }
 
+  // Uma falha a verificar disponibilidade (timeout, limite do registador sob
+  // os vários pedidos em paralelo) não significa que o domínio esteja
+  // indisponível — só que não sabemos ainda. Deixa tentar de novo só essa
+  // linha, em vez de a app afirmar "Indisponível" sem ter a certeza.
+  const retryDomainCheck = async (domain: string) => {
+    setResults((prev) => prev.map((r) => (r.domain === domain ? { ...r, loading: true, error: undefined } : r)))
+    try {
+      const res = await fetch('/api/domain-check', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ domain }),
+      })
+      const data = await res.json()
+      const tld = findTld(domain)
+      setResults((prev) =>
+        prev.map((r) =>
+          r.domain === domain
+            ? {
+                ...r,
+                loading: false,
+                available: data.available,
+                error: data.error,
+                price: tld ? tld.price : r.price,
+                renewPrice: tld ? tld.renewPrice : r.renewPrice,
+              }
+            : r,
+        ),
+      )
+    } catch {
+      setResults((prev) =>
+        prev.map((r) => (r.domain === domain ? { ...r, loading: false, error: 'Erro de verificação' } : r)),
+      )
+    }
+  }
+
   const handleRegisterAction = async (domain: string) => {
     const row = results.find((r) => r.domain === domain)
     if (row && row.price !== undefined) {
       setActionLoading(domain)
-      const years = getYears(domain)
+      // Regista sempre por 1 ano a partir da pesquisa — o número de anos
+      // escolhe-se depois, no carrinho/checkout (selector lá, não aqui).
+      const tld = findTld(domain)
       setTimeout(() => {
         setActionLoading(null)
-        const finalPrice = Math.round(row.price! * 65 * 1.5 * 1.075) * years
-        const finalRenewPrice = row.renewPrice ? Math.round(row.renewPrice * 65 * 1.5 * 1.075) : undefined
+        const finalPrice = tld ? domainRegistrationPriceMt(tld, 1) : Math.round(row.price! * 65 * 1.5 * 1.075)
+        const finalRenewPrice = tld
+          ? domainRenewalPriceMt(tld, 1)
+          : row.renewPrice
+            ? Math.round(row.renewPrice * 65 * 1.5 * 1.075)
+            : undefined
 
         addItem({
           id: domain,
           type: 'domain',
           name: domain,
           price: finalPrice,
-          period: years,
+          period: 1,
           renewPrice: finalRenewPrice,
         })
 
@@ -249,12 +288,18 @@ export default function DomainSearch({
 
           <div className="flex w-full flex-col items-start gap-1 sm:items-end sm:pr-4">
             {result.error && !result.available ? (
-              <span className="text-left text-xs font-medium text-red-500 sm:text-right">{result.error}</span>
+              <span className="text-left text-xs font-medium text-amber-600 sm:text-right">
+                Não foi possível confirmar disponibilidade agora.
+              </span>
             ) : result.price !== undefined ? (
               <div className="flex flex-col items-start gap-1 sm:items-end">
                 <div className="flex flex-row flex-wrap items-center gap-x-2 gap-y-1">
                   <span className="text-lg font-bold text-zinc-700 dark:text-zinc-200">
-                    {formatDomainPrice(result.price * getYears(result.domain))}
+                    {(() => {
+                      const tld = findTld(result.domain)
+                      return tld ? formatPrice(domainRegistrationPriceMt(tld, 1)) : formatDomainPrice(result.price)
+                    })()}
+                    <span className="text-xs font-normal text-zinc-400">/1º ano</span>
                   </span>
                   {result.renewPrice ? (
                     <span className="text-[11px] font-medium text-zinc-500">
@@ -262,19 +307,6 @@ export default function DomainSearch({
                     </span>
                   ) : null}
                 </div>
-                {result.available && (
-                  <select
-                    value={getYears(result.domain)}
-                    onChange={(e) =>
-                      setSelectedYears((prev) => ({ ...prev, [result.domain]: Number(e.target.value) }))
-                    }
-                    className="rounded border border-zinc-300 bg-white px-2 py-1 text-xs font-medium text-zinc-700 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-300"
-                  >
-                    {[1, 2, 3, 5, 10].map((y) => (
-                      <option key={y} value={y}>{y} {y === 1 ? 'ano' : 'anos'}</option>
-                    ))}
-                  </select>
-                )}
               </div>
             ) : null}
           </div>
@@ -296,6 +328,15 @@ export default function DomainSearch({
                 ) : (
                   'Adicionar'
                 )}
+              </button>
+            ) : result.error ? (
+              <button
+                type="button"
+                onClick={() => void retryDomainCheck(result.domain)}
+                disabled={result.loading}
+                className="flex w-auto items-center justify-center gap-2 whitespace-nowrap rounded border border-amber-400 bg-amber-50 px-5 py-2 text-sm font-bold text-amber-700 transition-all hover:bg-amber-100 disabled:opacity-60 sm:min-w-[130px] dark:border-amber-700 dark:bg-amber-950/30 dark:text-amber-400"
+              >
+                {result.loading ? <Spinner className="h-4 w-4" /> : 'Tentar novamente'}
               </button>
             ) : (
               <button
@@ -436,7 +477,7 @@ export default function DomainSearch({
             <button
               type="button"
               onClick={() => {
-                addItem({ id: 'hosting-basico', type: 'hosting', name: 'Webhost Básico', price: basicoPrice, period: 1 })
+                addItem({ id: 'hosting-basico', type: 'hosting', name: 'Webhost Básico', price: basicoPrice, period: billingCycle === 'anual' ? 12 : 1 })
                 setIsCartOpen(true)
               }}
               className="mt-auto w-full rounded-lg bg-red-600 py-2.5 font-bold text-white transition-colors hover:bg-red-700"
@@ -460,7 +501,7 @@ export default function DomainSearch({
             <button
               type="button"
               onClick={() => {
-                addItem({ id: 'hosting-pro', type: 'hosting', name: 'Webhost Pro', price: proPrice, period: 1 })
+                addItem({ id: 'hosting-pro', type: 'hosting', name: 'Webhost Pro', price: proPrice, period: billingCycle === 'anual' ? 12 : 1 })
                 setIsCartOpen(true)
               }}
               className="mt-auto w-full rounded-lg bg-red-600 py-2.5 font-bold text-white transition-colors hover:bg-red-700"
@@ -472,13 +513,13 @@ export default function DomainSearch({
             <h4 className="mb-2 text-xl font-bold text-slate-800">Email Básico</h4>
             <p className="mb-4 text-sm text-slate-500">Emails corporativos. O domínio escolhe-se depois, no painel.</p>
             <div className="mb-6">
-              <span className="text-3xl font-black text-red-600">{formatPrice(680)}</span>
+              <span className="text-3xl font-black text-red-600">{formatPrice(EMAIL_BASICO_PRICE_MT)}</span>
               <span className="ml-1 text-sm font-normal text-slate-500">/mês</span>
             </div>
             <button
               type="button"
               onClick={() => {
-                addItem({ id: 'email-basico', type: 'email', name: 'Email Básico', price: 680, period: 1 })
+                addItem({ id: EMAIL_BASICO_ID, type: 'email', name: 'Email Básico', price: EMAIL_BASICO_PRICE_MT, period: 1 })
                 setIsCartOpen(true)
               }}
               className="mt-auto w-full rounded-lg bg-red-600 py-2.5 font-bold text-white transition-colors hover:bg-red-700"

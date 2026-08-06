@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/utils/supabase/server';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 
-const VALID_METODOS = ['mpesa', 'transferencia', 'stripe'];
+const VALID_METODOS = ['mpesa', 'emola', 'transferencia', 'stripe'];
 
 // Troca do método de pagamento de um pedido ainda pendente — usado pelo
 // selector de método na página /checkout (ver "renewalId"). Só o dono do

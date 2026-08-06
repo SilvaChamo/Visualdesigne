@@ -2,10 +2,20 @@
 
 import React from 'react';
 import { useCart } from '@/contexts/CartContext';
+import { useCurrency } from '@/contexts/CurrencyContext';
 import { X, Trash2, ShoppingCart, ChevronRight, Shield, Server, Trash, Mail, Globe } from 'lucide-react';
+import { getHostingPlan } from '@/lib/hosting-plans';
+import { EMAIL_BASICO_ID, EMAIL_BASICO_PRICE_MT } from '@/lib/package-catalog';
+import { DOMAIN_TLD_PRICES, domainRegistrationPriceMt } from '@/lib/domain-tld-prices';
+
+const DOMAIN_REGISTRATION_YEARS = [1, 2, 3, 5, 10];
 
 export function CartDrawer() {
-  const { isCartOpen, setIsCartOpen, items, removeItem, total, clearCart, addItem } = useCart();
+  const { isCartOpen, setIsCartOpen, items, removeItem, updateItemPeriod, total, clearCart, addItem } = useCart();
+  const { formatPrice } = useCurrency();
+  const hostingBasicoPrice = getHostingPlan('hosting-basico')!.basePrice;
+  const comTld = DOMAIN_TLD_PRICES.find((t) => t.value === '.com')!;
+  const comPriceMt = domainRegistrationPriceMt(comTld, 1);
 
   if (!isCartOpen) return null;
 
@@ -73,7 +83,7 @@ export function CartDrawer() {
                 <h3 className="font-bold text-slate-700 dark:text-zinc-400 text-xs uppercase tracking-wide">Frequentemente adicionados</h3>
                 <div
                   className="flex items-center justify-between p-3 bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-xl hover:border-teal-300 hover:shadow-sm transition-all cursor-pointer group"
-                  onClick={() => addItem({ id: 'domain-com', type: 'domain', name: 'Registo de Domínio .com', price: 800, period: 1 })}
+                  onClick={() => addItem({ id: 'domain-com', type: 'domain', name: 'Registo de Domínio .com', price: comPriceMt, period: 1 })}
                 >
                   <div className="flex items-center gap-3">
                     <div className="w-9 h-9 rounded-lg bg-teal-50 dark:bg-teal-950/20 flex items-center justify-center flex-shrink-0">
@@ -85,14 +95,14 @@ export function CartDrawer() {
                     </div>
                   </div>
                   <div className="text-right flex-shrink-0">
-                    <div className="font-bold text-slate-800 dark:text-zinc-200 text-sm">800 MT<span className="text-[10px] text-slate-400 font-normal">/ano</span></div>
+                    <div className="font-bold text-slate-800 dark:text-zinc-200 text-sm">{formatPrice(comPriceMt)}<span className="text-[10px] text-slate-400 font-normal">/ano</span></div>
                     <span className="text-[10px] text-teal-600 dark:text-teal-500 font-bold">+ Adicionar</span>
                   </div>
                 </div>
 
                 <div
                   className="flex items-center justify-between p-3 bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-xl hover:border-red-300 hover:shadow-sm transition-all cursor-pointer group"
-                  onClick={() => addItem({ id: 'hosting-basico', type: 'hosting', name: 'Alojamento Web Básico', price: 680, period: 1 })}
+                  onClick={() => addItem({ id: 'hosting-basico', type: 'hosting', name: 'Alojamento Web Básico', price: hostingBasicoPrice, period: 1 })}
                 >
                   <div className="flex items-center gap-3">
                     <div className="w-9 h-9 rounded-lg bg-red-50 dark:bg-red-950/20 flex items-center justify-center flex-shrink-0">
@@ -104,14 +114,14 @@ export function CartDrawer() {
                     </div>
                   </div>
                   <div className="text-right flex-shrink-0">
-                    <div className="font-bold text-slate-800 dark:text-zinc-200 text-sm">680 MT<span className="text-[10px] text-slate-400 font-normal">/mês</span></div>
+                    <div className="font-bold text-slate-800 dark:text-zinc-200 text-sm">{formatPrice(hostingBasicoPrice)}<span className="text-[10px] text-slate-400 font-normal">/mês</span></div>
                     <span className="text-[10px] text-red-600 dark:text-red-500 font-bold">+ Adicionar</span>
                   </div>
                 </div>
 
                 <div
                   className="flex items-center justify-between p-3 bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-xl hover:border-blue-300 hover:shadow-sm transition-all cursor-pointer group"
-                  onClick={() => addItem({ id: 'email-basico', type: 'email', name: 'Email Básico', price: 680, period: 1 })}
+                  onClick={() => addItem({ id: EMAIL_BASICO_ID, type: 'email', name: 'Email Básico', price: EMAIL_BASICO_PRICE_MT, period: 1 })}
                 >
                   <div className="flex items-center gap-3">
                     <div className="w-9 h-9 rounded-lg bg-blue-50 dark:bg-blue-950/20 flex items-center justify-center flex-shrink-0">
@@ -123,7 +133,7 @@ export function CartDrawer() {
                     </div>
                   </div>
                   <div className="text-right flex-shrink-0">
-                    <div className="font-bold text-slate-800 dark:text-zinc-200 text-sm">680 MT<span className="text-[10px] text-slate-400 font-normal">/mês</span></div>
+                    <div className="font-bold text-slate-800 dark:text-zinc-200 text-sm">{formatPrice(EMAIL_BASICO_PRICE_MT)}<span className="text-[10px] text-slate-400 font-normal">/mês</span></div>
                     <span className="text-[10px] text-blue-600 dark:text-blue-500 font-bold">+ Adicionar</span>
                   </div>
                 </div>
@@ -145,11 +155,11 @@ export function CartDrawer() {
                         <div>
                           <span className="inline-block px-1.5 py-0.5 bg-slate-100 text-[9px] font-bold text-slate-500 rounded uppercase tracking-wider mb-1">{typeLabel[item.type] ?? item.type}</span>
                           <h4 className="font-bold text-slate-800 text-sm">{item.name}</h4>
-                          {item.renewPrice && <p className="text-[10px] text-slate-400 mt-0.5">Renovação: {item.renewPrice} MT/ano</p>}
+                          {item.renewPrice && <p className="text-[10px] text-slate-400 mt-0.5">Renovação: {formatPrice(item.renewPrice)}/ano</p>}
                         </div>
                       </div>
                       <div className="text-right flex-shrink-0">
-                        <div className="font-black text-slate-900 text-base">{item.price} MT</div>
+                        <div className="font-black text-slate-900 text-base">{formatPrice(item.price)}</div>
                         {item.type === 'hosting' || item.type === 'email' ? (
                           <div className="text-[10px] text-slate-400">/mês</div>
                         ) : (
@@ -159,9 +169,25 @@ export function CartDrawer() {
                     </div>
                     <div className="flex items-center justify-between px-4 pb-3 border-t border-slate-50 pt-3">
                       {item.type === 'domain' && (
-                        <div className="flex items-center gap-1.5 text-green-700 text-[10px] font-medium">
-                          <Shield className="w-3 h-3" />
-                          Privacidade grátis incluída
+                        <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-1.5 text-green-700 text-[10px] font-medium">
+                            <Shield className="w-3 h-3" />
+                            Privacidade grátis incluída
+                          </div>
+                          <select
+                            value={item.period}
+                            onChange={(e) => {
+                              const years = Number(e.target.value);
+                              const tld = DOMAIN_TLD_PRICES.find((t) => item.name.toLowerCase().endsWith(t.value));
+                              const newPrice = tld ? domainRegistrationPriceMt(tld, years) : item.price;
+                              updateItemPeriod(item.id, years, newPrice);
+                            }}
+                            className="ml-1 rounded border border-slate-200 bg-white px-1.5 py-0.5 text-[10px] font-bold text-slate-600"
+                          >
+                            {DOMAIN_REGISTRATION_YEARS.map((y) => (
+                              <option key={y} value={y}>{y} {y === 1 ? 'ano' : 'anos'}</option>
+                            ))}
+                          </select>
                         </div>
                       )}
                       {(item.type === 'hosting' || item.type === 'email') && (
@@ -180,7 +206,7 @@ export function CartDrawer() {
                 {!items.find(i => i.type === 'domain') && (
                   <div
                     className="flex items-center justify-between p-3 bg-white rounded-xl border border-slate-200 hover:border-teal-300 hover:shadow-sm transition-all cursor-pointer group"
-                    onClick={() => addItem({ id: 'domain-com', type: 'domain', name: 'Registo de Domínio .com', price: 800, period: 1 })}
+                    onClick={() => addItem({ id: 'domain-com', type: 'domain', name: 'Registo de Domínio .com', price: comPriceMt, period: 1 })}
                   >
                     <div className="flex items-center gap-3">
                       <div className="w-9 h-9 rounded-lg bg-teal-50 flex items-center justify-center flex-shrink-0">
@@ -192,7 +218,7 @@ export function CartDrawer() {
                       </div>
                     </div>
                     <div className="text-right flex-shrink-0">
-                      <div className="font-bold text-slate-800 text-sm">800 MT<span className="text-[10px] text-slate-400 font-normal">/ano</span></div>
+                      <div className="font-bold text-slate-800 text-sm">{formatPrice(comPriceMt)}<span className="text-[10px] text-slate-400 font-normal">/ano</span></div>
                       <span className="text-[10px] text-teal-600 font-bold">+ Adicionar</span>
                     </div>
                   </div>
@@ -200,7 +226,7 @@ export function CartDrawer() {
                 {!items.find(i => i.id === 'hosting-basico') && (
                   <div
                     className="flex items-center justify-between p-3 bg-white rounded-xl border border-slate-200 hover:border-red-300 hover:shadow-sm transition-all cursor-pointer group"
-                    onClick={() => addItem({ id: 'hosting-basico', type: 'hosting', name: 'Alojamento Web Básico', price: 680, period: 1 })}
+                    onClick={() => addItem({ id: 'hosting-basico', type: 'hosting', name: 'Alojamento Web Básico', price: hostingBasicoPrice, period: 1 })}
                   >
                     <div className="flex items-center gap-3">
                       <div className="w-9 h-9 rounded-lg bg-red-50 flex items-center justify-center flex-shrink-0">
@@ -212,7 +238,7 @@ export function CartDrawer() {
                       </div>
                     </div>
                     <div className="text-right flex-shrink-0">
-                      <div className="font-bold text-slate-800 text-sm">680 MT<span className="text-[10px] text-slate-400 font-normal">/mês</span></div>
+                      <div className="font-bold text-slate-800 text-sm">{formatPrice(hostingBasicoPrice)}<span className="text-[10px] text-slate-400 font-normal">/mês</span></div>
                       <span className="text-[10px] text-red-600 font-bold">+ Adicionar</span>
                     </div>
                   </div>
@@ -220,7 +246,7 @@ export function CartDrawer() {
                 {!items.find(i => i.id === 'email-basico') && (
                   <div
                     className="flex items-center justify-between p-3 bg-white rounded-xl border border-slate-200 hover:border-blue-300 hover:shadow-sm transition-all cursor-pointer group"
-                    onClick={() => addItem({ id: 'email-basico', type: 'email', name: 'Email Básico', price: 680, period: 1 })}
+                    onClick={() => addItem({ id: EMAIL_BASICO_ID, type: 'email', name: 'Email Básico', price: EMAIL_BASICO_PRICE_MT, period: 1 })}
                   >
                     <div className="flex items-center gap-3">
                       <div className="w-9 h-9 rounded-lg bg-blue-50 flex items-center justify-center flex-shrink-0">
@@ -232,7 +258,7 @@ export function CartDrawer() {
                       </div>
                     </div>
                     <div className="text-right flex-shrink-0">
-                      <div className="font-bold text-slate-800 text-sm">680 MT<span className="text-[10px] text-slate-400 font-normal">/mês</span></div>
+                      <div className="font-bold text-slate-800 text-sm">{formatPrice(EMAIL_BASICO_PRICE_MT)}<span className="text-[10px] text-slate-400 font-normal">/mês</span></div>
                       <span className="text-[10px] text-blue-600 font-bold">+ Adicionar</span>
                     </div>
                   </div>
@@ -249,7 +275,7 @@ export function CartDrawer() {
 
             <div className="flex items-center justify-between">
               <span className="text-slate-500 text-sm">Total a pagar</span>
-              <span className="text-2xl font-black text-slate-900">{total} MT</span>
+              <span className="text-2xl font-black text-slate-900">{formatPrice(total)}</span>
             </div>
 
             <button

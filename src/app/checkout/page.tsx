@@ -10,6 +10,12 @@ import Link from 'next/link';
 import { RenewalCheckout } from './RenewalCheckout';
 import { MPESA_NUMBER, BANK_NAME, BANK_ACCOUNT, BANK_NIB } from '@/lib/quotation-payment-info';
 import { formatMt } from '@/lib/pricing-catalog';
+import { DOMAIN_TLD_PRICES, domainRegistrationPriceMt } from '@/lib/domain-tld-prices';
+import { getHostingPlan, getHostingCyclePrice, type HostingBillingCycle } from '@/lib/hosting-plans';
+
+const DOMAIN_REGISTRATION_YEARS = [1, 2, 3, 5, 10];
+const HOSTING_CYCLE_MONTHS: Record<HostingBillingCycle, number> = { monthly: 1, semiannual: 6, annual: 12 };
+const HOSTING_CYCLE_LABELS: Record<HostingBillingCycle, string> = { monthly: 'Mensal', semiannual: 'Semestral', annual: 'Anual' };
 import { profileAuthOrFilter } from '@/lib/profile-db';
 import {
   CreditCard,
@@ -59,7 +65,7 @@ type ManualSession = {
 };
 
 function CheckoutContent() {
-  const { items, total, clearCart } = useCart();
+  const { items, total, clearCart, updateItemPeriod } = useCart();
   const router = useRouter();
   const { user: authUser, loading: authLoading } = useAuth();
   const isAuthenticated = authLoading ? null : !!authUser;
@@ -637,7 +643,48 @@ function CheckoutContent() {
                                 {typeLabel[item.type] || item.type}
                               </span>
                               <h4 className="font-bold text-slate-800 dark:text-zinc-100 text-sm break-all leading-tight">{item.name}</h4>
-                              <span className="text-[10px] text-slate-400 block mt-0.5">Período: {item.period} {item.period === 1 ? 'ano' : 'anos'}</span>
+                              {item.type === 'domain' ? (
+                                <label className="flex items-center gap-1.5 mt-1">
+                                  <span className="text-[10px] text-slate-400">Registar por:</span>
+                                  <select
+                                    value={item.period}
+                                    onChange={(e) => {
+                                      const years = Number(e.target.value);
+                                      const tld = DOMAIN_TLD_PRICES.find((t) => item.name.toLowerCase().endsWith(t.value));
+                                      const newPrice = tld ? domainRegistrationPriceMt(tld, years) : item.price;
+                                      updateItemPeriod(item.id, years, newPrice);
+                                    }}
+                                    className="rounded border border-slate-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 px-1.5 py-0.5 text-[10px] font-bold text-slate-600 dark:text-zinc-300"
+                                  >
+                                    {DOMAIN_REGISTRATION_YEARS.map((y) => (
+                                      <option key={y} value={y}>{y} {y === 1 ? 'ano' : 'anos'}</option>
+                                    ))}
+                                  </select>
+                                </label>
+                              ) : item.type === 'hosting' ? (
+                                <label className="flex items-center gap-1.5 mt-1">
+                                  <span className="text-[10px] text-slate-400">Ciclo:</span>
+                                  <select
+                                    value={item.period}
+                                    onChange={(e) => {
+                                      const months = Number(e.target.value);
+                                      const cycle = (Object.keys(HOSTING_CYCLE_MONTHS) as HostingBillingCycle[]).find(
+                                        (c) => HOSTING_CYCLE_MONTHS[c] === months,
+                                      );
+                                      const plan = getHostingPlan(item.id);
+                                      const newPrice = plan && cycle ? getHostingCyclePrice(plan.basePrice, cycle) : item.price;
+                                      updateItemPeriod(item.id, months, newPrice);
+                                    }}
+                                    className="rounded border border-slate-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 px-1.5 py-0.5 text-[10px] font-bold text-slate-600 dark:text-zinc-300"
+                                  >
+                                    {(Object.keys(HOSTING_CYCLE_MONTHS) as HostingBillingCycle[]).map((cycle) => (
+                                      <option key={cycle} value={HOSTING_CYCLE_MONTHS[cycle]}>{HOSTING_CYCLE_LABELS[cycle]}</option>
+                                    ))}
+                                  </select>
+                                </label>
+                              ) : (
+                                <span className="text-[10px] text-slate-400 block mt-0.5">Período: {item.period} {item.period === 1 ? 'mês' : 'meses'}</span>
+                              )}
                             </div>
                           </div>
                           <div className="text-right flex-shrink-0">

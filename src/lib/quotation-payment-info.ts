@@ -3,12 +3,14 @@
 // de /encomendas (estado + instruções). Um único sítio para não arriscar
 // divergência silenciosa se a conta mudar.
 export const MPESA_NUMBER = '+258 85 73 96 739';
+export const EMOLA_NUMBER = '+258 87 75 75 288';
 export const BANK_NAME = 'VisualDesign, Lda.';
 export const BANK_ACCOUNT = '13705644210001';
 export const BANK_NIB = '0008.0000.370570564421.0195';
 
 export function metodoPagamentoLabel(m: string | null | undefined): string {
   if (m === 'mpesa') return 'M-Pesa';
+  if (m === 'emola') return 'e-Mola';
   if (m === 'transferencia') return 'Transferência Bancária';
   if (m === 'stripe') return 'Cartão';
   return '—';

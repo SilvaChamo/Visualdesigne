@@ -24,7 +24,7 @@ export function ResellerPayRenewalModal({
   valorMt: number
   onClose: () => void
 }) {
-  const [metodo, setMetodo] = useState<'mpesa' | 'transferencia' | 'stripe'>('mpesa')
+  const [metodo, setMetodo] = useState<'mpesa' | 'emola' | 'transferencia' | 'stripe'>('mpesa')
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
 
@@ -77,7 +77,7 @@ export function ResellerPayRenewalModal({
         <div className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1.5">Método de pagamento</label>
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-4 gap-2">
               <button
                 type="button"
                 onClick={() => setMetodo('mpesa')}
@@ -87,6 +87,16 @@ export function ResellerPayRenewalModal({
               >
                 <Smartphone className={`w-5 h-5 mb-1.5 ${metodo === 'mpesa' ? 'text-red-600' : 'text-gray-500'}`} />
                 <span className="text-xs font-medium">M-Pesa</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setMetodo('emola')}
+                className={`flex flex-col items-center p-3 rounded-md border-2 transition-colors ${
+                  metodo === 'emola' ? 'border-red-600 bg-red-50' : 'border-gray-200 hover:border-gray-300'
+                }`}
+              >
+                <Smartphone className={`w-5 h-5 mb-1.5 ${metodo === 'emola' ? 'text-red-600' : 'text-gray-500'}`} />
+                <span className="text-xs font-medium">e-Mola</span>
               </button>
               <button
                 type="button"

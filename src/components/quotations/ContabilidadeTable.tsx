@@ -209,7 +209,7 @@ type CreditoPedido = {
   confirmed_at: string | null
 }
 
-const METODO_LABEL: Record<string, string> = { mpesa: 'M-Pesa', transferencia: 'Transferência', stripe: 'Cartão' }
+const METODO_LABEL: Record<string, string> = { mpesa: 'M-Pesa', emola: 'e-Mola', transferencia: 'Transferência', stripe: 'Cartão' }
 const CREDITO_STATUS_META: Record<CreditoPedido['status'], { label: string; className: string }> = {
   pending: { label: 'Pendente', className: 'bg-amber-100 text-amber-700 dark:bg-amber-950/30 dark:text-amber-400' },
   confirmed: { label: 'Confirmado', className: 'bg-green-100 text-green-700 dark:bg-green-950/30 dark:text-green-400' },

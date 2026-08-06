@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Loader2, Package } from 'lucide-react';
 import {
   applyHostingPlanPreset,
@@ -156,7 +156,6 @@ function PackageSidebar({ form, selectedPreset }: { form: ResellerPackageFormSta
 export function HostingPackageFormInline({ form, onChange, onCancel, onSubmit, busy, mode = 'create' }: Props) {
   const isEdit = mode === 'edit';
   const [selectedPreset, setSelectedPreset] = useState<HostingPlanPresetId | ''>('');
-  const hasInitializedCreateMode = useRef(false);
   const selectedPresetMeta = useMemo(
     () => HOSTING_PLAN_PRESETS.find((preset) => preset.id === selectedPreset) || null,
     [selectedPreset],

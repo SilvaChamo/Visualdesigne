@@ -17,6 +17,10 @@ interface CartContextType {
   items: CartItem[];
   addItem: (item: CartItem) => void;
   removeItem: (id: string) => void;
+  /** Muda o período (anos) de um item já no carrinho — usado pelo selector de
+   * anos de domínios no carrinho/checkout. O preço vem já recalculado por
+   * quem chama (ver domainRegistrationPriceMt), nunca recalculado aqui. */
+  updateItemPeriod: (id: string, period: number, price: number) => void;
   clearCart: () => void;
   total: number;
   isCartOpen: boolean;
@@ -61,6 +65,10 @@ export function CartProvider({ children }: { children: ReactNode }) {
     setItems((prev) => prev.filter(item => item.id !== id));
   };
 
+  const updateItemPeriod = (id: string, period: number, price: number) => {
+    setItems((prev) => prev.map((item) => (item.id === id ? { ...item, period, price } : item)));
+  };
+
   const clearCart = () => {
     setItems([]);
   };
@@ -68,7 +76,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
   const total = items.reduce((acc, item) => acc + item.price, 0);
 
   return (
-    <CartContext.Provider value={{ items, addItem, removeItem, clearCart, total, isCartOpen, setIsCartOpen }}>
+    <CartContext.Provider value={{ items, addItem, removeItem, updateItemPeriod, clearCart, total, isCartOpen, setIsCartOpen }}>
       {children}
     </CartContext.Provider>
   );

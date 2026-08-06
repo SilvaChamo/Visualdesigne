@@ -9,7 +9,8 @@ import { useCart } from '@/contexts/CartContext'
 import ServicosWebCarousel from '@/components/ServicosWebCarousel'
 import DomainSearch from '@/components/DomainSearch'
 import { NotchSection } from '@/components/home/NotchSection'
-import { getHostingCyclePrice, getHostingMonthlyEquivalent, formatHostingPrice } from '@/lib/hosting-plans'
+import { getHostingCyclePrice, getHostingMonthlyEquivalent, getHostingPlan } from '@/lib/hosting-plans'
+import { useCurrency } from '@/contexts/CurrencyContext'
 
 /** Banner (hero) da VisualWeb — usado tanto na home como em /web. */
 export function VisualWebHero() {
@@ -71,14 +72,13 @@ export function VisualWebBody() {
   const [openWhyUs, setOpenWhyUs] = useState<Record<number, boolean>>({})
   const [subscribed, setSubscribed] = useState(false)
   const [billingCycle, setBillingCycle] = useState<'monthly' | 'semiannual' | 'annual'>('monthly')
-
-  const formatPrice = formatHostingPrice
+  const { formatPrice } = useCurrency()
 
   const getPlanPrice = (basePrice: number) => {
     const mainPrice = getHostingCyclePrice(basePrice, billingCycle)
     const monthlyEquivalent = getHostingMonthlyEquivalent(basePrice, billingCycle)
     const savings = basePrice - monthlyEquivalent
-    const savingsText = savings > 0 ? `Poupe ${formatPrice(savings)} MT/mês!` : ''
+    const savingsText = savings > 0 ? `Poupe ${formatPrice(savings)}/mês!` : ''
 
     return { price: formatPrice(mainPrice), rawPrice: mainPrice, monthlyEquivalent: formatPrice(monthlyEquivalent), savingsText }
   }
@@ -284,7 +284,7 @@ export function VisualWebBody() {
               {[
                 {
                   id: 'hosting-basico',
-                  nameKey: 'pricing.hosting.basic', basePrice: 680, popular: false,
+                  nameKey: 'pricing.hosting.basic', basePrice: getHostingPlan('hosting-basico')!.basePrice, popular: false,
                   features: [
                     { text: '10 GB ' + t('pricing.hosting.storage'), Icon: HardDrive },
                     { text: '10 ' + t('pricing.hosting.emails'), Icon: Mail },
@@ -300,7 +300,7 @@ export function VisualWebBody() {
                 },
                 {
                   id: 'hosting-pro',
-                  nameKey: 'pricing.hosting.pro', basePrice: 1040, popular: true,
+                  nameKey: 'pricing.hosting.pro', basePrice: getHostingPlan('hosting-pro')!.basePrice, popular: true,
                   features: [
                     { text: '20 GB ' + t('pricing.hosting.storage'), Icon: HardDrive },
                     { text: '20 ' + t('pricing.hosting.emails'), Icon: Mail },
@@ -316,7 +316,7 @@ export function VisualWebBody() {
                 },
                 {
                   id: 'hosting-business',
-                  nameKey: 'pricing.hosting.business', basePrice: 1360, popular: false,
+                  nameKey: 'pricing.hosting.business', basePrice: getHostingPlan('hosting-business')!.basePrice, popular: false,
                   features: [
                     { text: '30 GB ' + t('pricing.hosting.storage'), Icon: HardDrive },
                     { text: t('pricing.hosting.emails.unlimited'), Icon: Mail },
@@ -332,7 +332,7 @@ export function VisualWebBody() {
                 },
                 {
                   id: 'hosting-enterprise',
-                  nameKey: 'pricing.hosting.enterprise', basePrice: 2040, popular: false,
+                  nameKey: 'pricing.hosting.enterprise', basePrice: getHostingPlan('hosting-enterprise')!.basePrice, popular: false,
                   features: [
                     { text: '40 GB ' + t('pricing.hosting.storage'), Icon: HardDrive },
                     { text: t('pricing.hosting.emails.unlimited'), Icon: Mail },
@@ -377,7 +377,7 @@ export function VisualWebBody() {
                       </h4>
                       <div className="flex flex-col items-center justify-center mt-0">
                         <span className={`text-2xl sm:text-3xl font-black ${plan.popular ? 'text-red-500' : 'text-red-600 dark:text-red-500'}`}>
-                          {planPrice} MT
+                          {planPrice}
                         </span>
                         {savingsText && (
                           <span className="bg-zinc-950 dark:bg-white text-white dark:text-zinc-950 text-[8px] sm:text-[9px] font-extrabold px-1.5 py-0.5 rounded-sm whitespace-nowrap mt-1">

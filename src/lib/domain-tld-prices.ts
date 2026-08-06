@@ -1,3 +1,5 @@
+import { MZN_TO_USD_RATE } from '@/lib/currency'
+
 export type DomainTldPrice = {
   value: string
   label: string
@@ -6,6 +8,14 @@ export type DomainTldPrice = {
   icann: number
   transfer: number
   periodLabel?: string
+  /**
+   * Preço de COMPRA (registo novo) fixo em MT, decidido directamente pelo
+   * negócio — ignora a conversão USD×margem só para este valor. Não afecta
+   * renovação nem transferência, que continuam a usar `renewPrice`/`transfer`
+   * pela fórmula normal. Usar sempre através de `domainRegistrationPriceMt`,
+   * nunca ler este campo directamente, para o checkout e a UI nunca divergir.
+   */
+  fixedPurchasePriceMt?: number
 }
 
 /**
@@ -25,7 +35,7 @@ export type DomainTldPrice = {
  * até se confirmar o custo real.
  */
 export const DOMAIN_TLD_PRICES: DomainTldPrice[] = [
-  { value: '.com', label: '.com', price: 10.88, renewPrice: 10.88, icann: 0.2, transfer: 10.88 },
+  { value: '.com', label: '.com', price: 10.88, renewPrice: 10.88, icann: 0.2, transfer: 10.88, fixedPurchasePriceMt: 980 },
   { value: '.net', label: '.net', price: 12.52, renewPrice: 12.52, icann: 0.2, transfer: 12.52 },
   { value: '.org', label: '.org', price: 7.99, renewPrice: 11.64, icann: 0.2, transfer: 11.64 },
   { value: '.farm', label: '.farm', price: 4.14, renewPrice: 31.05, icann: 0.2, transfer: 31.05 },
@@ -74,4 +84,38 @@ export const DOMAIN_TLD_PRICES: DomainTldPrice[] = [
 export function formatMtPrice(usdPrice: number): string {
   const mt = (usdPrice * 65 * 1.5) * 1.075
   return mt.toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+}
+
+/**
+ * Preço de registo (compra nova) em MT para N anos — fonte única usada tanto
+ * na UI (pesquisa, carrinho, checkout) como na validação server-side
+ * (`resolveCartItems`), para nunca poderem divergir. Usa o valor fixo do
+ * negócio (`fixedPurchasePriceMt`) quando existe; senão cai na fórmula
+ * USD × margem, arredondada ao MT inteiro.
+ */
+export function domainRegistrationPriceMt(
+  tld: Pick<DomainTldPrice, 'price' | 'fixedPurchasePriceMt'>,
+  years: number,
+): number {
+  const safeYears = Math.max(1, years || 1)
+  if (tld.fixedPurchasePriceMt !== undefined) return tld.fixedPurchasePriceMt * safeYears
+  return Math.round(tld.price * safeYears * MZN_TO_USD_RATE)
+}
+
+/** Preço de renovação em MT — sempre pela fórmula, nunca pelo valor fixo de compra. */
+export function domainRenewalPriceMt(
+  tld: Pick<DomainTldPrice, 'renewPrice'>,
+  years = 1,
+): number {
+  const safeYears = Math.max(1, years || 1)
+  return Math.round(tld.renewPrice * safeYears * MZN_TO_USD_RATE)
+}
+
+/** Preço de transferência de outro registador em MT — sempre pela fórmula. */
+export function domainTransferPriceMt(
+  tld: Pick<DomainTldPrice, 'transfer'>,
+  years = 1,
+): number {
+  const safeYears = Math.max(1, years || 1)
+  return Math.round(tld.transfer * safeYears * MZN_TO_USD_RATE)
 }

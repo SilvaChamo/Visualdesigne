@@ -1,5 +1,12 @@
 /** Valores por omissão alinhados com pacotes DirectAdmin (Evolution). */
 
+import { getHostingPlan } from '@/lib/hosting-plans';
+
+/** Preço mensal oficial do plano — lido de hosting-plans.ts (fonte única) em vez de duplicado aqui. */
+function officialMonthlyPrice(planId: string, fallback: number): number {
+  return getHostingPlan(planId)?.basePrice ?? fallback;
+}
+
 export type ResellerLimitField =
   | 'bandwidth'
   | 'quota'
@@ -256,7 +263,7 @@ export const HOSTING_PLAN_PRESETS: HostingPlanPreset[] = [
     label: 'Básico',
     description: 'Plano inicial para site institucional',
     defaultPackageName: 'VD-Host-Basico',
-    monthlyPriceMzn: 680,
+    monthlyPriceMzn: officialMonthlyPrice('hosting-basico', 680),
     form: buildPresetForm({
       limits: {
         quota: { value: '10000', unlimited: false },
@@ -280,7 +287,7 @@ export const HOSTING_PLAN_PRESETS: HostingPlanPreset[] = [
     label: 'Profissional',
     description: 'Plano recomendado para a maioria dos sites',
     defaultPackageName: 'VD-Host-Pro',
-    monthlyPriceMzn: 1040,
+    monthlyPriceMzn: officialMonthlyPrice('hosting-pro', 1040),
     form: buildPresetForm({
       limits: {
         quota: { value: '20000', unlimited: false },
@@ -304,7 +311,7 @@ export const HOSTING_PLAN_PRESETS: HostingPlanPreset[] = [
     label: 'Business',
     description: 'Plano para operação com vários sites activos',
     defaultPackageName: 'VD-Host-Business',
-    monthlyPriceMzn: 1360,
+    monthlyPriceMzn: officialMonthlyPrice('hosting-business', 1360),
     form: buildPresetForm({
       limits: {
         quota: { value: '30000', unlimited: false },
@@ -328,7 +335,7 @@ export const HOSTING_PLAN_PRESETS: HostingPlanPreset[] = [
     label: 'Revenda',
     description: 'Plano de maior capacidade, com tudo ilimitado — serve também para revenda',
     defaultPackageName: 'VD-Host-Enterprise',
-    monthlyPriceMzn: 2040,
+    monthlyPriceMzn: officialMonthlyPrice('hosting-enterprise', 2040),
     form: buildPresetForm({
       limits: {
         quota: { value: '40000', unlimited: false },

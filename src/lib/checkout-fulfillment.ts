@@ -6,21 +6,68 @@ import { sanitizeDaUsername } from '@/lib/reseller-provision';
 import { encryptDaSecret } from '@/lib/da-credential-store';
 import { upsertPanelAuthAccount } from '@/lib/panel-auth-accounts';
 import { upsertMirrorUser, upsertMirrorSite } from '@/lib/panel-mirror-write';
-import { schedulePanelServerProvision } from '@/lib/panel-server-provision';
+import { provisionPanelAccountToServer } from '@/lib/panel-server-provision';
+import { getAdminDirectAdminAPI } from '@/lib/directadmin-adapter';
 import { getDaSyncAdmin } from '@/lib/da-sync-schema';
 import { autoProvisionPurchasedDomain } from '@/lib/domain-purchase-provision';
 import { after } from 'next/server';
 
-// 'VisualDESIGN' é o único pacote real confirmado no DirectAdmin (via
-// CMD_API_PACKAGES_USER) — os nomes VD-Host-*/VD-Email-* não existem no
-// servidor e faziam a criação da conta falhar sempre. Usar este pacote para
-// todos os planos até existirem pacotes dedicados por plano.
-const CART_PLAN_TO_PACKAGE: Record<string, string> = {
-  'hosting-basico': 'VisualDESIGN',
-  'hosting-pro': 'VisualDESIGN',
-  'hosting-business': 'VisualDESIGN',
-  'hosting-enterprise': 'VisualDESIGN',
+// Pacote dedicado por plano — tem de corresponder aos `defaultPackageName` de
+// HOSTING_PLAN_PRESETS em reseller-package-form.ts, que é o que a secção
+// "Pacotes" do admin cria de facto no DirectAdmin.
+const HOSTING_PLAN_PACKAGE_NAMES: Record<string, string> = {
+  'hosting-basico': 'VD-Host-Basico',
+  'hosting-pro': 'VD-Host-Pro',
+  'hosting-business': 'VD-Host-Business',
+  'hosting-enterprise': 'VD-Host-Enterprise',
 };
+
+// Pacote de recurso, confirmado a existir sempre no servidor — usado enquanto
+// o pacote dedicado de um plano ainda não tiver sido criado lá (ver
+// resolveHostingPackageName).
+const FALLBACK_PACKAGE = 'VisualDESIGN';
+
+let packageNameCache: { at: number; names: Set<string> } | null = null;
+const PACKAGE_NAME_CACHE_MS = 5 * 60 * 1000;
+
+async function listRealPackageNames(): Promise<Set<string>> {
+  if (packageNameCache && Date.now() - packageNameCache.at < PACKAGE_NAME_CACHE_MS) {
+    return packageNameCache.names;
+  }
+  try {
+    const api = await getAdminDirectAdminAPI();
+    const packages = await api.listPackages();
+    const names = new Set(packages.map((p) => String(p.packageName || '').trim()).filter(Boolean));
+    packageNameCache = { at: Date.now(), names };
+    return names;
+  } catch {
+    // Falha a consultar o servidor: não presumir nada sobre o que existe lá —
+    // devolve o que houver em cache (mesmo expirado) ou vazio, forçando o
+    // fallback seguro em vez de arriscar um pacote inexistente.
+    return packageNameCache?.names ?? new Set();
+  }
+}
+
+/**
+ * Cada plano do carrinho devia usar o seu próprio pacote DirectAdmin (limites
+ * de espaço/banda/emails reais e diferentes por plano) — mas só se esse
+ * pacote já existir de facto no servidor. Criar uma conta com um pacote que
+ * não existe faz a criação falhar sempre (foi assim que ficou preso a um
+ * pacote único antes). Enquanto o pacote dedicado não existir lá, cai no
+ * pacote de recurso e avisa o admin, em vez de fingir que a diferenciação de
+ * planos está a funcionar.
+ */
+async function resolveHostingPackageName(planId: string): Promise<string> {
+  const desired = HOSTING_PLAN_PACKAGE_NAMES[planId];
+  if (!desired) return FALLBACK_PACKAGE;
+  const realNames = await listRealPackageNames();
+  if (realNames.has(desired)) return desired;
+  await alertAdminOfTrackingFailure(
+    'pacote de hospedagem em falta',
+    `O plano "${planId}" devia usar o pacote "${desired}" no DirectAdmin, mas esse pacote ainda não existe no servidor — a conta foi criada com "${FALLBACK_PACKAGE}" em vez disso, sem os limites do plano vendido. Cria o pacote "${desired}" na secção Pacotes do painel admin (usa o preset já pronto) para este plano ficar realmente diferenciado.`,
+  );
+  return FALLBACK_PACKAGE;
+}
 
 /**
  * Escolhe um username livre no espelho do painel (panel_users) — não no
@@ -44,6 +91,12 @@ async function pickAvailableMirrorUsername(base: string): Promise<string> {
 function addYears(date: Date, years: number) {
   const d = new Date(date);
   d.setFullYear(d.getFullYear() + years);
+  return d.toISOString().split('T')[0];
+}
+
+function addMonths(date: Date, months: number) {
+  const d = new Date(date);
+  d.setMonth(d.getMonth() + months);
   return d.toISOString().split('T')[0];
 }
 
@@ -139,6 +192,10 @@ export async function fulfillCheckout(
   for (const item of items) {
     const years = item.period || 1;
     const expires = addYears(new Date(), years);
+    // Hospedagem/email guardam period em MESES (ver CartDrawer.tsx — "Período: X
+    // mês/meses"), nunca anos — usar addYears aqui já deu 1 ano de serviço de
+    // graça a quem só pagou 1 mês. addMonths só se usa nestes dois tipos.
+    const hostingExpires = addMonths(new Date(), item.period || 1);
 
     if (item.type === 'domain' && item.authCode) {
       // Transferência de outro registador — nunca assumir posse já: o
@@ -283,33 +340,47 @@ export async function fulfillCheckout(
 
     if (item.type === 'hosting') {
       const domainName = item.name.toLowerCase().trim();
-      const packageName = CART_PLAN_TO_PACKAGE[item.id] || 'VisualDESIGN';
-      const { error: insErr } = await supabase.from('hosting_renewals').insert({
-        user_id: userId,
-        domain_name: domainName,
-        package_name: packageName,
-        start_date: today,
-        expiration_date: expires,
-        renewal_price: item.price,
-        currency: 'MZN',
-        status: 'active',
-        server: 'DirectAdmin',
-        notes: `Compra carrinho (${paymentMethod})`,
-      });
+      const packageName = await resolveHostingPackageName(item.id);
+      // Só há algo para provisionar no servidor se houver admin client e email —
+      // sem isso o bloco abaixo nem tenta, por isso o estado fica 'active' de
+      // imediato (nada realmente pendente). Quando há tentativa real, o
+      // estado começa em 'pending' ("A provisionar" no painel do cliente) e
+      // só passa a 'active' quando o servidor confirmar (ver task() abaixo)
+      // — nunca antes disso. Usa 'pending' (não um valor novo) porque é o
+      // único estado "ainda não activo" já aceite pelo CHECK constraint de
+      // hosting_renewals.status.
+      const willProvision = Boolean(admin && email);
+      const { data: renewalRow, error: insErr } = await supabase
+        .from('hosting_renewals')
+        .insert({
+          user_id: userId,
+          domain_name: domainName,
+          package_name: packageName,
+          start_date: today,
+          expiration_date: hostingExpires,
+          renewal_price: item.price,
+          currency: 'MZN',
+          status: willProvision ? 'pending' : 'active',
+          server: 'DirectAdmin',
+          notes: `Compra carrinho (${paymentMethod})`,
+        })
+        .select('id')
+        .single();
       if (insErr) {
         console.warn('[checkout-fulfillment] hosting_renewals:', insErr.message);
         await alertAdminOfTrackingFailure('hosting_renewals', insErr.message);
       }
       created.push(`hospedagem:${domainName}`);
+      const renewalId = renewalRow?.id ?? null;
 
       // Regista a conta no painel (espelho Supabase) já, automaticamente —
-      // o cliente é levado para o painel dele logo a seguir ao pagamento,
-      // com a hospedagem lá mesmo antes de o servidor confirmar. A criação
-      // real no DirectAdmin é tentada em segundo plano por
-      // schedulePanelServerProvision, com nova tentativa automática mais
-      // tarde se falhar (ex.: licença do servidor no limite) — nunca
-      // bloqueia nem depende do checkout. Editar a conta (trocar pacote,
-      // etc.) depois de criada é que fica manual, no painel admin.
+      // o cliente é levado para o painel dele logo a seguir ao pagamento, com
+      // a hospedagem lá mesmo antes de o servidor confirmar (estado
+      // "A provisionar"). A criação real no DirectAdmin corre em segundo
+      // plano (after()), sem bloquear o checkout — mas o resultado é sempre
+      // usado para actualizar o estado real e, se falhar, avisar o admin.
+      // Nova tentativa automática mais tarde continua a acontecer via
+      // provisionPendingPanelAccounts (sync periódico).
       if (admin && email) {
         try {
           if (!sharedHostingPassword) sharedHostingPassword = generateProvisionerPassword();
@@ -337,8 +408,28 @@ export async function fulfillCheckout(
           });
           await upsertMirrorSite({ domain: domainName, owner: daUsername, admin_email: email, package: packageName });
 
-          schedulePanelServerProvision(daUsername, 800);
+          const task = async () => {
+            const result = await provisionPanelAccountToServer(daUsername);
+            if (result.ok) {
+              if (renewalId) {
+                await supabase.from('hosting_renewals').update({ status: 'active' }).eq('id', renewalId);
+              }
+            } else {
+              // Fica 'pending' (já era) — não é 'active' enquanto o servidor não confirmar.
+              console.error('[checkout-fulfillment] provisionamento de hospedagem falhou:', daUsername, result.error);
+              await alertAdminOfTrackingFailure(
+                'provisionamento de hospedagem',
+                `${domainName} (${daUsername}): ${result.error || 'erro desconhecido'}`,
+              );
+            }
+          };
+          try {
+            after(task);
+          } catch {
+            void task().catch((err) => console.error('[checkout-fulfillment] provisionamento de hospedagem:', err));
+          }
         } catch (provisionError) {
+          // Fica 'pending' (já era) — nada aqui chegou a tentar o servidor.
           const msg = provisionError instanceof Error ? provisionError.message : String(provisionError);
           console.error('[checkout-fulfillment] falha ao registar conta de hospedagem no painel:', msg);
           await alertAdminOfTrackingFailure('provisionamento de hospedagem', `${domainName}: ${msg}`);
@@ -356,7 +447,7 @@ export async function fulfillCheckout(
         domain_name: '',
         package_name: 'Email Básico',
         start_date: today,
-        expiration_date: expires,
+        expiration_date: hostingExpires,
         renewal_price: item.price,
         currency: 'MZN',
         status: 'active',

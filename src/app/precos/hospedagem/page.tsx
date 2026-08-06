@@ -5,7 +5,7 @@ import { useI18n } from '@/lib/i18n'
 import Link from 'next/link'
 import { useCart } from '@/contexts/CartContext'
 import { ArrowLeft, HardDrive, Mail, Send, Megaphone, Globe, GitBranch, FolderOpen, Database, Lock, LifeBuoy } from 'lucide-react'
-import { getHostingCyclePrice, getHostingMonthlyEquivalent } from '@/lib/hosting-plans'
+import { getHostingCyclePrice, getHostingMonthlyEquivalent, getHostingPlan } from '@/lib/hosting-plans'
 import { useCurrency } from '@/contexts/CurrencyContext'
 
 export default function PrecosHospedagem() {
@@ -91,7 +91,7 @@ export default function PrecosHospedagem() {
               {
                 id: 'hosting-basico',
                 nameKey: 'pricing.hosting.basic',
-                basePrice: 680,
+                basePrice: getHostingPlan('hosting-basico')!.basePrice,
                 popular: false,
                 features: [
                   { text: '10 GB ' + t('pricing.hosting.storage'), Icon: HardDrive },
@@ -109,7 +109,7 @@ export default function PrecosHospedagem() {
               {
                 id: 'hosting-pro',
                 nameKey: 'pricing.hosting.pro',
-                basePrice: 1040,
+                basePrice: getHostingPlan('hosting-pro')!.basePrice,
                 popular: true,
                 features: [
                   { text: '20 GB ' + t('pricing.hosting.storage'), Icon: HardDrive },
@@ -127,7 +127,7 @@ export default function PrecosHospedagem() {
               {
                 id: 'hosting-business',
                 nameKey: 'pricing.hosting.business',
-                basePrice: 1360,
+                basePrice: getHostingPlan('hosting-business')!.basePrice,
                 popular: false,
                 features: [
                   { text: '30 GB ' + t('pricing.hosting.storage'), Icon: HardDrive },
@@ -145,7 +145,7 @@ export default function PrecosHospedagem() {
               {
                 id: 'hosting-enterprise',
                 nameKey: 'pricing.hosting.enterprise',
-                basePrice: 2040,
+                basePrice: getHostingPlan('hosting-enterprise')!.basePrice,
                 popular: false,
                 features: [
                   { text: '40 GB ' + t('pricing.hosting.storage'), Icon: HardDrive },

@@ -3,7 +3,7 @@ import { createClient } from '@/utils/supabase/server';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { notifyQuoteTeam } from '@/lib/notify-quote-team';
 
-const VALID_METHODS = ['mpesa', 'transferencia', 'stripe'];
+const VALID_METHODS = ['mpesa', 'emola', 'transferencia', 'stripe'];
 const VALID_TYPES = ['domain', 'hosting'];
 
 // Regista um novo pedido de pagamento de renovação — o valor vem sempre do
@@ -73,7 +73,7 @@ export async function POST(request: Request) {
     if (metodoPagamento !== 'stripe') {
       notifyQuoteTeam({
         title: 'Novo pedido de pagamento de renovação',
-        message: `${user.email} pediu para pagar a renovação de "${renewal.domain_name}" (${valorMt} MT) via ${metodoPagamento === 'mpesa' ? 'M-Pesa' : 'Transferência Bancária'}. Fica a aguardar comprovativo e confirmação da equipa.`,
+        message: `${user.email} pediu para pagar a renovação de "${renewal.domain_name}" (${valorMt} MT) via ${metodoPagamento === 'mpesa' ? 'M-Pesa' : metodoPagamento === 'emola' ? 'e-Mola' : 'Transferência Bancária'}. Fica a aguardar comprovativo e confirmação da equipa.`,
         link: `${process.env.NEXT_PUBLIC_SITE_URL || ''}/renovacao/${data.id}`,
       }).catch((err) => console.error('[renewals/pagamento] falha ao notificar equipa:', err));
     }

@@ -7545,6 +7545,13 @@ export function PackagesSection({
   const [livePackages, setLivePackages] = useState<any[]>(() => readPackagesCache(panelScope) || packages)
   const [loadingLive, setLoadingLive] = useState(false)
   const [packageForm, setPackageForm] = useState<ResellerPackageFormState>(() => createDefaultResellerPackageForm())
+  // Muda a cada abertura "de novo" do formulário (criar ou editar) para forçar o
+  // HostingPackageFormInline a remontar — sem isto, reabrir "Criar pacote" duas
+  // vezes seguidas (sem gravar) deixava o selector de plano base a mostrar o
+  // preset da vez anterior, com os campos já resetados para os valores
+  // genéricos por baixo: o selector "mentia" sobre o que estava realmente
+  // preenchido.
+  const [packageFormKey, setPackageFormKey] = useState(0)
   const [savingPackage, setSavingPackage] = useState(false)
   const [mostrarAdicionarConta, setMostrarAdicionarConta] = useState(false)
   const [modalAdicionarPasso, setModalAdicionarPasso] = useState<'escolher' | 'webmail' | 'google' | 'hotmail'>('escolher')
@@ -7604,6 +7611,7 @@ export function PackagesSection({
     if (initialOpenCreate) {
       setEditingPackageName(null)
       setPackageForm(createDefaultResellerPackageForm())
+      setPackageFormKey((k) => k + 1)
       setShowPackageForm(true)
     }
     return () => setChrome(null)
@@ -7760,6 +7768,7 @@ export function PackagesSection({
     const initialForm = normalizeFormForEditor(packageListRowToForm(pkg, name), name)
     setPackageForm(initialForm)
     setEditingPackageName(name)
+    setPackageFormKey((k) => k + 1)
     setShowPackageForm(true)
     setMsg('')
     void (async () => {
@@ -7830,6 +7839,7 @@ export function PackagesSection({
                 onClick={() => {
                   setEditingPackageName(null)
                   setPackageForm(createDefaultResellerPackageForm())
+                  setPackageFormKey((k) => k + 1)
                   setShowPackageForm(true)
                 }}
                 className={`${panelBtnPrimary} whitespace-nowrap`}
@@ -7859,7 +7869,7 @@ export function PackagesSection({
 
       {showPackageForm ? (
         <HostingPackageFormInline
-          key={editingPackageName ?? 'new'}
+          key={`${editingPackageName ?? 'new'}-${packageFormKey}`}
           form={packageForm}
           onChange={setPackageForm}
           onCancel={closePackageForm}
