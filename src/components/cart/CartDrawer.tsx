@@ -83,7 +83,7 @@ export function CartDrawer() {
                 <h3 className="font-bold text-slate-700 dark:text-zinc-400 text-xs uppercase tracking-wide">Frequentemente adicionados</h3>
                 <div
                   className="flex items-center justify-between p-3 bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-xl hover:border-teal-300 hover:shadow-sm transition-all cursor-pointer group"
-                  onClick={() => addItem({ id: 'domain-com', type: 'domain', name: 'Registo de Domínio .com', price: comPriceMt, period: 1 })}
+                  onClick={() => { setIsCartOpen(false); window.location.href = '/servicos/dominios'; }}
                 >
                   <div className="flex items-center gap-3">
                     <div className="w-9 h-9 rounded-lg bg-teal-50 dark:bg-teal-950/20 flex items-center justify-center flex-shrink-0">
@@ -96,7 +96,7 @@ export function CartDrawer() {
                   </div>
                   <div className="text-right flex-shrink-0">
                     <div className="font-bold text-slate-800 dark:text-zinc-200 text-sm">{formatPrice(comPriceMt)}<span className="text-[10px] text-slate-400 font-normal">/ano</span></div>
-                    <span className="text-[10px] text-teal-600 dark:text-teal-500 font-bold">+ Adicionar</span>
+                    <span className="text-[10px] text-teal-600 dark:text-teal-500 font-bold">Pesquisar</span>
                   </div>
                 </div>
 
@@ -206,7 +206,7 @@ export function CartDrawer() {
                 {!items.find(i => i.type === 'domain') && (
                   <div
                     className="flex items-center justify-between p-3 bg-white rounded-xl border border-slate-200 hover:border-teal-300 hover:shadow-sm transition-all cursor-pointer group"
-                    onClick={() => addItem({ id: 'domain-com', type: 'domain', name: 'Registo de Domínio .com', price: comPriceMt, period: 1 })}
+                    onClick={() => { setIsCartOpen(false); window.location.href = '/servicos/dominios'; }}
                   >
                     <div className="flex items-center gap-3">
                       <div className="w-9 h-9 rounded-lg bg-teal-50 flex items-center justify-center flex-shrink-0">
@@ -219,7 +219,7 @@ export function CartDrawer() {
                     </div>
                     <div className="text-right flex-shrink-0">
                       <div className="font-bold text-slate-800 text-sm">{formatPrice(comPriceMt)}<span className="text-[10px] text-slate-400 font-normal">/ano</span></div>
-                      <span className="text-[10px] text-teal-600 font-bold">+ Adicionar</span>
+                      <span className="text-[10px] text-teal-600 font-bold">Pesquisar</span>
                     </div>
                   </div>
                 )}
