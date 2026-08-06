@@ -46,8 +46,12 @@ const MUTATION_ACTIONS = new Set([
 // sobre o SEU PRÓPRIO domínio — sempre com verificação de posse via
 // requireDaAccessForDomain. Tudo o resto (criar/apagar contas, pacotes, execCommand,
 // firewall, backups, WordPress, etc.) continua estritamente admin/revendedor.
+// SSL foi retirado desta lista de propósito: getSslCertificate devolve o
+// certificado E A CHAVE PRIVADA em texto (lido directamente do servidor via
+// SSH) — nunca deve poder chegar ao browser de um cliente, mesmo do seu
+// próprio domínio. Gestão de SSL fica reservada à equipa (dashboard/revendedor);
+// o painel do cliente mostra apenas uma nota informativa (renovação automática).
 const CLIENT_SAFE_ACTIONS = new Set([
-  'issueSSL', 'replaceSSL', 'deleteSSL', 'cancelSslRenewal', 'setForceSsl', 'getSslCertificate',
   'changePHPVersion',
 ]);
 

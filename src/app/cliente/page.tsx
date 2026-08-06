@@ -3561,8 +3561,26 @@ function ClientPageContent() {
         // return <ResellerSection /> // Removido - não usado no painel do cliente
         return <div className="p-5"><h1 className="text-2xl font-bold">Revenda</h1><p className="text-gray-500 mt-1">Secção não disponível no painel do cliente</p></div>
       case 'cp-ssl':
-        // return <SSLSection sites={directAdminSites} /> // Removido - não usado no painel do cliente
-        return <div className="p-5"><h1 className="text-2xl font-bold">SSL</h1><p className="text-gray-500 mt-1">Secção não disponível no painel do cliente</p></div>
+        return (
+          <div className="p-5">
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-zinc-100">Certificado SSL (HTTPS)</h1>
+            <div className="mt-4 max-w-2xl rounded border border-green-200 bg-green-50 p-5 dark:border-green-900/50 dark:bg-green-950/20">
+              <div className="flex items-start gap-3">
+                <Shield className="mt-0.5 h-5 w-5 shrink-0 text-green-600 dark:text-green-400" />
+                <div className="space-y-2 text-sm text-gray-700 dark:text-zinc-300">
+                  <p className="font-medium text-gray-900 dark:text-zinc-100">
+                    Os seus domínios têm SSL activo com renovação automática.
+                  </p>
+                  <p>
+                    O certificado é gerido pela nossa equipa e renova-se sozinho antes de expirar —
+                    não precisa de fazer nada. Se alguma vez notar um aviso de "site não seguro"
+                    no seu domínio, contacte o suporte e tratamos disso.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        )
       case 'cp-security':
         // return <SecuritySection sites={directAdminSites} /> // Removido - não usado no painel do cliente
         return <div className="p-5"><h1 className="text-2xl font-bold">Segurança</h1><p className="text-gray-500 mt-1">Secção não disponível no painel do cliente</p></div>
