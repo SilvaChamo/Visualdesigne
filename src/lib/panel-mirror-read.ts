@@ -493,7 +493,10 @@ export function filterPanelAccountsForCaller(
   return users.filter((u) => u.panelRole === 'client');
 }
 
-function mapProfileToAccount(profile: ProfileRow): PanelBootstrapAccount | null {
+function mapProfileToAccount(
+  profile: ProfileRow,
+  extra: { userMetadata?: Record<string, unknown> | null; hasPaidProducts: boolean },
+): PanelBootstrapAccount | null {
   const email = (profile.email || '').toLowerCase().trim();
   if (!email) return null;
 
@@ -503,11 +506,18 @@ function mapProfileToAccount(profile: ProfileRow): PanelBootstrapAccount | null 
   const authId = String(profile.user_id || profile.id || '').trim();
   if (!authId) return null;
 
+  // #15: considera também o papel gravado no Auth (user_metadata), não só o
+  // do perfil — a activação da compra escreve o papel nos dois sítios, e se
+  // a escrita no perfil falhar/desalinhar, a listagem ficava só com o valor
+  // desactualizado do perfil. Regra de desempate: a mesma cascata de
+  // prioridade que resolveUserRole já usa entre profileRole/metaRole (ou
+  // seja, ganha o papel mais elevado dos dois, nunca o mais baixo).
   const panelRole = resolveUserRole({
     email,
     profileRole: profile.role ?? null,
+    userMetadata: extra.userMetadata ?? null,
     daUsername: profile.da_username ?? null,
-    hasPaidProducts: false,
+    hasPaidProducts: extra.hasPaidProducts,
   });
   const displayName = profileName(profile, email.split('@')[0]);
 
@@ -542,6 +552,54 @@ function mapAuthAccountToBootstrap(row: PanelAuthAccountRow): PanelBootstrapAcco
   };
 }
 
+/** #15: quem tem pelo menos uma compra confirmada (pagamento, domínio, hospedagem ou site) — reaproveitado pela listagem de contas e pela sincronização automática de papéis. */
+export async function loadPaidUserIds(admin: SupabaseClient, userIds: string[]): Promise<Set<string>> {
+  const paid = new Set<string>();
+  if (!userIds.length) return paid;
+
+  const chunkSize = 200;
+  for (let i = 0; i < userIds.length; i += chunkSize) {
+    const chunk = userIds.slice(i, i + chunkSize);
+    const [pagamentos, domains, hosting, sites] = await Promise.all([
+      admin.from('pagamentos').select('user_id').in('user_id', chunk).in('status', ['paid', 'completed']),
+      admin.from('domain_renewals').select('user_id').in('user_id', chunk),
+      admin.from('hosting_renewals').select('user_id').in('user_id', chunk),
+      admin.from('site_clientes').select('cliente_id').in('cliente_id', chunk),
+    ]);
+
+    for (const row of (pagamentos.data ?? []) as Array<{ user_id?: string }>) {
+      if (row.user_id) paid.add(row.user_id);
+    }
+    for (const row of (domains.data ?? []) as Array<{ user_id?: string }>) {
+      if (row.user_id) paid.add(row.user_id);
+    }
+    for (const row of (hosting.data ?? []) as Array<{ user_id?: string }>) {
+      if (row.user_id) paid.add(row.user_id);
+    }
+    for (const row of (sites.data ?? []) as Array<{ cliente_id?: string }>) {
+      if (row.cliente_id) paid.add(row.cliente_id);
+    }
+  }
+
+  return paid;
+}
+
+/** #15: papel gravado no Auth (user_metadata) por utilizador — para detectar quando diverge do perfil. */
+async function loadAuthMetaRoleById(admin: SupabaseClient): Promise<Map<string, Record<string, unknown>>> {
+  const map = new Map<string, Record<string, unknown>>();
+  let page = 1;
+  while (page <= 50) {
+    const { data, error } = await admin.auth.admin.listUsers({ page, perPage: 1000 });
+    if (error || !data?.users?.length) break;
+    for (const user of data.users) {
+      map.set(user.id, (user.user_metadata as Record<string, unknown>) || {});
+    }
+    if (data.users.length < 1000) break;
+    page += 1;
+  }
+  return map;
+}
+
 export async function listAllBootstrapPanelAccounts(
   adminClient?: SupabaseClient | null,
 ): Promise<PanelBootstrapAccount[]> {
@@ -563,25 +621,46 @@ export async function listAllBootstrapPanelAccounts(
     return [];
   }
 
+  const profileRows = (data || []) as ProfileRow[];
+  const userIds = profileRows
+    .map((p) => String(p.user_id || p.id || '').trim())
+    .filter(Boolean);
+  const [paidIds, authMetaById] = await Promise.all([
+    loadPaidUserIds(admin, userIds),
+    loadAuthMetaRoleById(admin),
+  ]);
+
   const rows: PanelBootstrapAccount[] = [];
   const seen = new Set<string>();
 
-  for (const row of data || []) {
-    const profile = row as ProfileRow;
+  for (const profile of profileRows) {
     const userId = String(profile.user_id || profile.id || '').trim();
     const authRow = userId ? authByUserId.get(userId) : undefined;
 
+    // #15: panel_auth_accounts é um espelho que a activação da compra só
+    // escreve quando há hospedagem — uma compra só de domínio nunca o toca.
+    // Uma linha antiga aqui pode por isso ficar com um papel desactualizado
+    // indefinidamente. Só usamos esta linha se ela concordar, ou disser um
+    // papel mais elevado do que o que o perfil/Auth diriam — nunca para
+    // *rebaixar* uma conta que o perfil/Auth já dizem ter sido promovida.
+    const profileBasedRole = mapProfileToAccount(profile, {
+      userMetadata: userId ? authMetaById.get(userId) : null,
+      hasPaidProducts: userId ? paidIds.has(userId) : false,
+    });
+
     if (authRow) {
-      rows.push(mapAuthAccountToBootstrap(authRow));
+      const ROLE_RANK: Record<UserRole, number> = { guest: 0, client: 1, reseller: 2, manager: 3, admin: 4 };
+      const useProfileRole =
+        profileBasedRole && ROLE_RANK[profileBasedRole.panelRole] > ROLE_RANK[authRow.role];
+      rows.push(useProfileRole ? profileBasedRole! : mapAuthAccountToBootstrap(authRow));
       if (userId) seen.add(userId);
       authByUserId.delete(userId);
       continue;
     }
 
-    const mapped = mapProfileToAccount(profile);
-    if (mapped) {
-      rows.push(mapped);
-      seen.add(mapped.id);
+    if (profileBasedRole) {
+      rows.push(profileBasedRole);
+      seen.add(profileBasedRole.id);
     }
   }
 
