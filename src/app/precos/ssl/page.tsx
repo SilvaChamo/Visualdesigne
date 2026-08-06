@@ -2,13 +2,16 @@
 
 import { useI18n } from '@/lib/i18n'
 import Link from 'next/link'
-import { useCart } from '@/contexts/CartContext'
 import { useCurrency } from '@/contexts/CurrencyContext'
 import { ArrowLeft } from 'lucide-react'
 
+// #1: SSL ainda não tem catálogo server-side (resolveCartItems em
+// package-catalog.ts rejeita sempre item.type==='ssl') — adicionar ao
+// carrinho fazia o pagamento inteiro falhar, incluindo outros produtos no
+// mesmo carrinho. Até haver decisão de vender SSL a sério, esta página fica
+// informativa, com contacto comercial em vez de "Adicionar ao carrinho".
 export default function PrecosSSL() {
   const { t } = useI18n()
-  const { addItem, setIsCartOpen } = useCart()
   const { formatPrice } = useCurrency()
 
   return (
@@ -45,14 +48,11 @@ export default function PrecosSSL() {
                 <li className="flex items-center"><span className="text-green-500 mr-2">✓</span> Browser Trust</li>
                 <li className="flex items-center"><span className="text-green-500 mr-2">✓</span> $10.000 Seguro</li>
               </ul>
-              <button
-                onClick={() => {
-                  addItem({ id: 'ssl-dv', type: 'ssl', name: `SSL ${t('pricing.ssl.dv')}`, price: 800, period: 1 })
-                  setIsCartOpen(true)
-                }}
-                className="w-full bg-red-600 hover:bg-red-700 text-white py-3 rounded-lg font-medium transition-colors">
-                {t('pricing.hosting.hire')}
-              </button>
+              <Link
+                href="/contacto"
+                className="block text-center w-full bg-red-600 hover:bg-red-700 text-white py-3 rounded-lg font-medium transition-colors">
+                Contactar Vendas
+              </Link>
             </div>
 
             <div className="bg-white rounded-lg shadow-lg p-6 hover:shadow-xl transition-shadow border-2 border-red-500">
@@ -65,14 +65,11 @@ export default function PrecosSSL() {
                 <li className="flex items-center"><span className="text-green-500 mr-2">✓</span> $250.000 Seguro</li>
                 <li className="flex items-center"><span className="text-green-500 mr-2">✓</span> {t('pricing.ssl.features.2')}</li>
               </ul>
-              <button
-                onClick={() => {
-                  addItem({ id: 'ssl-ov', type: 'ssl', name: `SSL ${t('pricing.ssl.ov')}`, price: 1500, period: 1 })
-                  setIsCartOpen(true)
-                }}
-                className="w-full bg-red-600 hover:bg-red-700 text-white py-3 rounded-lg font-medium transition-colors">
-                {t('pricing.hosting.hire')}
-              </button>
+              <Link
+                href="/contacto"
+                className="block text-center w-full bg-red-600 hover:bg-red-700 text-white py-3 rounded-lg font-medium transition-colors">
+                Contactar Vendas
+              </Link>
             </div>
 
             <div className="bg-white rounded-lg shadow-lg p-6 hover:shadow-xl transition-shadow">
@@ -86,14 +83,11 @@ export default function PrecosSSL() {
                 <li className="flex items-center"><span className="text-green-500 mr-2">✓</span> {t('pricing.ssl.features.2')}</li>
                 <li className="flex items-center"><span className="text-green-500 mr-2">✓</span> Mostrar Endereço</li>
               </ul>
-              <button
-                onClick={() => {
-                  addItem({ id: 'ssl-ev', type: 'ssl', name: `SSL ${t('pricing.ssl.ev')}`, price: 3000, period: 1 })
-                  setIsCartOpen(true)
-                }}
-                className="w-full bg-red-600 hover:bg-red-700 text-white py-3 rounded-lg font-medium transition-colors">
-                {t('pricing.hosting.hire')}
-              </button>
+              <Link
+                href="/contacto"
+                className="block text-center w-full bg-red-600 hover:bg-red-700 text-white py-3 rounded-lg font-medium transition-colors">
+                Contactar Vendas
+              </Link>
             </div>
           </div>
 
