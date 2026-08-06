@@ -125,6 +125,54 @@ function CheckoutContent() {
       .then(({ data }: { data: { telefone?: string | null; morada?: string | null; cidade?: string | null } | null }) => setProfileExtra(data));
   }, [authUser]);
 
+  // Editar telefone/morada/cidade sem sair do checkout — "Completar Dados"
+  // já não manda para /cliente (dava problemas de navegação para contas que
+  // não são 'client'); passa a editar aqui mesmo, os mesmos campos que a
+  // Dynadot exige no registo WHOIS do domínio.
+  const [editingProfile, setEditingProfile] = useState(false);
+  const [savingProfile, setSavingProfile] = useState(false);
+  const [profileEditForm, setProfileEditForm] = useState({ telefone: '', morada: '', cidade: '' });
+  const startEditingProfile = () => {
+    setProfileEditForm({
+      telefone: profileExtra?.telefone || '',
+      morada: profileExtra?.morada || '',
+      cidade: profileExtra?.cidade || '',
+    });
+    setEditingProfile(true);
+  };
+  const saveProfileExtra = async () => {
+    if (!authUser) return;
+    setSavingProfile(true);
+    try {
+      const { data: existing } = await supabase
+        .from('profiles')
+        .select('id')
+        .or(profileAuthOrFilter(authUser.id))
+        .maybeSingle();
+      const payload = {
+        user_id: authUser.id,
+        telefone: profileEditForm.telefone || null,
+        morada: profileEditForm.morada || null,
+        cidade: profileEditForm.cidade || null,
+        updated_at: new Date().toISOString(),
+      };
+      const { error } = existing?.id
+        ? await supabase.from('profiles').update(payload).eq('id', existing.id)
+        : await supabase.from('profiles').insert(payload);
+      if (error) throw error;
+      setProfileExtra({ telefone: payload.telefone, morada: payload.morada, cidade: payload.cidade });
+      setEditingProfile(false);
+      if (status === 'error') {
+        setStatus('idle');
+        setErrorMessage('');
+      }
+    } catch (e: unknown) {
+      alert(e instanceof Error ? e.message : 'Erro ao guardar dados.');
+    } finally {
+      setSavingProfile(false);
+    }
+  };
+
   // Flow State
   const [status, setStatus] = useState<'idle' | 'registering' | 'redirecting' | 'error'>('idle');
   const [errorMessage, setErrorMessage] = useState('');
@@ -476,17 +524,63 @@ function CheckoutContent() {
                   </div>
 
                   <div className="bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-lg p-6 shadow-sm">
-                    <p className="text-[11px] font-bold uppercase tracking-wide text-red-600 dark:text-red-400 flex items-center gap-1.5 mb-3">
-                      <UserCircle className="w-3.5 h-3.5" /> Faturado Para
-                    </p>
+                    <div className="flex items-center justify-between mb-3">
+                      <p className="text-[11px] font-bold uppercase tracking-wide text-red-600 dark:text-red-400 flex items-center gap-1.5">
+                        <UserCircle className="w-3.5 h-3.5" /> Faturado Para
+                      </p>
+                      {!editingProfile && (
+                        <button type="button" onClick={startEditingProfile} className="text-[10px] font-bold text-slate-400 hover:text-red-600 dark:hover:text-red-400">
+                          Editar
+                        </button>
+                      )}
+                    </div>
                     <p className="font-bold text-slate-800 dark:text-zinc-100 text-sm">{clientName}</p>
-                    <p className="text-xs text-slate-500 dark:text-zinc-400 mt-2">
-                      Endereço: {[profileExtra?.morada, profileExtra?.cidade].filter(Boolean).join(', ')}
-                    </p>
                     <p className="text-xs text-slate-500 dark:text-zinc-400 mt-1 truncate">Email: {authUser?.email}</p>
-                    <p className="text-xs text-slate-500 dark:text-zinc-400 mt-1">
-                      Contacto: {profileExtra?.telefone || authUser?.user_metadata?.telefone || ''}
-                    </p>
+
+                    {editingProfile ? (
+                      <div className="mt-3 space-y-2">
+                        <input
+                          value={profileEditForm.telefone}
+                          onChange={(e) => setProfileEditForm((f) => ({ ...f, telefone: e.target.value }))}
+                          placeholder="Telefone"
+                          className="w-full text-xs border border-slate-200 dark:border-zinc-800 dark:bg-zinc-950 rounded px-2.5 py-1.5"
+                        />
+                        <input
+                          value={profileEditForm.morada}
+                          onChange={(e) => setProfileEditForm((f) => ({ ...f, morada: e.target.value }))}
+                          placeholder="Morada"
+                          className="w-full text-xs border border-slate-200 dark:border-zinc-800 dark:bg-zinc-950 rounded px-2.5 py-1.5"
+                        />
+                        <input
+                          value={profileEditForm.cidade}
+                          onChange={(e) => setProfileEditForm((f) => ({ ...f, cidade: e.target.value }))}
+                          placeholder="Cidade"
+                          className="w-full text-xs border border-slate-200 dark:border-zinc-800 dark:bg-zinc-950 rounded px-2.5 py-1.5"
+                        />
+                        <div className="flex gap-2 pt-1">
+                          <button
+                            type="button"
+                            onClick={saveProfileExtra}
+                            disabled={savingProfile}
+                            className="bg-red-600 text-white text-xs font-bold px-3 py-1.5 rounded hover:bg-red-700 disabled:opacity-50"
+                          >
+                            {savingProfile ? 'A guardar...' : 'Guardar'}
+                          </button>
+                          <button type="button" onClick={() => setEditingProfile(false)} className="text-xs font-bold text-slate-400 px-2">
+                            Cancelar
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <>
+                        <p className="text-xs text-slate-500 dark:text-zinc-400 mt-2">
+                          Endereço: {[profileExtra?.morada, profileExtra?.cidade].filter(Boolean).join(', ') || '—'}
+                        </p>
+                        <p className="text-xs text-slate-500 dark:text-zinc-400 mt-1">
+                          Contacto: {profileExtra?.telefone || authUser?.user_metadata?.telefone || '—'}
+                        </p>
+                      </>
+                    )}
                   </div>
                 </div>
               )}
@@ -514,9 +608,13 @@ function CheckoutContent() {
                       </Link>
                     )}
                     {errorMessage.toLowerCase().includes('a minha conta') && (
-                      <Link href="/cliente?section=conta" className="mt-4 bg-red-600 text-white font-bold text-xs px-4 py-2 rounded-lg hover:bg-red-700 transition-colors inline-block">
+                      <button
+                        type="button"
+                        onClick={startEditingProfile}
+                        className="mt-4 bg-red-600 text-white font-bold text-xs px-4 py-2 rounded-lg hover:bg-red-700 transition-colors inline-block"
+                      >
                         Completar Dados
-                      </Link>
+                      </button>
                     )}
                   </div>
                 </div>
