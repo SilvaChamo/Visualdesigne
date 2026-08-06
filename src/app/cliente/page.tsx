@@ -17,6 +17,7 @@ import {
 } from 'lucide-react'
 import { ClientProductsHub } from '@/components/client/ClientProductsHub'
 import { ClientSidebar } from '@/components/client/ClientSidebar'
+import { MinhasComprasSection } from '@/components/client/MinhasComprasSection'
 import { EncomendasListSection } from '@/components/encomendas/EncomendasListSection'
 import { EncomendasMensagensSection } from '@/components/encomendas/EncomendasMensagensSection'
 import { EncomendasPagamentosSection } from '@/components/encomendas/EncomendasPagamentosSection'
@@ -3422,7 +3423,12 @@ function ClientPageContent() {
   const renderSection = () => {
     const readOnlyBlocked =
       clientReadOnly &&
-      !['dashboard', 'meus-produtos', 'domains', 'domains-list'].includes(activeSection);
+      // #10: "As Minhas Compras" é só leitura de checkout_sessions — nunca
+      // depende de haver conta DirectAdmin provisionada (ao contrário de
+      // webmail/file-manager/etc.), por isso não deve cair neste bloqueio;
+      // sem isto, exactamente quem só comprou domínio (sem hospedagem) —
+      // logo sem conta DA, logo sempre "read-only" — nunca via as compras.
+      !['dashboard', 'meus-produtos', 'domains', 'domains-list', 'minhas-compras'].includes(activeSection);
     if (readOnlyBlocked) {
       return <ClientProductsHub onNavigate={setActiveSection} />;
     }
@@ -3437,6 +3443,8 @@ function ClientPageContent() {
         return <EncomendasMensagensSection />
       case 'encomendas-pagamentos':
         return <EncomendasPagamentosSection />
+      case 'minhas-compras':
+        return <MinhasComprasSection />
       case 'domains':
         return <ListWebsitesSection
           sites={directAdminSites}

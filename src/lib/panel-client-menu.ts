@@ -92,6 +92,7 @@ export const CLIENT_SECTION_LABELS: Record<string, string> = {
   encomendas: 'Encomendas',
   'encomendas-mensagens': 'Mensagens',
   'encomendas-pagamentos': 'Pagamentos',
+  'minhas-compras': 'As Minhas Compras',
 };
 
 export function clientSectionLabel(sectionId: string): string {

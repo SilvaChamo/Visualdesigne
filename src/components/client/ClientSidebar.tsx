@@ -13,6 +13,7 @@ import {
   ChevronLeft,
   ChevronRight,
   LogOut,
+  ShoppingBag,
 } from 'lucide-react';
 import {
   CLIENT_MENU_DEFS,
@@ -52,6 +53,10 @@ type FlatItem = {
 const FLAT_ITEMS: FlatItem[] = [
   { id: 'dashboard', label: 'Dashboard', icon: Home },
   { id: 'domains', label: 'O Meu Site', icon: Globe },
+  // #10: sempre visível — ao contrário de "Encomendas" (cotações), não
+  // depende de o cliente ter usado nenhuma outra funcionalidade; é a única
+  // forma de rever compras feitas directamente no carrinho (checkout).
+  { id: 'minhas-compras', label: 'As Minhas Compras', icon: ShoppingBag },
   { id: 'webmail', label: 'Webmail', icon: Mail },
   { id: 'mailmarketing', label: 'Mailmarketing', icon: Target },
   { id: 'tickets', label: 'Suporte', icon: Users },
@@ -96,6 +101,9 @@ export function ClientSidebar({
     ? [
         { id: 'meus-produtos', label: 'Os meus produtos', icon: Home },
         { id: 'domains', label: 'Os meus sites', icon: Globe },
+        // #10: precisamente quem só comprou domínio (sem hospedagem) fica
+        // sempre neste modo "só leitura" — sem isto nunca via as compras.
+        { id: 'minhas-compras', label: 'As Minhas Compras', icon: ShoppingBag },
       ]
     : FLAT_ITEMS;
   const expandableMenus = readOnly
