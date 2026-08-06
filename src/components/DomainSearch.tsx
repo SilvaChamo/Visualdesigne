@@ -5,7 +5,7 @@ import { Check, X, Loader2, Globe } from 'lucide-react'
 import { useI18n } from '@/lib/i18n'
 import { useCart } from '@/contexts/CartContext'
 import { DomainPricingCarousel } from '@/components/DomainPricingCarousel'
-import { DOMAIN_TLD_PRICES, formatMtPrice } from '@/lib/domain-tld-prices'
+import { DOMAIN_TLD_PRICES } from '@/lib/domain-tld-prices'
 import { Spinner } from '@/components/ui/spinner'
 import { panelTabBtn, panelTabList } from '@/lib/panel-ui'
 import { getHostingPlan, getHostingCyclePrice, getHostingMonthlyEquivalent } from '@/lib/hosting-plans'
@@ -38,10 +38,6 @@ interface DomainSearchProps {
 }
 
 const TLDS = DOMAIN_TLD_PRICES
-
-function calculatePrice(usdPrice: number) {
-  return formatMtPrice(usdPrice)
-}
 
 export default function DomainSearch({
   onResultsAction,
@@ -98,9 +94,9 @@ export default function DomainSearch({
           {TLDS.map((domain) => (
             <tr key={domain.value} className="hover:bg-zinc-50/80 dark:hover:bg-zinc-800/40">
               <td className="p-3 font-semibold text-zinc-900 dark:text-zinc-100">{domain.label}</td>
-              <td className="p-3 text-zinc-600 dark:text-zinc-400">{calculatePrice(domain.price)} MT</td>
-              <td className="p-3 text-zinc-600 dark:text-zinc-400">{calculatePrice(domain.renewPrice)} MT</td>
-              <td className="p-3 text-zinc-600 dark:text-zinc-400">{calculatePrice(domain.transfer)} MT</td>
+              <td className="p-3 text-zinc-600 dark:text-zinc-400">{formatDomainPrice(domain.price)}</td>
+              <td className="p-3 text-zinc-600 dark:text-zinc-400">{formatDomainPrice(domain.renewPrice)}</td>
+              <td className="p-3 text-zinc-600 dark:text-zinc-400">{formatDomainPrice(domain.transfer)}</td>
             </tr>
           ))}
         </tbody>
@@ -258,11 +254,11 @@ export default function DomainSearch({
               <div className="flex flex-col items-start gap-1 sm:items-end">
                 <div className="flex flex-row flex-wrap items-center gap-x-2 gap-y-1">
                   <span className="text-lg font-bold text-zinc-700 dark:text-zinc-200">
-                    {calculatePrice(result.price * getYears(result.domain))} MT
+                    {formatDomainPrice(result.price * getYears(result.domain))}
                   </span>
                   {result.renewPrice ? (
                     <span className="text-[11px] font-medium text-zinc-500">
-                      Renovação: <span className="text-red-500">{calculatePrice(result.renewPrice)} MT/ano</span>
+                      Renovação: <span className="text-red-500">{formatDomainPrice(result.renewPrice)}/ano</span>
                     </span>
                   ) : null}
                 </div>
@@ -431,10 +427,10 @@ export default function DomainSearch({
             <h4 className="mb-2 text-xl font-bold text-slate-800">Webhost Básico</h4>
             <p className="mb-4 text-sm text-slate-500">Ideal para sites e blogs pessoais.</p>
             <div className="mb-6">
-              <span className="text-3xl font-black text-red-600">{formatHostingPrice(basicoPrice)} MT</span>
+              <span className="text-3xl font-black text-red-600">{formatPrice(basicoPrice)}</span>
               <span className="ml-1 text-sm font-normal text-slate-500">/{billingCycle === 'anual' ? 'ano' : 'mês'}</span>
               {billingCycle === 'anual' && basicoSavings > 0 && (
-                <p className="mt-1 text-xs font-semibold text-green-600">Poupe {formatHostingPrice(basicoSavings)} MT/mês!</p>
+                <p className="mt-1 text-xs font-semibold text-green-600">Poupe {formatPrice(basicoSavings)}/mês!</p>
               )}
             </div>
             <button
@@ -455,10 +451,10 @@ export default function DomainSearch({
             <h4 className="mb-2 mt-1 text-xl font-bold text-slate-800">Webhost Pro</h4>
             <p className="mb-4 text-sm text-slate-500">Para negócios e lojas online.</p>
             <div className="mb-6">
-              <span className="text-3xl font-black text-red-600">{formatHostingPrice(proPrice)} MT</span>
+              <span className="text-3xl font-black text-red-600">{formatPrice(proPrice)}</span>
               <span className="ml-1 text-sm font-normal text-slate-500">/{billingCycle === 'anual' ? 'ano' : 'mês'}</span>
               {billingCycle === 'anual' && proSavings > 0 && (
-                <p className="mt-1 text-xs font-semibold text-green-600">Poupe {formatHostingPrice(proSavings)} MT/mês!</p>
+                <p className="mt-1 text-xs font-semibold text-green-600">Poupe {formatPrice(proSavings)}/mês!</p>
               )}
             </div>
             <button
@@ -476,7 +472,7 @@ export default function DomainSearch({
             <h4 className="mb-2 text-xl font-bold text-slate-800">Email Básico</h4>
             <p className="mb-4 text-sm text-slate-500">Emails corporativos. O domínio escolhe-se depois, no painel.</p>
             <div className="mb-6">
-              <span className="text-3xl font-black text-red-600">680 MT</span>
+              <span className="text-3xl font-black text-red-600">{formatPrice(680)}</span>
               <span className="ml-1 text-sm font-normal text-slate-500">/mês</span>
             </div>
             <button
