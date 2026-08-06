@@ -319,14 +319,32 @@ export async function fulfillCheckout(
             const failed = result.steps.filter((s) => !s.ok).map((s) => `${s.step}: ${s.error}`).join(' | ');
             console.error('[checkout-fulfillment] auto-provisionamento de domínio incompleto:', domainName, failed);
             await alertAdminOfTrackingFailure('auto-provisionamento de domínio', `${domainName}: ${failed}`);
-            // O passo 'registo' é o único que realmente impede o domínio de existir no
-            // registador — falhas nos passos seguintes (Cloudflare/DNS/Brevo) já deixam o
-            // domínio activo e o cliente não precisa de ser alarmado por essas.
             const registoStep = result.steps.find((s) => s.step === 'registo');
-            if (registoStep && !registoStep.ok) {
+            // #9: a zona Cloudflare e os nameservers também impedem o domínio de
+            // resolver para algo — sem isto o cliente via "Domínio registado" e
+            // achava que estava tudo bem, sem saber que o site ainda não aponta
+            // para lado nenhum. `dns_status` marca isto para o painel poder
+            // mostrar "a aguardar configuração de DNS" (não muda `status`, que
+            // continua 'active' — o domínio É nosso, só a configuração falhou).
+            const zonaStep = result.steps.find((s) => s.step === 'zona-cloudflare');
+            const nsStep = result.steps.find((s) => s.step === 'nameservers');
+            const dnsBlocked = (zonaStep && !zonaStep.ok) || (nsStep && !nsStep.ok);
+            if (dnsBlocked) {
+              await supabase
+                .from('domain_renewals')
+                .update({ dns_status: 'pending', notes: `DNS por configurar: ${failed}` })
+                .eq('user_id', userId)
+                .eq('domain_name', domainName);
+            }
+            if ((registoStep && !registoStep.ok) || dnsBlocked) {
               await notifyClientOfDomainProvisionResult(admin, userId, domainName, false, failed);
             }
           } else {
+            await supabase
+              .from('domain_renewals')
+              .update({ dns_status: 'ok' })
+              .eq('user_id', userId)
+              .eq('domain_name', domainName);
             await notifyClientOfDomainProvisionResult(admin, userId, domainName, true, '');
           }
         };
