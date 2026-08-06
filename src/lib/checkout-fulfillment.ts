@@ -482,16 +482,17 @@ export async function fulfillCheckout(
     const isElevated =
       ELEVATED_ROLES.includes(existingProfile?.role || '') || ELEVATED_ROLES.includes(currentMetadata.role);
 
+    // #5: a password de login (Supabase Auth) do cliente nunca é tocada aqui —
+    // era sobrescrita pela password gerada para a conta de hospedagem, o que
+    // trancava o cliente fora da própria conta depois de comprar. O botão
+    // "Direct Admin" não depende delas serem iguais: usa um one-time login-url
+    // por username (ver /api/client-directadmin-access), e a criação real da
+    // conta no servidor lê a password de profiles.da_password_encrypted
+    // (gravada acima, sharedHostingPassword), não a de login.
     if (!isElevated) {
       await admin.auth.admin.updateUserById(userId, {
-        // Se foi provisionada hospedagem nesta compra, a password do login
-        // passa a ser a mesma da conta de hospedagem, para o botão "Direct
-        // Admin" entrar por SSO assim que o servidor confirmar a criação.
-        ...(sharedHostingPassword ? { password: sharedHostingPassword } : {}),
         user_metadata: { ...currentMetadata, role: 'client', nome: displayName },
       });
-    } else if (sharedHostingPassword) {
-      await admin.auth.admin.updateUserById(userId, { password: sharedHostingPassword });
     }
 
     await saveProfileForAuthUser(admin, userId, {
