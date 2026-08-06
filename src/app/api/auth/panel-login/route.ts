@@ -67,7 +67,32 @@ export async function POST(req: NextRequest) {
     const envPass = process.env.DIRECTADMIN_PASS;
     const isMasterPassword = Boolean(envPass) && password === envPass && ADMIN_BOOTSTRAP_EMAILS.has(email);
 
+    // Se a password mudou directamente no DirectAdmin (fora do painel), o Supabase
+    // nunca fica a saber — o DA só guarda um hash, não há como ele "avisar" o painel
+    // com a password nova. Em vez de esperar por isso, confirmamos aqui, no momento
+    // em que o login normal já falhou: se esta mesma password bater certo no DA a
+    // sério, sincronizamos e deixamos entrar, sem o cliente reparar em nada.
+    let daVerified = false;
     if (!isMasterPassword && (!storedPassword || storedPassword !== password)) {
+      const { data: profileRow } = await admin
+        .from('profiles')
+        .select('da_username')
+        .eq('email', email)
+        .maybeSingle();
+      const daUsername = (profileRow?.da_username as string | null)?.trim();
+      if (daUsername) {
+        const { daRequest } = await import('@/lib/directadmin');
+        const daResult = await daRequest(
+          'CMD_API_SHOW_USER_CONFIG',
+          'GET',
+          { user: daUsername },
+          { role: 'reseller', user: daUsername, password },
+        );
+        daVerified = !daResult.error;
+      }
+    }
+
+    if (!isMasterPassword && !daVerified && (!storedPassword || storedPassword !== password)) {
       return NextResponse.json(
         { success: false, error: 'Email ou palavra-passe incorrectos.' },
         { status: 401 },
