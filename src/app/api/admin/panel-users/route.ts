@@ -285,6 +285,16 @@ async function resolveResellerProvisionPassword(
   return { password: undefined, syncGeneratedPassword: false };
 }
 
+/** #16: identifica em qual passo uma falha aconteceu, em vez de um "Erro ao actualizar papel" genérico para os quatro passos possíveis. */
+async function runPanelUserStep<T>(step: string, fn: () => Promise<T>): Promise<T> {
+  try {
+    return await fn();
+  } catch (err) {
+    const detail = err instanceof Error ? err.message : JSON.stringify(err);
+    throw new Error(`[${step}] ${detail}`);
+  }
+}
+
 async function tryProvisionReseller(
   admin: SupabaseClient,
   params: {
@@ -468,6 +478,7 @@ export async function GET() {
       counts: buildPanelAccountCounts(users),
     });
   } catch (error: unknown) {
+    console.error('[panel-users] GET:', error);
     const message = error instanceof Error ? error.message : 'Erro ao listar contas';
     return NextResponse.json({ success: false, error: message }, { status: 500 });
   }
@@ -557,6 +568,7 @@ export async function POST() {
       users,
     });
   } catch (error: unknown) {
+    console.error('[panel-users] POST (sincronização):', error);
     const message = error instanceof Error ? error.message : 'Erro na sincronização';
     return NextResponse.json({ success: false, error: message }, { status: 500 });
   }
@@ -747,6 +759,7 @@ export async function PUT(req: NextRequest) {
       users,
     });
   } catch (error: unknown) {
+    console.error('[panel-users] PUT (criar conta):', error);
     const message = error instanceof Error ? error.message : 'Erro ao criar conta';
     return NextResponse.json({ success: false, error: message }, { status: 500 });
   }
@@ -793,11 +806,13 @@ export async function PATCH(req: NextRequest) {
     const displayName =
       nome || (authUser.user_metadata?.nome as string) || resolvedEmail.split('@')[0];
 
-    await saveProfileForAuthUser(admin, userId, {
-      email: resolvedEmail,
-      role,
-      name: displayName,
-    });
+    await runPanelUserStep('perfil', () =>
+      saveProfileForAuthUser(admin, userId, {
+        email: resolvedEmail,
+        role,
+        name: displayName,
+      }),
+    );
 
     const updatePayload: Parameters<typeof admin.auth.admin.updateUserById>[1] = {
       user_metadata: {
@@ -812,26 +827,30 @@ export async function PATCH(req: NextRequest) {
       updatePayload.password = password;
     }
 
-    await admin.auth.admin.updateUserById(userId, updatePayload);
+    await runPanelUserStep('Auth', () => admin.auth.admin.updateUserById(userId, updatePayload));
 
     if (password && password.length >= 6) {
-      await upsertDownloadableCredentials(admin, {
-        email: resolvedEmail,
-        password,
-        userId,
-        role,
-      });
+      await runPanelUserStep('credenciais', () =>
+        upsertDownloadableCredentials(admin, {
+          email: resolvedEmail,
+          password,
+          userId,
+          role,
+        }),
+      );
     }
 
     const profile = await getProfileForAuthUser(admin, userId);
-    await upsertPanelAuthAccount(admin, {
-      userId,
-      email: resolvedEmail,
-      role,
-      name: displayName,
-      serverLinked: Boolean(profile?.da_username),
-      daUsername: profile?.da_username ?? null,
-    });
+    await runPanelUserStep('conta de painel', () =>
+      upsertPanelAuthAccount(admin, {
+        userId,
+        email: resolvedEmail,
+        role,
+        name: displayName,
+        serverLinked: Boolean(profile?.da_username),
+        daUsername: profile?.da_username ?? null,
+      }),
+    );
 
     let provisionResult = null;
     let provisionWarning: string | null = null;
@@ -879,6 +898,7 @@ export async function PATCH(req: NextRequest) {
       users,
     });
   } catch (error: unknown) {
+    console.error('[panel-users] PATCH:', error);
     const message = error instanceof Error ? error.message : 'Erro ao actualizar papel';
     return NextResponse.json({ success: false, error: message }, { status: 500 });
   }
@@ -923,6 +943,7 @@ export async function DELETE(req: NextRequest) {
     try {
       await deletePanelAuthAccount(admin, userId);
     } catch (error: unknown) {
+      console.error('[panel-users] DELETE (deletePanelAuthAccount):', error);
       const message = error instanceof Error ? error.message : 'erro desconhecido';
       return NextResponse.json(
         { success: false, error: `Falha ao eliminar conta do painel: ${message}` },
@@ -944,6 +965,7 @@ export async function DELETE(req: NextRequest) {
       users,
     });
   } catch (error: unknown) {
+    console.error('[panel-users] DELETE:', error);
     const message = error instanceof Error ? error.message : 'Erro ao eliminar conta';
     return NextResponse.json({ success: false, error: message }, { status: 500 });
   }

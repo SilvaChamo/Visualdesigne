@@ -120,10 +120,21 @@ export async function saveProfileForAuthUser(
 
   if (existing?.id) {
     const { error } = await admin.from('profiles').update(payload).eq('id', existing.id);
-    if (error) throw error;
+    if (error) throw toProfileDbError('profiles.update', error);
     return;
   }
 
   const { error } = await admin.from('profiles').insert(payload);
-  if (error) throw error;
+  if (error) throw toProfileDbError('profiles.insert', error);
+}
+
+/**
+ * #16: PostgrestError é um objecto simples, não uma instância de Error — quem
+ * apanha com `error instanceof Error` (padrão comum no projecto) descartava
+ * sempre a mensagem real e mostrava um texto genérico. Normaliza aqui, na
+ * origem, para todos os chamadores beneficiarem sem repetir isto em cada um.
+ */
+function toProfileDbError(context: string, error: { message?: string; code?: string; details?: string; hint?: string }): Error {
+  const parts = [error.message, error.code && `code=${error.code}`, error.details, error.hint].filter(Boolean);
+  return new Error(`${context}: ${parts.join(' | ') || 'erro desconhecido'}`);
 }
