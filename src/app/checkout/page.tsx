@@ -12,6 +12,7 @@ import { MPESA_NUMBER, BANK_NAME, BANK_ACCOUNT, BANK_NIB } from '@/lib/quotation
 import { formatMt } from '@/lib/pricing-catalog';
 import { DOMAIN_TLD_PRICES, domainRegistrationPriceMt } from '@/lib/domain-tld-prices';
 import { getHostingPlan, getHostingCyclePrice, type HostingBillingCycle } from '@/lib/hosting-plans';
+import { EMAIL_CATALOG } from '@/lib/package-catalog';
 
 const DOMAIN_REGISTRATION_YEARS = [1, 2, 3, 5, 10];
 const HOSTING_CYCLE_MONTHS: Record<HostingBillingCycle, number> = { monthly: 1, semiannual: 6, annual: 12 };
@@ -827,7 +828,24 @@ function CheckoutContent() {
                                   )}
                                 </div>
                               ) : null}
-                              {item.type !== 'domain' && item.type !== 'hosting' ? (
+                              {item.type === 'email' && EMAIL_CATALOG[item.id] ? (
+                                <label className="flex items-center gap-1.5 mt-1">
+                                  <span className="text-[10px] text-slate-400">Ciclo:</span>
+                                  <select
+                                    value={item.period}
+                                    onChange={(e) => {
+                                      const months = Number(e.target.value);
+                                      const plan = EMAIL_CATALOG[item.id];
+                                      const newPrice = months === 12 ? plan.annual : plan.monthly;
+                                      updateItemPeriod(item.id, months, newPrice);
+                                    }}
+                                    className="rounded border border-slate-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 px-1.5 py-0.5 text-[10px] font-bold text-slate-600 dark:text-zinc-300"
+                                  >
+                                    <option value={1}>Mensal</option>
+                                    <option value={12}>Anual</option>
+                                  </select>
+                                </label>
+                              ) : item.type !== 'domain' && item.type !== 'hosting' ? (
                                 <span className="text-[10px] text-slate-400 block mt-0.5">Período: {item.period} {item.period === 1 ? 'mês' : 'meses'}</span>
                               ) : null}
                             </div>

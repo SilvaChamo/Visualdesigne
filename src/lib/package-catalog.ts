@@ -23,7 +23,9 @@ export type CatalogCartItem = {
  */
 export const EMAIL_BASICO_ID = 'email-basico';
 export const EMAIL_BASICO_PRICE_MT = 680;
-const EMAIL_CATALOG: Record<string, { name: string; monthly: number; annual: number }> = {
+// #13: exportado — o preço anual já existia aqui mas nenhuma interface
+// permitia escolhê-lo; o checkout usa isto para mostrar as duas opções.
+export const EMAIL_CATALOG: Record<string, { name: string; monthly: number; annual: number }> = {
   [EMAIL_BASICO_ID]: { name: 'Email Básico', monthly: EMAIL_BASICO_PRICE_MT, annual: EMAIL_BASICO_PRICE_MT * 12 },
 };
 
