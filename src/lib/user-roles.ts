@@ -53,10 +53,14 @@ export function resolveUserRole(source: RoleSource): UserRole {
 
   if (profileRole === 'reseller' || metaRole === 'reseller') return 'reseller';
   if (profileRole === 'client' || metaRole === 'client') return 'client';
-  if (profileRole === 'guest' || metaRole === 'guest') return 'guest';
 
-  // Comprou algo mas ainda marcado como guest → promove a cliente
+  // #7: tinha de vir antes do "if guest → guest" abaixo — senão uma conta
+  // marcada guest com compras confirmadas (hasPaidProducts) nunca chegava a
+  // ser avaliada, ficava sempre presa em guest. É precisamente o mecanismo
+  // que o botão de sincronizar utilizadores usa para reparar essas contas.
   if (source.hasPaidProducts) return 'client';
+
+  if (profileRole === 'guest' || metaRole === 'guest') return 'guest';
 
   // Sem compras e sem role → visitante registado
   return 'guest';
