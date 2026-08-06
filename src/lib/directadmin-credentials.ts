@@ -23,6 +23,15 @@ export interface DirectAdminCredentials {
    * revendedor — a password guardada já não batia certo com o servidor).
    */
   forceSshProxy?: boolean;
+  /**
+   * Nunca cair para o proxy SSH, nem no caminho normal nem como recurso após um
+   * 401/403 HTTP. O proxy SSH gera acesso via chave root do servidor e ignora a
+   * password por completo — está certo para o admin representar um revendedor,
+   * mas destrói por completo qualquer chamada cujo objectivo seja precisamente
+   * confirmar se ESTA password é a correcta (ex.: login do painel a validar
+   * contra o DirectAdmin). Nessas chamadas, um 401 tem de continuar a ser 401.
+   */
+  skipSshFallback?: boolean;
 }
 
 export type DirectAdminAuthContext = {

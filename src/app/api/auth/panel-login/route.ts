@@ -86,9 +86,14 @@ export async function POST(req: NextRequest) {
           'CMD_API_SHOW_USER_CONFIG',
           'GET',
           { user: daUsername },
-          { role: 'reseller', user: daUsername, password },
+          // skipSshFallback: crítico — sem isto, um 401 (password errada) cai para
+          // o proxy SSH, que gera acesso via chave root do servidor sem olhar para
+          // a password nenhuma, aceitando SEMPRE qualquer password para uma conta
+          // DA real. Também exige dados reais devolvidos (não só "sem erro"), já
+          // que uma resposta vazia/malformada também é parseada como "sem erro".
+          { role: 'reseller', user: daUsername, password, skipSshFallback: true },
         );
-        daVerified = !daResult.error;
+        daVerified = !daResult.error && Boolean(daResult.data && Object.keys(daResult.data).length > 0);
       }
     }
 

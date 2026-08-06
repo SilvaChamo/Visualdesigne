@@ -154,7 +154,7 @@ async function requestDirectAdmin(
   params: Record<string, string>,
   credentials: DirectAdminCredentials,
 ): Promise<string> {
-  if (process.env.DA_USE_SSH_PROXY === 'true' || credentials.forceSshProxy) {
+  if (!credentials.skipSshFallback && (process.env.DA_USE_SSH_PROXY === 'true' || credentials.forceSshProxy)) {
     const { requestDirectAdminViaSsh } = await import('@/lib/da-ssh-proxy');
     return requestDirectAdminViaSsh(endpoint, method, params, credentials);
   }
@@ -162,6 +162,7 @@ async function requestDirectAdmin(
   try {
     return await requestDirectAdminHttp(endpoint, method, params, credentials);
   } catch (error) {
+    if (credentials.skipSshFallback) throw error;
     const { requestDirectAdminViaSsh, shouldFallbackToDaSsh } = await import('@/lib/da-ssh-proxy');
     if (!shouldFallbackToDaSsh(error)) throw error;
     try {
