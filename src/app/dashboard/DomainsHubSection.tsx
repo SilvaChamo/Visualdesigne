@@ -187,7 +187,10 @@ export function DomainsHubSection({
           onNavigate={onNavigate}
           hubMode
           hubPanel="list"
-          domainListMode={variant === 'reseller' ? 'all' : 'hosting'}
+          // 'hosting' só mostrava domínios com alojamento — domínios comprados
+          // sozinhos (registrar-only, ex: compra directa no carrinho sem hosting)
+          // ficavam invisíveis mesmo para o admin. 'all' junta as duas listas.
+          domainListMode="all"
           isActive={isActive}
           listSearch={listSearch}
           onListSearchChange={setListSearch}
