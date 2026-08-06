@@ -8,52 +8,67 @@ export type DomainTldPrice = {
   periodLabel?: string
 }
 
-/** 44 extensões disponíveis no motor de registo (preço base USD → MT no UI). */
+/**
+ * 44 extensões disponíveis no motor de registo (preço base USD → MT no UI).
+ *
+ * `price`/`renewPrice`/`transfer` = custo real de revenda na Dynadot (USD), tal
+ * como reportado na tabela oficial de preços de revenda ("price_reseller_regular_USD.csv").
+ * A margem (61,25%) é aplicada uniformemente na conversão para MT em `formatMtPrice`
+ * (`* 65 * 1.5 * 1.075`) — não somar margem aqui.
+ *
+ * Actualizado em 2026-08-06 a partir da tabela real da Dynadot. Antes desta correcção,
+ * 12 extensões (incl. .software, .com, .net, .org, .ai, .tech) estavam a ser vendidas
+ * ABAIXO do custo real. A Dynadot raramente actualiza estes preços de revenda, pelo que
+ * esta tabela fixa é razoável — mas deve ser revista periodicamente.
+ *
+ * `.farm` não consta na tabela de revenda fornecida — mantido com o valor anterior
+ * até se confirmar o custo real.
+ */
 export const DOMAIN_TLD_PRICES: DomainTldPrice[] = [
-  { value: '.com', label: '.com', price: 8.88, renewPrice: 9.98, icann: 0.2, transfer: 9.48 },
-  { value: '.net', label: '.net', price: 11.2, renewPrice: 11.2, icann: 0.2, transfer: 11.2 },
-  { value: '.org', label: '.org', price: 6.48, renewPrice: 9.8, icann: 0.2, transfer: 9.5 },
+  { value: '.com', label: '.com', price: 10.88, renewPrice: 10.88, icann: 0.2, transfer: 10.88 },
+  { value: '.net', label: '.net', price: 12.52, renewPrice: 12.52, icann: 0.2, transfer: 12.52 },
+  { value: '.org', label: '.org', price: 7.99, renewPrice: 11.64, icann: 0.2, transfer: 11.64 },
   { value: '.farm', label: '.farm', price: 4.14, renewPrice: 31.05, icann: 0.2, transfer: 31.05 },
-  { value: '.ai', label: '.ai', price: 69.98, renewPrice: 79.98, icann: 0.2, transfer: 69.98 },
-  { value: '.co', label: '.co', price: 25, renewPrice: 25, icann: 0.2, transfer: 25 },
-  { value: '.io', label: '.io', price: 35, renewPrice: 35, icann: 0.2, transfer: 35 },
-  { value: '.app', label: '.app', price: 15, renewPrice: 15, icann: 0.2, transfer: 15 },
-  { value: '.dev', label: '.dev', price: 15, renewPrice: 15, icann: 0.2, transfer: 15 },
-  { value: '.online', label: '.online', price: 5, renewPrice: 5, icann: 0.2, transfer: 5 },
-  { value: '.tech', label: '.tech', price: 5, renewPrice: 5, icann: 0.2, transfer: 5 },
-  { value: '.store', label: '.store', price: 5, renewPrice: 5, icann: 0.2, transfer: 5 },
-  { value: '.biz', label: '.biz', price: 12, renewPrice: 12, icann: 0.2, transfer: 12 },
-  { value: '.info', label: '.info', price: 15, renewPrice: 15, icann: 0.2, transfer: 15 },
-  { value: '.me', label: '.me', price: 10, renewPrice: 10, icann: 0.2, transfer: 10 },
-  { value: '.xyz', label: '.xyz', price: 3, renewPrice: 12, icann: 0.2, transfer: 12 },
-  { value: '.site', label: '.site', price: 4, renewPrice: 25, icann: 0.2, transfer: 25 },
-  { value: '.club', label: '.club', price: 5, renewPrice: 12, icann: 0.2, transfer: 12 },
-  { value: '.top', label: '.top', price: 3, renewPrice: 8, icann: 0.2, transfer: 8 },
-  { value: '.live', label: '.live', price: 4, renewPrice: 20, icann: 0.2, transfer: 20 },
-  { value: '.cloud', label: '.cloud', price: 12, renewPrice: 12, icann: 0.2, transfer: 12 },
-  { value: '.digital', label: '.digital', price: 5, renewPrice: 30, icann: 0.2, transfer: 30 },
-  { value: '.media', label: '.media', price: 8, renewPrice: 30, icann: 0.2, transfer: 30 },
-  { value: '.news', label: '.news', price: 8, renewPrice: 25, icann: 0.2, transfer: 25 },
-  { value: '.world', label: '.world', price: 5, renewPrice: 30, icann: 0.2, transfer: 30 },
-  { value: '.today', label: '.today', price: 4, renewPrice: 20, icann: 0.2, transfer: 20 },
-  { value: '.group', label: '.group', price: 8, renewPrice: 18, icann: 0.2, transfer: 18 },
-  { value: '.company', label: '.company', price: 8, renewPrice: 12, icann: 0.2, transfer: 12 },
-  { value: '.solutions', label: '.solutions', price: 8, renewPrice: 25, icann: 0.2, transfer: 25 },
-  { value: '.services', label: '.services', price: 8, renewPrice: 30, icann: 0.2, transfer: 30 },
-  { value: '.agency', label: '.agency', price: 8, renewPrice: 25, icann: 0.2, transfer: 25 },
-  { value: '.center', label: '.center', price: 8, renewPrice: 25, icann: 0.2, transfer: 25 },
-  { value: '.email', label: '.email', price: 8, renewPrice: 25, icann: 0.2, transfer: 25 },
-  { value: '.network', label: '.network', price: 8, renewPrice: 25, icann: 0.2, transfer: 25 },
-  { value: '.software', label: '.software', price: 8, renewPrice: 30, icann: 0.2, transfer: 30 },
-  { value: '.systems', label: '.systems', price: 8, renewPrice: 25, icann: 0.2, transfer: 25 },
-  { value: '.tools', label: '.tools', price: 8, renewPrice: 25, icann: 0.2, transfer: 25 },
-  { value: '.works', label: '.works', price: 8, renewPrice: 30, icann: 0.2, transfer: 30 },
-  { value: '.zone', label: '.zone', price: 8, renewPrice: 25, icann: 0.2, transfer: 25 },
-  { value: '.space', label: '.space', price: 4, renewPrice: 20, icann: 0.2, transfer: 20 },
-  { value: '.website', label: '.website', price: 4, renewPrice: 20, icann: 0.2, transfer: 20 },
-  { value: '.click', label: '.click', price: 4, renewPrice: 12, icann: 0.2, transfer: 12 },
-  { value: '.link', label: '.link', price: 6, renewPrice: 10, icann: 0.2, transfer: 10 },
-  { value: '.pro', label: '.pro', price: 12, renewPrice: 15, icann: 0.2, transfer: 15 },
+  { value: '.ai', label: '.ai', price: 85.6, renewPrice: 85.6, icann: 0.2, transfer: 171.2 },
+  { value: '.co', label: '.co', price: 3.48, renewPrice: 31.2, icann: 0.2, transfer: 31.2 },
+  { value: '.io', label: '.io', price: 28.89, renewPrice: 53.5, icann: 0.2, transfer: 53.5 },
+  { value: '.app', label: '.app', price: 9.99, renewPrice: 14.5, icann: 0.2, transfer: 13.99 },
+  { value: '.dev', label: '.dev', price: 8, renewPrice: 12.5, icann: 0.2, transfer: 11.99 },
+  { value: '.online', label: '.online', price: 2.5, renewPrice: 29.64, icann: 0.2, transfer: 26.97 },
+  { value: '.tech', label: '.tech', price: 6.64, renewPrice: 52.65, icann: 0.2, transfer: 52.65 },
+  { value: '.store', label: '.store', price: 2.5, renewPrice: 43.02, icann: 0.2, transfer: 43.02 },
+  { value: '.biz', label: '.biz', price: 6.65, renewPrice: 18.93, icann: 0.2, transfer: 18.93 },
+  { value: '.info', label: '.info', price: 3.99, renewPrice: 22.69, icann: 0.2, transfer: 22.69 },
+  { value: '.me', label: '.me', price: 9.71, renewPrice: 17.8, icann: 0.2, transfer: 17.8 },
+  { value: '.xyz', label: '.xyz', price: 1.99, renewPrice: 13.17, icann: 0.2, transfer: 13.17 },
+  { value: '.site', label: '.site', price: 2.5, renewPrice: 26.97, icann: 0.2, transfer: 26.97 },
+  { value: '.club', label: '.club', price: 4, renewPrice: 15.96, icann: 0.2, transfer: 15.96 },
+  { value: '.top', label: '.top', price: 2.99, renewPrice: 4.88, icann: 0.2, transfer: 4.88 },
+  { value: '.live', label: '.live', price: 2.5, renewPrice: 26.97, icann: 0.2, transfer: 26.97 },
+  { value: '.cloud', label: '.cloud', price: 3.99, renewPrice: 21.62, icann: 0.2, transfer: 21.62 },
+  { value: '.digital', label: '.digital', price: 2.99, renewPrice: 34.14, icann: 0.2, transfer: 34.14 },
+  { value: '.media', label: '.media', price: 4.5, renewPrice: 37.67, icann: 0.2, transfer: 37.67 },
+  { value: '.news', label: '.news', price: 9.85, renewPrice: 26.97, icann: 0.2, transfer: 26.97 },
+  { value: '.world', label: '.world', price: 2.5, renewPrice: 34.2, icann: 0.2, transfer: 34.2 },
+  { value: '.today', label: '.today', price: 3.49, renewPrice: 23.76, icann: 0.2, transfer: 23.76 },
+  { value: '.group', label: '.group', price: 6.1, renewPrice: 21.62, icann: 0.2, transfer: 21.62 },
+  { value: '.company', label: '.company', price: 2.5, renewPrice: 17.34, icann: 0.2, transfer: 17.34 },
+  { value: '.solutions', label: '.solutions', price: 3.5, renewPrice: 25.9, icann: 0.2, transfer: 25.9 },
+  { value: '.services', label: '.services', price: 8.78, renewPrice: 32.32, icann: 0.2, transfer: 32.32 },
+  { value: '.agency', label: '.agency', price: 3.5, renewPrice: 25.9, icann: 0.2, transfer: 25.9 },
+  { value: '.center', label: '.center', price: 3.5, renewPrice: 26.97, icann: 0.2, transfer: 26.97 },
+  { value: '.email', label: '.email', price: 5.57, renewPrice: 25.9, icann: 0.2, transfer: 25.9 },
+  { value: '.network', label: '.network', price: 4.5, renewPrice: 29.11, icann: 0.2, transfer: 29.11 },
+  { value: '.software', label: '.software', price: 16.22, renewPrice: 34.35, icann: 0.2, transfer: 34.35 },
+  { value: '.systems', label: '.systems', price: 11.99, renewPrice: 29.11, icann: 0.2, transfer: 29.11 },
+  { value: '.tools', label: '.tools', price: 9.85, renewPrice: 30.18, icann: 0.2, transfer: 30.18 },
+  { value: '.works', label: '.works', price: 4.5, renewPrice: 32.21, icann: 0.2, transfer: 32.21 },
+  { value: '.zone', label: '.zone', price: 8.24, renewPrice: 32.21, icann: 0.2, transfer: 32.21 },
+  { value: '.space', label: '.space', price: 2.5, renewPrice: 21.62, icann: 0.2, transfer: 21.62 },
+  { value: '.website', label: '.website', price: 2.5, renewPrice: 21.62, icann: 0.2, transfer: 21.62 },
+  { value: '.click', label: '.click', price: 1.99, renewPrice: 10.92, icann: 0.2, transfer: 10.92 },
+  { value: '.link', label: '.link', price: 7.71, renewPrice: 7.71, icann: 0.2, transfer: 7.71 },
+  { value: '.pro', label: '.pro', price: 3.79, renewPrice: 22.69, icann: 0.2, transfer: 22.69 },
 ]
 
 export function formatMtPrice(usdPrice: number): string {

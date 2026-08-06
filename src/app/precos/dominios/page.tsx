@@ -5,17 +5,20 @@ import Link from 'next/link'
 import { ArrowLeft } from 'lucide-react'
 
 import DomainSearch from '@/components/DomainSearch'
+import { DOMAIN_TLD_PRICES } from '@/lib/domain-tld-prices'
+
+const formatUsd = (value: number) => `${value.toFixed(2).replace('.', ',')} US$`
 
 export default function PrecosDominios() {
   const { t } = useI18n()
 
-  const domains = [
-    { ext: '.com', reg: '8,88 US$', ren: '9,98 US$', icann: '0,20 US$ /ano', trans: '9,48 US$' },
-    { ext: '.farm', reg: '4,14 US$', ren: '31,05 US$', icann: '0,20 US$ /ano', trans: '31,05 US$' },
-    { ext: '.org', reg: '6,48 US$', ren: '9,80 US$', icann: '0,20 US$ /ano', trans: '9,50 US$' },
-    { ext: '.net', reg: '11,20 US$', ren: '11,20 US$', icann: '0,20 US$ /ano', trans: '11,20 US$' },
-    { ext: '.ai', reg: '69,98 US$', ren: '79,98 US$', icann: '0,20 US$ /ano', trans: '69,98 US$' },
-  ]
+  const domains = DOMAIN_TLD_PRICES.map((tld) => ({
+    ext: tld.value,
+    reg: formatUsd(tld.price),
+    ren: formatUsd(tld.renewPrice),
+    icann: `${formatUsd(tld.icann)} /ano`,
+    trans: formatUsd(tld.transfer),
+  }))
 
   return (
     <div className="min-h-screen bg-white">
