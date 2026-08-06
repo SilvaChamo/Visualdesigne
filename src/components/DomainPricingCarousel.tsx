@@ -2,8 +2,10 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
-import { formatMtPrice, type DomainTldPrice } from '@/lib/domain-tld-prices'
+import { domainRegistrationPriceMt, type DomainTldPrice } from '@/lib/domain-tld-prices'
 import { panelMobileStackCard } from '@/lib/panel-ui'
+import { useCurrency } from '@/contexts/CurrencyContext'
+import { useRouter } from 'next/navigation'
 
 const CARD_GAP = 16
 const VISIBLE_CARDS = 4
@@ -18,9 +20,13 @@ type DomainPricingCarouselProps = {
 function PricingCard({
   domain,
   className = '',
+  formatDomainPrice,
+  onRegister,
 }: {
   domain: DomainTldPrice
   className?: string
+  formatDomainPrice: (mtPrice: number) => string
+  onRegister: () => void
 }) {
   return (
     <article className={`${panelMobileStackCard} px-4 py-4 shadow-sm md:items-stretch ${className}`}>
@@ -30,12 +36,13 @@ function PricingCard({
           {domain.label.replace(/^\./, '')}
         </h4>
         <p className="mt-2 text-sm font-medium text-zinc-800 dark:text-zinc-200">
-          {formatMtPrice(domain.price)} MT
+          {formatDomainPrice(domainRegistrationPriceMt(domain, 1))}
           <span className="text-zinc-500">/{domain.periodLabel || 'ano'}</span>
         </p>
       </div>
       <button
         type="button"
+        onClick={onRegister}
         className="w-full shrink-0 rounded-md bg-green-600 px-3 py-2 text-left text-sm font-semibold text-white transition-colors hover:bg-green-700 md:w-auto md:text-center"
       >
         Registar agora
@@ -45,6 +52,14 @@ function PricingCard({
 }
 
 export function DomainPricingCarousel({ items }: DomainPricingCarouselProps) {
+  const { formatPrice } = useCurrency()
+  const router = useRouter()
+  // #4: preço tem de vir sempre de domainRegistrationPriceMt (a mesma função
+  // usada no carrinho/checkout) — ler `domain.price` directamente e passar
+  // pela fórmula genérica ignora o preço fixo do negócio (fixedPurchasePriceMt,
+  // ex. .com) e mostra um valor diferente do que o cliente paga a sério.
+  const formatDomainPrice = (mtPrice: number) => formatPrice(mtPrice)
+  const goToDomainSearch = () => router.push('/servicos/dominios')
   const viewportRef = useRef<HTMLDivElement>(null)
   const trackRef = useRef<HTMLDivElement>(null)
   const [ready, setReady] = useState(false)
@@ -110,7 +125,7 @@ export function DomainPricingCarousel({ items }: DomainPricingCarouselProps) {
     <>
       <div className="flex w-full flex-col gap-3 md:hidden">
         {items.map((domain) => (
-          <PricingCard key={domain.value} domain={domain} />
+          <PricingCard key={domain.value} domain={domain} formatDomainPrice={formatDomainPrice} onRegister={goToDomainSearch} />
         ))}
       </div>
 
@@ -149,11 +164,12 @@ export function DomainPricingCarousel({ items }: DomainPricingCarouselProps) {
                     {domain.label.replace(/^\./, '')}
                   </h4>
                   <p className="mt-3 text-sm font-medium text-zinc-800 dark:text-zinc-200">
-                    {formatMtPrice(domain.price)} MT
+                    {formatDomainPrice(domainRegistrationPriceMt(domain, 1))}
                     <span className="text-zinc-500">/{domain.periodLabel || 'ano'}</span>
                   </p>
                   <button
                     type="button"
+                    onClick={goToDomainSearch}
                     className="mt-4 flex w-full items-center justify-start rounded-md bg-green-600 px-3 py-2 text-sm font-semibold text-white transition-colors hover:bg-green-700"
                   >
                     Registar agora
