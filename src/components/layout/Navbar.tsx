@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { useRouter } from 'next/navigation'
 import { useI18n } from '@/lib/i18n'
-import { Globe, User, ShoppingCart, HelpCircle, Rocket, Server, CreditCard, Shield, Grid, Layers, Package, BookOpen, Lock, Camera, Palette, Monitor, Mail, FileText, Megaphone, PenTool, Film, Search as SearchIcon, LogOut } from 'lucide-react'
+import { Globe, User, ShoppingCart, HelpCircle, Rocket, Server, CreditCard, Shield, Grid, Layers, Package, BookOpen, Lock, Camera, Palette, Monitor, Mail, FileText, Megaphone, PenTool, Film, Search as SearchIcon } from 'lucide-react'
 import Link from 'next/link'
 import { useCart } from '@/contexts/CartContext'
 import { useCurrency } from '@/contexts/CurrencyContext'
@@ -17,7 +17,7 @@ export function Navbar() {
   const { t } = useI18n()
   const { items, setIsCartOpen } = useCart()
   const { currency, setCurrency } = useCurrency()
-  const { user, userRole, signOut } = useAuth()
+  const { user, userRole } = useAuth()
   const showEncomendasLink = userRole !== 'admin' && userRole !== 'manager'
   const router = useRouter()
   const [showLaunchpad, setShowLaunchpad] = useState(false)
@@ -278,6 +278,20 @@ export function Navbar() {
 
           {/* Coluna Direita: Ícones limpos com tooltips instantâneos */}
           <div className="flex items-center gap-3 sm:gap-5">
+            {/* #30: Painel/Encomendas movidos da barra branca (Header) para
+                aqui — Sair fica na barra branca, onde já estava. Painel vem
+                antes do selector de moeda, a pedido do Silva. */}
+            {user && (
+              <Link
+                href={PUBLIC_PANEL_ENTRY}
+                className="text-slate-300 text-xs font-bold uppercase tracking-wide hover:text-red-500 transition-colors flex items-center gap-1"
+                title="Painel"
+              >
+                <User className="w-4 h-4 shrink-0" />
+                <span className="hidden sm:inline">Painel</span>
+              </Link>
+            )}
+
             {/* Notificações removidas daqui — eram do admin, mas esta barra é
                 pública (home page), visível a qualquer visitante. Mostra em vez
                 disso o selector de moeda para pagamento de encomendas/serviços:
@@ -306,41 +320,15 @@ export function Navbar() {
               <span className="absolute top-full mt-2 right-0 md:left-1/2 md:-translate-x-1/2 whitespace-nowrap w-max bg-slate-800 text-white text-[10px] py-1 px-2 rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50 shadow-lg">Carrinho de Compras</span>
             </button>
 
-            {/* #30: Painel/Encomendas/Sair movidos da barra branca (Header) para
-                aqui — deixou de haver duas barras a repetir os mesmos links. */}
-            {user && (
-              <>
-                <Link
-                  href={PUBLIC_PANEL_ENTRY}
-                  className="text-slate-300 text-xs font-bold hover:text-red-500 transition-colors flex items-center gap-1"
-                  title="Painel"
-                >
-                  <User className="w-4 h-4 shrink-0" />
-                  <span className="hidden sm:inline">Painel</span>
-                </Link>
-                {showEncomendasLink && (
-                  <Link
-                    href="/encomendas"
-                    className="hidden md:flex text-slate-300 text-xs font-bold hover:text-red-500 transition-colors items-center gap-1"
-                    title="Encomendas"
-                  >
-                    <FileText className="w-4 h-4 shrink-0" />
-                    <span className="hidden lg:inline">Encomendas</span>
-                  </Link>
-                )}
-                <button
-                  type="button"
-                  onClick={async () => {
-                    await signOut()
-                    window.location.href = '/login'
-                  }}
-                  className="text-slate-300 text-xs font-bold hover:text-red-500 transition-colors flex items-center gap-1"
-                  title="Sair"
-                >
-                  <LogOut className="w-4 h-4 shrink-0" />
-                  <span className="hidden sm:inline">Sair</span>
-                </button>
-              </>
+            {user && showEncomendasLink && (
+              <Link
+                href="/encomendas"
+                className="hidden md:flex text-slate-300 text-xs font-bold hover:text-red-500 transition-colors items-center gap-1"
+                title="Encomendas"
+              >
+                <FileText className="w-4 h-4 shrink-0" />
+                <span className="hidden lg:inline">Encomendas</span>
+              </Link>
             )}
 
             <ThemeToggle

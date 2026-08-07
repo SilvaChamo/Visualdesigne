@@ -6,7 +6,7 @@ import { createPortal } from 'react-dom'
 import Link from 'next/link'
 import Image from 'next/image'
 import { usePathname } from 'next/navigation'
-import { Menu, X, ChevronDown, User, ShoppingCart } from 'lucide-react'
+import { Menu, X, ChevronDown, User, ShoppingCart, LogOut } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { useI18n } from '@/lib/i18n'
@@ -156,7 +156,7 @@ export function Header({ isScrolled = false }: { isScrolled?: boolean }) {
   const [showTopBar, setShowTopBar] = useState(true)
   const [lastScrollY, setLastScrollY] = useState(0)
   const { items, setIsCartOpen } = useCart()
-  const { user } = useAuth()
+  const { user, signOut } = useAuth()
 
   const pathname = usePathname()
   const isCheckout = pathname.startsWith('/checkout')
@@ -378,10 +378,21 @@ export function Header({ isScrolled = false }: { isScrolled?: boolean }) {
                 {otherLangLabel}
               </button>
               )}
-              {/* #30: Painel/Encomendas/Sair mudaram-se para a barra preta
-                  (Navbar.tsx) — deixava de haver duas barras com os mesmos
-                  links. Aqui fica só o Login, para quem ainda não entrou. */}
-              {!user && (
+              {/* #30: só Painel/Encomendas mudaram-se para a barra preta
+                  (Navbar.tsx) — Sair fica aqui, como sempre esteve. */}
+              {user ? (
+                <button
+                  type="button"
+                  onClick={async () => {
+                    await signOut()
+                    window.location.href = '/login'
+                  }}
+                  className="px-2.5 py-1.5 sm:px-4 sm:py-2 bg-red-600 text-white text-[10px] lg:text-xs font-black uppercase tracking-tighter rounded-md hover:bg-black dark:hover:bg-white dark:hover:text-black transition-all shadow-lg shadow-red-900/20 dark:shadow-none flex items-center gap-1.5 sm:gap-2 group whitespace-nowrap"
+                >
+                  <LogOut className="w-4 h-4 shrink-0 group-hover:scale-110 transition-transform" />
+                  <span>Sair</span>
+                </button>
+              ) : (
                 <Link
                   href={PANEL_LOGIN_HREF}
                   className="px-2.5 py-1.5 sm:px-4 sm:py-2 bg-red-600 text-white text-[10px] lg:text-xs font-black uppercase tracking-tighter rounded-md hover:bg-black dark:hover:bg-white dark:hover:text-black transition-all shadow-lg shadow-red-900/20 dark:shadow-none flex items-center gap-1.5 sm:gap-2 group whitespace-nowrap"
