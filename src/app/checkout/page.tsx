@@ -746,36 +746,41 @@ function CheckoutContent() {
 
                     <div className="divide-y divide-slate-100 dark:divide-zinc-800/40">
                       {items.map((item) => (
-                        <div key={item.id} className="py-3 flex justify-between items-start gap-4">
-                          <div className="flex gap-2.5 items-start">
+                        <div key={item.id} className="py-3 grid grid-cols-1 sm:grid-cols-[1.4fr_1.2fr_auto] gap-2 sm:gap-4 sm:items-center">
+                          <div className="flex gap-2.5 items-start min-w-0">
                             <div className="w-8 h-8 rounded-lg bg-slate-50 dark:bg-zinc-950 border border-slate-100 dark:border-zinc-850 flex items-center justify-center flex-shrink-0 mt-0.5">
                               {typeIcon[item.type] || <Globe className="w-4 h-4 text-slate-400" />}
                             </div>
-                            <div>
+                            <div className="min-w-0">
                               <span className="inline-block px-1.5 py-0.2 bg-slate-100 dark:bg-zinc-800 text-[8px] font-bold text-slate-500 dark:text-zinc-400 rounded uppercase tracking-wider mb-0.5">
                                 {typeLabel[item.type] || item.type}
                               </span>
                               <h4 className="font-bold text-slate-800 dark:text-zinc-100 text-sm break-all leading-tight">{item.name}</h4>
-                              {item.type === 'domain' ? (
-                                <label className="flex items-center gap-1.5 mt-1">
-                                  <span className="text-[10px] text-slate-400">Registar por:</span>
-                                  <select
-                                    value={item.period}
-                                    onChange={(e) => {
-                                      const years = Number(e.target.value);
-                                      const tld = DOMAIN_TLD_PRICES.find((t) => item.name.toLowerCase().endsWith(t.value));
-                                      const newPrice = tld ? domainRegistrationPriceMt(tld, years) : item.price;
-                                      updateItemPeriod(item.id, years, newPrice);
-                                    }}
-                                    className="rounded border border-slate-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 px-1.5 py-0.5 text-[10px] font-bold text-slate-600 dark:text-zinc-300"
-                                  >
-                                    {DOMAIN_REGISTRATION_YEARS.map((y) => (
-                                      <option key={y} value={y}>{y} {y === 1 ? 'ano' : 'anos'}</option>
-                                    ))}
-                                  </select>
-                                </label>
-                              ) : item.type === 'hosting' ? (
-                                <label className="flex items-center gap-1.5 mt-1">
+                            </div>
+                          </div>
+
+                          <div className="pl-[42px] sm:pl-0 min-w-0">
+                            {item.type === 'domain' ? (
+                              <label className="flex items-center gap-1.5">
+                                <span className="text-[10px] text-slate-400">Registar por:</span>
+                                <select
+                                  value={item.period}
+                                  onChange={(e) => {
+                                    const years = Number(e.target.value);
+                                    const tld = DOMAIN_TLD_PRICES.find((t) => item.name.toLowerCase().endsWith(t.value));
+                                    const newPrice = tld ? domainRegistrationPriceMt(tld, years) : item.price;
+                                    updateItemPeriod(item.id, years, newPrice);
+                                  }}
+                                  className="rounded border border-slate-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 px-1.5 py-0.5 text-[10px] font-bold text-slate-600 dark:text-zinc-300"
+                                >
+                                  {DOMAIN_REGISTRATION_YEARS.map((y) => (
+                                    <option key={y} value={y}>{y} {y === 1 ? 'ano' : 'anos'}</option>
+                                  ))}
+                                </select>
+                              </label>
+                            ) : item.type === 'hosting' ? (
+                              <div className="space-y-1">
+                                <label className="flex items-center gap-1.5">
                                   <span className="text-[10px] text-slate-400">Ciclo:</span>
                                   <select
                                     value={item.period}
@@ -795,62 +800,58 @@ function CheckoutContent() {
                                     ))}
                                   </select>
                                 </label>
-                              ) : null}
-                              {item.type === 'hosting' ? (
-                                <div className="mt-1.5">
-                                  <label className="flex items-center gap-1.5">
-                                    <span className="text-[10px] text-slate-400 whitespace-nowrap">Domínio:</span>
-                                    <input
-                                      type="text"
-                                      value={item.hostingDomain || ''}
-                                      onChange={(e) => updateItemHostingDomain(item.id, e.target.value.toLowerCase().trim())}
-                                      placeholder="ex: oseudominio.co.mz"
-                                      className={`w-full rounded border px-1.5 py-0.5 text-[10px] font-bold text-slate-600 dark:text-zinc-300 bg-white dark:bg-zinc-950 ${
-                                        item.hostingDomain && !HOSTING_DOMAIN_REGEX.test(item.hostingDomain)
-                                          ? 'border-red-400'
-                                          : 'border-slate-200 dark:border-zinc-800'
-                                      }`}
-                                    />
-                                  </label>
-                                  {items.some((i) => i.type === 'domain') && (
-                                    <div className="flex flex-wrap gap-1 mt-1">
-                                      {items.filter((i) => i.type === 'domain').map((domainItem) => (
-                                        <button
-                                          key={domainItem.id}
-                                          type="button"
-                                          onClick={() => updateItemHostingDomain(item.id, domainItem.name.toLowerCase().trim())}
-                                          className="text-[9px] px-1.5 py-0.5 rounded bg-slate-100 dark:bg-zinc-800 text-slate-500 dark:text-zinc-400 hover:bg-slate-200 dark:hover:bg-zinc-700"
-                                        >
-                                          Usar {domainItem.name}
-                                        </button>
-                                      ))}
-                                    </div>
-                                  )}
-                                </div>
-                              ) : null}
-                              {item.type === 'email' && EMAIL_CATALOG[item.id] ? (
-                                <label className="flex items-center gap-1.5 mt-1">
-                                  <span className="text-[10px] text-slate-400">Ciclo:</span>
-                                  <select
-                                    value={item.period}
-                                    onChange={(e) => {
-                                      const months = Number(e.target.value);
-                                      const plan = EMAIL_CATALOG[item.id];
-                                      const newPrice = months === 12 ? plan.annual : plan.monthly;
-                                      updateItemPeriod(item.id, months, newPrice);
-                                    }}
-                                    className="rounded border border-slate-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 px-1.5 py-0.5 text-[10px] font-bold text-slate-600 dark:text-zinc-300"
-                                  >
-                                    <option value={1}>Mensal</option>
-                                    <option value={12}>Anual</option>
-                                  </select>
+                                <label className="flex items-center gap-1.5">
+                                  <span className="text-[10px] text-slate-400 whitespace-nowrap">Domínio:</span>
+                                  <input
+                                    type="text"
+                                    value={item.hostingDomain || ''}
+                                    onChange={(e) => updateItemHostingDomain(item.id, e.target.value.toLowerCase().trim())}
+                                    placeholder="ex: oseudominio.co.mz"
+                                    className={`w-full rounded border px-1.5 py-0.5 text-[10px] font-bold text-slate-600 dark:text-zinc-300 bg-white dark:bg-zinc-950 ${
+                                      item.hostingDomain && !HOSTING_DOMAIN_REGEX.test(item.hostingDomain)
+                                        ? 'border-red-400'
+                                        : 'border-slate-200 dark:border-zinc-800'
+                                    }`}
+                                  />
                                 </label>
-                              ) : item.type !== 'domain' && item.type !== 'hosting' ? (
-                                <span className="text-[10px] text-slate-400 block mt-0.5">Período: {item.period} {item.period === 1 ? 'mês' : 'meses'}</span>
-                              ) : null}
-                            </div>
+                                {items.some((i) => i.type === 'domain') && (
+                                  <div className="flex flex-wrap gap-1">
+                                    {items.filter((i) => i.type === 'domain').map((domainItem) => (
+                                      <button
+                                        key={domainItem.id}
+                                        type="button"
+                                        onClick={() => updateItemHostingDomain(item.id, domainItem.name.toLowerCase().trim())}
+                                        className="text-[9px] px-1.5 py-0.5 rounded bg-slate-100 dark:bg-zinc-800 text-slate-500 dark:text-zinc-400 hover:bg-slate-200 dark:hover:bg-zinc-700"
+                                      >
+                                        Usar {domainItem.name}
+                                      </button>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            ) : item.type === 'email' && EMAIL_CATALOG[item.id] ? (
+                              <label className="flex items-center gap-1.5">
+                                <span className="text-[10px] text-slate-400">Ciclo:</span>
+                                <select
+                                  value={item.period}
+                                  onChange={(e) => {
+                                    const months = Number(e.target.value);
+                                    const plan = EMAIL_CATALOG[item.id];
+                                    const newPrice = months === 12 ? plan.annual : plan.monthly;
+                                    updateItemPeriod(item.id, months, newPrice);
+                                  }}
+                                  className="rounded border border-slate-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 px-1.5 py-0.5 text-[10px] font-bold text-slate-600 dark:text-zinc-300"
+                                >
+                                  <option value={1}>Mensal</option>
+                                  <option value={12}>Anual</option>
+                                </select>
+                              </label>
+                            ) : (
+                              <span className="text-[10px] text-slate-400">Período: {item.period} {item.period === 1 ? 'mês' : 'meses'}</span>
+                            )}
                           </div>
-                          <div className="text-right flex-shrink-0">
+
+                          <div className="pl-[42px] sm:pl-0 text-left sm:text-right flex-shrink-0">
                             <span className="font-bold text-base text-slate-800 dark:text-zinc-100">{formatPrice(item.price)}</span>
                           </div>
                         </div>
