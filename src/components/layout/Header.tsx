@@ -6,12 +6,12 @@ import { createPortal } from 'react-dom'
 import Link from 'next/link'
 import Image from 'next/image'
 import { usePathname } from 'next/navigation'
-import { Menu, X, ChevronDown, User, ShoppingCart, LogOut, LayoutDashboard, FileText } from 'lucide-react'
+import { Menu, X, ChevronDown, User, ShoppingCart } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { useI18n } from '@/lib/i18n'
 import { useCart } from '@/contexts/CartContext'
-import { PANEL_LOGIN_HREF, PUBLIC_PANEL_ENTRY } from '@/lib/panel-origin'
+import { PANEL_LOGIN_HREF } from '@/lib/panel-origin'
 import { ThemeToggle } from '@/components/theme/ThemeToggle'
 import { useAuth } from '@/components/auth/AuthProvider'
 
@@ -156,8 +156,7 @@ export function Header({ isScrolled = false }: { isScrolled?: boolean }) {
   const [showTopBar, setShowTopBar] = useState(true)
   const [lastScrollY, setLastScrollY] = useState(0)
   const { items, setIsCartOpen } = useCart()
-  const { user, userRole, signOut } = useAuth()
-  const showEncomendasLink = userRole !== 'admin' && userRole !== 'manager'
+  const { user } = useAuth()
 
   const pathname = usePathname()
   const isCheckout = pathname.startsWith('/checkout')
@@ -379,37 +378,10 @@ export function Header({ isScrolled = false }: { isScrolled?: boolean }) {
                 {otherLangLabel}
               </button>
               )}
-              {user ? (
-                <>
-                  <Link
-                    href={PUBLIC_PANEL_ENTRY}
-                    className="px-2.5 py-1.5 sm:px-4 sm:py-2 bg-black dark:bg-zinc-900 text-white text-[10px] lg:text-xs font-black uppercase tracking-tighter rounded-md hover:bg-red-600 dark:hover:bg-zinc-800 transition-all shadow-lg shadow-black/20 dark:shadow-none flex items-center gap-1.5 sm:gap-2 group whitespace-nowrap"
-                  >
-                    <LayoutDashboard className="w-4 h-4 shrink-0 group-hover:scale-110 transition-transform" />
-                    <span>Painel</span>
-                  </Link>
-                  {showEncomendasLink && (
-                    <Link
-                      href="/encomendas"
-                      className="px-2.5 py-1.5 sm:px-4 sm:py-2 bg-white dark:bg-zinc-900 text-black dark:text-white border border-slate-300 dark:border-zinc-700 text-[10px] lg:text-xs font-black uppercase tracking-tighter rounded-md hover:border-red-600 hover:text-red-600 dark:hover:text-red-500 transition-all flex items-center gap-1.5 sm:gap-2 group whitespace-nowrap"
-                    >
-                      <FileText className="w-4 h-4 shrink-0 group-hover:scale-110 transition-transform" />
-                      <span>Encomendas</span>
-                    </Link>
-                  )}
-                  <button
-                    type="button"
-                    onClick={async () => {
-                      await signOut()
-                      window.location.href = '/login'
-                    }}
-                    className="px-2.5 py-1.5 sm:px-4 sm:py-2 bg-red-600 text-white text-[10px] lg:text-xs font-black uppercase tracking-tighter rounded-md hover:bg-black dark:hover:bg-white dark:hover:text-black transition-all shadow-lg shadow-red-900/20 dark:shadow-none flex items-center gap-1.5 sm:gap-2 group whitespace-nowrap"
-                  >
-                    <LogOut className="w-4 h-4 shrink-0 group-hover:scale-110 transition-transform" />
-                    <span>Sair</span>
-                  </button>
-                </>
-              ) : (
+              {/* #30: Painel/Encomendas/Sair mudaram-se para a barra preta
+                  (Navbar.tsx) — deixava de haver duas barras com os mesmos
+                  links. Aqui fica só o Login, para quem ainda não entrou. */}
+              {!user && (
                 <Link
                   href={PANEL_LOGIN_HREF}
                   className="px-2.5 py-1.5 sm:px-4 sm:py-2 bg-red-600 text-white text-[10px] lg:text-xs font-black uppercase tracking-tighter rounded-md hover:bg-black dark:hover:bg-white dark:hover:text-black transition-all shadow-lg shadow-red-900/20 dark:shadow-none flex items-center gap-1.5 sm:gap-2 group whitespace-nowrap"
