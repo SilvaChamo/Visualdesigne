@@ -10097,9 +10097,37 @@ export function DomainManagerSection({
   // Modal de criação de domínio
   const [domainModal, setDomainModal] = useState(false)
 
+  // Mover domínio para outra conta do painel — muda o "dono" no domain_renewals.
+  const [transferOwnerModal, setTransferOwnerModal] = useState<{ show: boolean; domain: string; targetEmail: string; saving: boolean }>({ show: false, domain: '', targetEmail: '', saving: false })
+
   const showMsg = (text: string, type: 'success' | 'error' = 'success') => {
     setMsg(text); setMsgType(type)
     setTimeout(() => setMsg(''), 4000)
+  }
+
+  const handleTransferDomainOwner = async () => {
+    if (!transferOwnerModal.domain || !transferOwnerModal.targetEmail.trim()) return
+    setTransferOwnerModal((prev) => ({ ...prev, saving: true }))
+    try {
+      const res = await fetch('/api/admin/domains/transfer-owner', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ domain: transferOwnerModal.domain, targetEmail: transferOwnerModal.targetEmail.trim() }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (res.ok && data.success) {
+        showMsg(data.message || 'Domínio movido.')
+        setTransferOwnerModal({ show: false, domain: '', targetEmail: '', saving: false })
+        await onRefresh?.()
+      } else {
+        showMsg(data.error || 'Erro ao mover domínio', 'error')
+        setTransferOwnerModal((prev) => ({ ...prev, saving: false }))
+      }
+    } catch (e: unknown) {
+      showMsg(e instanceof Error ? e.message : 'Erro de ligação', 'error')
+      setTransferOwnerModal((prev) => ({ ...prev, saving: false }))
+    }
   }
 
   const panelBtnRow = domainCardBtn
@@ -10310,6 +10338,16 @@ export function DomainManagerSection({
               className={domainCardMenuItem}
               onClick={() => {
                 setOpenMenuDomain(null)
+                setTransferOwnerModal({ show: true, domain: d.domain, targetEmail: '', saving: false })
+              }}
+            >
+              Mover para outra conta
+            </button>
+            <button
+              type="button"
+              className={domainCardMenuItem}
+              onClick={() => {
+                setOpenMenuDomain(null)
                 window.open(`https://${d.domain}`, '_blank', 'noopener,noreferrer')
               }}
             >
@@ -10460,6 +10498,43 @@ export function DomainManagerSection({
         }}
         packages={packages}
       />
+
+      {transferOwnerModal.show && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/60" onClick={() => setTransferOwnerModal({ show: false, domain: '', targetEmail: '', saving: false })} />
+          <div className="relative w-full max-w-sm rounded-lg border border-gray-200 bg-white p-5 shadow-2xl dark:border-zinc-800 dark:bg-zinc-900">
+            <h3 className="mb-1 text-sm font-bold text-gray-900 dark:text-zinc-100">Mover domínio para outra conta</h3>
+            <p className="mb-4 text-xs text-gray-500 dark:text-zinc-400">
+              <span className="font-mono">{transferOwnerModal.domain}</span> passa a pertencer à conta com o email indicado abaixo.
+            </p>
+            <label className="mb-1 block text-[10px] font-bold uppercase tracking-widest text-gray-400">Email da conta de destino</label>
+            <input
+              type="email"
+              value={transferOwnerModal.targetEmail}
+              onChange={(e) => setTransferOwnerModal((prev) => ({ ...prev, targetEmail: e.target.value }))}
+              placeholder="cliente@exemplo.com"
+              className="mb-4 w-full rounded border border-gray-200 bg-gray-50 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-500 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
+            />
+            <div className="flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setTransferOwnerModal({ show: false, domain: '', targetEmail: '', saving: false })}
+                className="px-3 py-1.5 text-sm font-semibold text-gray-500 hover:text-gray-700 dark:text-zinc-400"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={() => void handleTransferDomainOwner()}
+                disabled={transferOwnerModal.saving || !transferOwnerModal.targetEmail.trim()}
+                className="rounded bg-red-600 px-3 py-1.5 text-sm font-bold text-white hover:bg-red-700 disabled:opacity-50"
+              >
+                {transferOwnerModal.saving ? 'A mover...' : 'Mover'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 
