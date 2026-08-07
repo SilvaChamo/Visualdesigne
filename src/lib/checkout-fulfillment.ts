@@ -180,10 +180,31 @@ function addMonths(date: Date, months: number) {
 }
 
 /**
+ * Contas de admin conhecidas (mesma lista usada em checkIsAdmin por todo o
+ * código) — usada aqui para encontrar um destinatário real e válido em
+ * auth.users, nunca a tabela profiles (ver nota abaixo).
+ */
+const KNOWN_ADMIN_EMAILS = [
+  'admin@visualdesignmoz.com',
+  'silva.chamo@gmail.com',
+  'geral@visualdesignmoz.com',
+  'suporte@visualdesignmoz.com',
+];
+
+/**
  * Regista uma notificação para um admin quando uma escrita de tracking de
  * renovação falha. Sem isto, uma falha aqui fica só num console.warn que
  * ninguém vê — foi assim que hosting_renewals ficou meses sem existir sem
  * ninguém notar. Nunca deve poder bloquear o checkout em si.
+ *
+ * Bug real encontrado (2026-08-08): isto nunca disparou nenhuma vez em
+ * produção (tabela notifications sempre vazia) porque usava profiles.id como
+ * user_id do destinatário — mas notifications.user_id tem FK para
+ * auth.users(id), e profiles.id é uma chave própria da tabela, não o id do
+ * utilizador (confirmado: para a conta admin@visualdesignmoz.com, profiles.id
+ * não bate certo com auth.users.id; profiles.user_id sim). O insert falhava
+ * sempre com violação de FK, engolida em silêncio pelo catch abaixo. Corrigido
+ * lendo o id directamente de auth.users, nunca de profiles.
  */
 async function alertAdminOfTrackingFailure(context: string, message: string) {
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -191,22 +212,32 @@ async function alertAdminOfTrackingFailure(context: string, message: string) {
   if (!serviceKey || !supabaseUrl) return;
   try {
     const admin = createAdminClient(supabaseUrl, serviceKey);
-    const { data: adminProfile } = await admin
-      .from('profiles')
-      .select('id')
-      .eq('role', 'admin')
-      .limit(1)
-      .maybeSingle();
-    if (!adminProfile?.id) return;
-    await admin.from('notifications').insert({
-      user_id: adminProfile.id,
+    let adminUserId: string | null = null;
+    for (let page = 1; page <= 20 && !adminUserId; page++) {
+      const { data, error } = await admin.auth.admin.listUsers({ page, perPage: 1000 });
+      if (error) break;
+      const found = data.users.find((u) => u.email && KNOWN_ADMIN_EMAILS.includes(u.email.toLowerCase()));
+      if (found) adminUserId = found.id;
+      if (!data.users?.length || data.users.length < 1000) break;
+    }
+    if (!adminUserId) {
+      console.error('[checkout-fulfillment] alertAdminOfTrackingFailure: nenhuma conta admin encontrada em auth.users');
+      return;
+    }
+    const { error: insertError } = await admin.from('notifications').insert({
+      user_id: adminUserId,
       title: 'Falha ao registar renovação',
       message: `[checkout-fulfillment] ${context}: ${message}`,
       type: 'error',
       category: 'system',
     });
-  } catch {
-    /* um alerta falhado nunca deve impedir o checkout de terminar */
+    if (insertError) {
+      console.error('[checkout-fulfillment] alertAdminOfTrackingFailure: falha ao inserir notificação:', insertError.message);
+    }
+  } catch (err) {
+    // Um alerta falhado nunca deve impedir o checkout de terminar — mas fica
+    // no log, para não repetir o mesmo silêncio total que escondeu este bug.
+    console.error('[checkout-fulfillment] alertAdminOfTrackingFailure:', err);
   }
 }
 
