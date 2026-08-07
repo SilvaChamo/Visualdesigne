@@ -72,6 +72,8 @@ jobs:
             set_env_var DYNADOT_API_KEY "${{ secrets.DYNADOT_API_KEY }}"
             set_env_var DYNADOT_SECRET_KEY "${{ secrets.DYNADOT_SECRET_KEY }}"
             set_env_var CRON_SECRET "${{ secrets.CRON_SECRET }}"
+            set_env_var CLOUDFLARE_API_TOKEN_ACCOUNT "${{ secrets.CLOUDFLARE_API_TOKEN_ACCOUNT }}"
+            set_env_var CLOUDFLARE_ACCOUNT_ID "${{ secrets.CLOUDFLARE_ACCOUNT_ID }}"
             npm ci
             npm run build
             pm2 restart visualdesign-site || pm2 start npm --name "visualdesign-site" -- start -- -p 3003
