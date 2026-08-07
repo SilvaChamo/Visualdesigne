@@ -1,13 +1,13 @@
 'use client'
 
 import { Fragment, useEffect, useState } from 'react'
-import { ChevronDown, ChevronRight, RotateCcw } from 'lucide-react'
+import { ChevronDown, ChevronRight, FileText, RotateCcw } from 'lucide-react'
 import {
   panelSectionCard,
   panelTabBar, panelTabBtn, panelTabBtnActive, panelTabBtnInactive,
 } from '@/lib/panel-ui'
 import { formatMt } from '@/lib/pricing-catalog'
-import { ImageLightbox } from './ImageLightbox'
+import { ImageLightbox, isPdfUrl } from './ImageLightbox'
 
 // Valores negativos (lucro pode ficar negativo quando os custos ultrapassam
 // a receita) saem sempre a vermelho, seja qual for a tabela/linha.
@@ -397,6 +397,22 @@ function AnexoInline({
   return (
     <div className="flex flex-wrap items-center gap-4">
       {comprovativoUrl ? (
+        isPdfUrl(comprovativoUrl) ? (
+          <div className="shrink-0">
+            <button
+              type="button"
+              onClick={onOpen}
+              className="flex h-32 w-28 flex-col items-center justify-center gap-1.5 rounded-lg border border-gray-200 bg-gray-50 text-gray-500 hover:border-red-300 hover:text-red-600 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-400 dark:hover:border-red-800 dark:hover:text-red-400 transition-colors"
+            >
+              <FileText className="h-8 w-8" />
+              <span className="text-[11px] font-bold uppercase tracking-wide">PDF</span>
+            </button>
+            <div className="mt-1 flex items-center justify-center gap-2 text-[11px]">
+              <a href={comprovativoUrl} target="_blank" rel="noopener noreferrer" className="text-red-600 hover:underline dark:text-red-400">Abrir</a>
+              <a href={comprovativoUrl} download className="text-red-600 hover:underline dark:text-red-400">Descarregar</a>
+            </div>
+          </div>
+        ) : (
         <button type="button" onClick={onOpen} className="shrink-0">
           <img
             src={comprovativoUrl}
@@ -404,6 +420,7 @@ function AnexoInline({
             className="h-32 w-auto rounded-lg border border-gray-200 dark:border-zinc-700 object-contain hover:border-red-300 dark:hover:border-red-800 transition-colors"
           />
         </button>
+        )
       ) : (
         <p className="text-sm text-gray-400 dark:text-zinc-500">Sem comprovativo enviado.</p>
       )}

@@ -1,10 +1,15 @@
 'use client';
 
-import { X } from 'lucide-react';
+import { Download, ExternalLink, X } from 'lucide-react';
 import type { ReactNode } from 'react';
 
+/** #28: URLs assinadas trazem query string (token) depois do nome do ficheiro. */
+export function isPdfUrl(url: string): boolean {
+  return url.split('?')[0].toLowerCase().endsWith('.pdf');
+}
+
 /**
- * Popup de imagem em ecrã inteiro — mesmo padrão já usado em
+ * Popup de imagem/PDF em ecrã inteiro — mesmo padrão já usado em
  * QuotationMessagesThread.tsx, aqui partilhado para reutilizar noutros sítios
  * (ex: comprovativos de pagamento na Contabilidade). `actions` (opcional)
  * aparece por baixo da imagem — usado para os botões Confirmar/Rejeitar,
@@ -19,6 +24,7 @@ export function ImageLightbox({
   onClose: () => void;
   actions?: ReactNode;
 }) {
+  const isPdf = isPdfUrl(url);
   return (
     <div
       className="fixed inset-0 z-[200] bg-black/80 flex flex-col items-center justify-center gap-4 p-4"
@@ -31,12 +37,31 @@ export function ImageLightbox({
       >
         <X className="w-7 h-7" />
       </button>
-      <img
-        src={url}
-        alt="Comprovativo"
-        className="max-w-full max-h-[80vh] rounded-lg object-contain"
-        onClick={(e) => e.stopPropagation()}
-      />
+      {isPdf ? (
+        <iframe
+          src={url}
+          title="Comprovativo (PDF)"
+          className="h-[80vh] w-full max-w-3xl rounded-lg bg-white"
+          onClick={(e) => e.stopPropagation()}
+        />
+      ) : (
+        <img
+          src={url}
+          alt="Comprovativo"
+          className="max-w-full max-h-[80vh] rounded-lg object-contain"
+          onClick={(e) => e.stopPropagation()}
+        />
+      )}
+      {isPdf && (
+        <div className="flex items-center gap-4 text-sm" onClick={(e) => e.stopPropagation()}>
+          <a href={url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 text-white/80 hover:text-white">
+            <ExternalLink className="w-4 h-4" /> Abrir noutro separador
+          </a>
+          <a href={url} download className="flex items-center gap-1.5 text-white/80 hover:text-white">
+            <Download className="w-4 h-4" /> Descarregar
+          </a>
+        </div>
+      )}
       {actions && (
         <div className="flex items-center gap-3" onClick={(e) => e.stopPropagation()}>
           {actions}
