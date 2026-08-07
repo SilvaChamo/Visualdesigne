@@ -526,15 +526,17 @@ function limitToDa(key: ResellerLimitField, row: { value: string; unlimited: boo
     if (key === 'quota') return { quota: 'unlimited', uquota: 'ON' };
     return { [key]: 'unlimited' };
   }
-  const out: Record<string, string> = {
+  // #31 (real): o DirectAdmin não olha para o valor de uquota/ubandwidth — só para a
+  // presença do campo no pedido. Enviar "OFF" ainda assim marca o limite como
+  // ilimitado (confirmado por teste directo contra o servidor: quota=12345 com
+  // uquota=OFF gravou "unlimited"; sem o campo uquota, gravou 12345 correctamente).
+  // Por isso estes campos só podem aparecer quando o limite É ilimitado (acima).
+  return {
     [key]:
       key === 'quota' || key === 'bandwidth'
         ? normalizeStorageMb(row.value)
         : normalizeLimitValue(row.value),
   };
-  if (key === 'bandwidth') out.ubandwidth = 'OFF';
-  if (key === 'quota') out.uquota = 'OFF';
-  return out;
 }
 
 function resourceToDa(key: ResellerResourceField, row: { value: string; unlimited: boolean }): Record<string, string> {
