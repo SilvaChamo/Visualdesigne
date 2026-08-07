@@ -358,10 +358,12 @@ function ResellerCreditsTable() {
                   <tr className="bg-gray-50 dark:bg-zinc-900/40">
                     <td colSpan={8} className="px-4 py-4">
                       <AnexoInline
-                        comprovativos={pedidos
-                          .filter((x) => x.da_username === p.da_username && x.comprovativo_url)
-                          .map((x) => x.comprovativo_url as string)}
-                        onOpen={(url) => setLightboxUrl(url)}
+                        comprovativoUrl={p.comprovativo_url}
+                        onOpen={() => setLightboxUrl(p.comprovativo_url)}
+                        canAct={p.status === 'pending'}
+                        updating={updatingId === p.id}
+                        onConfirm={() => respond(p.id, 'confirmed')}
+                        onReject={() => respond(p.id, 'rejected')}
                       />
                     </td>
                   </tr>
@@ -377,42 +379,59 @@ function ResellerCreditsTable() {
   )
 }
 
-/**
- * Galeria de todos os comprovativos já enviados por esta conta (não só o
- * deste pedido) — partilhada pelas tabelas de pagamento. As acções
- * Confirmar/Rejeitar vivem só na linha principal; aqui é só consulta.
- */
+/** Anexo do próprio pedido (miniatura real, alinhada ao topo) + acções — partilhado pelas tabelas de pagamento. */
 function AnexoInline({
-  comprovativos,
+  comprovativoUrl,
   onOpen,
+  canAct,
+  updating,
+  onConfirm,
+  onReject,
 }: {
-  comprovativos: string[]
-  onOpen: (url: string) => void
+  comprovativoUrl: string | null
+  onOpen: () => void
+  canAct: boolean
+  updating: boolean
+  onConfirm: () => void
+  onReject: () => void
 }) {
-  if (comprovativos.length === 0) {
-    return <p className="text-sm text-gray-400 dark:text-zinc-500">Sem comprovativo enviado.</p>
-  }
   return (
-    <div>
-      <p className="mb-2 text-[11px] font-bold uppercase tracking-wide text-gray-400 dark:text-zinc-500">
-        Comprovativos desta conta ({comprovativos.length})
-      </p>
-      <div className="grid grid-cols-3 gap-2 sm:grid-cols-6">
-        {comprovativos.map((url, i) => (
+    <div className="flex items-start gap-4">
+      {comprovativoUrl ? (
+        <button
+          type="button"
+          onClick={onOpen}
+          className="block h-40 w-32 shrink-0 overflow-hidden rounded-lg border border-gray-200 transition-colors hover:border-red-300 dark:border-zinc-700 dark:hover:border-red-800"
+        >
+          {isPdfUrl(comprovativoUrl) ? (
+            <PdfThumbnail url={comprovativoUrl} cover className="h-full w-full" />
+          ) : (
+            <img src={comprovativoUrl} alt="Comprovativo" className="h-full w-full object-cover object-top" />
+          )}
+        </button>
+      ) : (
+        <p className="text-sm text-gray-400 dark:text-zinc-500">Sem comprovativo enviado.</p>
+      )}
+      {canAct && (
+        <div className="flex flex-col items-start gap-2">
           <button
-            key={`${url}-${i}`}
             type="button"
-            onClick={() => onOpen(url)}
-            className="block overflow-hidden rounded-lg border border-gray-200 transition-colors hover:border-red-300 dark:border-zinc-700 dark:hover:border-red-800"
+            disabled={updating}
+            onClick={onConfirm}
+            className="inline-flex items-center gap-1.5 rounded-lg bg-green-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-green-700 disabled:opacity-50"
           >
-            {isPdfUrl(url) ? (
-              <PdfThumbnail url={url} cover className="aspect-[4/3] w-full" />
-            ) : (
-              <img src={url} alt="Comprovativo" className="aspect-[4/3] w-full object-cover" />
-            )}
+            Confirmar
           </button>
-        ))}
-      </div>
+          <button
+            type="button"
+            disabled={updating}
+            onClick={onReject}
+            className="inline-flex items-center gap-1.5 rounded-lg bg-rose-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-rose-700 disabled:opacity-50"
+          >
+            Rejeitar
+          </button>
+        </div>
+      )}
     </div>
   )
 }
@@ -1061,10 +1080,12 @@ function RenewalPaymentsTable() {
                   <tr className="bg-gray-50 dark:bg-zinc-900/40">
                     <td colSpan={9} className="px-4 py-4">
                       <AnexoInline
-                        comprovativos={pedidos
-                          .filter((x) => x.user_id === p.user_id && x.comprovativo_url)
-                          .map((x) => x.comprovativo_url as string)}
-                        onOpen={(url) => setLightboxUrl(url)}
+                        comprovativoUrl={p.comprovativo_url}
+                        onOpen={() => setLightboxUrl(p.comprovativo_url)}
+                        canAct={p.status === 'pending'}
+                        updating={updatingId === p.id}
+                        onConfirm={() => respond(p.id, 'confirmed')}
+                        onReject={() => respond(p.id, 'rejected')}
                       />
                     </td>
                   </tr>
@@ -1274,10 +1295,12 @@ function CheckoutItemsByType({ types }: { types: string[] }) {
                   <tr className="bg-gray-50 dark:bg-zinc-900/40">
                     <td colSpan={9} className="px-4 py-4">
                       <AnexoInline
-                        comprovativos={pedidos
-                          .filter((x) => x.user_id === p.user_id && x.comprovativo_url)
-                          .map((x) => x.comprovativo_url as string)}
-                        onOpen={(url) => setLightboxUrl(url)}
+                        comprovativoUrl={p.comprovativo_url}
+                        onOpen={() => setLightboxUrl(p.comprovativo_url)}
+                        canAct={itemStatus === 'pending'}
+                        updating={updatingKey === key}
+                        onConfirm={() => respond(p.id, itemIndex, 'paid')}
+                        onReject={() => respond(p.id, itemIndex, 'failed')}
                       />
                     </td>
                   </tr>

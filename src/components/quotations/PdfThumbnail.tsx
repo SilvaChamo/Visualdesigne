@@ -98,7 +98,7 @@ export function PdfThumbnail(props: Props) {
             <span className="text-[9px] font-bold uppercase tracking-wide">PDF</span>
           </div>
         ) : (
-          <canvas ref={canvasRef} className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2" />
+          <canvas ref={canvasRef} className="absolute left-1/2 top-0 -translate-x-1/2" />
         )}
       </div>
     );
