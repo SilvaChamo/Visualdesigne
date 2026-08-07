@@ -134,9 +134,10 @@ function CheckoutContent() {
   // Dynadot exige no registo WHOIS do domínio.
   const [editingProfile, setEditingProfile] = useState(false);
   const [savingProfile, setSavingProfile] = useState(false);
-  const [profileEditForm, setProfileEditForm] = useState({ telefone: '', morada: '', cidade: '' });
+  const [profileEditForm, setProfileEditForm] = useState({ email: '', telefone: '', morada: '', cidade: '' });
   const startEditingProfile = () => {
     setProfileEditForm({
+      email: authUser?.email || '',
       telefone: profileExtra?.telefone || '',
       morada: profileExtra?.morada || '',
       cidade: profileExtra?.cidade || '',
@@ -147,6 +148,24 @@ function CheckoutContent() {
     if (!authUser) return;
     setSavingProfile(true);
     try {
+      const newEmail = profileEditForm.email.toLowerCase().trim();
+      // #22: o email identifica a conta no Auth — trocar isto tem de actualizar
+      // Auth e o perfil juntos (nunca só um), por isso passa por uma rota
+      // própria com service role em vez do update directo usado abaixo.
+      if (newEmail && newEmail !== (authUser.email || '').toLowerCase()) {
+        const res = await fetch('/api/account/update-email', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ newEmail }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok || !data.success) {
+          throw new Error(data.error || 'Erro ao trocar email.');
+        }
+        // Actualiza a sessão local para reflectir o novo email sem sair do checkout.
+        await supabase.auth.refreshSession();
+      }
+
       const { data: existing } = await supabase
         .from('profiles')
         .select('id')
@@ -554,6 +573,13 @@ function CheckoutContent() {
 
                     {editingProfile ? (
                       <div className="mt-3 space-y-2">
+                        <input
+                          type="email"
+                          value={profileEditForm.email}
+                          onChange={(e) => setProfileEditForm((f) => ({ ...f, email: e.target.value }))}
+                          placeholder="Email"
+                          className="w-full text-xs border border-slate-200 dark:border-zinc-800 dark:bg-zinc-950 rounded px-2.5 py-1.5"
+                        />
                         <input
                           value={profileEditForm.telefone}
                           onChange={(e) => setProfileEditForm((f) => ({ ...f, telefone: e.target.value }))}
