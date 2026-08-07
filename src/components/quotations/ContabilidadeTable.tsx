@@ -270,14 +270,14 @@ function ResellerCreditsTable() {
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
-            <tr className="border-b border-gray-200 text-xs font-bold uppercase tracking-wide text-gray-500 dark:border-zinc-700 dark:text-zinc-400">
-              <th className="px-4 py-2 text-left whitespace-nowrap">Data</th>
-              <th className="px-4 py-2 text-left">Revendedor</th>
-              <th className="px-4 py-2 text-right whitespace-nowrap">Valor</th>
-              <th className="px-4 py-2 text-left whitespace-nowrap">Método</th>
-              <th className="px-4 py-2 text-left whitespace-nowrap">Comprovativo</th>
-              <th className="px-4 py-2 text-right whitespace-nowrap">Estado</th>
-              <th className="px-4 py-2 text-right whitespace-nowrap"> </th>
+            <tr className="border-b border-gray-200 bg-gray-50 text-xs font-bold uppercase tracking-wide text-gray-500 dark:border-zinc-700 dark:bg-zinc-900/50 dark:text-zinc-400">
+              <th className="px-4 py-2 align-middle text-left">Item</th>
+              <th className="px-4 py-2 align-middle text-right whitespace-nowrap">Valor</th>
+              <th className="px-4 py-2 align-middle text-left whitespace-nowrap">Método</th>
+              <th className="px-4 py-2 align-middle text-left">Cliente</th>
+              <th className="px-4 py-2 align-middle text-left whitespace-nowrap">Anexo</th>
+              <th className="px-4 py-2 align-middle text-right whitespace-nowrap">Estado</th>
+              <th className="px-4 py-2 align-middle text-right whitespace-nowrap">Aceitação</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100 dark:divide-zinc-800">
@@ -285,17 +285,18 @@ function ResellerCreditsTable() {
               const meta = CREDITO_STATUS_META[p.status]
               return (
                 <tr key={p.id} className="hover:bg-gray-50 dark:hover:bg-zinc-800/30">
-                  <td className="whitespace-nowrap px-4 py-2.5 text-gray-500 dark:text-zinc-400">
-                    {new Date(p.created_at).toLocaleDateString('pt-PT')}
-                  </td>
-                  <td className="max-w-[12rem] truncate px-4 py-2.5 font-medium text-gray-900 dark:text-white">
-                    {p.da_username}{p.email ? <span className="text-gray-400 dark:text-zinc-500"> · {p.email}</span> : null}
+                  <td className="px-4 py-2.5 font-medium text-gray-900 dark:text-white">
+                    Carregamento de Saldo
+                    <span className="block text-xs font-normal text-gray-400 dark:text-zinc-500">{new Date(p.created_at).toLocaleDateString('pt-PT')}</span>
                   </td>
                   <td className="whitespace-nowrap px-4 py-2.5 text-right font-bold tabular-nums text-gray-900 dark:text-white">
                     {formatMt(p.valor_mt)} MT
                   </td>
                   <td className="whitespace-nowrap px-4 py-2.5 text-gray-500 dark:text-zinc-400">
                     {METODO_LABEL[p.metodo_pagamento] || p.metodo_pagamento}
+                  </td>
+                  <td className="max-w-[12rem] truncate px-4 py-2.5 text-gray-500 dark:text-zinc-400">
+                    {p.da_username}{p.email ? <span className="text-gray-400 dark:text-zinc-500"> · {p.email}</span> : null}
                   </td>
                   <td className="whitespace-nowrap px-4 py-2.5">
                     {p.comprovativo_url ? (
@@ -367,7 +368,7 @@ function InfoLine({ label, value }: { label: string; value: string }) {
 
 function ClienteInfoInline({ cliente }: { cliente: Cliente | null }) {
   return (
-    <div className="grid grid-cols-1 gap-x-[40px] gap-y-2 sm:grid-cols-2">
+    <div className="grid grid-cols-1 gap-x-5 gap-y-2 sm:grid-cols-2">
       <div className="space-y-1">
         <p className="mb-1 text-[11px] font-bold uppercase tracking-wide text-gray-400 dark:text-zinc-500">Dados da Empresa</p>
         <InfoLine label="Empresa" value="VisualDesign" />
@@ -413,12 +414,12 @@ function BalancoTable({ meses, registos }: { meses: MonthRow[]; registos: Regist
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
-            <tr className="border-b border-gray-200 text-xs font-bold uppercase tracking-wide text-gray-500 dark:border-zinc-700 dark:text-zinc-400">
-              <th className="px-4 py-2 text-left whitespace-nowrap">Mês</th>
-              <th className="px-4 py-2 text-right whitespace-nowrap">Valor total</th>
-              <th className="px-4 py-2 text-right whitespace-nowrap">Custo de produção</th>
-              <th className="px-4 py-2 text-right whitespace-nowrap">IVA (16%)</th>
-              <th className="px-4 py-2 text-right whitespace-nowrap">Lucro</th>
+            <tr className="border-b border-gray-200 bg-gray-50 text-xs font-bold uppercase tracking-wide text-gray-500 dark:border-zinc-700 dark:bg-zinc-900/50 dark:text-zinc-400">
+              <th className="px-4 py-2 align-middle text-left whitespace-nowrap">Mês</th>
+              <th className="px-4 py-2 align-middle text-right whitespace-nowrap">Valor total</th>
+              <th className="px-4 py-2 align-middle text-right whitespace-nowrap">Custo de produção</th>
+              <th className="px-4 py-2 align-middle text-right whitespace-nowrap">IVA (16%)</th>
+              <th className="px-4 py-2 align-middle text-right whitespace-nowrap">Lucro</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100 dark:divide-zinc-800">
@@ -566,12 +567,12 @@ function FechoAnualCard({
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-gray-200 text-xs font-bold uppercase tracking-wide text-gray-500 dark:border-zinc-700 dark:text-zinc-400">
-                  <th className="px-4 py-2 text-left whitespace-nowrap">Ano / Mês</th>
-                  <th className="px-4 py-2 text-right whitespace-nowrap">Receita</th>
-                  <th className="px-4 py-2 text-right whitespace-nowrap">Custo de produção</th>
-                  <th className="px-4 py-2 text-right whitespace-nowrap">IVA (16%)</th>
-                  <th className="px-4 py-2 text-right whitespace-nowrap">Lucro</th>
+                <tr className="border-b border-gray-200 bg-gray-50 text-xs font-bold uppercase tracking-wide text-gray-500 dark:border-zinc-700 dark:bg-zinc-900/50 dark:text-zinc-400">
+                  <th className="px-4 py-2 align-middle text-left whitespace-nowrap">Ano / Mês</th>
+                  <th className="px-4 py-2 align-middle text-right whitespace-nowrap">Receita</th>
+                  <th className="px-4 py-2 align-middle text-right whitespace-nowrap">Custo de produção</th>
+                  <th className="px-4 py-2 align-middle text-right whitespace-nowrap">IVA (16%)</th>
+                  <th className="px-4 py-2 align-middle text-right whitespace-nowrap">Lucro</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100 dark:divide-zinc-800">
@@ -697,15 +698,15 @@ function RegistosTable({ registos, variant }: { registos: RegistoRow[]; variant:
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-gray-200 text-xs font-bold uppercase tracking-wide text-gray-500 dark:border-zinc-700 dark:text-zinc-400">
-                <th className="px-4 py-2 text-right whitespace-nowrap">#</th>
-                <th className="px-4 py-2 text-left whitespace-nowrap">Factura Nº</th>
-                <th className="px-4 py-2 text-left whitespace-nowrap">Fase</th>
-                <th className="px-4 py-2 text-left">Empresa</th>
-                <th className="px-4 py-2 text-left">Resumo</th>
-                <th className="px-4 py-2 text-right whitespace-nowrap">Data</th>
-                <th className="px-4 py-2 text-right whitespace-nowrap">Valor</th>
-                <th className="px-4 py-2 text-right whitespace-nowrap"> </th>
+              <tr className="border-b border-gray-200 bg-gray-50 text-xs font-bold uppercase tracking-wide text-gray-500 dark:border-zinc-700 dark:bg-zinc-900/50 dark:text-zinc-400">
+                <th className="px-4 py-2 align-middle text-right whitespace-nowrap">#</th>
+                <th className="px-4 py-2 align-middle text-left whitespace-nowrap">Factura Nº</th>
+                <th className="px-4 py-2 align-middle text-left whitespace-nowrap">Fase</th>
+                <th className="px-4 py-2 align-middle text-left">Empresa</th>
+                <th className="px-4 py-2 align-middle text-left">Resumo</th>
+                <th className="px-4 py-2 align-middle text-right whitespace-nowrap">Data</th>
+                <th className="px-4 py-2 align-middle text-right whitespace-nowrap">Valor</th>
+                <th className="px-4 py-2 align-middle text-right whitespace-nowrap"> </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100 dark:divide-zinc-800">
@@ -751,14 +752,14 @@ function RegistosTable({ registos, variant }: { registos: RegistoRow[]; variant:
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
-            <tr className="border-b border-gray-200 text-xs font-bold uppercase tracking-wide text-gray-500 dark:border-zinc-700 dark:text-zinc-400">
-              <th className="px-4 py-2 text-right whitespace-nowrap">#</th>
-              <th className="px-4 py-2 text-left whitespace-nowrap">Cotação Nº</th>
-              <th className="px-4 py-2 text-left">Empresa</th>
-              <th className="px-4 py-2 text-left">Resumo</th>
-              <th className="px-4 py-2 text-right whitespace-nowrap">Data</th>
-              <th className="px-4 py-2 text-right whitespace-nowrap">Valor</th>
-              <th className="px-4 py-2 text-right whitespace-nowrap"> </th>
+            <tr className="border-b border-gray-200 bg-gray-50 text-xs font-bold uppercase tracking-wide text-gray-500 dark:border-zinc-700 dark:bg-zinc-900/50 dark:text-zinc-400">
+              <th className="px-4 py-2 align-middle text-right whitespace-nowrap">#</th>
+              <th className="px-4 py-2 align-middle text-left whitespace-nowrap">Cotação Nº</th>
+              <th className="px-4 py-2 align-middle text-left">Empresa</th>
+              <th className="px-4 py-2 align-middle text-left">Resumo</th>
+              <th className="px-4 py-2 align-middle text-right whitespace-nowrap">Data</th>
+              <th className="px-4 py-2 align-middle text-right whitespace-nowrap">Valor</th>
+              <th className="px-4 py-2 align-middle text-right whitespace-nowrap"> </th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100 dark:divide-zinc-800">
@@ -821,13 +822,13 @@ function EliminadasTable({ registos, onChanged }: { registos: RegistoRow[]; onCh
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
-            <tr className="border-b border-gray-200 text-xs font-bold uppercase tracking-wide text-gray-500 dark:border-zinc-700 dark:text-zinc-400">
-              <th className="px-4 py-2 text-left whitespace-nowrap">Nº</th>
-              <th className="px-4 py-2 text-left">Empresa</th>
-              <th className="px-4 py-2 text-left">Resumo</th>
-              <th className="px-4 py-2 text-right whitespace-nowrap">Valor</th>
-              <th className="px-4 py-2 text-right whitespace-nowrap">Eliminada em</th>
-              <th className="px-4 py-2 text-right whitespace-nowrap"> </th>
+            <tr className="border-b border-gray-200 bg-gray-50 text-xs font-bold uppercase tracking-wide text-gray-500 dark:border-zinc-700 dark:bg-zinc-900/50 dark:text-zinc-400">
+              <th className="px-4 py-2 align-middle text-left whitespace-nowrap">Nº</th>
+              <th className="px-4 py-2 align-middle text-left">Empresa</th>
+              <th className="px-4 py-2 align-middle text-left">Resumo</th>
+              <th className="px-4 py-2 align-middle text-right whitespace-nowrap">Valor</th>
+              <th className="px-4 py-2 align-middle text-right whitespace-nowrap">Eliminada em</th>
+              <th className="px-4 py-2 align-middle text-right whitespace-nowrap"> </th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100 dark:divide-zinc-800">
@@ -938,17 +939,14 @@ function RenewalPaymentsTable() {
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
-            <tr className="border-b border-gray-200 text-xs font-bold uppercase tracking-wide text-gray-500 dark:border-zinc-700 dark:text-zinc-400">
-              <th className="w-8 px-2 py-2"> </th>
-              <th className="px-4 py-2 text-left whitespace-nowrap">Data</th>
-              <th className="px-4 py-2 text-left">Cliente</th>
-              <th className="px-4 py-2 text-left">Serviço</th>
-              <th className="px-4 py-2 text-left whitespace-nowrap">Tipo</th>
-              <th className="px-4 py-2 text-right whitespace-nowrap">Valor</th>
-              <th className="px-4 py-2 text-left whitespace-nowrap">Método</th>
-              <th className="px-4 py-2 text-left whitespace-nowrap">Comprovativo</th>
-              <th className="px-4 py-2 text-right whitespace-nowrap">Estado</th>
-              <th className="px-4 py-2 text-right whitespace-nowrap"> </th>
+            <tr className="border-b border-gray-200 bg-gray-50 text-xs font-bold uppercase tracking-wide text-gray-500 dark:border-zinc-700 dark:bg-zinc-900/50 dark:text-zinc-400">
+              <th className="px-4 py-2 align-middle text-left">Item</th>
+              <th className="px-4 py-2 align-middle text-right whitespace-nowrap">Valor</th>
+              <th className="px-4 py-2 align-middle text-left whitespace-nowrap">Método</th>
+              <th className="px-4 py-2 align-middle text-left">Cliente</th>
+              <th className="px-4 py-2 align-middle text-left whitespace-nowrap">Anexo</th>
+              <th className="px-4 py-2 align-middle text-right whitespace-nowrap">Estado</th>
+              <th className="px-4 py-2 align-middle text-right whitespace-nowrap">Aceitação</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100 dark:divide-zinc-800">
@@ -958,31 +956,32 @@ function RenewalPaymentsTable() {
               return (
                 <Fragment key={p.id}>
                 <tr className="hover:bg-gray-50 dark:hover:bg-zinc-800/30">
-                  <td className="px-2 py-2.5">
-                    <button
-                      type="button"
-                      onClick={() => setExpandedId(isExpanded ? null : p.id)}
-                      className="text-gray-400 hover:text-gray-700 dark:text-zinc-500 dark:hover:text-zinc-200"
-                      title="Ver dados da empresa"
-                    >
-                      {isExpanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
-                    </button>
-                  </td>
-                  <td className="whitespace-nowrap px-4 py-2.5 text-gray-500 dark:text-zinc-400">
-                    {new Date(p.created_at).toLocaleDateString('pt-PT')}
-                  </td>
-                  <td className="max-w-[12rem] truncate px-4 py-2.5 text-gray-500 dark:text-zinc-400">
-                    {p.cliente?.nome || p.cliente?.empresa || p.cliente?.email || '—'}
-                  </td>
-                  <td className="max-w-[12rem] truncate px-4 py-2.5 font-medium text-gray-900 dark:text-white">{p.service_name}</td>
-                  <td className="whitespace-nowrap px-4 py-2.5 text-gray-500 dark:text-zinc-400">
-                    {p.renewal_type === 'domain' ? 'Domínio' : 'Hospedagem'}
+                  <td className="max-w-[16rem] px-4 py-2.5 font-medium text-gray-900 dark:text-white">
+                    <div className="flex items-start gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => setExpandedId(isExpanded ? null : p.id)}
+                        className="mt-0.5 shrink-0 text-gray-400 hover:text-gray-700 dark:text-zinc-500 dark:hover:text-zinc-200"
+                        title="Ver dados da empresa"
+                      >
+                        {isExpanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+                      </button>
+                      <div className="min-w-0 truncate">
+                        {p.service_name}
+                        <span className="block text-xs font-normal text-gray-400 dark:text-zinc-500">
+                          {p.renewal_type === 'domain' ? 'Domínio' : 'Hospedagem'} · {new Date(p.created_at).toLocaleDateString('pt-PT')}
+                        </span>
+                      </div>
+                    </div>
                   </td>
                   <td className="whitespace-nowrap px-4 py-2.5 text-right font-bold tabular-nums text-gray-900 dark:text-white">
                     {formatMt(p.valor_mt)} MT
                   </td>
                   <td className="whitespace-nowrap px-4 py-2.5 text-gray-500 dark:text-zinc-400">
                     {METODO_LABEL[p.metodo_pagamento] || p.metodo_pagamento}
+                  </td>
+                  <td className="max-w-[12rem] truncate px-4 py-2.5 text-gray-500 dark:text-zinc-400">
+                    {p.cliente?.nome || p.cliente?.empresa || p.cliente?.email || '—'}
                   </td>
                   <td className="whitespace-nowrap px-4 py-2.5">
                     {p.comprovativo_url ? (
@@ -1028,7 +1027,7 @@ function RenewalPaymentsTable() {
                 </tr>
                 {isExpanded && (
                   <tr className="bg-gray-50 dark:bg-zinc-900/40">
-                    <td colSpan={9} className="px-4 py-4">
+                    <td colSpan={7} className="px-4 py-4">
                       <ClienteInfoInline cliente={p.cliente} />
                     </td>
                   </tr>
@@ -1142,16 +1141,14 @@ function CheckoutItemsByType({ types }: { types: string[] }) {
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
-            <tr className="border-b border-gray-200 text-xs font-bold uppercase tracking-wide text-gray-500 dark:border-zinc-700 dark:text-zinc-400">
-              <th className="w-8 px-2 py-2"> </th>
-              <th className="px-4 py-2 text-left whitespace-nowrap">Data</th>
-              <th className="px-4 py-2 text-left">Cliente</th>
-              <th className="px-4 py-2 text-left">Item</th>
-              <th className="px-4 py-2 text-right whitespace-nowrap">Valor</th>
-              <th className="px-4 py-2 text-left whitespace-nowrap">Método</th>
-              <th className="px-4 py-2 text-left whitespace-nowrap">Comprovativo</th>
-              <th className="px-4 py-2 text-right whitespace-nowrap">Estado</th>
-              <th className="px-4 py-2 text-right whitespace-nowrap"> </th>
+            <tr className="border-b border-gray-200 bg-gray-50 text-xs font-bold uppercase tracking-wide text-gray-500 dark:border-zinc-700 dark:bg-zinc-900/50 dark:text-zinc-400">
+              <th className="px-4 py-2 align-middle text-left">Item</th>
+              <th className="px-4 py-2 align-middle text-right whitespace-nowrap">Valor</th>
+              <th className="px-4 py-2 align-middle text-left whitespace-nowrap">Método</th>
+              <th className="px-4 py-2 align-middle text-left">Cliente</th>
+              <th className="px-4 py-2 align-middle text-left whitespace-nowrap">Anexo</th>
+              <th className="px-4 py-2 align-middle text-right whitespace-nowrap">Estado</th>
+              <th className="px-4 py-2 align-middle text-right whitespace-nowrap">Aceitação</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100 dark:divide-zinc-800">
@@ -1164,33 +1161,35 @@ function CheckoutItemsByType({ types }: { types: string[] }) {
               return (
                 <Fragment key={key}>
                 <tr className="hover:bg-gray-50 dark:hover:bg-zinc-800/30">
-                  <td className="px-2 py-2.5">
-                    <button
-                      type="button"
-                      onClick={() => setExpandedKey(isExpanded ? null : key)}
-                      className="text-gray-400 hover:text-gray-700 dark:text-zinc-500 dark:hover:text-zinc-200"
-                      title="Ver dados da empresa"
-                    >
-                      {isExpanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
-                    </button>
-                  </td>
-                  <td className="whitespace-nowrap px-4 py-2.5 text-gray-500 dark:text-zinc-400">
-                    {new Date(p.created_at).toLocaleDateString('pt-PT')}
-                  </td>
-                  <td className="max-w-[12rem] truncate px-4 py-2.5 text-gray-500 dark:text-zinc-400">
-                    {p.cliente?.nome || p.cliente?.empresa || p.user_email || '—'}
-                  </td>
-                  <td className="max-w-[16rem] truncate px-4 py-2.5 font-medium text-gray-900 dark:text-white">
-                    {item.name}
-                    {outrosItens.length > 0 && (
-                      <span className="text-gray-400 dark:text-zinc-500"> (+ {outrosItens.join(', ')})</span>
-                    )}
+                  <td className="max-w-[16rem] px-4 py-2.5 font-medium text-gray-900 dark:text-white">
+                    <div className="flex items-start gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => setExpandedKey(isExpanded ? null : key)}
+                        className="mt-0.5 shrink-0 text-gray-400 hover:text-gray-700 dark:text-zinc-500 dark:hover:text-zinc-200"
+                        title="Ver dados da empresa"
+                      >
+                        {isExpanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+                      </button>
+                      <div className="min-w-0 truncate">
+                        {item.name}
+                        {outrosItens.length > 0 && (
+                          <span className="text-gray-400 dark:text-zinc-500"> (+ {outrosItens.join(', ')})</span>
+                        )}
+                        <span className="block text-xs font-normal text-gray-400 dark:text-zinc-500">
+                          {new Date(p.created_at).toLocaleDateString('pt-PT')}
+                        </span>
+                      </div>
+                    </div>
                   </td>
                   <td className="whitespace-nowrap px-4 py-2.5 text-right font-bold tabular-nums text-gray-900 dark:text-white">
                     {formatMt(p.total_mt)} MT
                   </td>
                   <td className="whitespace-nowrap px-4 py-2.5 text-gray-500 dark:text-zinc-400">
                     {METODO_LABEL[p.metodo_pagamento] || p.metodo_pagamento}
+                  </td>
+                  <td className="max-w-[12rem] truncate px-4 py-2.5 text-gray-500 dark:text-zinc-400">
+                    {p.cliente?.nome || p.cliente?.empresa || p.user_email || '—'}
                   </td>
                   <td className="whitespace-nowrap px-4 py-2.5">
                     {p.comprovativo_url ? (
@@ -1236,7 +1235,7 @@ function CheckoutItemsByType({ types }: { types: string[] }) {
                 </tr>
                 {isExpanded && (
                   <tr className="bg-gray-50 dark:bg-zinc-900/40">
-                    <td colSpan={9} className="px-4 py-4">
+                    <td colSpan={7} className="px-4 py-4">
                       <ClienteInfoInline cliente={p.cliente} />
                     </td>
                   </tr>
