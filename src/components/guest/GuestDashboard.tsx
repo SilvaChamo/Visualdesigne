@@ -67,11 +67,11 @@ export function GuestDashboard({ userEmail, userName, onSignOut }: Props) {
       return;
     }
     if (action === 'shop-hosting') {
-      window.location.href = '/servicos/hospedagem';
+      window.location.href = '/precos/hospedagem';
       return;
     }
     if (action === 'shop-email') {
-      window.location.href = '/servicos/email';
+      window.location.href = '/precos/email';
       return;
     }
     setIsCartOpen(true);
