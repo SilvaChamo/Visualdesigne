@@ -42,6 +42,20 @@ export async function POST(request: NextRequest) {
 
     const totalMt = resolved.reduce((sum, r) => sum + r.priceMt, 0);
 
+    // #26: a conversão MT->USD usada para cobrar é uma taxa própria, separada
+    // da que forma os preços de venda a partir do custo da Dynadot -- por
+    // construção não deviam poder divergir, mas isto é a rede de segurança:
+    // nunca cobrar em dólar menos do que o custo real dos domínios no carrinho.
+    const minCostUsd = resolved.reduce((sum, r) => sum + (r.costUsd || 0), 0);
+    const chargeUsd = resolved.reduce((sum, r) => sum + mznToUsdCents(r.priceMt) / 100, 0);
+    if (minCostUsd > 0 && chargeUsd < minCostUsd) {
+      console.error('[checkout/create-session] cobrança em USD abaixo do custo:', { chargeUsd, minCostUsd, totalMt });
+      return NextResponse.json(
+        { error: 'Não foi possível calcular o pagamento em dólares para este carrinho. Tente pagar em Meticais ou contacte o suporte.' },
+        { status: 400 },
+      );
+    }
+
     const admin = getSupabaseAdmin();
     if (!admin) {
       console.error('[checkout/create-session] Supabase service role não configurado.');

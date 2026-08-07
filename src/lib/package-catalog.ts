@@ -35,6 +35,9 @@ const HOSTING_CYCLE_MONTHS: Record<HostingBillingCycle, number> = { monthly: 1, 
 export type ResolvedCartItem = {
   item: CatalogCartItem;
   priceMt: number;
+  /** #26: custo real em USD (tabela de revenda da Dynadot) — só definido
+   * para domínios, é o piso que a cobrança em dólar nunca pode furar. */
+  costUsd?: number;
 };
 
 export type CatalogResolution = {
@@ -66,7 +69,8 @@ export async function resolveCartItems(items: CatalogCartItem[]): Promise<Catalo
       const priceMt = item.authCode
         ? domainTransferPriceMt(tld, years)
         : domainRegistrationPriceMt(tld, years);
-      resolved.push({ item, priceMt });
+      const costUsd = (item.authCode ? tld.transfer : tld.price) * years;
+      resolved.push({ item, priceMt, costUsd });
       continue;
     }
 
