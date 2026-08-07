@@ -2,6 +2,7 @@
 
 import { Download, ExternalLink, X } from 'lucide-react';
 import type { ReactNode } from 'react';
+import { PdfThumbnail } from './PdfThumbnail';
 
 /** #28: URLs assinadas trazem query string (token) depois do nome do ficheiro. */
 export function isPdfUrl(url: string): boolean {
@@ -38,12 +39,12 @@ export function ImageLightbox({
         <X className="w-7 h-7" />
       </button>
       {isPdf ? (
-        <iframe
-          src={url}
-          title="Comprovativo (PDF)"
-          className="h-[80vh] w-full max-w-3xl rounded-lg bg-white"
+        <div
+          className="max-h-[80vh] w-full max-w-2xl overflow-y-auto rounded-lg bg-white p-2"
           onClick={(e) => e.stopPropagation()}
-        />
+        >
+          <PdfThumbnail url={url} targetWidth={600} className="mx-auto" />
+        </div>
       ) : (
         <img
           src={url}
