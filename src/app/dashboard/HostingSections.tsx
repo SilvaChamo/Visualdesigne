@@ -7614,6 +7614,9 @@ export function PackagesSection({
   // genéricos por baixo: o selector "mentia" sobre o que estava realmente
   // preenchido.
   const [packageFormKey, setPackageFormKey] = useState(0)
+  // true assim que o utilizador mexe no formulário — impede que a resposta
+  // assíncrona de getPackageForm (em openEditPackage) substitua o que já escreveu.
+  const packageFormTouchedRef = useRef(false)
   const [savingPackage, setSavingPackage] = useState(false)
   const [mostrarAdicionarConta, setMostrarAdicionarConta] = useState(false)
   const [modalAdicionarPasso, setModalAdicionarPasso] = useState<'escolher' | 'webmail' | 'google' | 'hotmail'>('escolher')
@@ -7709,7 +7712,9 @@ export function PackagesSection({
   }, [packages, livePackages, packageScope])
   const formatPackageMetric = (value: unknown, defaultUnit?: string) => {
     const raw = String(value ?? '').trim()
-    if (!raw || raw === '-' || raw.toLowerCase() === 'unlimited') return raw || '-'
+    if (!raw || raw === '-') return raw || '-'
+    // -1 é a convenção do DirectAdmin/painel para "ilimitado" (ver parseLimitNumber em panel-brand-packages.ts).
+    if (raw === '-1' || raw.toLowerCase() === 'unlimited') return 'Ilimitado'
     // Se já vem com unidade do servidor (ex: 1G, 500M), não acrescentar MB.
     if (/[a-z]/i.test(raw)) return raw
     const asNumber = Number(raw)
@@ -7766,13 +7771,7 @@ export function PackagesSection({
       setMsg('Erro: define nome e domínio do pacote.')
       return
     }
-    const formSnapshot = { ...packageForm }
-    const editingSnapshot = editingPackageName
-    const previousPackages = [...displayPackages]
-    const optimisticRow = packageRowFromForm(packageForm, name)
-    upsertLivePackage(optimisticRow)
-    closePackageForm()
-    setMsg(isEdit ? 'Pacote actualizado.' : 'Pacote criado.')
+    setMsg('')
     setSavingPackage(true)
     try {
       const res = await fetch('/api/server-exec', {
@@ -7796,28 +7795,22 @@ export function PackagesSection({
       }>(res)
       const synced = data.success && data.serverSynced !== false
       if (!synced) {
-        setLivePackages(previousPackages as any[])
-        writePackagesCache(previousPackages as any[], panelScope)
-        setPackageForm(formSnapshot)
-        setEditingPackageName(editingSnapshot)
-        setShowPackageForm(true)
+        // Mantém o formulário aberto com o que o utilizador escreveu — nada foi confirmado pelo servidor.
         setMsg(
           'Erro: ' +
           (data.error ||
             data.data?.error ||
             (isEdit ? 'Falha ao actualizar pacote' : 'Falha ao criar pacote')),
         )
-      } else if (data.warning) {
-        setMsg(`Aviso: ${data.warning}`)
+      } else {
+        // Só actualiza a lista e fecha o formulário depois de o servidor confirmar.
+        upsertLivePackage(packageRowFromForm(packageForm, name))
+        closePackageForm()
+        setMsg(data.warning ? `Aviso: ${data.warning}` : isEdit ? 'Pacote actualizado.' : 'Pacote criado.')
       }
       void onRefresh()
       void loadLivePackages({ background: true })
     } catch (e: any) {
-      setLivePackages(previousPackages as any[])
-      writePackagesCache(previousPackages as any[], panelScope)
-      setPackageForm(formSnapshot)
-      setEditingPackageName(editingSnapshot)
-      setShowPackageForm(true)
       setMsg('Erro: ' + e.message)
     } finally {
       setSavingPackage(false)
@@ -7828,6 +7821,7 @@ export function PackagesSection({
     const name = String(pkg.packageName || pkg.name || '').trim()
     if (!name) return
     const initialForm = normalizeFormForEditor(packageListRowToForm(pkg, name), name)
+    packageFormTouchedRef.current = false
     setPackageForm(initialForm)
     setEditingPackageName(name)
     setPackageFormKey((k) => k + 1)
@@ -7845,7 +7839,8 @@ export function PackagesSection({
           }),
         })
         const data = await parseJsonResponse<{ success?: boolean; data?: ResellerPackageFormState }>(res)
-        if (data.success && data.data && typeof data.data === 'object') {
+        // Se o utilizador já mexeu no formulário entretanto, não pisar o que escreveu.
+        if (data.success && data.data && typeof data.data === 'object' && !packageFormTouchedRef.current) {
           setPackageForm(normalizeFormForEditor(data.data as ResellerPackageFormState, name))
         }
       } catch {
@@ -7933,7 +7928,10 @@ export function PackagesSection({
         <HostingPackageFormInline
           key={`${editingPackageName ?? 'new'}-${packageFormKey}`}
           form={packageForm}
-          onChange={setPackageForm}
+          onChange={(next) => {
+            packageFormTouchedRef.current = true
+            setPackageForm(next)
+          }}
           onCancel={closePackageForm}
           onSubmit={() => void handleSavePackage()}
           busy={savingPackage}
@@ -7964,7 +7962,7 @@ export function PackagesSection({
                     </div>
                     <div className="col-span-12 self-center sm:col-span-7">
                       <p className="text-xs text-gray-600 dark:text-zinc-400">
-                        Disco {formatPackageMetric(pkg.diskSpace ?? pkg.disk ?? '-', 'MB')} · Banda {formatPackageMetric(pkg.bandwidth ?? '-', 'MB')} · Emails {pkg.emailAccounts ?? pkg.emails ?? '-'} · BDs {pkg.dataBases ?? pkg.databases ?? '-'} · FTPs {pkg.ftpAccounts ?? pkg.ftp ?? '-'} · Sites {pkg.allowedDomains ?? pkg.vdomains ?? '-'}
+                        Disco {formatPackageMetric(pkg.diskSpace ?? pkg.disk ?? '-', 'MB')} · Banda {formatPackageMetric(pkg.bandwidth ?? '-', 'MB')} · Emails {formatPackageMetric(pkg.emailAccounts ?? pkg.emails ?? '-')} · BDs {formatPackageMetric(pkg.dataBases ?? pkg.databases ?? '-')} · FTPs {formatPackageMetric(pkg.ftpAccounts ?? pkg.ftp ?? '-')} · Sites {formatPackageMetric(pkg.allowedDomains ?? pkg.vdomains ?? '-')}
                       </p>
                     </div>
                     <div className="col-span-12 flex shrink-0 items-center justify-end gap-2 sm:col-span-2">

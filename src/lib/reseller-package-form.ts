@@ -625,13 +625,14 @@ function parseDaLimit(
   fallback: { value: string; unlimited: boolean },
 ): { value: string; unlimited: boolean } {
   const val = String(raw[key] ?? '').trim();
-  if (key === 'bandwidth' && (val === 'unlimited' || raw.ubandwidth === 'ON')) {
+  if (key === 'bandwidth' && (val === 'unlimited' || val === '-1' || raw.ubandwidth === 'ON')) {
     return { value: '', unlimited: true };
   }
-  if (key === 'quota' && (val === 'unlimited' || raw.uquota === 'ON')) {
+  if (key === 'quota' && (val === 'unlimited' || val === '-1' || raw.uquota === 'ON')) {
     return { value: '', unlimited: true };
   }
-  if (val === 'unlimited') return { value: '', unlimited: true };
+  // -1 é a convenção do DirectAdmin para "ilimitado" nos restantes campos (ex: nemails, ftp, vdomains).
+  if (val === 'unlimited' || val === '-1') return { value: '', unlimited: true };
   if (val) return { value: val, unlimited: false };
   return fallback;
 }
