@@ -114,6 +114,11 @@ function CheckoutContent() {
     pais: 'Mozambique'
   });
   const [showPassword, setShowPassword] = useState(false);
+  // Reserva: se por alguma razão o domínio específico da hospedagem (no resumo
+  // da compra) não ficar preenchido, isto evita bloquear o checkout — aplica-se
+  // a qualquer item de hospedagem que ainda não tenha domínio.
+  const [fallbackDomainChoice, setFallbackDomainChoice] = useState('');
+  const [fallbackDomainManual, setFallbackDomainManual] = useState('');
 
   // Morada/telefone do perfil (WHOIS) — para o card "Faturado Para" de quem já
   // tem conta; não vem no user_metadata, só na tabela profiles.
@@ -233,9 +238,30 @@ function CheckoutContent() {
     setIsSubmitting(true);
     setErrorMessage('');
 
+    // Reserva: se algum item de hospedagem ainda não tiver domínio, usa o
+    // domínio de reserva em vez de bloquear — evita perder a compra por causa
+    // de um campo que ficou vazio no resumo por engano. Aplica-se ao pedido
+    // que vai mesmo para o servidor (não basta actualizar o carrinho, que só
+    // reflectiria na próxima renderização).
+    const fallbackDomain =
+      fallbackDomainChoice === '__manual__' ? fallbackDomainManual : fallbackDomainChoice;
+    const fallbackDomainValid = Boolean(fallbackDomain) && HOSTING_DOMAIN_REGEX.test(fallbackDomain);
+    const submitItems = items.map((item) =>
+      item.type === 'hosting' && !HOSTING_DOMAIN_REGEX.test(item.hostingDomain || '') && fallbackDomainValid
+        ? { ...item, hostingDomain: fallbackDomain }
+        : item,
+    );
+    if (fallbackDomainValid) {
+      for (const item of items) {
+        if (item.type === 'hosting' && !HOSTING_DOMAIN_REGEX.test(item.hostingDomain || '')) {
+          updateItemHostingDomain(item.id, fallbackDomain);
+        }
+      }
+    }
+
     // #6: sem um domínio válido, a hospedagem fica presa em "a provisionar"
     // para sempre — bloquear aqui em vez de deixar chegar ao servidor.
-    const hostingWithoutDomain = items.find(
+    const hostingWithoutDomain = submitItems.find(
       (item) => item.type === 'hosting' && !HOSTING_DOMAIN_REGEX.test(item.hostingDomain || ''),
     );
     if (hostingWithoutDomain) {
@@ -320,7 +346,7 @@ function CheckoutContent() {
         const res = await fetch('/api/checkout/saldo-session', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ items }),
+          body: JSON.stringify({ items: submitItems }),
         });
         const data = await res.json();
         if (!res.ok || !data.success) {
@@ -336,7 +362,7 @@ function CheckoutContent() {
         const res = await fetch('/api/checkout/create-session', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ items }),
+          body: JSON.stringify({ items: submitItems }),
         });
         const data = await res.json();
         if (!res.ok || !data.success || !data.url) {
@@ -353,7 +379,7 @@ function CheckoutContent() {
       const res = await fetch('/api/checkout/manual-session', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ items, metodoPagamento }),
+        body: JSON.stringify({ items: submitItems, metodoPagamento }),
       });
       const data = await res.json();
       if (!res.ok || !data.success) {
@@ -364,7 +390,7 @@ function CheckoutContent() {
         status: 'pending',
         comprovativo_url: null,
         created_at: data.session.created_at,
-        items: data.session.items || items,
+        items: data.session.items || submitItems,
       });
       clearCart();
       setStatus('idle');
@@ -673,10 +699,10 @@ function CheckoutContent() {
                         </p>
                       </div>
 
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-8">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-x-[30px] gap-y-8">
                         {/* Dados da pessoa responsável */}
                         <div className="space-y-4">
-                          <h3 className="text-xs font-bold uppercase tracking-wide text-slate-400 dark:text-zinc-500 pb-3 border-b border-slate-100 dark:border-zinc-800">
+                          <h3 className="flex items-center h-9 px-3 rounded-md bg-slate-100 dark:bg-zinc-950 text-xs font-bold uppercase tracking-wide text-slate-400 dark:text-zinc-500">
                             Dados da Pessoa Responsável
                           </h3>
                           <div>
@@ -721,8 +747,8 @@ function CheckoutContent() {
                         </div>
 
                         {/* Dados da empresa */}
-                        <div className="space-y-4 md:pl-8 md:border-l border-slate-100 dark:border-zinc-800">
-                          <h3 className="text-xs font-bold uppercase tracking-wide text-slate-400 dark:text-zinc-500 pb-3 border-b border-slate-100 dark:border-zinc-800">
+                        <div className="space-y-4">
+                          <h3 className="flex items-center h-9 px-3 rounded-md bg-slate-100 dark:bg-zinc-950 text-xs font-bold uppercase tracking-wide text-slate-400 dark:text-zinc-500">
                             Dados da Empresa
                           </h3>
                           <div>
@@ -759,6 +785,35 @@ function CheckoutContent() {
                               </select>
                             </div>
                           </div>
+
+                          {items.some((i) => i.type === 'hosting') && (
+                            <div>
+                              <label className="text-xs font-bold text-slate-600 dark:text-zinc-400 mb-1.5 block">Domínio da hospedagem (reserva)</label>
+                              <select
+                                value={fallbackDomainChoice}
+                                onChange={(e) => setFallbackDomainChoice(e.target.value)}
+                                className="w-full px-4 py-2 border border-slate-200 dark:border-zinc-800 bg-slate-50 dark:bg-zinc-950 text-slate-800 dark:text-zinc-100 rounded-md text-sm outline-none focus:ring-1 focus:ring-blue-500"
+                              >
+                                <option value="">Escolher…</option>
+                                {items.filter((i) => i.type === 'domain').map((d) => (
+                                  <option key={d.id} value={d.name.toLowerCase().trim()}>{d.name}</option>
+                                ))}
+                                <option value="__manual__">Escrever outro domínio…</option>
+                              </select>
+                              {fallbackDomainChoice === '__manual__' && (
+                                <input
+                                  type="text"
+                                  value={fallbackDomainManual}
+                                  onChange={(e) => setFallbackDomainManual(e.target.value.toLowerCase().trim())}
+                                  placeholder="ex: oseudominio.co.mz"
+                                  className="mt-2 w-full px-4 py-2 border border-slate-200 dark:border-zinc-800 bg-slate-50 dark:bg-zinc-950 text-slate-800 dark:text-zinc-100 rounded-md text-sm outline-none focus:ring-1 focus:ring-blue-500"
+                                />
+                              )}
+                              <p className="text-[10px] text-slate-400 dark:text-zinc-500 mt-1.5">
+                                Só é usado se não indicares um domínio específico para a hospedagem no Resumo da Compra abaixo.
+                              </p>
+                            </div>
+                          )}
                         </div>
                       </div>
                     </div>
