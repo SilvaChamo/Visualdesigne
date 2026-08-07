@@ -426,6 +426,7 @@ export async function fulfillCheckout(
 
           const { saveProfileForAuthUser: savePassword } = await import('@/lib/profile-db');
           await savePassword(admin, userId, {
+            email,
             da_password_encrypted: encryptDaSecret(sharedHostingPassword),
           });
           await upsertPanelAuthAccount(admin, {

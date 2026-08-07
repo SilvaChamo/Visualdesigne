@@ -51,6 +51,11 @@ export async function getProfileForAuthUser(
   authUserId: string,
   email?: string | null,
 ): Promise<ProfileRow | null> {
+  // #27: normaliza aqui para a procura por email nunca falhar por causa de
+  // maiúsculas/espaços que um chamador tenha deixado passar (o insert que
+  // criou a linha original também normaliza, mas não é garantido que todos
+  // os chamadores façam o mesmo antes de aqui chegar).
+  const normalizedEmail = email ? email.toLowerCase().trim() : email;
   const { data: byUserId } = await admin
     .from('profiles')
     .select(PROFILE_COLUMNS)
@@ -67,11 +72,11 @@ export async function getProfileForAuthUser(
 
   // Fallback: perfis antigos/duplicados podem ter user_id/id desalinhados com o auth.users
   // actual — sem isto, o insert seguinte viola profiles_email_key em vez de actualizar a linha certa.
-  if (email) {
+  if (normalizedEmail) {
     const { data: byEmail } = await admin
       .from('profiles')
       .select(PROFILE_COLUMNS)
-      .eq('email', email)
+      .eq('email', normalizedEmail)
       .maybeSingle();
     if (byEmail) return byEmail as ProfileRow;
   }
@@ -100,10 +105,11 @@ export async function saveProfileForAuthUser(
   },
 ): Promise<void> {
   const displayName = fields.name ?? fields.nome ?? undefined;
-  const existing = await getProfileForAuthUser(admin, authUserId, fields.email);
+  const normalizedEmail = fields.email !== undefined ? fields.email.toLowerCase().trim() : undefined;
+  const existing = await getProfileForAuthUser(admin, authUserId, normalizedEmail);
   const payload: Record<string, unknown> = { user_id: authUserId };
 
-  if (fields.email !== undefined) payload.email = fields.email;
+  if (normalizedEmail !== undefined) payload.email = normalizedEmail;
   if (fields.role !== undefined) payload.role = fields.role;
   if (displayName !== undefined) payload.name = displayName || fields.email?.split('@')[0] || null;
   if (fields.da_username !== undefined) payload.da_username = fields.da_username;
@@ -125,7 +131,27 @@ export async function saveProfileForAuthUser(
   }
 
   const { error } = await admin.from('profiles').insert(payload);
-  if (error) throw toProfileDbError('profiles.insert', error);
+  if (!error) return;
+
+  // #27: se o chamador não tinha o email à mão para a procura acima (ou por
+  // qualquer outra razão a linha existente não foi encontrada por user_id/id),
+  // o insert acima colide com profiles_email_key em vez de rebentar em
+  // silêncio — antes de desistir, tenta uma última vez actualizar a linha
+  // real pelo email, que é exactamente a que a constraint está a apontar.
+  if (error.code === '23505' && normalizedEmail) {
+    const { data: byEmail } = await admin
+      .from('profiles')
+      .select('id')
+      .eq('email', normalizedEmail)
+      .maybeSingle();
+    if (byEmail?.id) {
+      const { error: retryError } = await admin.from('profiles').update(payload).eq('id', byEmail.id);
+      if (!retryError) return;
+      throw toProfileDbError('profiles.update (retry)', retryError);
+    }
+  }
+
+  throw toProfileDbError('profiles.insert', error);
 }
 
 /**
