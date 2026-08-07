@@ -272,12 +272,13 @@ function ResellerCreditsTable() {
           <thead>
             <tr className="border-b border-gray-200 bg-gray-50 text-xs font-bold uppercase tracking-wide text-gray-500 dark:border-zinc-700 dark:bg-zinc-900/50 dark:text-zinc-400">
               <th className="px-4 py-2 align-middle text-left">Item</th>
-              <th className="px-4 py-2 align-middle text-right whitespace-nowrap">Valor</th>
+              <th className="px-4 py-2 align-middle text-left whitespace-nowrap">Valor</th>
               <th className="px-4 py-2 align-middle text-left whitespace-nowrap">Método</th>
+              <th className="px-4 py-2 align-middle text-left whitespace-nowrap">Data</th>
               <th className="px-4 py-2 align-middle text-left">Cliente</th>
               <th className="px-4 py-2 align-middle text-left whitespace-nowrap">Anexo</th>
-              <th className="px-4 py-2 align-middle text-right whitespace-nowrap">Estado</th>
-              <th className="px-4 py-2 align-middle text-right whitespace-nowrap">Aceitação</th>
+              <th className="px-4 py-2 align-middle text-left whitespace-nowrap">Estado</th>
+              <th className="px-4 py-2 align-middle text-left whitespace-nowrap">Aceitação</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100 dark:divide-zinc-800">
@@ -287,13 +288,15 @@ function ResellerCreditsTable() {
                 <tr key={p.id} className="hover:bg-gray-50 dark:hover:bg-zinc-800/30">
                   <td className="px-4 py-2.5 font-medium text-gray-900 dark:text-white">
                     Carregamento de Saldo
-                    <span className="block text-xs font-normal text-gray-400 dark:text-zinc-500">{new Date(p.created_at).toLocaleDateString('pt-PT')}</span>
                   </td>
-                  <td className="whitespace-nowrap px-4 py-2.5 text-right font-bold tabular-nums text-gray-900 dark:text-white">
+                  <td className="whitespace-nowrap px-4 py-2.5 text-left font-bold tabular-nums text-gray-900 dark:text-white">
                     {formatMt(p.valor_mt)} MT
                   </td>
                   <td className="whitespace-nowrap px-4 py-2.5 text-gray-500 dark:text-zinc-400">
                     {METODO_LABEL[p.metodo_pagamento] || p.metodo_pagamento}
+                  </td>
+                  <td className="whitespace-nowrap px-4 py-2.5 text-gray-500 dark:text-zinc-400">
+                    {new Date(p.created_at).toLocaleDateString('pt-PT')}
                   </td>
                   <td className="max-w-[12rem] truncate px-4 py-2.5 text-gray-500 dark:text-zinc-400">
                     {p.da_username}{p.email ? <span className="text-gray-400 dark:text-zinc-500"> · {p.email}</span> : null}
@@ -311,15 +314,15 @@ function ResellerCreditsTable() {
                       <span className="text-xs text-gray-400 dark:text-zinc-500">Sem comprovativo</span>
                     )}
                   </td>
-                  <td className="whitespace-nowrap px-4 py-2.5 text-right">
+                  <td className="whitespace-nowrap px-4 py-2.5 text-left">
                     <span className={`px-2.5 py-1 rounded-full text-xs font-bold ${meta.className}`}>{meta.label}</span>
                     {p.status === 'rejected' && p.rejection_reason && (
                       <p className="mt-1 text-xs text-gray-400 dark:text-zinc-500">{p.rejection_reason}</p>
                     )}
                   </td>
-                  <td className="whitespace-nowrap px-4 py-2.5 text-right">
+                  <td className="whitespace-nowrap px-4 py-2.5 text-left">
                     {p.status === 'pending' && (
-                      <div className="flex items-center justify-end gap-2">
+                      <div className="flex items-center justify-start gap-2">
                         <button
                           type="button"
                           disabled={updatingId === p.id}
@@ -941,12 +944,13 @@ function RenewalPaymentsTable() {
           <thead>
             <tr className="border-b border-gray-200 bg-gray-50 text-xs font-bold uppercase tracking-wide text-gray-500 dark:border-zinc-700 dark:bg-zinc-900/50 dark:text-zinc-400">
               <th className="px-4 py-2 align-middle text-left">Item</th>
-              <th className="px-4 py-2 align-middle text-right whitespace-nowrap">Valor</th>
+              <th className="px-4 py-2 align-middle text-left whitespace-nowrap">Valor</th>
               <th className="px-4 py-2 align-middle text-left whitespace-nowrap">Método</th>
+              <th className="px-4 py-2 align-middle text-left whitespace-nowrap">Data</th>
               <th className="px-4 py-2 align-middle text-left">Cliente</th>
               <th className="px-4 py-2 align-middle text-left whitespace-nowrap">Anexo</th>
-              <th className="px-4 py-2 align-middle text-right whitespace-nowrap">Estado</th>
-              <th className="px-4 py-2 align-middle text-right whitespace-nowrap">Aceitação</th>
+              <th className="px-4 py-2 align-middle text-left whitespace-nowrap">Estado</th>
+              <th className="px-4 py-2 align-middle text-left whitespace-nowrap">Aceitação</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100 dark:divide-zinc-800">
@@ -969,16 +973,19 @@ function RenewalPaymentsTable() {
                       <div className="min-w-0 truncate">
                         {p.service_name}
                         <span className="block text-xs font-normal text-gray-400 dark:text-zinc-500">
-                          {p.renewal_type === 'domain' ? 'Domínio' : 'Hospedagem'} · {new Date(p.created_at).toLocaleDateString('pt-PT')}
+                          {p.renewal_type === 'domain' ? 'Domínio' : 'Hospedagem'}
                         </span>
                       </div>
                     </div>
                   </td>
-                  <td className="whitespace-nowrap px-4 py-2.5 text-right font-bold tabular-nums text-gray-900 dark:text-white">
+                  <td className="whitespace-nowrap px-4 py-2.5 text-left font-bold tabular-nums text-gray-900 dark:text-white">
                     {formatMt(p.valor_mt)} MT
                   </td>
                   <td className="whitespace-nowrap px-4 py-2.5 text-gray-500 dark:text-zinc-400">
                     {METODO_LABEL[p.metodo_pagamento] || p.metodo_pagamento}
+                  </td>
+                  <td className="whitespace-nowrap px-4 py-2.5 text-gray-500 dark:text-zinc-400">
+                    {new Date(p.created_at).toLocaleDateString('pt-PT')}
                   </td>
                   <td className="max-w-[12rem] truncate px-4 py-2.5 text-gray-500 dark:text-zinc-400">
                     {p.cliente?.nome || p.cliente?.empresa || p.cliente?.email || '—'}
@@ -996,15 +1003,15 @@ function RenewalPaymentsTable() {
                       <span className="text-xs text-gray-400 dark:text-zinc-500">Sem comprovativo</span>
                     )}
                   </td>
-                  <td className="whitespace-nowrap px-4 py-2.5 text-right">
+                  <td className="whitespace-nowrap px-4 py-2.5 text-left">
                     <span className={`px-2.5 py-1 rounded-full text-xs font-bold ${meta.className}`}>{meta.label}</span>
                     {p.status === 'rejected' && p.rejection_reason && (
                       <p className="mt-1 text-xs text-gray-400 dark:text-zinc-500">{p.rejection_reason}</p>
                     )}
                   </td>
-                  <td className="whitespace-nowrap px-4 py-2.5 text-right">
+                  <td className="whitespace-nowrap px-4 py-2.5 text-left">
                     {p.status === 'pending' && (
-                      <div className="flex items-center justify-end gap-2">
+                      <div className="flex items-center justify-start gap-2">
                         <button
                           type="button"
                           disabled={updatingId === p.id}
@@ -1027,7 +1034,7 @@ function RenewalPaymentsTable() {
                 </tr>
                 {isExpanded && (
                   <tr className="bg-gray-50 dark:bg-zinc-900/40">
-                    <td colSpan={7} className="px-4 py-4">
+                    <td colSpan={8} className="px-4 py-4">
                       <ClienteInfoInline cliente={p.cliente} />
                     </td>
                   </tr>
@@ -1143,12 +1150,13 @@ function CheckoutItemsByType({ types }: { types: string[] }) {
           <thead>
             <tr className="border-b border-gray-200 bg-gray-50 text-xs font-bold uppercase tracking-wide text-gray-500 dark:border-zinc-700 dark:bg-zinc-900/50 dark:text-zinc-400">
               <th className="px-4 py-2 align-middle text-left">Item</th>
-              <th className="px-4 py-2 align-middle text-right whitespace-nowrap">Valor</th>
+              <th className="px-4 py-2 align-middle text-left whitespace-nowrap">Valor</th>
               <th className="px-4 py-2 align-middle text-left whitespace-nowrap">Método</th>
+              <th className="px-4 py-2 align-middle text-left whitespace-nowrap">Data</th>
               <th className="px-4 py-2 align-middle text-left">Cliente</th>
               <th className="px-4 py-2 align-middle text-left whitespace-nowrap">Anexo</th>
-              <th className="px-4 py-2 align-middle text-right whitespace-nowrap">Estado</th>
-              <th className="px-4 py-2 align-middle text-right whitespace-nowrap">Aceitação</th>
+              <th className="px-4 py-2 align-middle text-left whitespace-nowrap">Estado</th>
+              <th className="px-4 py-2 align-middle text-left whitespace-nowrap">Aceitação</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100 dark:divide-zinc-800">
@@ -1176,17 +1184,17 @@ function CheckoutItemsByType({ types }: { types: string[] }) {
                         {outrosItens.length > 0 && (
                           <span className="text-gray-400 dark:text-zinc-500"> (+ {outrosItens.join(', ')})</span>
                         )}
-                        <span className="block text-xs font-normal text-gray-400 dark:text-zinc-500">
-                          {new Date(p.created_at).toLocaleDateString('pt-PT')}
-                        </span>
                       </div>
                     </div>
                   </td>
-                  <td className="whitespace-nowrap px-4 py-2.5 text-right font-bold tabular-nums text-gray-900 dark:text-white">
+                  <td className="whitespace-nowrap px-4 py-2.5 text-left font-bold tabular-nums text-gray-900 dark:text-white">
                     {formatMt(p.total_mt)} MT
                   </td>
                   <td className="whitespace-nowrap px-4 py-2.5 text-gray-500 dark:text-zinc-400">
                     {METODO_LABEL[p.metodo_pagamento] || p.metodo_pagamento}
+                  </td>
+                  <td className="whitespace-nowrap px-4 py-2.5 text-gray-500 dark:text-zinc-400">
+                    {new Date(p.created_at).toLocaleDateString('pt-PT')}
                   </td>
                   <td className="max-w-[12rem] truncate px-4 py-2.5 text-gray-500 dark:text-zinc-400">
                     {p.cliente?.nome || p.cliente?.empresa || p.user_email || '—'}
@@ -1204,15 +1212,15 @@ function CheckoutItemsByType({ types }: { types: string[] }) {
                       <span className="text-xs text-gray-400 dark:text-zinc-500">Sem comprovativo</span>
                     )}
                   </td>
-                  <td className="whitespace-nowrap px-4 py-2.5 text-right">
+                  <td className="whitespace-nowrap px-4 py-2.5 text-left">
                     <span className={`px-2.5 py-1 rounded-full text-xs font-bold ${meta.className}`}>{meta.label}</span>
                     {itemStatus === 'failed' && item.rejectionReason && (
                       <p className="mt-1 text-xs text-gray-400 dark:text-zinc-500">{item.rejectionReason}</p>
                     )}
                   </td>
-                  <td className="whitespace-nowrap px-4 py-2.5 text-right">
+                  <td className="whitespace-nowrap px-4 py-2.5 text-left">
                     {itemStatus === 'pending' && (
-                      <div className="flex items-center justify-end gap-2">
+                      <div className="flex items-center justify-start gap-2">
                         <button
                           type="button"
                           disabled={updatingKey === key}
@@ -1235,7 +1243,7 @@ function CheckoutItemsByType({ types }: { types: string[] }) {
                 </tr>
                 {isExpanded && (
                   <tr className="bg-gray-50 dark:bg-zinc-900/40">
-                    <td colSpan={7} className="px-4 py-4">
+                    <td colSpan={8} className="px-4 py-4">
                       <ClienteInfoInline cliente={p.cliente} />
                     </td>
                   </tr>
