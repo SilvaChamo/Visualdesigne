@@ -88,6 +88,12 @@ export function DomainDetailSection({ domain, sites, onNavigate, onRefresh, setA
   const [pointerFrom, setPointerFrom] = useState('')
   const [pointerSaving, setPointerSaving] = useState(false)
 
+  // #24: domínios comprados antes das chaves da Cloudflare estarem no servidor
+  // ficaram registados mas sem zona/nameservers configurados — este botão
+  // corre outra vez a mesma automação do checkout, passo a passo.
+  const [reprovisionLoading, setReprovisionLoading] = useState(false)
+  const [reprovisionSteps, setReprovisionSteps] = useState<{ step: string; ok: boolean; error?: string }[] | null>(null)
+
   const loadRegistrarInfo = async () => {
     if (!domain) return
     setRegistrarLoading(true)
@@ -172,6 +178,31 @@ export function DomainDetailSection({ domain, sites, onNavigate, onRefresh, setA
     void loadRenewalInfo()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [domain])
+
+  const handleReprovision = async () => {
+    if (!domain) return
+    setReprovisionLoading(true)
+    setReprovisionSteps(null)
+    try {
+      const res = await fetch('/api/admin/domains/reprovision', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ domain }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (data.success) {
+        setReprovisionSteps(data.result?.steps || [])
+        showMsg(data.dnsOk ? 'Configuração concluída.' : 'Alguns passos ainda falharam — ver detalhe abaixo.', data.dnsOk ? 'success' : 'error')
+      } else {
+        showMsg(data.error || 'Erro ao reprocessar configuração', 'error')
+      }
+    } catch (e: unknown) {
+      showMsg(e instanceof Error ? e.message : 'Erro de ligação', 'error')
+    } finally {
+      setReprovisionLoading(false)
+    }
+  }
 
   const handleToggleLock = async () => {
     if (registrar.isLocked === null) return
@@ -770,7 +801,34 @@ export function DomainDetailSection({ domain, sites, onNavigate, onRefresh, setA
                 Transferir um Domínio
                 <ArrowRightLeft className="h-4 w-4 shrink-0" />
               </button>
+              {!clientMode && (
+                <button
+                  type="button"
+                  onClick={() => void handleReprovision()}
+                  disabled={reprovisionLoading}
+                  className="flex w-full items-center justify-between px-4 py-3 text-left text-sm text-gray-700 hover:text-red-600 disabled:opacity-50 dark:text-zinc-300 dark:hover:text-red-400"
+                >
+                  Reprocessar Configuração DNS (Cloudflare/nameservers)
+                  {reprovisionLoading ? <Spinner className="h-4 w-4 shrink-0" /> : <RefreshCw className="h-4 w-4 shrink-0" />}
+                </button>
+              )}
             </div>
+            {reprovisionSteps && (
+              <div className="border-t border-gray-100 p-4 dark:border-zinc-800">
+                <div className="space-y-1.5">
+                  {reprovisionSteps.map((s) => (
+                    <div key={s.step} className="flex items-center justify-between gap-2 text-xs">
+                      <span className="text-gray-600 dark:text-zinc-400">{s.step}</span>
+                      {s.ok ? (
+                        <span className="flex items-center gap-1 text-green-600 dark:text-green-400"><CheckCircle className="h-3.5 w-3.5" /> OK</span>
+                      ) : (
+                        <span className="flex items-center gap-1 text-red-600 dark:text-red-400" title={s.error}><XCircle className="h-3.5 w-3.5" /> {s.error || 'falhou'}</span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
 
           {!clientMode && (
