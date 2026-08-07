@@ -83,6 +83,7 @@ const NameserverManagementSection = dynamic(() => import('./HostingSections').th
 const SecuritySection = dynamic(() => import('./HostingSections').then(m => m.SecuritySection), { ssr: false, loading: () => sectionLoadingFallback })
 const NewsManagerSection = dynamic(() => import('./NewsManagerSection').then(m => m.NewsManagerSection), { ssr: false, loading: () => sectionLoadingFallback })
 const RenewalsSection = dynamic(() => import('./RenewalsSection').then(m => m.RenewalsSection), { ssr: false, loading: () => sectionLoadingFallback })
+const HostingPendingSection = dynamic(() => import('./HostingPendingSection').then(m => m.HostingPendingSection), { ssr: false, loading: () => sectionLoadingFallback })
 const NotificationsSection = dynamic(() => import('./NotificationsSection').then(m => m.NotificationsSection), { ssr: false, loading: () => sectionLoadingFallback })
 const CotacoesSection = dynamic(() => import('./CotacoesSection').then(m => m.CotacoesSection), { ssr: false, loading: () => sectionLoadingFallback })
 const ContabilidadeTable = dynamic(() => import('@/components/quotations/ContabilidadeTable').then(m => m.ContabilidadeTable), { ssr: false, loading: () => sectionLoadingFallback })
@@ -1632,6 +1633,8 @@ function AdminPageContent() {
             packageScope="user"
           />
         )
+      case 'hospedagem-pendentes':
+        return <HostingPendingSection />
       case 'packages-reseller':
         return (
           <PackagesSection

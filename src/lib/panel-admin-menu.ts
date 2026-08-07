@@ -35,6 +35,7 @@ export const NEW_MENU_ITEM_DEFS: PanelMenuItemDef[] = [
       { id: 'hospedagem-contas', label: 'Contas' },
       { id: 'packages-list', label: 'Pacotes' },
       { id: 'hospedagem-mover-revenda', label: 'Mover contas' },
+      { id: 'hospedagem-pendentes', label: 'Pendentes' },
     ],
   },
   {

@@ -88,6 +88,85 @@ async function pickAvailableMirrorUsername(base: string): Promise<string> {
   return `${sanitized}${Date.now().toString().slice(-6)}`;
 }
 
+/** Mesma validação usada no checkout (#6) — reaproveitada pelo #32 (completar hospedagens pendentes). */
+export const HOSTING_DOMAIN_REGEX = /^(?=.{1,253}$)([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,}$/;
+
+/**
+ * Cria a conta de hospedagem no painel (mirror + password) e dispara a
+ * criação real no DirectAdmin em segundo plano, sem bloquear quem chamou.
+ * Extraído do fluxo do checkout (item.type === 'hosting') para ser
+ * reaproveitado também pelo #32 (completar hospedagens que ficaram
+ * pendentes por não terem chegado com um domínio válido).
+ */
+export async function provisionHostingAccountOnPanel(params: {
+  admin: SupabaseClient;
+  userId: string;
+  email: string;
+  displayName: string;
+  domainName: string;
+  packageName: string;
+  renewalId: string | null;
+  sharedPassword?: string | null;
+}): Promise<{ ok: boolean; daUsername: string; password: string; error?: string }> {
+  const { admin, userId, email, displayName, domainName, packageName, renewalId } = params;
+  try {
+    const password = params.sharedPassword || generateProvisionerPassword();
+    const daUsername = await pickAvailableMirrorUsername(domainName.split('.')[0] || email.split('@')[0]);
+
+    const { saveProfileForAuthUser: savePassword } = await import('@/lib/profile-db');
+    await savePassword(admin, userId, {
+      email,
+      da_password_encrypted: encryptDaSecret(password),
+    });
+    await upsertPanelAuthAccount(admin, {
+      userId,
+      email,
+      role: 'client',
+      name: displayName,
+      serverLinked: false,
+      daUsername: null,
+    });
+    await upsertMirrorUser({
+      username: daUsername,
+      email,
+      first_name: displayName,
+      acl: 'user',
+      auth_user_id: userId,
+      package_name: packageName,
+    });
+    await upsertMirrorSite({ domain: domainName, owner: daUsername, admin_email: email, package: packageName });
+
+    const task = async () => {
+      const result = await provisionPanelAccountToServer(daUsername);
+      if (result.ok) {
+        if (renewalId) {
+          await admin.from('hosting_renewals').update({ status: 'active' }).eq('id', renewalId);
+        }
+      } else {
+        // Fica 'pending' (já era) — não é 'active' enquanto o servidor não confirmar.
+        console.error('[checkout-fulfillment] provisionamento de hospedagem falhou:', daUsername, result.error);
+        await alertAdminOfTrackingFailure(
+          'provisionamento de hospedagem',
+          `${domainName} (${daUsername}): ${result.error || 'erro desconhecido'}`,
+        );
+      }
+    };
+    try {
+      after(task);
+    } catch {
+      void task().catch((err) => console.error('[checkout-fulfillment] provisionamento de hospedagem:', err));
+    }
+
+    return { ok: true, daUsername, password };
+  } catch (provisionError) {
+    // Fica 'pending' (já era) — nada aqui chegou a tentar o servidor.
+    const msg = provisionError instanceof Error ? provisionError.message : String(provisionError);
+    console.error('[checkout-fulfillment] falha ao registar conta de hospedagem no painel:', msg);
+    await alertAdminOfTrackingFailure('provisionamento de hospedagem', `${domainName}: ${msg}`);
+    return { ok: false, daUsername: '', password: '', error: msg };
+  }
+}
+
 function addYears(date: Date, years: number) {
   const d = new Date(date);
   d.setFullYear(d.getFullYear() + years);
@@ -362,9 +441,7 @@ export async function fulfillCheckout(
       // no DirectAdmin falhar sempre e a hospedagem ficar presa em
       // "a provisionar". Vem de `hostingDomain`, pedido no checkout.
       const rawHostingDomain = (item.hostingDomain || '').toLowerCase().trim();
-      const hostingDomainValid = /^(?=.{1,253}$)([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,}$/.test(
-        rawHostingDomain,
-      );
+      const hostingDomainValid = HOSTING_DOMAIN_REGEX.test(rawHostingDomain);
       if (!hostingDomainValid) {
         // Sem domínio válido não há nada para provisionar a sério — regista o
         // pedido para o admin tratar manualmente em vez de criar uma conta
@@ -420,59 +497,17 @@ export async function fulfillCheckout(
       // espera de um admin associar o domínio certo, em vez de criar uma
       // conta com um domínio inventado (ex.: "<username>.com").
       if (admin && email && hostingDomainValid) {
-        try {
-          if (!sharedHostingPassword) sharedHostingPassword = generateProvisionerPassword();
-          const daUsername = await pickAvailableMirrorUsername(domainName.split('.')[0] || email.split('@')[0]);
-
-          const { saveProfileForAuthUser: savePassword } = await import('@/lib/profile-db');
-          await savePassword(admin, userId, {
-            email,
-            da_password_encrypted: encryptDaSecret(sharedHostingPassword),
-          });
-          await upsertPanelAuthAccount(admin, {
-            userId,
-            email,
-            role: 'client',
-            name: displayName,
-            serverLinked: false,
-            daUsername: null,
-          });
-          await upsertMirrorUser({
-            username: daUsername,
-            email,
-            first_name: displayName,
-            acl: 'user',
-            auth_user_id: userId,
-            package_name: packageName,
-          });
-          await upsertMirrorSite({ domain: domainName, owner: daUsername, admin_email: email, package: packageName });
-
-          const task = async () => {
-            const result = await provisionPanelAccountToServer(daUsername);
-            if (result.ok) {
-              if (renewalId) {
-                await supabase.from('hosting_renewals').update({ status: 'active' }).eq('id', renewalId);
-              }
-            } else {
-              // Fica 'pending' (já era) — não é 'active' enquanto o servidor não confirmar.
-              console.error('[checkout-fulfillment] provisionamento de hospedagem falhou:', daUsername, result.error);
-              await alertAdminOfTrackingFailure(
-                'provisionamento de hospedagem',
-                `${domainName} (${daUsername}): ${result.error || 'erro desconhecido'}`,
-              );
-            }
-          };
-          try {
-            after(task);
-          } catch {
-            void task().catch((err) => console.error('[checkout-fulfillment] provisionamento de hospedagem:', err));
-          }
-        } catch (provisionError) {
-          // Fica 'pending' (já era) — nada aqui chegou a tentar o servidor.
-          const msg = provisionError instanceof Error ? provisionError.message : String(provisionError);
-          console.error('[checkout-fulfillment] falha ao registar conta de hospedagem no painel:', msg);
-          await alertAdminOfTrackingFailure('provisionamento de hospedagem', `${domainName}: ${msg}`);
-        }
+        if (!sharedHostingPassword) sharedHostingPassword = generateProvisionerPassword();
+        await provisionHostingAccountOnPanel({
+          admin,
+          userId,
+          email,
+          displayName,
+          domainName,
+          packageName,
+          renewalId,
+          sharedPassword: sharedHostingPassword,
+        });
       }
     }
 
