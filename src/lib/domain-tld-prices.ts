@@ -35,7 +35,7 @@ export type DomainTldPrice = {
  * até se confirmar o custo real.
  */
 export const DOMAIN_TLD_PRICES: DomainTldPrice[] = [
-  { value: '.com', label: '.com', price: 10.88, renewPrice: 10.88, icann: 0.2, transfer: 10.88, fixedPurchasePriceMt: 980 },
+  { value: '.com', label: '.com', price: 10.88, renewPrice: 10.88, icann: 0.2, transfer: 10.88, fixedPurchasePriceMt: 985 },
   { value: '.net', label: '.net', price: 12.52, renewPrice: 12.52, icann: 0.2, transfer: 12.52 },
   { value: '.org', label: '.org', price: 7.99, renewPrice: 11.64, icann: 0.2, transfer: 11.64 },
   { value: '.farm', label: '.farm', price: 4.14, renewPrice: 31.05, icann: 0.2, transfer: 31.05 },
