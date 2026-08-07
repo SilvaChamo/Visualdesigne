@@ -2404,6 +2404,8 @@ type PanelAccount = {
   state?: string
   lastSignIn?: string | null
   nome?: string | null
+  /** #17: linha órfã (sem utilizador correspondente em auth.users) — não editável/promovível. */
+  orphaned?: boolean
 }
 
 const PANEL_ROLE_LABELS: Record<string, string> = {
@@ -3069,6 +3071,50 @@ export function CPUsersSection({
     setCreating(false)
   }
 
+  const applyBulkPanelDelete = () => {
+    if (!selectedPanelIds.length) return
+    const accounts = selectedPanelIds
+      .map((id) => panelAccounts.find((a) => a.id === id))
+      .filter((a): a is PanelAccount => Boolean(a))
+    setConfirm({
+      show: true,
+      title: `Eliminar ${accounts.length} conta(s)`,
+      message: `Vai eliminar permanentemente:\n${accounts.map((a) => `• ${a.email}`).join('\n')}\n\nContas com domínios, hospedagem ou pagamentos associados também são eliminadas — os registos de pagamento (histórico financeiro) não são apagados. Esta acção não pode ser desfeita.`,
+      isDanger: true,
+      onConfirm: async () => {
+        setCreating(true)
+        setMsg('')
+        let ok = 0
+        const failures: string[] = []
+        try {
+          await supabase.auth.getSession()
+          for (const account of accounts) {
+            const res = await fetch(`/api/admin/panel-users?userId=${encodeURIComponent(account.id)}&confirmPaid=1`, {
+              method: 'DELETE',
+              credentials: 'include',
+            })
+            const d = await res.json().catch(() => ({}))
+            if (res.ok && d.success) ok += 1
+            else failures.push(`${account.email}: ${d.error || 'falha desconhecida'}`)
+          }
+          setMsg(
+            failures.length > 0
+              ? `✅ ${ok} eliminada(s). ${failures.length} falharam — ${failures.join('; ')}`
+              : `✅ ${ok} conta(s) eliminada(s).`,
+          )
+          setSelectedPanelIds([])
+          clearPanelUsersCache()
+          clearPanelBootstrapCache()
+          await loadPanelAccounts({ fresh: true })
+        } catch (e: unknown) {
+          setMsg(`❌ ${e instanceof Error ? e.message : 'Erro'}`)
+        }
+        setCreating(false)
+        setConfirm({ ...confirm, show: false })
+      },
+    })
+  }
+
   const applyBulkPanelRole = async () => {
     if (!selectedPanelIds.length || !bulkPanelRole) return
     setCreating(true)
@@ -3496,6 +3542,14 @@ export function CPUsersSection({
                       >
                         Aplicar
                       </button>
+                      <button
+                        type="button"
+                        onClick={applyBulkPanelDelete}
+                        disabled={creating}
+                        className="shrink-0 px-4 py-2 flex items-center justify-center gap-1.5 bg-transparent border border-red-300 dark:border-red-900/50 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/20 rounded text-sm font-bold transition-all disabled:opacity-50"
+                      >
+                        Eliminar
+                      </button>
                       <span className="shrink-0 text-xs text-zinc-500 dark:text-zinc-400">
                         {selectedPanelIds.length} seleccionada(s)
                       </span>
@@ -3596,6 +3650,14 @@ export function CPUsersSection({
                     <span className={`px-2 py-0.5 rounded text-[11px] font-bold uppercase tracking-tight ${PANEL_ROLE_BADGE[account.panelRole] || 'bg-gray-100 text-gray-700'}`}>
                       {PANEL_ROLE_LABELS[account.panelRole] || account.panelRole}
                     </span>
+                    {account.orphaned && (
+                      <span
+                        className="ml-1.5 px-2 py-0.5 rounded text-[11px] font-bold uppercase tracking-tight bg-red-100 text-red-700"
+                        title="Esta linha não tem utilizador correspondente no sistema de autenticação — não é editável nem promovível. Só pode ser eliminada."
+                      >
+                        Sem utilizador
+                      </span>
+                    )}
                   </td>
                   <td className="px-4 py-1.5">
                     {account.panelRole === 'reseller' ? (

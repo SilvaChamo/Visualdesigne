@@ -472,6 +472,8 @@ export type PanelBootstrapAccount = {
   state: string;
   lastSignIn: string | null;
   nome: string | null;
+  /** #17: sem utilizador correspondente em auth.users — linha órfã, não editável/promovível. */
+  orphaned?: boolean;
 };
 
 export function buildPanelAccountCounts(users: PanelBootstrapAccount[]) {
@@ -495,7 +497,7 @@ export function filterPanelAccountsForCaller(
 
 function mapProfileToAccount(
   profile: ProfileRow,
-  extra: { userMetadata?: Record<string, unknown> | null; hasPaidProducts: boolean },
+  extra: { userMetadata?: Record<string, unknown> | null; hasPaidProducts: boolean; orphaned?: boolean },
 ): PanelBootstrapAccount | null {
   const email = (profile.email || '').toLowerCase().trim();
   if (!email) return null;
@@ -529,13 +531,14 @@ function mapProfileToAccount(
     serverLinked: Boolean(profile.da_username),
     panelRole,
     panelPath: getRedirectPathForRole(panelRole),
-    state: 'Active',
+    state: extra.orphaned ? 'Orphaned' : 'Active',
+    orphaned: extra.orphaned,
     lastSignIn: null,
     nome: displayName,
   };
 }
 
-function mapAuthAccountToBootstrap(row: PanelAuthAccountRow): PanelBootstrapAccount {
+function mapAuthAccountToBootstrap(row: PanelAuthAccountRow, orphaned = false): PanelBootstrapAccount {
   const email = row.email.toLowerCase().trim();
   const displayName = row.name || email.split('@')[0];
   return {
@@ -546,9 +549,10 @@ function mapAuthAccountToBootstrap(row: PanelAuthAccountRow): PanelBootstrapAcco
     serverLinked: row.server_linked === true || Boolean(row.da_username),
     panelRole: row.role,
     panelPath: getRedirectPathForRole(row.role),
-    state: 'Active',
+    state: orphaned ? 'Orphaned' : 'Active',
     lastSignIn: null,
     nome: displayName,
+    orphaned,
   };
 }
 
@@ -616,7 +620,7 @@ export async function listAllBootstrapPanelAccounts(
   if (error) {
     console.error('[panel-mirror] bootstrap accounts:', error.message);
     if (authAccounts.length) {
-      return authAccounts.map(mapAuthAccountToBootstrap).sort((a, b) => a.email.localeCompare(b.email));
+      return authAccounts.map((row) => mapAuthAccountToBootstrap(row)).sort((a, b) => a.email.localeCompare(b.email));
     }
     return [];
   }
@@ -646,13 +650,15 @@ export async function listAllBootstrapPanelAccounts(
     const profileBasedRole = mapProfileToAccount(profile, {
       userMetadata: userId ? authMetaById.get(userId) : null,
       hasPaidProducts: userId ? paidIds.has(userId) : false,
+      orphaned: Boolean(userId) && !authMetaById.has(userId),
     });
 
     if (authRow) {
       const ROLE_RANK: Record<UserRole, number> = { guest: 0, client: 1, reseller: 2, manager: 3, admin: 4 };
       const useProfileRole =
         profileBasedRole && ROLE_RANK[profileBasedRole.panelRole] > ROLE_RANK[authRow.role];
-      rows.push(useProfileRole ? profileBasedRole! : mapAuthAccountToBootstrap(authRow));
+      const orphaned = Boolean(userId) && !authMetaById.has(userId);
+      rows.push(useProfileRole ? profileBasedRole! : mapAuthAccountToBootstrap(authRow, orphaned));
       if (userId) seen.add(userId);
       authByUserId.delete(userId);
       continue;
@@ -666,7 +672,7 @@ export async function listAllBootstrapPanelAccounts(
 
   for (const authRow of authByUserId.values()) {
     if (!seen.has(authRow.user_id)) {
-      rows.push(mapAuthAccountToBootstrap(authRow));
+      rows.push(mapAuthAccountToBootstrap(authRow, !authMetaById.has(authRow.user_id)));
     }
   }
 

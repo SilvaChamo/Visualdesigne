@@ -911,8 +911,16 @@ export async function DELETE(req: NextRequest) {
 
   try {
     const userId = req.nextUrl.searchParams.get('userId');
+    const confirmPaid = req.nextUrl.searchParams.get('confirmPaid') === '1';
     if (!userId) {
       return NextResponse.json({ success: false, error: 'userId é obrigatório.' }, { status: 400 });
+    }
+
+    if (userId === auth.user.id) {
+      return NextResponse.json(
+        { success: false, error: 'Não é possível eliminar a própria conta com sessão iniciada.' },
+        { status: 400 },
+      );
     }
 
     if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY) {
@@ -923,7 +931,37 @@ export async function DELETE(req: NextRequest) {
     }
 
     const admin = createAdminClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
-    await assertAccountBelongsToPanel(admin, userId);
+    // Uma conta órfã (linha em panel_auth_accounts sem utilizador em auth.users,
+    // #17) não passa nesta verificação — o próprio erro "Conta não encontrada"
+    // deixa de fazer sentido para eliminar, por isso trata-se à parte abaixo.
+    const { data: targetAuth } = await admin.auth.admin.getUserById(userId);
+    if (targetAuth?.user) {
+      await assertAccountBelongsToPanel(admin, userId);
+      const targetProfile = await getProfileForAuthUser(admin, userId);
+      const targetRole =
+        (targetProfile?.role as UserRole | undefined) ||
+        (targetAuth.user.user_metadata?.role as UserRole | undefined);
+      if (targetRole === 'admin') {
+        return NextResponse.json(
+          { success: false, error: 'Não é possível eliminar uma conta de administrador.' },
+          { status: 400 },
+        );
+      }
+
+      if (!confirmPaid) {
+        const paidIds = await loadPaidUserIds(admin, [userId]);
+        if (paidIds.has(userId)) {
+          return NextResponse.json(
+            {
+              success: false,
+              requiresConfirmation: true,
+              error: 'Esta conta tem produtos activos (domínios, hospedagem ou pagamentos). Confirme para eliminar mesmo assim — os registos de pagamento não são apagados.',
+            },
+            { status: 409 },
+          );
+        }
+      }
+    }
 
     // As duas eliminações abaixo têm de ser confirmadas (não só disparadas) —
     // se qualquer uma falhar silenciosamente, a linha de profiles/panel_auth_accounts
@@ -951,9 +989,14 @@ export async function DELETE(req: NextRequest) {
       );
     }
 
-    const { error: deleteError } = await admin.auth.admin.deleteUser(userId);
-    if (deleteError) {
-      return NextResponse.json({ success: false, error: deleteError.message }, { status: 400 });
+    // Conta órfã (#17): não há utilizador real em auth.users para apagar —
+    // a limpeza das linhas de profiles/panel_auth_accounts acima já é o
+    // trabalho todo. Chamar deleteUser aqui só devolveria "User not found".
+    if (targetAuth?.user) {
+      const { error: deleteError } = await admin.auth.admin.deleteUser(userId);
+      if (deleteError) {
+        return NextResponse.json({ success: false, error: deleteError.message }, { status: 400 });
+      }
     }
 
     clearPanelUsersServerCache();
@@ -961,7 +1004,7 @@ export async function DELETE(req: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      message: 'Conta eliminada.',
+      message: targetAuth?.user ? 'Conta eliminada.' : 'Linha órfã eliminada (não tinha utilizador real).',
       users,
     });
   } catch (error: unknown) {
