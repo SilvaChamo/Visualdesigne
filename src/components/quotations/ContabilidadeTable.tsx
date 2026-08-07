@@ -2,13 +2,12 @@
 
 import { Fragment, useEffect, useState } from 'react'
 import { ChevronDown, ChevronRight, RotateCcw } from 'lucide-react'
-import { PdfThumbnail } from './PdfThumbnail'
 import {
   panelSectionCard,
   panelTabBar, panelTabBtn, panelTabBtnActive, panelTabBtnInactive,
 } from '@/lib/panel-ui'
 import { formatMt } from '@/lib/pricing-catalog'
-import { ImageLightbox, isPdfUrl } from './ImageLightbox'
+import { ImageLightbox } from './ImageLightbox'
 
 // Valores negativos (lucro pode ficar negativo quando os custos ultrapassam
 // a receita) saem sempre a vermelho, seja qual for a tabela/linha.
@@ -221,7 +220,6 @@ function ResellerCreditsTable() {
   const [pedidos, setPedidos] = useState<CreditoPedido[] | null>(null)
   const [updatingId, setUpdatingId] = useState<string | null>(null)
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null)
-  const [expandedId, setExpandedId] = useState<string | null>(null)
 
   const load = () => {
     fetch('/api/admin/reseller-creditos')
@@ -273,7 +271,6 @@ function ResellerCreditsTable() {
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-gray-200 text-xs font-bold uppercase tracking-wide text-gray-500 dark:border-zinc-700 dark:text-zinc-400">
-              <th className="w-8 px-2 py-2"> </th>
               <th className="px-4 py-2 text-left whitespace-nowrap">Data</th>
               <th className="px-4 py-2 text-left">Revendedor</th>
               <th className="px-4 py-2 text-right whitespace-nowrap">Valor</th>
@@ -286,20 +283,8 @@ function ResellerCreditsTable() {
           <tbody className="divide-y divide-gray-100 dark:divide-zinc-800">
             {pedidos.map((p) => {
               const meta = CREDITO_STATUS_META[p.status]
-              const isExpanded = expandedId === p.id
               return (
-                <Fragment key={p.id}>
-                <tr className="hover:bg-gray-50 dark:hover:bg-zinc-800/30">
-                  <td className="px-2 py-2.5">
-                    <button
-                      type="button"
-                      onClick={() => setExpandedId(isExpanded ? null : p.id)}
-                      className="text-gray-400 hover:text-gray-700 dark:text-zinc-500 dark:hover:text-zinc-200"
-                      title="Ver anexo"
-                    >
-                      {isExpanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
-                    </button>
-                  </td>
+                <tr key={p.id} className="hover:bg-gray-50 dark:hover:bg-zinc-800/30">
                   <td className="whitespace-nowrap px-4 py-2.5 text-gray-500 dark:text-zinc-400">
                     {new Date(p.created_at).toLocaleDateString('pt-PT')}
                   </td>
@@ -319,7 +304,7 @@ function ResellerCreditsTable() {
                         onClick={() => setLightboxUrl(p.comprovativo_url)}
                         className="text-xs font-medium text-red-600 hover:underline dark:text-red-400"
                       >
-                        Ver ficheiro
+                        Ver anexo
                       </button>
                     ) : (
                       <span className="text-xs text-gray-400 dark:text-zinc-500">Sem comprovativo</span>
@@ -354,21 +339,6 @@ function ResellerCreditsTable() {
                     )}
                   </td>
                 </tr>
-                {isExpanded && (
-                  <tr className="bg-gray-50 dark:bg-zinc-900/40">
-                    <td colSpan={8} className="px-4 py-4">
-                      <AnexoInline
-                        comprovativoUrl={p.comprovativo_url}
-                        onOpen={() => setLightboxUrl(p.comprovativo_url)}
-                        canAct={p.status === 'pending'}
-                        updating={updatingId === p.id}
-                        onConfirm={() => respond(p.id, 'confirmed')}
-                        onReject={() => respond(p.id, 'rejected')}
-                      />
-                    </td>
-                  </tr>
-                )}
-                </Fragment>
               )
             })}
           </tbody>
@@ -379,59 +349,39 @@ function ResellerCreditsTable() {
   )
 }
 
-/** Anexo do próprio pedido (miniatura real, alinhada ao topo) + acções — partilhado pelas tabelas de pagamento. */
-function AnexoInline({
-  comprovativoUrl,
-  onOpen,
-  canAct,
-  updating,
-  onConfirm,
-  onReject,
-}: {
-  comprovativoUrl: string | null
-  onOpen: () => void
-  canAct: boolean
-  updating: boolean
-  onConfirm: () => void
-  onReject: () => void
-}) {
+/**
+ * dados de contacto de quem for preciso falar sobre este pedido — o anexo já
+ * tem link directo ("Ver anexo") na linha compacta, não precisa de expandir.
+ * 1ª coluna: a própria VisualDesign (fixo). 2ª coluna: o cliente do pedido
+ * (do formulário de checkout — nome/telefone/morada/cidade/email já
+ * recolhidos lá, ver accountForm em app/checkout/page.tsx).
+ */
+function InfoLine({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex items-start gap-4">
-      {comprovativoUrl ? (
-        <button
-          type="button"
-          onClick={onOpen}
-          className="block h-40 w-32 shrink-0 overflow-hidden rounded-lg border border-gray-200 transition-colors hover:border-red-300 dark:border-zinc-700 dark:hover:border-red-800"
-        >
-          {isPdfUrl(comprovativoUrl) ? (
-            <PdfThumbnail url={comprovativoUrl} cover className="h-full w-full" />
-          ) : (
-            <img src={comprovativoUrl} alt="Comprovativo" className="h-full w-full object-cover object-top" />
-          )}
-        </button>
-      ) : (
-        <p className="text-sm text-gray-400 dark:text-zinc-500">Sem comprovativo enviado.</p>
-      )}
-      {canAct && (
-        <div className="flex flex-col items-start gap-2">
-          <button
-            type="button"
-            disabled={updating}
-            onClick={onConfirm}
-            className="inline-flex items-center gap-1.5 rounded-lg bg-green-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-green-700 disabled:opacity-50"
-          >
-            Confirmar
-          </button>
-          <button
-            type="button"
-            disabled={updating}
-            onClick={onReject}
-            className="inline-flex items-center gap-1.5 rounded-lg bg-rose-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-rose-700 disabled:opacity-50"
-          >
-            Rejeitar
-          </button>
-        </div>
-      )}
+    <p className="text-sm">
+      <span className="font-bold text-gray-500 dark:text-zinc-400">{label}: </span>
+      <span className="text-gray-700 dark:text-zinc-300">{value}</span>
+    </p>
+  )
+}
+
+function ClienteInfoInline({ cliente }: { cliente: Cliente | null }) {
+  return (
+    <div className="grid grid-cols-1 gap-x-[40px] gap-y-2 sm:grid-cols-2">
+      <div className="space-y-1">
+        <p className="mb-1 text-[11px] font-bold uppercase tracking-wide text-gray-400 dark:text-zinc-500">Dados da Empresa</p>
+        <InfoLine label="Empresa" value="VisualDesign" />
+        <InfoLine label="Morada" value="Av. Karl Marx, Nº 177, Maputo — Moçambique" />
+        <InfoLine label="Telefone" value="+258 87 757 5288" />
+        <InfoLine label="Email" value="geral@visualdesignmoz.com" />
+      </div>
+      <div className="space-y-1">
+        <p className="mb-1 text-[11px] font-bold uppercase tracking-wide text-gray-400 dark:text-zinc-500">Dados do Responsável</p>
+        <InfoLine label="Responsável" value={cliente?.nome || '—'} />
+        <InfoLine label="Residência" value={[cliente?.morada, cliente?.cidade].filter(Boolean).join(', ') || '—'} />
+        <InfoLine label="WhatsApp" value={cliente?.telefone || '—'} />
+        <InfoLine label="Email" value={cliente?.email || '—'} />
+      </div>
     </div>
   )
 }
@@ -1013,7 +963,7 @@ function RenewalPaymentsTable() {
                       type="button"
                       onClick={() => setExpandedId(isExpanded ? null : p.id)}
                       className="text-gray-400 hover:text-gray-700 dark:text-zinc-500 dark:hover:text-zinc-200"
-                      title="Ver anexo"
+                      title="Ver dados da empresa"
                     >
                       {isExpanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
                     </button>
@@ -1041,7 +991,7 @@ function RenewalPaymentsTable() {
                         onClick={() => setLightboxUrl(p.comprovativo_url)}
                         className="text-xs font-medium text-red-600 hover:underline dark:text-red-400"
                       >
-                        Ver ficheiro
+                        Ver anexo
                       </button>
                     ) : (
                       <span className="text-xs text-gray-400 dark:text-zinc-500">Sem comprovativo</span>
@@ -1079,14 +1029,7 @@ function RenewalPaymentsTable() {
                 {isExpanded && (
                   <tr className="bg-gray-50 dark:bg-zinc-900/40">
                     <td colSpan={9} className="px-4 py-4">
-                      <AnexoInline
-                        comprovativoUrl={p.comprovativo_url}
-                        onOpen={() => setLightboxUrl(p.comprovativo_url)}
-                        canAct={p.status === 'pending'}
-                        updating={updatingId === p.id}
-                        onConfirm={() => respond(p.id, 'confirmed')}
-                        onReject={() => respond(p.id, 'rejected')}
-                      />
+                      <ClienteInfoInline cliente={p.cliente} />
                     </td>
                   </tr>
                 )}
@@ -1226,7 +1169,7 @@ function CheckoutItemsByType({ types }: { types: string[] }) {
                       type="button"
                       onClick={() => setExpandedKey(isExpanded ? null : key)}
                       className="text-gray-400 hover:text-gray-700 dark:text-zinc-500 dark:hover:text-zinc-200"
-                      title="Ver anexo"
+                      title="Ver dados da empresa"
                     >
                       {isExpanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
                     </button>
@@ -1256,7 +1199,7 @@ function CheckoutItemsByType({ types }: { types: string[] }) {
                         onClick={() => setLightboxUrl(p.comprovativo_url)}
                         className="text-xs font-medium text-red-600 hover:underline dark:text-red-400"
                       >
-                        Ver ficheiro
+                        Ver anexo
                       </button>
                     ) : (
                       <span className="text-xs text-gray-400 dark:text-zinc-500">Sem comprovativo</span>
@@ -1294,14 +1237,7 @@ function CheckoutItemsByType({ types }: { types: string[] }) {
                 {isExpanded && (
                   <tr className="bg-gray-50 dark:bg-zinc-900/40">
                     <td colSpan={9} className="px-4 py-4">
-                      <AnexoInline
-                        comprovativoUrl={p.comprovativo_url}
-                        onOpen={() => setLightboxUrl(p.comprovativo_url)}
-                        canAct={itemStatus === 'pending'}
-                        updating={updatingKey === key}
-                        onConfirm={() => respond(p.id, itemIndex, 'paid')}
-                        onReject={() => respond(p.id, itemIndex, 'failed')}
-                      />
+                      <ClienteInfoInline cliente={p.cliente} />
                     </td>
                   </tr>
                 )}
