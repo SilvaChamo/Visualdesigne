@@ -885,18 +885,13 @@ function CheckoutContent() {
                     </div>
 
                     <div className="pt-3 mt-1 border-t border-dashed border-slate-300 dark:border-zinc-700 space-y-1.5">
-                      <div className="flex justify-between items-center text-base text-slate-500 dark:text-zinc-400">
-                        <span>Subtotal</span>
-                        <span>{formatPrice(total)}</span>
-                      </div>
-                      <div className="flex justify-between items-center text-base text-slate-500 dark:text-zinc-400">
-                        <span>Impostos e IVA</span>
-                        <span>{formatPrice(0)}</span>
-                      </div>
                       <div className="pt-2 border-t border-dashed border-slate-300 dark:border-zinc-700 flex justify-between items-center">
                         <span className="font-black text-slate-800 dark:text-zinc-100 text-sm uppercase">Total</span>
                         <span className="font-black text-xl text-red-600 dark:text-red-400">{formatPrice(total)}</span>
                       </div>
+                      <p className="text-[11px] text-slate-400 dark:text-zinc-500 text-right">
+                        Preço final — já inclui IVA (16%): base {formatPrice(total / 1.16)} + IVA {formatPrice(total - total / 1.16)}
+                      </p>
                     </div>
                   </div>
 
