@@ -10097,11 +10097,25 @@ export function DomainManagerSection({
 
   // Mover domínio para outra conta do painel — muda o "dono" no domain_renewals.
   const [transferOwnerModal, setTransferOwnerModal] = useState<{ show: boolean; domain: string; targetEmail: string; saving: boolean }>({ show: false, domain: '', targetEmail: '', saving: false })
+  // #19 (3.1): lista de contas reais para o selector — nunca mais uma caixa de texto livre
+  // (foi assim que "silvia" e "silva" se confundiram).
+  const [transferAccounts, setTransferAccounts] = useState<{ id: string; email: string }[]>([])
+  const [loadingTransferAccounts, setLoadingTransferAccounts] = useState(false)
 
   const showMsg = (text: string, type: 'success' | 'error' = 'success') => {
     setMsg(text); setMsgType(type)
     setTimeout(() => setMsg(''), 4000)
   }
+
+  useEffect(() => {
+    if (!transferOwnerModal.show) return
+    setLoadingTransferAccounts(true)
+    fetch('/api/admin/domains/transfer-owner', { credentials: 'include' })
+      .then((res) => res.json())
+      .then((data) => { if (data.success) setTransferAccounts(data.accounts || []) })
+      .catch(() => {})
+      .finally(() => setLoadingTransferAccounts(false))
+  }, [transferOwnerModal.show])
 
   const handleTransferDomainOwner = async () => {
     if (!transferOwnerModal.domain || !transferOwnerModal.targetEmail.trim()) return
@@ -10125,6 +10139,27 @@ export function DomainManagerSection({
     } catch (e: unknown) {
       showMsg(e instanceof Error ? e.message : 'Erro de ligação', 'error')
       setTransferOwnerModal((prev) => ({ ...prev, saving: false }))
+    }
+  }
+
+  const handleToggleAutoRenew = async (domain: string) => {
+    setOpenMenuDomain(null)
+    if (!confirm(`Desactivar a renovação automática de "${domain}"? O domínio deixa de renovar sozinho quando expirar.`)) return
+    try {
+      const res = await fetch('/api/admin/domains/auto-renew', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ domain, autoRenew: false }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (res.ok && data.success) {
+        showMsg(data.message || 'Renovação automática desactivada.')
+      } else {
+        showMsg(data.error || 'Erro ao desactivar renovação automática', 'error')
+      }
+    } catch (e: unknown) {
+      showMsg(e instanceof Error ? e.message : 'Erro de ligação', 'error')
     }
   }
 
@@ -10341,6 +10376,9 @@ export function DomainManagerSection({
             >
               Mover para outra conta
             </button>
+            <button type="button" className={domainCardMenuItem} onClick={() => void handleToggleAutoRenew(d.domain)}>
+              Desactivar renovação automática
+            </button>
             <button
               type="button"
               className={domainCardMenuItem}
@@ -10502,17 +10540,25 @@ export function DomainManagerSection({
           <div className="absolute inset-0 bg-black/60" onClick={() => setTransferOwnerModal({ show: false, domain: '', targetEmail: '', saving: false })} />
           <div className="relative w-full max-w-sm rounded-lg border border-gray-200 bg-white p-5 shadow-2xl dark:border-zinc-800 dark:bg-zinc-900">
             <h3 className="mb-1 text-sm font-bold text-gray-900 dark:text-zinc-100">Mover domínio para outra conta</h3>
-            <p className="mb-4 text-xs text-gray-500 dark:text-zinc-400">
-              <span className="font-mono">{transferOwnerModal.domain}</span> passa a pertencer à conta com o email indicado abaixo.
+            <p className="mb-2 text-xs text-gray-500 dark:text-zinc-400">
+              <span className="font-mono">{transferOwnerModal.domain}</span> passa a pertencer à conta escolhida abaixo.
             </p>
-            <label className="mb-1 block text-[10px] font-bold uppercase tracking-widest text-gray-400">Email da conta de destino</label>
-            <input
-              type="email"
+            <p className="mb-4 rounded bg-amber-50 px-2.5 py-2 text-[11px] leading-relaxed text-amber-800 dark:bg-amber-950/30 dark:text-amber-300">
+              A mudança fica visível na área de cliente da conta de destino (em "Meus Domínios" e Facturas) — não
+              muda o que aparece aqui na lista de domínios do servidor, que reflecte sempre a conta Dynadot.
+            </p>
+            <label className="mb-1 block text-[10px] font-bold uppercase tracking-widest text-gray-400">Conta de destino</label>
+            <select
               value={transferOwnerModal.targetEmail}
               onChange={(e) => setTransferOwnerModal((prev) => ({ ...prev, targetEmail: e.target.value }))}
-              placeholder="cliente@exemplo.com"
+              disabled={loadingTransferAccounts}
               className="mb-4 w-full rounded border border-gray-200 bg-gray-50 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-500 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
-            />
+            >
+              <option value="">{loadingTransferAccounts ? 'A carregar contas…' : 'Escolher conta…'}</option>
+              {transferAccounts.map((a) => (
+                <option key={a.id} value={a.email}>{a.email}</option>
+              ))}
+            </select>
             <div className="flex justify-end gap-2">
               <button
                 type="button"

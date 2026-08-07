@@ -1,10 +1,46 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient as createAdminClient } from '@supabase/supabase-js';
+import { createClient as createAdminClient, type SupabaseClient } from '@supabase/supabase-js';
 import { requireAdmin } from '@/lib/admin-api-auth';
 import { dynadotAPI } from '@/lib/dynadot-adapter';
+import { DOMAIN_TLD_PRICES, domainRenewalPriceMt } from '@/lib/domain-tld-prices';
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
+
+async function listAllAuthUsers(admin: SupabaseClient) {
+  const all: { id: string; email: string }[] = [];
+  for (let page = 1; page <= 20; page++) {
+    const { data, error } = await admin.auth.admin.listUsers({ page, perPage: 1000 });
+    if (error) break;
+    for (const u of data.users) {
+      if (u.email) all.push({ id: u.id, email: u.email });
+    }
+    if (!data.users?.length || data.users.length < 1000) break;
+  }
+  return all;
+}
+
+/** Estima o preço de renovação em MT pela extensão do domínio — usado só quando se cria uma
+ * linha de domain_renewals do zero (domínio já existia na Dynadot mas nunca tinha sido
+ * seguido no painel), para não ficar sem preço nenhum. */
+function estimateRenewalPriceMt(domainName: string): number | null {
+  const tld = DOMAIN_TLD_PRICES.find((t) => domainName.endsWith(t.value));
+  if (!tld) return null;
+  return domainRenewalPriceMt(tld, 1);
+}
+
+/** Lista contas do painel (id + email) para o selector de "mover domínio" — nunca texto livre. */
+export async function GET() {
+  const auth = await requireAdmin();
+  if ('error' in auth) return auth.error;
+  if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY) {
+    return NextResponse.json({ success: false, error: 'Supabase Service Role não configurado.' }, { status: 500 });
+  }
+  const admin = createAdminClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
+  const accounts = await listAllAuthUsers(admin);
+  accounts.sort((a, b) => a.email.localeCompare(b.email));
+  return NextResponse.json({ success: true, accounts });
+}
 
 /**
  * Move um domínio de uma conta do painel para outra — ex.: um domínio
@@ -31,18 +67,8 @@ export async function POST(req: NextRequest) {
     }
     const admin = createAdminClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
 
-    const { data: authList, error: listErr } = await admin.auth.admin.listUsers({ page: 1, perPage: 1000 });
-    if (listErr) {
-      return NextResponse.json({ success: false, error: listErr.message }, { status: 500 });
-    }
-    let targetUser = authList.users.find((u) => u.email?.toLowerCase() === email);
-    if (!targetUser) {
-      for (let page = 2; page <= 20 && !targetUser; page++) {
-        const { data: nextPage } = await admin.auth.admin.listUsers({ page, perPage: 1000 });
-        targetUser = nextPage.users.find((u) => u.email?.toLowerCase() === email);
-        if (!nextPage.users?.length || nextPage.users.length < 1000) break;
-      }
-    }
+    const allAccounts = await listAllAuthUsers(admin);
+    const targetUser = allAccounts.find((u) => u.email.toLowerCase() === email);
     if (!targetUser) {
       return NextResponse.json(
         { success: false, error: `Não existe nenhuma conta com o email ${email}.` },
@@ -76,16 +102,23 @@ export async function POST(req: NextRequest) {
           { status: 404 },
         );
       }
+      // #19 (3.1): sem isto a linha ficava sem preço de renovação nenhum — estimado pela
+      // extensão do domínio (mesma tabela usada no checkout); fica anotado como estimativa
+      // nas notas para o admin saber que não veio de uma compra real.
+      const estimatedPrice = estimateRenewalPriceMt(domainName);
       const { error: insertError } = await admin.from('domain_renewals').insert({
         user_id: targetUser.id,
         domain_name: domainName,
         registration_date: new Date().toISOString().slice(0, 10),
         expiration_date: details.expireDate || null,
+        renewal_price: estimatedPrice,
         currency: 'MZN',
         status: 'active',
         registrar: 'VisualDesign',
         auto_renew: details.autoRenew ?? false,
-        notes: 'Linha criada ao mover o domínio para esta conta (não existia registo anterior no painel).',
+        notes: `Linha criada ao mover o domínio para esta conta (não existia registo anterior no painel).${
+          estimatedPrice ? ' Preço de renovação estimado pela extensão — confirmar valor real.' : ' Sem preço de renovação — extensão não reconhecida, confirmar valor manualmente.'
+        }`,
       });
       if (insertError) {
         return NextResponse.json({ success: false, error: insertError.message }, { status: 500 });
