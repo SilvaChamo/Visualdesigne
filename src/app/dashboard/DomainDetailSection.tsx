@@ -94,6 +94,32 @@ export function DomainDetailSection({ domain, sites, onNavigate, onRefresh, setA
   const [reprovisionLoading, setReprovisionLoading] = useState(false)
   const [reprovisionSteps, setReprovisionSteps] = useState<{ step: string; ok: boolean; error?: string }[] | null>(null)
 
+  // #20 — desfazer a associação a uma conta de hospedagem (só o registo no painel).
+  const [detachingHosting, setDetachingHosting] = useState(false)
+  const handleDetachHosting = async () => {
+    if (!domain || !confirm(`Remover a associação de "${domain}" a esta conta de hospedagem? Só o registo no painel muda — a conta e o site no servidor ficam intactos.`)) return
+    setDetachingHosting(true)
+    try {
+      const res = await fetch('/api/admin/domains/attach-hosting', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ domain }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (res.ok && data.success) {
+        showMsg(data.message || 'Associação removida.')
+        await onRefresh?.()
+      } else {
+        showMsg(data.error || 'Erro ao remover associação', 'error')
+      }
+    } catch (e: unknown) {
+      showMsg(e instanceof Error ? e.message : 'Erro de ligação', 'error')
+    } finally {
+      setDetachingHosting(false)
+    }
+  }
+
   const loadRegistrarInfo = async () => {
     if (!domain) return
     setRegistrarLoading(true)
@@ -916,6 +942,25 @@ export function DomainDetailSection({ domain, sites, onNavigate, onRefresh, setA
                 <span className="text-gray-500 dark:text-zinc-500">Estado</span>
                 <span className="text-gray-700 dark:text-zinc-300">{site.state || site.status || 'Active'}</span>
               </div>
+              {site.owner && (
+                <div className="mt-2 flex items-center justify-between gap-2">
+                  <span className="text-gray-500 dark:text-zinc-500">Conta de hospedagem (#20)</span>
+                  <span className="flex items-center gap-2">
+                    <span className="font-mono text-xs text-gray-700 dark:text-zinc-300">{site.owner}</span>
+                    {!clientMode && (
+                      <button
+                        type="button"
+                        onClick={() => void handleDetachHosting()}
+                        disabled={detachingHosting}
+                        className="text-xs font-semibold text-red-600 hover:underline disabled:opacity-50"
+                        title="Remove só a associação no painel — não apaga a conta nem o site no servidor."
+                      >
+                        {detachingHosting ? 'A remover…' : 'Remover associação'}
+                      </button>
+                    )}
+                  </span>
+                </div>
+              )}
             </div>
           )}
         </div>

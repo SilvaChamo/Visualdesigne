@@ -10102,6 +10102,13 @@ export function DomainManagerSection({
   const [transferAccounts, setTransferAccounts] = useState<{ id: string; email: string }[]>([])
   const [loadingTransferAccounts, setLoadingTransferAccounts] = useState(false)
 
+  // #20 — associar domínio a uma conta de hospedagem já existente (painel é a fonte de verdade;
+  // DNS e DirectAdmin são melhor-esforço em segundo plano, ver /api/admin/domains/attach-hosting).
+  const [attachHostingModal, setAttachHostingModal] = useState<{ show: boolean; domain: string; daUsername: string; saving: boolean }>({ show: false, domain: '', daUsername: '', saving: false })
+  const [attachHostingAccounts, setAttachHostingAccounts] = useState<{ daUsername: string; email: string; packageName: string }[]>([])
+  const [loadingAttachHostingAccounts, setLoadingAttachHostingAccounts] = useState(false)
+  const [attachHostingSteps, setAttachHostingSteps] = useState<{ step: string; ok: boolean; detail?: string }[]>([])
+
   const showMsg = (text: string, type: 'success' | 'error' = 'success') => {
     setMsg(text); setMsgType(type)
     setTimeout(() => setMsg(''), 4000)
@@ -10116,6 +10123,42 @@ export function DomainManagerSection({
       .catch(() => {})
       .finally(() => setLoadingTransferAccounts(false))
   }, [transferOwnerModal.show])
+
+  useEffect(() => {
+    if (!attachHostingModal.show) return
+    setLoadingAttachHostingAccounts(true)
+    fetch('/api/admin/domains/attach-hosting', { credentials: 'include' })
+      .then((res) => res.json())
+      .then((data) => { if (data.success) setAttachHostingAccounts(data.accounts || []) })
+      .catch(() => {})
+      .finally(() => setLoadingAttachHostingAccounts(false))
+  }, [attachHostingModal.show])
+
+  const handleAttachHosting = async () => {
+    if (!attachHostingModal.domain || !attachHostingModal.daUsername) return
+    setAttachHostingModal((prev) => ({ ...prev, saving: true }))
+    setAttachHostingSteps([])
+    try {
+      const res = await fetch('/api/admin/domains/attach-hosting', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ domain: attachHostingModal.domain, daUsername: attachHostingModal.daUsername }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (res.ok && data.success) {
+        setAttachHostingSteps(data.steps || [])
+        showMsg(data.message || 'Domínio associado.')
+        await onRefresh?.()
+      } else {
+        showMsg(data.error || 'Erro ao associar domínio', 'error')
+      }
+    } catch (e: unknown) {
+      showMsg(e instanceof Error ? e.message : 'Erro de ligação', 'error')
+    } finally {
+      setAttachHostingModal((prev) => ({ ...prev, saving: false }))
+    }
+  }
 
   const handleTransferDomainOwner = async () => {
     if (!transferOwnerModal.domain || !transferOwnerModal.targetEmail.trim()) return
@@ -10376,6 +10419,17 @@ export function DomainManagerSection({
             >
               Mover para outra conta
             </button>
+            <button
+              type="button"
+              className={domainCardMenuItem}
+              onClick={() => {
+                setOpenMenuDomain(null)
+                setAttachHostingSteps([])
+                setAttachHostingModal({ show: true, domain: d.domain, daUsername: '', saving: false })
+              }}
+            >
+              Associar a hospedagem existente
+            </button>
             <button type="button" className={domainCardMenuItem} onClick={() => void handleToggleAutoRenew(d.domain)}>
               Desactivar renovação automática
             </button>
@@ -10574,6 +10628,60 @@ export function DomainManagerSection({
                 className="rounded bg-red-600 px-3 py-1.5 text-sm font-bold text-white hover:bg-red-700 disabled:opacity-50"
               >
                 {transferOwnerModal.saving ? 'A mover...' : 'Mover'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {attachHostingModal.show && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/60" onClick={() => setAttachHostingModal({ show: false, domain: '', daUsername: '', saving: false })} />
+          <div className="relative w-full max-w-sm rounded-lg border border-gray-200 bg-white p-5 shadow-2xl dark:border-zinc-800 dark:bg-zinc-900">
+            <h3 className="mb-1 text-sm font-bold text-gray-900 dark:text-zinc-100">Associar a hospedagem existente</h3>
+            <p className="mb-4 text-xs text-gray-500 dark:text-zinc-400">
+              <span className="font-mono">{attachHostingModal.domain}</span> passa a ficar servido pela conta de
+              hospedagem escolhida abaixo. O DNS é apontado automaticamente (se o domínio já usar a Cloudflare) e a
+              conta no servidor é actualizada em segundo plano — reversível a qualquer momento.
+            </p>
+            <label className="mb-1 block text-[10px] font-bold uppercase tracking-widest text-gray-400">Conta de hospedagem</label>
+            <select
+              value={attachHostingModal.daUsername}
+              onChange={(e) => setAttachHostingModal((prev) => ({ ...prev, daUsername: e.target.value }))}
+              disabled={loadingAttachHostingAccounts}
+              className="mb-4 w-full rounded border border-gray-200 bg-gray-50 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-500 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
+            >
+              <option value="">{loadingAttachHostingAccounts ? 'A carregar contas…' : 'Escolher conta…'}</option>
+              {attachHostingAccounts.map((a) => (
+                <option key={a.daUsername} value={a.daUsername}>
+                  {a.daUsername}{a.email ? ` — ${a.email}` : ''}
+                </option>
+              ))}
+            </select>
+            {attachHostingSteps.length > 0 && (
+              <ul className="mb-4 space-y-1 rounded bg-gray-50 p-2.5 text-[11px] dark:bg-zinc-950">
+                {attachHostingSteps.map((s, i) => (
+                  <li key={i} className={s.ok ? 'text-green-700 dark:text-green-400' : 'text-amber-700 dark:text-amber-400'}>
+                    {s.ok ? '✓' : '⚠'} {s.step}{s.detail ? ` — ${s.detail}` : ''}
+                  </li>
+                ))}
+              </ul>
+            )}
+            <div className="flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setAttachHostingModal({ show: false, domain: '', daUsername: '', saving: false })}
+                className="px-3 py-1.5 text-sm font-semibold text-gray-500 hover:text-gray-700 dark:text-zinc-400"
+              >
+                Fechar
+              </button>
+              <button
+                type="button"
+                onClick={() => void handleAttachHosting()}
+                disabled={attachHostingModal.saving || !attachHostingModal.daUsername}
+                className="rounded bg-red-600 px-3 py-1.5 text-sm font-bold text-white hover:bg-red-700 disabled:opacity-50"
+              >
+                {attachHostingModal.saving ? 'A associar...' : 'Associar'}
               </button>
             </div>
           </div>
