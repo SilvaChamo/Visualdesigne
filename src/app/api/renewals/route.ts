@@ -2,6 +2,30 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/utils/supabase/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
 
+// Anexa o email do cliente a cada linha (só existe user_id na tabela) —
+// sem isto a lista de renovações do admin mostrava um UUID em vez de
+// "Cliente: fulano@email.com", tornando impossível reconhecer a conta.
+async function attachUserEmails<T extends { user_id: string }>(rows: T[]): Promise<(T & { user_email?: string })[]> {
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const userIds = Array.from(new Set(rows.map((r) => r.user_id).filter(Boolean)))
+  if (!serviceKey || !supabaseUrl || userIds.length === 0) return rows
+
+  const admin = createAdminClient(supabaseUrl, serviceKey)
+  const emailById = new Map<string, string>()
+  await Promise.all(
+    userIds.map(async (id) => {
+      try {
+        const { data } = await admin.auth.admin.getUserById(id)
+        if (data?.user?.email) emailById.set(id, data.user.email)
+      } catch {
+        /* linha fica sem email, mostra o user_id como já acontecia */
+      }
+    }),
+  )
+  return rows.map((r) => ({ ...r, user_email: emailById.get(r.user_id) }))
+}
+
 // Verificar se é admin
 async function checkIsAdmin(supabase: any): Promise<boolean> {
   const { data: { user } } = await supabase.auth.getUser()
@@ -75,6 +99,13 @@ export async function GET(request: NextRequest) {
 
       const { data: hosting } = await query
       result.hosting = hosting || []
+    }
+
+    // Só faz sentido mostrar o email quando a lista abrange várias contas
+    // (vista de admin) — na vista normal do próprio cliente já é óbvio de quem é.
+    if (isAdminView) {
+      result.domains = await attachUserEmails(result.domains)
+      result.hosting = await attachUserEmails(result.hosting)
     }
 
     // Calcular estatísticas

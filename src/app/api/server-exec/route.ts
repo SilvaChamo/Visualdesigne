@@ -126,12 +126,24 @@ async function pushPackageToDa(
         ...fullForm,
         packageName: pkgName || fullForm.packageName,
       });
-      await daPostViaSsh(daManageCmd, fields);
+      const res = await daPostViaSsh(daManageCmd, fields);
+      if (!res.ok) {
+        throw new Error(res.error || 'Falha ao guardar pacote no DirectAdmin');
+      }
       return;
     }
 
     const mutator = DA_MUTATION_PROXY[action];
-    if (mutator) await mutator(api, params);
+    if (mutator) {
+      const res = (await mutator(api, params)) as { success?: boolean; error?: string; output?: string } | boolean;
+      if (typeof res === 'object' && res !== null) {
+        if (res.success === false || res.error) {
+          throw new Error(res.error || res.output || 'Falha ao guardar pacote no DirectAdmin');
+        }
+      } else if (!res) {
+        throw new Error('Falha ao guardar pacote no DirectAdmin');
+      }
+    }
   } catch (e) {
     console.error('[server-exec] pushPackageToDa:', e);
     throw e;
@@ -307,6 +319,15 @@ export async function POST(req: NextRequest) {
           );
         }
 
+        try {
+          await pushPackageToDa(action, paramsRecord, daManageCmd, auth);
+        } catch (e: any) {
+          return NextResponse.json(
+            { success: false, error: e.message || 'Falha ao guardar pacote no DirectAdmin' },
+            { status: 500 },
+          );
+        }
+
         const mirrorSave = await upsertMirrorPackage(mirrorRow);
         if (!mirrorSave.ok) {
           return NextResponse.json({
@@ -315,7 +336,6 @@ export async function POST(req: NextRequest) {
           });
         }
 
-        await pushPackageToDa(action, paramsRecord, daManageCmd, auth);
         scheduleDaSync(2000);
 
         return NextResponse.json({
