@@ -79,7 +79,7 @@ export function HostingDaPackageFields({ form, onChange, showPackageName = true,
       <div className="mb-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div>
           <label className="mb-1.5 block text-xs font-medium text-gray-500 dark:text-zinc-400">
-            Domínio associado
+            Domínio associado (opcional)
           </label>
           <input
             value={form.ownerDomain}
@@ -87,6 +87,11 @@ export function HostingDaPackageFields({ form, onChange, showPackageName = true,
             placeholder="cliente.com"
             className={`${panelField} w-full`}
           />
+          <p className="mt-1 text-[11px] text-gray-400 dark:text-zinc-500">
+            Deixe vazio para um pacote-modelo partilhado por todos os clientes deste plano.
+            Só preencha se este pacote for dedicado a um único cliente — o nome do pacote
+            passa a incluir esse domínio.
+          </p>
         </div>
         <div>
           <label className="mb-1.5 block text-xs font-medium text-gray-500 dark:text-zinc-400">Skin</label>

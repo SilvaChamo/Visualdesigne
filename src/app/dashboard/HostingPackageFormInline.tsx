@@ -169,9 +169,14 @@ export function HostingPackageFormInline({ form, onChange, onCancel, onSubmit, b
   }, [form, selectedPreset]);
 
 
+  // "Domínio associado" é opcional: só serve para dedicar este pacote a um
+  // único cliente (o nome do pacote passa a incluir esse domínio). Deixar
+  // vazio cria o pacote-modelo genérico, partilhado por todos os clientes
+  // deste plano — era isto que faltava para os planos de /precos/hospedagem
+  // ficarem realmente diferenciados no servidor.
   const canSubmit = isEdit
     ? Boolean(form.packageName.trim())
-    : Boolean(form.packageName.trim() && form.ownerDomain.trim() && selectedPreset);
+    : Boolean(form.packageName.trim() && selectedPreset);
 
   const applyPreset = (presetId: HostingPlanPresetId | '') => {
     if (!presetId) {

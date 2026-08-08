@@ -22,6 +22,7 @@ import {
 } from 'lucide-react'
 import { panelTabList, panelTabBtn } from '@/lib/panel-ui'
 import { Spinner } from '@/components/ui/spinner'
+import { splitCompositePackageName } from '@/lib/reseller-package-form'
 
 interface Renewal {
   id: string
@@ -551,11 +552,17 @@ export function RenewalsSection({ initialTab = 'overview', hideTabs = false }: R
                       className="w-full px-3 py-2 border border-gray-300 rounded"
                     >
                       <option value="">Selecione um pacote...</option>
-                      {packageOptions.map(pkg => (
-                        <option key={pkg.packageName} value={pkg.packageName}>
-                          {pkg.packageName} ({pkg.allowedDomains === '-' ? 'domínios ilimitados' : `${pkg.allowedDomains} domínio(s)`})
-                        </option>
-                      ))}
+                      {packageOptions.map(pkg => {
+                        // Pacotes dedicados a um cliente têm o domínio colado ao nome
+                        // real (ex: "VD-Host-Basico__cliente_com") — mostrar só o nome
+                        // limpo do pacote, como já acontece na lista de Pacotes.
+                        const label = splitCompositePackageName(pkg.packageName).packageName || pkg.packageName
+                        return (
+                          <option key={pkg.packageName} value={pkg.packageName}>
+                            {label} ({pkg.allowedDomains === '-' ? 'domínios ilimitados' : `${pkg.allowedDomains} domínio(s)`})
+                          </option>
+                        )
+                      })}
                     </select>
                   </div>
                 )}
