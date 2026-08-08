@@ -7,6 +7,7 @@ import { X, Trash2, ShoppingCart, ChevronRight, Shield, Server, Trash, Mail, Glo
 import { getHostingPlan } from '@/lib/hosting-plans';
 import { EMAIL_BASICO_ID, EMAIL_BASICO_PRICE_MT } from '@/lib/package-catalog';
 import { DOMAIN_TLD_PRICES, domainRegistrationPriceMt } from '@/lib/domain-tld-prices';
+import { checkoutEntryPath, DOMAIN_STEP_PATH } from '@/lib/checkout-flow';
 
 const DOMAIN_REGISTRATION_YEARS = [1, 2, 3, 5, 10];
 
@@ -25,7 +26,7 @@ export function CartDrawer() {
 
   const goToCheckout = () => {
     setIsCartOpen(false);
-    window.location.href = '/checkout';
+    window.location.href = checkoutEntryPath(items);
   };
 
   const typeLabel: Record<string, string> = { domain: 'Domínio', hosting: 'Alojamento', email: 'Email', ssl: 'SSL' };
@@ -102,7 +103,11 @@ export function CartDrawer() {
 
                 <div
                   className="flex items-center justify-between p-3 bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-xl hover:border-red-300 hover:shadow-sm transition-all cursor-pointer group"
-                  onClick={() => addItem({ id: 'hosting-basico', type: 'hosting', name: 'Alojamento Web Básico', price: hostingBasicoPrice, period: 1 })}
+                  onClick={() => {
+                    addItem({ id: 'hosting-basico', type: 'hosting', name: 'Alojamento Web Básico', price: hostingBasicoPrice, period: 1 });
+                    setIsCartOpen(false);
+                    window.location.href = DOMAIN_STEP_PATH;
+                  }}
                 >
                   <div className="flex items-center gap-3">
                     <div className="w-9 h-9 rounded-lg bg-red-50 dark:bg-red-950/20 flex items-center justify-center flex-shrink-0">
@@ -190,9 +195,17 @@ export function CartDrawer() {
                           </select>
                         </div>
                       )}
-                      {(item.type === 'hosting' || item.type === 'email') && (
-                        <span className="text-[10px] text-slate-400">Período: {item.period} {item.period === 1 ? 'mês' : 'meses'}</span>
+                      {item.type === 'hosting' && !item.hostingDomain && (
+                        <a href={DOMAIN_STEP_PATH} onClick={() => setIsCartOpen(false)} className="text-[10px] font-bold text-amber-600 hover:underline">
+                          Falta escolher domínio →
+                        </a>
                       )}
+                      {(item.type === 'hosting' && item.hostingDomain) || item.type === 'email' ? (
+                        <span className="text-[10px] text-slate-400">
+                          {item.type === 'hosting' ? `${item.hostingDomain} · ` : ''}
+                          Período: {item.period} {item.period === 1 ? 'mês' : 'meses'}
+                        </span>
+                      ) : null}
                       <button onClick={() => removeItem(item.id)} className="ml-auto flex items-center gap-1 text-slate-400 hover:text-red-500 transition-colors text-xs">
                         <Trash2 className="w-3.5 h-3.5" /> Remover
                       </button>
@@ -226,7 +239,11 @@ export function CartDrawer() {
                 {!items.find(i => i.id === 'hosting-basico') && (
                   <div
                     className="flex items-center justify-between p-3 bg-white rounded-xl border border-slate-200 hover:border-red-300 hover:shadow-sm transition-all cursor-pointer group"
-                    onClick={() => addItem({ id: 'hosting-basico', type: 'hosting', name: 'Alojamento Web Básico', price: hostingBasicoPrice, period: 1 })}
+                    onClick={() => {
+                      addItem({ id: 'hosting-basico', type: 'hosting', name: 'Alojamento Web Básico', price: hostingBasicoPrice, period: 1 });
+                      setIsCartOpen(false);
+                      window.location.href = DOMAIN_STEP_PATH;
+                    }}
                   >
                     <div className="flex items-center gap-3">
                       <div className="w-9 h-9 rounded-lg bg-red-50 flex items-center justify-center flex-shrink-0">

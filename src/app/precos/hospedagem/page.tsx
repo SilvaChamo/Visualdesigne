@@ -1,17 +1,20 @@
 'use client'
 
 import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { useI18n } from '@/lib/i18n'
 import Link from 'next/link'
 import { useCart } from '@/contexts/CartContext'
 import { ArrowLeft, HardDrive, Mail, Send, Megaphone, Globe, GitBranch, FolderOpen, Database, Lock, LifeBuoy } from 'lucide-react'
 import { getHostingCyclePrice, getHostingMonthlyEquivalent, getHostingPlan } from '@/lib/hosting-plans'
 import { useCurrency } from '@/contexts/CurrencyContext'
+import { DOMAIN_STEP_PATH } from '@/lib/checkout-flow'
 
 export default function PrecosHospedagem() {
   const { t } = useI18n()
-  const { addItem, setIsCartOpen } = useCart()
+  const { addItem } = useCart()
   const { formatPrice } = useCurrency()
+  const router = useRouter()
   const [billingCycle, setBillingCycle] = useState<'monthly' | 'semiannual' | 'annual'>('monthly')
 
   const getPlanPrice = (basePrice: number) => {
@@ -222,7 +225,7 @@ export default function PrecosHospedagem() {
                     <button
                       onClick={() => {
                         addItem({ id: plan.id, type: 'hosting', name: `Alojamento Web ${t(plan.nameKey)}`, price: rawPrice, period: billingCycle === 'annual' ? 12 : billingCycle === 'semiannual' ? 6 : 1 })
-                        setIsCartOpen(true)
+                        router.push(DOMAIN_STEP_PATH)
                       }}
                       className={`w-full py-3 rounded-lg font-medium transition-colors ${
                       plan.popular

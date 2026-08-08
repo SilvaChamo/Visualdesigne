@@ -12,6 +12,7 @@ import { getHostingPlan, getHostingCyclePrice, getHostingMonthlyEquivalent } fro
 import { EMAIL_BASICO_ID, EMAIL_BASICO_PRICE_MT } from '@/lib/package-catalog'
 import { useCurrency } from '@/contexts/CurrencyContext'
 import { MZN_TO_USD_RATE } from '@/lib/currency'
+import { DOMAIN_STEP_PATH } from '@/lib/checkout-flow'
 
 interface SearchResult {
   domain: string
@@ -478,7 +479,7 @@ export default function DomainSearch({
               type="button"
               onClick={() => {
                 addItem({ id: 'hosting-basico', type: 'hosting', name: 'Webhost Básico', price: basicoPrice, period: billingCycle === 'anual' ? 12 : 1 })
-                setIsCartOpen(true)
+                window.location.href = DOMAIN_STEP_PATH
               }}
               className="mt-auto w-full rounded-lg bg-red-600 py-2.5 font-bold text-white transition-colors hover:bg-red-700"
             >
@@ -502,7 +503,7 @@ export default function DomainSearch({
               type="button"
               onClick={() => {
                 addItem({ id: 'hosting-pro', type: 'hosting', name: 'Webhost Pro', price: proPrice, period: billingCycle === 'anual' ? 12 : 1 })
-                setIsCartOpen(true)
+                window.location.href = DOMAIN_STEP_PATH
               }}
               className="mt-auto w-full rounded-lg bg-red-600 py-2.5 font-bold text-white transition-colors hover:bg-red-700"
             >

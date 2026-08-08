@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
+import { useRouter } from 'next/navigation'
 import { Globe, Mail, ShieldCheck, DatabaseBackup, RefreshCw, AppWindow, Server, LifeBuoy, Sparkles, Send, HardDrive, Megaphone, FolderOpen, Database, Lock, GitBranch, Users, Gauge, ArrowRight } from 'lucide-react'
 import { useI18n } from '@/lib/i18n'
 import { useCart } from '@/contexts/CartContext'
@@ -11,6 +12,7 @@ import DomainSearch from '@/components/DomainSearch'
 import { NotchSection } from '@/components/home/NotchSection'
 import { getHostingCyclePrice, getHostingMonthlyEquivalent, getHostingPlan } from '@/lib/hosting-plans'
 import { useCurrency } from '@/contexts/CurrencyContext'
+import { DOMAIN_STEP_PATH } from '@/lib/checkout-flow'
 
 /** Banner (hero) da VisualWeb — usado tanto na home como em /web. */
 export function VisualWebHero() {
@@ -68,7 +70,8 @@ export function VisualWebHero() {
 /** Resto das secções da VisualWeb (tudo o que fica abaixo do banner). */
 export function VisualWebBody() {
   const { t } = useI18n()
-  const { addItem, setIsCartOpen } = useCart()
+  const { addItem } = useCart()
+  const router = useRouter()
   const [openWhyUs, setOpenWhyUs] = useState<Record<number, boolean>>({})
   const [subscribed, setSubscribed] = useState(false)
   const [billingCycle, setBillingCycle] = useState<'monthly' | 'semiannual' | 'annual'>('monthly')
@@ -401,7 +404,7 @@ export function VisualWebBody() {
                       <button
                         onClick={() => {
                           addItem({ id: plan.id, type: 'hosting', name: `Alojamento Web ${t(plan.nameKey)}`, price: rawPrice, period: billingCycle === 'annual' ? 12 : billingCycle === 'semiannual' ? 6 : 1 })
-                          setIsCartOpen(true)
+                          router.push(DOMAIN_STEP_PATH)
                         }}
                         className={`w-full py-2.5 rounded-md font-semibold text-sm transition-all ${plan.popular
                         ? 'bg-red-600 text-white hover:bg-red-700 shadow-md'

@@ -33,8 +33,7 @@ const MOZAMBIQUE_PROVINCIAS = [
 const DOMAIN_REGISTRATION_YEARS = [1, 2, 3, 5, 10];
 const HOSTING_CYCLE_MONTHS: Record<HostingBillingCycle, number> = { monthly: 1, semiannual: 6, annual: 12 };
 const HOSTING_CYCLE_LABELS: Record<HostingBillingCycle, string> = { monthly: 'Mensal', semiannual: 'Semestral', annual: 'Anual' };
-// #6: um item de hospedagem só pode ser activado com um domínio real associado.
-const HOSTING_DOMAIN_REGEX = /^(?=.{1,253}$)([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,}$/i;
+import { checkoutEntryPath } from '@/lib/checkout-flow';
 import { profileAuthOrFilter } from '@/lib/profile-db';
 import {
   CreditCard,
@@ -84,13 +83,22 @@ type ManualSession = {
 };
 
 function CheckoutContent() {
-  const { items, total, clearCart, updateItemPeriod, updateItemHostingDomain } = useCart();
+  const { items, total, clearCart, updateItemPeriod } = useCart();
   const router = useRouter();
   const { user: authUser, loading: authLoading } = useAuth();
   const isAuthenticated = authLoading ? null : !!authUser;
   const searchParams = useSearchParams();
   const renewalId = searchParams.get('renewalId');
   const { currency, formatPrice } = useCurrency();
+
+  // Hospedagem sem domínio associado não deve chegar a esta página — manda
+  // sempre primeiro para /checkout/dominio (rede de segurança para quem
+  // chega aqui directamente, ex. voltar atrás no browser).
+  useEffect(() => {
+    if (renewalId) return;
+    const entry = checkoutEntryPath(items);
+    if (entry !== '/checkout') router.replace(entry);
+  }, [items, renewalId, router]);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [metodoPagamento, setMetodoPagamento] = useState<MetodoPagamento>('transferencia');
@@ -248,18 +256,6 @@ function CheckoutContent() {
     if (isSubmitting) return; // Evita duplo-clique / duplo pagamento
     setIsSubmitting(true);
     setErrorMessage('');
-
-    // #6: sem um domínio válido, a hospedagem fica presa em "a provisionar"
-    // para sempre — bloquear aqui em vez de deixar chegar ao servidor.
-    const hostingWithoutDomain = items.find(
-      (item) => item.type === 'hosting' && !HOSTING_DOMAIN_REGEX.test(item.hostingDomain || ''),
-    );
-    if (hostingWithoutDomain) {
-      setErrorMessage(`Indique um domínio válido para "${hostingWithoutDomain.name}" antes de continuar.`);
-      setStatus('error');
-      setIsSubmitting(false);
-      return;
-    }
 
     if (isAuthenticated === false) {
       if (!accountForm.name.trim()) {
@@ -801,6 +797,9 @@ function CheckoutContent() {
                                 {typeLabel[item.type] || item.type}
                               </span>
                               <h4 className="font-bold text-slate-800 dark:text-zinc-100 text-sm break-all leading-tight">{item.name}</h4>
+                              {item.type === 'hosting' && item.hostingDomain && (
+                                <p className="text-[11px] text-slate-400 dark:text-zinc-500 mt-0.5 break-all">{item.hostingDomain}</p>
+                              )}
                             </div>
                           </div>
 
@@ -824,56 +823,26 @@ function CheckoutContent() {
                                 </select>
                               </label>
                             ) : item.type === 'hosting' ? (
-                              <div className="space-y-2 sm:flex sm:flex-col sm:items-center">
-                                <label className="flex items-center gap-2">
-                                  <span className="text-xs text-slate-400">Ciclo:</span>
-                                  <select
-                                    value={item.period}
-                                    onChange={(e) => {
-                                      const months = Number(e.target.value);
-                                      const cycle = (Object.keys(HOSTING_CYCLE_MONTHS) as HostingBillingCycle[]).find(
-                                        (c) => HOSTING_CYCLE_MONTHS[c] === months,
-                                      );
-                                      const plan = getHostingPlan(item.id);
-                                      const newPrice = plan && cycle ? getHostingCyclePrice(plan.basePrice, cycle) : item.price;
-                                      updateItemPeriod(item.id, months, newPrice);
-                                    }}
-                                    className="rounded border border-slate-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 px-2.5 py-1.5 text-xs font-bold text-slate-600 dark:text-zinc-300"
-                                  >
-                                    {(Object.keys(HOSTING_CYCLE_MONTHS) as HostingBillingCycle[]).map((cycle) => (
-                                      <option key={cycle} value={HOSTING_CYCLE_MONTHS[cycle]}>{HOSTING_CYCLE_LABELS[cycle]}</option>
-                                    ))}
-                                  </select>
-                                </label>
-                                <label className="flex items-center gap-2">
-                                  <span className="text-xs text-slate-400 whitespace-nowrap">Domínio:</span>
-                                  <input
-                                    type="text"
-                                    value={item.hostingDomain || ''}
-                                    onChange={(e) => updateItemHostingDomain(item.id, e.target.value.toLowerCase().trim())}
-                                    placeholder="ex: oseudominio.co.mz"
-                                    className={`w-full rounded border px-2.5 py-1.5 text-xs font-bold text-slate-600 dark:text-zinc-300 bg-white dark:bg-zinc-950 ${
-                                      item.hostingDomain && !HOSTING_DOMAIN_REGEX.test(item.hostingDomain)
-                                        ? 'border-red-400'
-                                        : 'border-slate-200 dark:border-zinc-800'
-                                    }`}
-                                  />
-                                </label>
-                                {items.some((i) => i.type === 'domain') && (
-                                  <div className="flex flex-wrap justify-center gap-1.5">
-                                    {items.filter((i) => i.type === 'domain').map((domainItem) => (
-                                      <button
-                                        key={domainItem.id}
-                                        type="button"
-                                        onClick={() => updateItemHostingDomain(item.id, domainItem.name.toLowerCase().trim())}
-                                        className="text-[11px] px-2 py-1 rounded bg-slate-100 dark:bg-zinc-800 text-slate-500 dark:text-zinc-400 hover:bg-slate-200 dark:hover:bg-zinc-700"
-                                      >
-                                        Usar {domainItem.name}
-                                      </button>
-                                    ))}
-                                  </div>
-                                )}
-                              </div>
+                              <label className="flex items-center gap-2">
+                                <span className="text-xs text-slate-400">Ciclo:</span>
+                                <select
+                                  value={item.period}
+                                  onChange={(e) => {
+                                    const months = Number(e.target.value);
+                                    const cycle = (Object.keys(HOSTING_CYCLE_MONTHS) as HostingBillingCycle[]).find(
+                                      (c) => HOSTING_CYCLE_MONTHS[c] === months,
+                                    );
+                                    const plan = getHostingPlan(item.id);
+                                    const newPrice = plan && cycle ? getHostingCyclePrice(plan.basePrice, cycle) : item.price;
+                                    updateItemPeriod(item.id, months, newPrice);
+                                  }}
+                                  className="rounded border border-slate-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 px-2.5 py-1.5 text-xs font-bold text-slate-600 dark:text-zinc-300"
+                                >
+                                  {(Object.keys(HOSTING_CYCLE_MONTHS) as HostingBillingCycle[]).map((cycle) => (
+                                    <option key={cycle} value={HOSTING_CYCLE_MONTHS[cycle]}>{HOSTING_CYCLE_LABELS[cycle]}</option>
+                                  ))}
+                                </select>
+                              </label>
                             ) : item.type === 'email' && EMAIL_CATALOG[item.id] ? (
                               <label className="flex items-center gap-2">
                                 <span className="text-xs text-slate-400">Ciclo:</span>
