@@ -32,6 +32,10 @@ CREATE TABLE IF NOT EXISTS public.panel_auth_accounts (
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   UNIQUE (panel_slug, email)
 );
+-- CREATE TABLE IF NOT EXISTS acima é no-op numa tabela já existente — quem já
+-- tinha esta tabela sem reseller_tier precisa deste ALTER explícito (o
+-- upsert em upsertPanelAuthAccount grava sempre este campo).
+ALTER TABLE public.panel_auth_accounts ADD COLUMN IF NOT EXISTS reseller_tier TEXT;
 CREATE INDEX IF NOT EXISTS idx_panel_auth_accounts_slug ON public.panel_auth_accounts (panel_slug);
 CREATE INDEX IF NOT EXISTS idx_panel_auth_accounts_role ON public.panel_auth_accounts (role);
 CREATE INDEX IF NOT EXISTS idx_panel_auth_accounts_email ON public.panel_auth_accounts (email);

@@ -10,10 +10,17 @@ CREATE TABLE IF NOT EXISTS public.panel_auth_accounts (
   panel_slug TEXT NOT NULL DEFAULT 'visualdesign',
   server_linked BOOLEAN NOT NULL DEFAULT false,
   da_username TEXT,
+  reseller_tier TEXT,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   UNIQUE (panel_slug, email)
 );
+
+-- #reseller_tier: CREATE TABLE IF NOT EXISTS acima é no-op numa tabela já
+-- existente — quem já tinha esta tabela sem a coluna precisa deste ALTER
+-- explícito (visto em produção: upsertPanelAuthAccount grava sempre este
+-- campo, e sem a coluna o Postgrest recusa o upsert com "schema cache").
+ALTER TABLE public.panel_auth_accounts ADD COLUMN IF NOT EXISTS reseller_tier TEXT;
 
 CREATE INDEX IF NOT EXISTS idx_panel_auth_accounts_slug ON public.panel_auth_accounts (panel_slug);
 CREATE INDEX IF NOT EXISTS idx_panel_auth_accounts_role ON public.panel_auth_accounts (role);
