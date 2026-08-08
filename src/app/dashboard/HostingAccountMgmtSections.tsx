@@ -14,6 +14,10 @@ type DaUserRow = {
   resellerOwner?: string;
 };
 
+type DaPackageRow = {
+  packageName: string;
+};
+
 type MessageTemplate = {
   id: string;
   name: string;
@@ -69,25 +73,26 @@ const MOVE_FORM_CARD_CLS =
 
 const MOVE_CLIENTES_CACHE_KEY = 'vd-admin-clientes-v4';
 
-function readMoveClientesCache(): DaUserRow[] | null {
+function readMoveClientesCache(): { users: DaUserRow[]; packages: DaPackageRow[] } | null {
   if (typeof window === 'undefined') return null;
   try {
     const raw = sessionStorage.getItem(MOVE_CLIENTES_CACHE_KEY);
     if (!raw) return null;
-    const parsed = JSON.parse(raw) as { users?: DaUserRow[] };
-    return Array.isArray(parsed.users) && parsed.users.length ? parsed.users : null;
+    const parsed = JSON.parse(raw) as { users?: DaUserRow[]; packages?: DaPackageRow[] };
+    if (!Array.isArray(parsed.users) || !parsed.users.length) return null;
+    return { users: parsed.users, packages: Array.isArray(parsed.packages) ? parsed.packages : [] };
   } catch {
     return null;
   }
 }
 
-function writeMoveClientesCache(users: DaUserRow[]) {
+function writeMoveClientesCache(users: DaUserRow[], packages: DaPackageRow[]) {
   try {
     const raw = sessionStorage.getItem(MOVE_CLIENTES_CACHE_KEY);
     const parsed = raw ? (JSON.parse(raw) as Record<string, unknown>) : {};
     sessionStorage.setItem(
       MOVE_CLIENTES_CACHE_KEY,
-      JSON.stringify({ ...parsed, users, ts: Date.now() }),
+      JSON.stringify({ ...parsed, users, packages, ts: Date.now() }),
     );
   } catch {
     /* quota */
@@ -109,6 +114,7 @@ function isHostingAccount(row: DaUserRow): boolean {
 export function MoveUsersBetweenResellersSection({ isActive = true }: { isActive?: boolean }) {
   const { setChrome } = useAdminSectionChrome();
   const [users, setUsers] = useState<DaUserRow[]>([]);
+  const [packages, setPackages] = useState<DaPackageRow[]>([]);
   const [resellers, setResellers] = useState<string[]>([]);
   const [selectedUser, setSelectedUser] = useState('');
   const [fromReseller, setFromReseller] = useState('');
@@ -117,18 +123,31 @@ export function MoveUsersBetweenResellersSection({ isActive = true }: { isActive
   const [syncing, setSyncing] = useState(false);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState('');
+  const [pkgUser, setPkgUser] = useState('');
+  const [pkgTarget, setPkgTarget] = useState('');
+  const [pkgBusy, setPkgBusy] = useState(false);
+  const [pkgMsg, setPkgMsg] = useState('');
   const defaultsSetRef = useRef(false);
+  const pkgDefaultSetRef = useRef(false);
 
-  const applyClientesPayload = useCallback((allUsers: DaUserRow[], primary?: string | null) => {
-    const resellerList = deriveResellerList(allUsers, primary);
-    setUsers(allUsers.filter(isHostingAccount));
-    setResellers(resellerList);
-    if (!defaultsSetRef.current && resellerList.length > 0) {
-      setFromReseller(resellerList[0]);
-      setToReseller(resellerList[1] ?? resellerList[0]);
-      defaultsSetRef.current = true;
-    }
-  }, []);
+  const applyClientesPayload = useCallback(
+    (allUsers: DaUserRow[], primary?: string | null, allPackages: DaPackageRow[] = []) => {
+      const resellerList = deriveResellerList(allUsers, primary);
+      setUsers(allUsers.filter(isHostingAccount));
+      setPackages(allPackages);
+      setResellers(resellerList);
+      if (!defaultsSetRef.current && resellerList.length > 0) {
+        setFromReseller(resellerList[0]);
+        setToReseller(resellerList[1] ?? resellerList[0]);
+        defaultsSetRef.current = true;
+      }
+      if (!pkgDefaultSetRef.current && allPackages.length > 0) {
+        setPkgTarget(allPackages[0].packageName);
+        pkgDefaultSetRef.current = true;
+      }
+    },
+    [],
+  );
 
   const fetchClientes = useCallback(
     async (sync = false) => {
@@ -137,9 +156,10 @@ export function MoveUsersBetweenResellersSection({ isActive = true }: { isActive
       const data = await res.json();
       if (!res.ok || !data.success) throw new Error(data.error || 'Falha ao carregar contas');
       const allUsers: DaUserRow[] = data.users || [];
+      const allPackages: DaPackageRow[] = data.packages || [];
       const primary = data.primaryResellerAccount || data.osherReseller || null;
-      writeMoveClientesCache(allUsers);
-      applyClientesPayload(allUsers, primary);
+      writeMoveClientesCache(allUsers, allPackages);
+      applyClientesPayload(allUsers, primary, allPackages);
     },
     [applyClientesPayload],
   );
@@ -168,8 +188,8 @@ export function MoveUsersBetweenResellersSection({ isActive = true }: { isActive
     setChrome(null);
 
     const cached = readMoveClientesCache();
-    if (cached?.length) {
-      applyClientesPayload(cached, null);
+    if (cached) {
+      applyClientesPayload(cached.users, null, cached.packages);
       setLoading(false);
       void refresh({ background: true });
     } else {
@@ -193,6 +213,11 @@ export function MoveUsersBetweenResellersSection({ isActive = true }: { isActive
     if (!selectedUser) return;
     if (!movableUsers.some((u) => u.userName === selectedUser)) setSelectedUser('');
   }, [movableUsers, selectedUser]);
+
+  useEffect(() => {
+    if (!pkgUser) return;
+    if (!users.some((u) => u.userName === pkgUser)) setPkgUser('');
+  }, [users, pkgUser]);
 
   const submit = async () => {
     if (!selectedUser || !fromReseller || !toReseller) {
@@ -227,112 +252,240 @@ export function MoveUsersBetweenResellersSection({ isActive = true }: { isActive
     setBusy(false);
   };
 
+  const submitPackageMove = async () => {
+    if (!pkgUser || !pkgTarget) {
+      setPkgMsg('Seleccione utilizador e pacote de destino.');
+      return;
+    }
+    setPkgBusy(true);
+    setPkgMsg('');
+    try {
+      const res = await fetch('/api/admin/clientes', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'editAccount',
+          userName: pkgUser,
+          packageName: pkgTarget,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) throw new Error(data.error || 'Falha ao mover conta');
+      setPkgMsg(`Conta ${pkgUser} movida para o pacote ${pkgTarget}.`);
+      setPkgUser('');
+      await refresh({ sync: true });
+    } catch (e: unknown) {
+      setPkgMsg(e instanceof Error ? e.message : 'Erro ao mover conta');
+    }
+    setPkgBusy(false);
+  };
+
   const showInitialLoader = loading && users.length === 0;
 
   return (
     <div className="space-y-4 font-panel">
-      <div className={MOVE_FORM_CARD_CLS}>
-        {showInitialLoader ? (
-          <div className="mt-6 flex items-center justify-center gap-2 py-10 text-sm text-zinc-500">
-            <Spinner className="h-4 w-4" />
-            A carregar contas…
-          </div>
-        ) : (
-          <>
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <label className="block space-y-1.5">
-                <span className="text-xs font-bold uppercase text-zinc-500 dark:text-zinc-400">
-                  Revendedor actual
-                </span>
-                <select
-                  value={fromReseller}
-                  onChange={(e) => setFromReseller(e.target.value)}
-                  className={`${panelField} w-full`}
-                  disabled={busy || syncing}
-                >
-                  {resellers.map((r) => (
-                    <option key={r} value={r}>
-                      {r}
-                    </option>
-                  ))}
-                </select>
-              </label>
-
-              <label className="block space-y-1.5">
-                <span className="text-xs font-bold uppercase text-zinc-500 dark:text-zinc-400">
-                  Novo revendedor
-                </span>
-                <select
-                  value={toReseller}
-                  onChange={(e) => setToReseller(e.target.value)}
-                  className={`${panelField} w-full`}
-                  disabled={busy || syncing}
-                >
-                  {resellers.map((r) => (
-                    <option key={r} value={r}>
-                      {r}
-                    </option>
-                  ))}
-                </select>
-              </label>
-
-              <label className="block space-y-1.5 sm:col-span-2">
-                <span className="text-xs font-bold uppercase text-zinc-500 dark:text-zinc-400">
-                  Utilizador
-                </span>
-                <select
-                  value={selectedUser}
-                  onChange={(e) => setSelectedUser(e.target.value)}
-                  className={`${panelField} w-full`}
-                  disabled={busy || syncing}
-                >
-                  <option value="">Seleccionar…</option>
-                  {movableUsers.map((u) => (
-                    <option key={u.userName} value={u.userName}>
-                      {u.userName}
-                      {u.email ? ` (${u.email})` : ''}
-                      {u.resellerOwner ? ` · ${u.resellerOwner}` : ''}
-                    </option>
-                  ))}
-                </select>
-                <p className="text-xs text-zinc-500 dark:text-zinc-400">
-                  {movableUsers.length} conta(s) disponível(is) no revendedor seleccionado.
-                </p>
-              </label>
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <div className={MOVE_FORM_CARD_CLS}>
+          <h2 className="mb-4 text-sm font-bold text-zinc-900 dark:text-zinc-100">
+            Mover entre revendas
+          </h2>
+          {showInitialLoader ? (
+            <div className="mt-6 flex items-center justify-center gap-2 py-10 text-sm text-zinc-500">
+              <Spinner className="h-4 w-4" />
+              A carregar contas…
             </div>
+          ) : (
+            <>
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <label className="block space-y-1.5">
+                  <span className="text-xs font-bold uppercase text-zinc-500 dark:text-zinc-400">
+                    Revendedor actual
+                  </span>
+                  <select
+                    value={fromReseller}
+                    onChange={(e) => setFromReseller(e.target.value)}
+                    className={`${panelField} w-full`}
+                    disabled={busy || syncing}
+                  >
+                    {resellers.map((r) => (
+                      <option key={r} value={r}>
+                        {r}
+                      </option>
+                    ))}
+                  </select>
+                </label>
 
-            <div className="mt-6 flex flex-wrap items-center gap-2 border-t border-gray-100 pt-4 dark:border-zinc-800">
-              <button
-                type="button"
-                onClick={() => void submit()}
-                disabled={busy || syncing || showInitialLoader}
-                className={panelBtnPrimary}
-              >
-                {busy ? <Spinner className="h-4 w-4" /> : null}
-                Mover conta
-              </button>
-              <button
-                type="button"
-                onClick={() => void refresh({ sync: true })}
-                disabled={syncing || busy}
-                className={panelBtnSecondary}
-              >
-                {syncing ? <Spinner className="h-4 w-4" /> : <RefreshCw className="h-4 w-4" />}
-                Actualizar
-              </button>
+                <label className="block space-y-1.5">
+                  <span className="text-xs font-bold uppercase text-zinc-500 dark:text-zinc-400">
+                    Novo revendedor
+                  </span>
+                  <select
+                    value={toReseller}
+                    onChange={(e) => setToReseller(e.target.value)}
+                    className={`${panelField} w-full`}
+                    disabled={busy || syncing}
+                  >
+                    {resellers.map((r) => (
+                      <option key={r} value={r}>
+                        {r}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
+                <label className="block space-y-1.5 sm:col-span-2">
+                  <span className="text-xs font-bold uppercase text-zinc-500 dark:text-zinc-400">
+                    Utilizador
+                  </span>
+                  <select
+                    value={selectedUser}
+                    onChange={(e) => setSelectedUser(e.target.value)}
+                    className={`${panelField} w-full`}
+                    disabled={busy || syncing}
+                  >
+                    <option value="">Seleccionar…</option>
+                    {movableUsers.map((u) => (
+                      <option key={u.userName} value={u.userName}>
+                        {u.userName}
+                        {u.email ? ` (${u.email})` : ''}
+                        {u.resellerOwner ? ` · ${u.resellerOwner}` : ''}
+                      </option>
+                    ))}
+                  </select>
+                  <p className="text-xs text-zinc-500 dark:text-zinc-400">
+                    {movableUsers.length === 0
+                      ? users.length === 0
+                        ? 'Ainda não há contas de hospedagem provisionadas no servidor.'
+                        : 'Nenhuma conta pertence ao revendedor seleccionado.'
+                      : `${movableUsers.length} conta(s) disponível(is) no revendedor seleccionado.`}
+                  </p>
+                </label>
+              </div>
+
+              <div className="mt-6 flex flex-wrap items-center gap-2 border-t border-gray-100 pt-4 dark:border-zinc-800">
+                <button
+                  type="button"
+                  onClick={() => void submit()}
+                  disabled={busy || syncing || showInitialLoader}
+                  className={panelBtnPrimary}
+                >
+                  {busy ? <Spinner className="h-4 w-4" /> : null}
+                  Mover conta
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void refresh({ sync: true })}
+                  disabled={syncing || busy}
+                  className={panelBtnSecondary}
+                >
+                  {syncing ? <Spinner className="h-4 w-4" /> : <RefreshCw className="h-4 w-4" />}
+                  Actualizar
+                </button>
+              </div>
+            </>
+          )}
+
+          {msg ? (
+            <p
+              className={`mt-4 text-sm ${
+                msg.includes('movida') ? 'text-green-700 dark:text-green-400' : 'text-red-700 dark:text-red-400'
+              }`}
+            >
+              {msg}
+            </p>
+          ) : null}
+        </div>
+
+        <div className={MOVE_FORM_CARD_CLS}>
+          <h2 className="mb-4 text-sm font-bold text-zinc-900 dark:text-zinc-100">
+            Mover para outro pacote
+          </h2>
+          {showInitialLoader ? (
+            <div className="mt-6 flex items-center justify-center gap-2 py-10 text-sm text-zinc-500">
+              <Spinner className="h-4 w-4" />
+              A carregar contas…
             </div>
-          </>
-        )}
+          ) : (
+            <>
+              <div className="grid grid-cols-1 gap-4">
+                <label className="block space-y-1.5">
+                  <span className="text-xs font-bold uppercase text-zinc-500 dark:text-zinc-400">
+                    Utilizador
+                  </span>
+                  <select
+                    value={pkgUser}
+                    onChange={(e) => setPkgUser(e.target.value)}
+                    className={`${panelField} w-full`}
+                    disabled={pkgBusy || syncing}
+                  >
+                    <option value="">Seleccionar…</option>
+                    {users.map((u) => (
+                      <option key={u.userName} value={u.userName}>
+                        {u.userName}
+                        {u.email ? ` (${u.email})` : ''}
+                        {u.resellerOwner ? ` · ${u.resellerOwner}` : ''}
+                      </option>
+                    ))}
+                  </select>
+                  <p className="text-xs text-zinc-500 dark:text-zinc-400">
+                    {users.length === 0
+                      ? 'Ainda não há contas de hospedagem provisionadas no servidor.'
+                      : `${users.length} conta(s) disponível(is).`}
+                  </p>
+                </label>
 
-        {msg ? (
-          <p
-            className={`mt-4 text-sm ${
-              msg.includes('movida') ? 'text-green-700 dark:text-green-400' : 'text-red-700 dark:text-red-400'
-            }`}
-          >
-            {msg}
-          </p>
-        ) : null}
+                <label className="block space-y-1.5">
+                  <span className="text-xs font-bold uppercase text-zinc-500 dark:text-zinc-400">
+                    Novo pacote
+                  </span>
+                  <select
+                    value={pkgTarget}
+                    onChange={(e) => setPkgTarget(e.target.value)}
+                    className={`${panelField} w-full`}
+                    disabled={pkgBusy || syncing}
+                  >
+                    {packages.map((p) => (
+                      <option key={p.packageName} value={p.packageName}>
+                        {p.packageName}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+
+              <div className="mt-6 flex flex-wrap items-center gap-2 border-t border-gray-100 pt-4 dark:border-zinc-800">
+                <button
+                  type="button"
+                  onClick={() => void submitPackageMove()}
+                  disabled={pkgBusy || syncing || showInitialLoader}
+                  className={panelBtnPrimary}
+                >
+                  {pkgBusy ? <Spinner className="h-4 w-4" /> : null}
+                  Mover conta
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void refresh({ sync: true })}
+                  disabled={syncing || pkgBusy}
+                  className={panelBtnSecondary}
+                >
+                  {syncing ? <Spinner className="h-4 w-4" /> : <RefreshCw className="h-4 w-4" />}
+                  Actualizar
+                </button>
+              </div>
+            </>
+          )}
+
+          {pkgMsg ? (
+            <p
+              className={`mt-4 text-sm ${
+                pkgMsg.includes('movida') ? 'text-green-700 dark:text-green-400' : 'text-red-700 dark:text-red-400'
+              }`}
+            >
+              {pkgMsg}
+            </p>
+          ) : null}
+        </div>
       </div>
     </div>
   );
