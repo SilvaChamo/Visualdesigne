@@ -14,6 +14,22 @@ import { DOMAIN_TLD_PRICES, domainRegistrationPriceMt } from '@/lib/domain-tld-p
 import { getHostingPlan, getHostingCyclePrice, type HostingBillingCycle } from '@/lib/hosting-plans';
 import { EMAIL_CATALOG } from '@/lib/package-catalog';
 
+// Moçambique não usa "Estado" (terminologia brasileira) — usa província.
+// Ordem geográfica norte → sul, como pedido.
+const MOZAMBIQUE_PROVINCIAS = [
+  'Cabo Delgado',
+  'Niassa',
+  'Nampula',
+  'Zambézia',
+  'Tete',
+  'Manica',
+  'Sofala',
+  'Inhambane',
+  'Gaza',
+  'Maputo Província',
+  'Cidade de Maputo',
+];
+
 const DOMAIN_REGISTRATION_YEARS = [1, 2, 3, 5, 10];
 const HOSTING_CYCLE_MONTHS: Record<HostingBillingCycle, number> = { monthly: 1, semiannual: 6, annual: 12 };
 const HOSTING_CYCLE_LABELS: Record<HostingBillingCycle, string> = { monthly: 'Mensal', semiannual: 'Semestral', annual: 'Anual' };
@@ -743,14 +759,19 @@ function CheckoutContent() {
                               <input type="text" value={accountForm.cidade} onChange={e => setAccountForm(p => ({ ...p, cidade: e.target.value }))} className="w-full px-4 py-2 border border-slate-200 dark:border-zinc-800 bg-slate-50 dark:bg-zinc-950 text-slate-800 dark:text-zinc-100 rounded-md text-sm outline-none focus:ring-1 focus:ring-blue-500" />
                             </div>
                             <div>
-                              <label className="text-xs font-bold text-slate-600 dark:text-zinc-400 mb-1.5 block">Estado</label>
-                              <input type="text" value={accountForm.estado} onChange={e => setAccountForm(p => ({ ...p, estado: e.target.value }))} className="w-full px-4 py-2 border border-slate-200 dark:border-zinc-800 bg-slate-50 dark:bg-zinc-950 text-slate-800 dark:text-zinc-100 rounded-md text-sm outline-none focus:ring-1 focus:ring-blue-500" />
+                              <label className="text-xs font-bold text-slate-600 dark:text-zinc-400 mb-1.5 block">Código Postal</label>
+                              <input type="text" value={accountForm.codigoPostal} onChange={e => setAccountForm(p => ({ ...p, codigoPostal: e.target.value }))} className="w-full px-4 py-2 border border-slate-200 dark:border-zinc-800 bg-slate-50 dark:bg-zinc-950 text-slate-800 dark:text-zinc-100 rounded-md text-sm outline-none focus:ring-1 focus:ring-blue-500" />
                             </div>
                           </div>
                           <div className="grid grid-cols-2 gap-4">
                             <div>
-                              <label className="text-xs font-bold text-slate-600 dark:text-zinc-400 mb-1.5 block">Código Postal</label>
-                              <input type="text" value={accountForm.codigoPostal} onChange={e => setAccountForm(p => ({ ...p, codigoPostal: e.target.value }))} className="w-full px-4 py-2 border border-slate-200 dark:border-zinc-800 bg-slate-50 dark:bg-zinc-950 text-slate-800 dark:text-zinc-100 rounded-md text-sm outline-none focus:ring-1 focus:ring-blue-500" />
+                              <label className="text-xs font-bold text-slate-600 dark:text-zinc-400 mb-1.5 block">Província</label>
+                              <select value={accountForm.estado} onChange={e => setAccountForm(p => ({ ...p, estado: e.target.value }))} className="w-full px-4 py-2 border border-slate-200 dark:border-zinc-800 bg-slate-50 dark:bg-zinc-950 text-slate-800 dark:text-zinc-100 rounded-md text-sm outline-none focus:ring-1 focus:ring-blue-500">
+                                <option value="">Escolher…</option>
+                                {MOZAMBIQUE_PROVINCIAS.map((p) => (
+                                  <option key={p} value={p}>{p}</option>
+                                ))}
+                              </select>
                             </div>
                             <div>
                               <label className="text-xs font-bold text-slate-600 dark:text-zinc-400 mb-1.5 block">País</label>
