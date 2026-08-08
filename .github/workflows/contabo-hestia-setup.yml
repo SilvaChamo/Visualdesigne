@@ -10,8 +10,29 @@ on:
         options:
           - diagnostics
           - install
+          - bootstrap-key
 
 jobs:
+  bootstrap-key:
+    if: ${{ inputs.stage == 'bootstrap-key' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Authorize dedicated SSH key for future key-based access
+        uses: appleboy/ssh-action@v1.2.5
+        with:
+          host: ${{ secrets.CONTABO_HOST }}
+          username: root
+          password: ${{ secrets.CONTABO_ROOT_PASSWORD }}
+          envs: CONTABO_SSH_PUBKEY
+          script: |
+            mkdir -p /root/.ssh
+            chmod 700 /root/.ssh
+            touch /root/.ssh/authorized_keys
+            grep -qxF "$CONTABO_SSH_PUBKEY" /root/.ssh/authorized_keys || echo "$CONTABO_SSH_PUBKEY" >> /root/.ssh/authorized_keys
+            chmod 600 /root/.ssh/authorized_keys
+        env:
+          CONTABO_SSH_PUBKEY: ${{ secrets.CONTABO_SSH_PUBKEY }}
+
   diagnostics:
     if: ${{ inputs.stage == 'diagnostics' }}
     runs-on: ubuntu-latest
