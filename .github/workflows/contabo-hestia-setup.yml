@@ -1,0 +1,56 @@
+name: Contabo Hestia Setup
+
+on:
+  workflow_dispatch:
+    inputs:
+      stage:
+        description: 'Stage to run'
+        required: true
+        type: choice
+        options:
+          - diagnostics
+          - install
+
+jobs:
+  diagnostics:
+    if: ${{ inputs.stage == 'diagnostics' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check server OS and specs
+        uses: appleboy/ssh-action@v1.2.5
+        with:
+          host: ${{ secrets.CONTABO_HOST }}
+          username: root
+          password: ${{ secrets.CONTABO_ROOT_PASSWORD }}
+          script: |
+            hostnamectl
+            echo '---'
+            cat /etc/os-release
+            echo '---'
+            free -h
+            echo '---'
+            df -h /
+            echo '---'
+            ip -4 addr show
+
+  install:
+    if: ${{ inputs.stage == 'install' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Set hostname and install HestiaCP
+        uses: appleboy/ssh-action@v1.2.5
+        with:
+          host: ${{ secrets.CONTABO_HOST }}
+          username: root
+          password: ${{ secrets.CONTABO_ROOT_PASSWORD }}
+          command_timeout: 30m
+          script: |
+            set -e
+            hostnamectl set-hostname "${{ secrets.HESTIA_HOSTNAME }}"
+            curl -sO https://raw.githubusercontent.com/hestiacp/hestiacp/release/install/hst-install.sh
+            bash hst-install.sh \
+              --force \
+              --interactive no \
+              --hostname "${{ secrets.HESTIA_HOSTNAME }}" \
+              --email "${{ secrets.HESTIA_ADMIN_EMAIL }}" \
+              --password "${{ secrets.HESTIA_ADMIN_PASSWORD }}"
