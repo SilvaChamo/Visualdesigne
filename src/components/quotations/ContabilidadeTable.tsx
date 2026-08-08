@@ -369,33 +369,32 @@ function InfoLine({ label, value }: { label: string; value: string }) {
   )
 }
 
-/** Título das duas colunas (Dados da Empresa / Dados do Responsável) — linha
- *  separadora por baixo, sem fundo, tal como era antes. */
-function ClienteInfoHeader({ children }: { children: React.ReactNode }) {
-  return (
-    <p className="mb-1 border-b border-gray-200 pb-2 text-[11px] font-bold uppercase tracking-wide text-gray-400 dark:border-zinc-700 dark:text-zinc-500">
-      {children}
-    </p>
-  )
-}
-
 function ClienteInfoInline({ cliente, domainSlot }: { cliente: Cliente | null; domainSlot?: React.ReactNode }) {
   return (
-    <div className="grid grid-cols-1 gap-x-[30px] gap-y-2 sm:grid-cols-2">
-      <div className="space-y-1">
-        <ClienteInfoHeader>Dados da Empresa</ClienteInfoHeader>
-        <InfoLine label="Empresa" value="VisualDesign" />
-        <InfoLine label="Morada" value="Av. Karl Marx, Nº 177, Maputo — Moçambique" />
-        <InfoLine label="Telefone" value="+258 87 757 5288" />
-        <InfoLine label="Email" value="geral@visualdesignmoz.com" />
+    <div>
+      {/* Cabeçalho único, de ponta a ponta, com fundo — diferente do checkout (que não tem fundo nenhum). */}
+      <div className="mb-2 grid grid-cols-1 gap-x-4 overflow-hidden rounded-md bg-gray-100 sm:grid-cols-2 dark:bg-zinc-800">
+        <p className="px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-gray-500 dark:text-zinc-400">
+          Dados da Empresa
+        </p>
+        <p className="border-t border-gray-200 px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-gray-500 sm:border-l sm:border-t-0 dark:border-zinc-600 dark:text-zinc-400">
+          Dados do Responsável
+        </p>
       </div>
-      <div className="space-y-1 sm:border-l sm:border-gray-200 sm:pl-4 sm:dark:border-zinc-700">
-        <ClienteInfoHeader>Dados do Responsável</ClienteInfoHeader>
-        <InfoLine label="Responsável" value={cliente?.nome || '—'} />
-        <InfoLine label="Residência" value={[cliente?.morada, cliente?.cidade].filter(Boolean).join(', ') || '—'} />
-        <InfoLine label="WhatsApp" value={cliente?.telefone || '—'} />
-        <InfoLine label="Email" value={cliente?.email || '—'} />
-        {domainSlot}
+      <div className="grid grid-cols-1 gap-x-4 gap-y-2 sm:grid-cols-2">
+        <div className="space-y-1">
+          <InfoLine label="Empresa" value="VisualDesign" />
+          <InfoLine label="Morada" value="Av. Karl Marx, Nº 177, Maputo — Moçambique" />
+          <InfoLine label="Telefone" value="+258 87 757 5288" />
+          <InfoLine label="Email" value="geral@visualdesignmoz.com" />
+        </div>
+        <div className="space-y-1 sm:border-l sm:border-gray-200 sm:pl-4 dark:border-zinc-700">
+          <InfoLine label="Responsável" value={cliente?.nome || '—'} />
+          <InfoLine label="Residência" value={[cliente?.morada, cliente?.cidade].filter(Boolean).join(', ') || '—'} />
+          <InfoLine label="WhatsApp" value={cliente?.telefone || '—'} />
+          <InfoLine label="Email" value={cliente?.email || '—'} />
+          {domainSlot}
+        </div>
       </div>
     </div>
   )
