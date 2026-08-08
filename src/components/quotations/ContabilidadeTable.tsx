@@ -369,23 +369,91 @@ function InfoLine({ label, value }: { label: string; value: string }) {
   )
 }
 
-function ClienteInfoInline({ cliente }: { cliente: Cliente | null }) {
+/** Título das duas colunas (Dados da Empresa / Dados do Responsável) — linha
+ *  separadora por baixo, sem fundo, tal como era antes. */
+function ClienteInfoHeader({ children }: { children: React.ReactNode }) {
   return (
-    <div className="grid grid-cols-1 gap-x-5 gap-y-2 sm:grid-cols-2">
+    <p className="mb-1 border-b border-gray-200 pb-2 text-[11px] font-bold uppercase tracking-wide text-gray-400 dark:border-zinc-700 dark:text-zinc-500">
+      {children}
+    </p>
+  )
+}
+
+function ClienteInfoInline({ cliente, domainSlot }: { cliente: Cliente | null; domainSlot?: React.ReactNode }) {
+  return (
+    <div className="grid grid-cols-1 gap-x-[30px] gap-y-2 sm:grid-cols-2">
       <div className="space-y-1">
-        <p className="mb-1 text-[11px] font-bold uppercase tracking-wide text-gray-400 dark:text-zinc-500">Dados da Empresa</p>
+        <ClienteInfoHeader>Dados da Empresa</ClienteInfoHeader>
         <InfoLine label="Empresa" value="VisualDesign" />
         <InfoLine label="Morada" value="Av. Karl Marx, Nº 177, Maputo — Moçambique" />
         <InfoLine label="Telefone" value="+258 87 757 5288" />
         <InfoLine label="Email" value="geral@visualdesignmoz.com" />
       </div>
-      <div className="space-y-1">
-        <p className="mb-1 text-[11px] font-bold uppercase tracking-wide text-gray-400 dark:text-zinc-500">Dados do Responsável</p>
+      <div className="space-y-1 sm:border-l sm:border-gray-200 sm:pl-4 sm:dark:border-zinc-700">
+        <ClienteInfoHeader>Dados do Responsável</ClienteInfoHeader>
         <InfoLine label="Responsável" value={cliente?.nome || '—'} />
         <InfoLine label="Residência" value={[cliente?.morada, cliente?.cidade].filter(Boolean).join(', ') || '—'} />
         <InfoLine label="WhatsApp" value={cliente?.telefone || '—'} />
         <InfoLine label="Email" value={cliente?.email || '—'} />
+        {domainSlot}
       </div>
+    </div>
+  )
+}
+
+/**
+ * #6 — corrige/define o domínio de uma hospedagem mesmo aqui, junto aos
+ * dados do responsável, antes de confirmar o pagamento. Selector com os
+ * domínios já no mesmo pedido + opção de escrever um novo manualmente.
+ */
+function HostingDomainFixField({
+  pedidoItems,
+  currentDomain,
+  value,
+  onChange,
+}: {
+  pedidoItems: { type: string; name: string }[]
+  currentDomain?: string
+  value: string
+  onChange: (v: string) => void
+}) {
+  const isManual = value !== '' && !pedidoItems.some((i) => i.type === 'domain' && i.name.toLowerCase() === value.toLowerCase())
+  const [showManual, setShowManual] = useState(isManual)
+  const domainItems = pedidoItems.filter((i) => i.type === 'domain')
+
+  return (
+    <div className="mt-2">
+      <p className="mb-1 text-xs font-bold text-gray-500 dark:text-zinc-400">Domínio da hospedagem</p>
+      <select
+        value={showManual ? '__manual__' : value}
+        onChange={(e) => {
+          if (e.target.value === '__manual__') {
+            setShowManual(true)
+            return
+          }
+          setShowManual(false)
+          onChange(e.target.value)
+        }}
+        className="w-full rounded border border-gray-200 bg-white px-2.5 py-1.5 text-sm text-gray-700 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-200"
+      >
+        <option value="">Sem domínio</option>
+        {domainItems.map((d) => (
+          <option key={d.name} value={d.name.toLowerCase()}>{d.name}</option>
+        ))}
+        <option value="__manual__">Escrever outro domínio…</option>
+      </select>
+      {showManual && (
+        <input
+          type="text"
+          value={value}
+          onChange={(e) => onChange(e.target.value.toLowerCase().trim())}
+          placeholder="ex: oseudominio.co.mz"
+          className="mt-1.5 w-full rounded border border-gray-200 bg-white px-2.5 py-1.5 text-sm text-gray-700 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-200"
+        />
+      )}
+      {currentDomain && (
+        <p className="mt-1 text-[10px] text-gray-400 dark:text-zinc-500">Domínio actual: {currentDomain}</p>
+      )}
     </div>
   )
 }
@@ -1055,6 +1123,7 @@ type CheckoutItem = {
   type: string
   status?: 'pending' | 'paid' | 'failed'
   rejectionReason?: string | null
+  hostingDomain?: string
 }
 
 type CheckoutPedido = {
@@ -1090,6 +1159,9 @@ function CheckoutItemsByType({ types }: { types: string[] }) {
   const [updatingKey, setUpdatingKey] = useState<string | null>(null)
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null)
   const [expandedKey, setExpandedKey] = useState<string | null>(null)
+  // #6: corrige/define o domínio de uma hospedagem mesmo aqui, antes de confirmar —
+  // sem isto, um pedido de hospedagem sem domínio ficava preso sem forma de o resolver.
+  const [domainDraft, setDomainDraft] = useState<Record<string, string>>({})
 
   const load = () => {
     fetch('/api/admin/checkout-pagamentos')
@@ -1102,7 +1174,7 @@ function CheckoutItemsByType({ types }: { types: string[] }) {
     load()
   }, [])
 
-  const respond = async (pedidoId: string, itemIndex: number, status: 'paid' | 'failed') => {
+  const respond = async (pedidoId: string, itemIndex: number, status: 'paid' | 'failed', hostingDomain?: string) => {
     let rejectionReason: string | null = null
     if (status === 'failed') {
       rejectionReason = window.prompt('Motivo da rejeição (opcional):', '')
@@ -1117,7 +1189,7 @@ function CheckoutItemsByType({ types }: { types: string[] }) {
       const res = await fetch(`/api/admin/checkout-pagamentos/${pedidoId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ itemIndex, status, rejectionReason }),
+        body: JSON.stringify({ itemIndex, status, rejectionReason, hostingDomain }),
       })
       const data = await res.json()
       if (!data.success) throw new Error(data.error || 'Não foi possível actualizar o item.')
@@ -1224,7 +1296,7 @@ function CheckoutItemsByType({ types }: { types: string[] }) {
                         <button
                           type="button"
                           disabled={updatingKey === key}
-                          onClick={() => respond(p.id, itemIndex, 'paid')}
+                          onClick={() => respond(p.id, itemIndex, 'paid', domainDraft[key])}
                           className="text-xs font-medium text-green-600 hover:underline disabled:opacity-50 dark:text-green-400"
                         >
                           Confirmar
@@ -1244,7 +1316,19 @@ function CheckoutItemsByType({ types }: { types: string[] }) {
                 {isExpanded && (
                   <tr className="bg-gray-50 dark:bg-zinc-900/40">
                     <td colSpan={8} className="px-4 py-4">
-                      <ClienteInfoInline cliente={p.cliente} />
+                      <ClienteInfoInline
+                        cliente={p.cliente}
+                        domainSlot={
+                          item.type === 'hosting' ? (
+                            <HostingDomainFixField
+                              pedidoItems={p.items}
+                              currentDomain={item.hostingDomain}
+                              value={domainDraft[key] ?? item.hostingDomain ?? ''}
+                              onChange={(v) => setDomainDraft((d) => ({ ...d, [key]: v }))}
+                            />
+                          ) : undefined
+                        }
+                      />
                     </td>
                   </tr>
                 )}

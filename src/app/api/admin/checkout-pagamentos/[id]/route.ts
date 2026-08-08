@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { requireAdminOrReseller } from '@/lib/panel-api-auth';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
-import { fulfillCheckout } from '@/lib/checkout-fulfillment';
+import { fulfillCheckout, HOSTING_DOMAIN_REGEX } from '@/lib/checkout-fulfillment';
 import type { CatalogCartItem } from '@/lib/package-catalog';
 
 type CartItemWithStatus = CatalogCartItem & { status?: 'pending' | 'paid' | 'failed'; rejectionReason?: string | null };
@@ -31,7 +31,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
 
   try {
     const body = await request.json();
-    const { itemIndex, status, rejectionReason } = body || {};
+    const { itemIndex, status, rejectionReason, hostingDomain } = body || {};
     if (status !== 'paid' && status !== 'failed') {
       return NextResponse.json({ success: false, error: 'Estado inválido.' }, { status: 400 });
     }
@@ -49,7 +49,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     }
 
     const items = (session.items as CartItemWithStatus[]) || [];
-    const item = items[itemIndex];
+    let item = items[itemIndex];
     if (!item) {
       return NextResponse.json({ success: false, error: 'Item não encontrado neste pedido.' }, { status: 404 });
     }
@@ -58,12 +58,25 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       return NextResponse.json({ success: false, error: 'Este item já foi respondido.' }, { status: 409 });
     }
 
+    // #6: o admin pode corrigir/definir o domínio de uma hospedagem aqui mesmo,
+    // antes de confirmar — sem isto, um pedido sem domínio ficava preso sem
+    // forma de o resolver a partir da Contabilidade.
+    const normalizedDomain = typeof hostingDomain === 'string' ? hostingDomain.toLowerCase().trim() : '';
+    if (
+      status === 'paid' &&
+      (item as any).type === 'hosting' &&
+      normalizedDomain &&
+      HOSTING_DOMAIN_REGEX.test(normalizedDomain)
+    ) {
+      item = { ...item, hostingDomain: normalizedDomain } as CartItemWithStatus;
+    }
+
     if (status === 'paid') {
       await fulfillCheckout(supabase, session.user_id, [item], session.metodo_pagamento);
     }
 
     const updatedItems = items.map((it, idx) =>
-      idx === itemIndex ? { ...it, status, rejectionReason: status === 'failed' ? rejectionReason || null : null } : it,
+      idx === itemIndex ? { ...item, status, rejectionReason: status === 'failed' ? rejectionReason || null : null } : it,
     );
     const allPaid = updatedItems.every((it) => (it.status ?? session.status) === 'paid');
     const allDone = updatedItems.every((it) => (it.status ?? session.status) !== 'pending');
