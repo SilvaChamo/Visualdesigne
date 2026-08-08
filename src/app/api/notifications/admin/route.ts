@@ -22,16 +22,17 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Acesso restrito a administradores' }, { status: 403 })
     }
 
-    const { 
-      userId, 
-      title, 
-      message, 
-      type = 'info', 
+    const {
+      userId,
+      title,
+      message,
+      messageHtml,
+      type = 'info',
       category = 'general',
       link,
       linkText,
       sendEmail = false,
-      sendToAll = false 
+      sendToAll = false
     } = await request.json()
 
     if (!title || !message) {
@@ -92,7 +93,7 @@ export async function POST(request: NextRequest) {
             await sendTransactionalEmail({
               to: user.email,
               subject: title,
-              html: buildNotificationEmailHtml({ clientName, title, message, link, linkText, type }),
+              html: buildNotificationEmailHtml({ clientName, title, message, messageHtml, link, linkText, type }),
               category: 'transactional'
             })
             emailsSent++
@@ -155,7 +156,7 @@ export async function POST(request: NextRequest) {
             await sendTransactionalEmail({
               to: targetUser.email,
               subject: title,
-              html: buildNotificationEmailHtml({ clientName, title, message, link, linkText, type }),
+              html: buildNotificationEmailHtml({ clientName, title, message, messageHtml, link, linkText, type }),
               category: 'transactional'
             })
             emailSent = true

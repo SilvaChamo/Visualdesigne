@@ -119,15 +119,22 @@ export function buildSimpleNotificationEmailHtml(params: {
   clientName: string
   title: string
   message: string
+  /** Corpo em HTML rico (editor "Enviar Notificação") — quando presente, substitui `message`
+   *  no email (que fica em texto simples, usado só no sino de notificações do painel). */
+  messageHtml?: string
   link?: string
   linkText?: string
   type: string
 }): string {
-  const { clientName, title, message, link, linkText, type } = params
+  const { clientName, title, message, messageHtml, link, linkText, type } = params
+
+  const messageBlock = messageHtml
+    ? `<div style="color: #374151; font-size: 14px; line-height: 1.6; font-family: 'Exo 2', sans-serif; font-weight: normal;">${messageHtml}</div>`
+    : `<p style="margin: 0; color: #374151; font-size: 14px; line-height: 1.6; white-space: pre-line; font-family: 'Exo 2', sans-serif; font-weight: normal;">${message}</p>`
 
   const body = `
-    <h2 style="margin: 0 0 12px 0; color: #111827; font-size: 18px; font-family: 'Exo 2', sans-serif; font-weight: 600;">${title}</h2>
-    <p style="margin: 0; color: #374151; font-size: 14px; line-height: 1.6; white-space: pre-line; font-family: 'Exo 2', sans-serif; font-weight: normal;">${message}</p>
+    ${title ? `<h2 style="margin: 0 0 12px 0; color: #111827; font-size: 18px; font-family: 'Exo 2', sans-serif; font-weight: 600;">${title}</h2>` : ''}
+    ${messageBlock}
     ${link ? `<p style="margin: 20px 0 0 0;"><a href="${link}" style="display: inline-block; padding: 10px 20px; background: #dc2626; color: #ffffff; text-decoration: none; border-radius: 4px; font-size: 14px; font-family: 'Exo 2', sans-serif;">${linkText || 'Ver mais'}</a></p>` : ''}
   `
 

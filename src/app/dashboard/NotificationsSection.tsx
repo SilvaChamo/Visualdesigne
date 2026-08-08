@@ -1,26 +1,38 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { useRouter } from 'next/navigation'
 import {
-  Bell, 
-  Send, 
-  Users, 
-  AlertTriangle, 
-  CheckCircle, 
+  Bell,
+  Send,
+  Users,
+  AlertTriangle,
+  CheckCircle,
   Info,
   X,
   Trash2,
   RefreshCw,
   Mail,
-  MessageSquare,
-  Palette,
-  ArrowRight,
   Eye
 } from 'lucide-react'
 import { panelTabList, panelTabBtn } from '@/lib/panel-ui'
 import { Spinner } from '@/components/ui/spinner'
 import { buildSimpleNotificationEmailHtml } from '@/lib/renewal-templates'
+import { NotificationRichEditor } from './NotificationRichEditor'
+
+/** Extrai texto simples de HTML — usado para o título automático, o texto
+ * guardado na base de dados (mostrado tal qual, sem HTML, no sino de
+ * notificações do cliente) e a validação de campo vazio. */
+function htmlToPlainText(html: string): string {
+  if (typeof window === 'undefined') return html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim()
+  const container = document.createElement('div')
+  container.innerHTML = html
+  return (container.textContent || '').replace(/\s+/g, ' ').trim()
+}
+
+function deriveTitle(plainText: string): string {
+  if (!plainText) return 'Notificação'
+  return plainText.length > 60 ? `${plainText.slice(0, 57)}...` : plainText
+}
 
 interface Notification {
   id: string
@@ -34,15 +46,13 @@ interface Notification {
   email_sent: boolean
 }
 
-type NotificationsTab = 'renewal-templates' | 'send' | 'list'
+type NotificationsTab = 'send' | 'list'
 
 export function NotificationsSection({
-  defaultTab = 'renewal-templates',
+  defaultTab = 'list',
   filterCategory,
 }: { defaultTab?: NotificationsTab; filterCategory?: string } = {}) {
-  const router = useRouter()
-  const [title, setTitle] = useState('')
-  const [message, setMessage] = useState('')
+  const [messageHtml, setMessageHtml] = useState('')
   const [type, setType] = useState<'info' | 'success' | 'warning' | 'error'>('info')
   const [category, setCategory] = useState('general')
   const [sendEmail, setSendEmail] = useState(false)
@@ -86,12 +96,21 @@ export function NotificationsSection({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+
+    const plainText = htmlToPlainText(messageHtml)
+    if (!plainText) return
+    const title = deriveTitle(plainText)
+
+    const recipientDesc = sendToAll ? 'TODOS os clientes' : userEmail || 'o utilizador indicado'
+    if (!confirm(`Confirma o envio desta notificação para ${recipientDesc}?`)) return
+
     setSending(true)
 
     try {
       const payload: any = {
         title,
-        message,
+        message: plainText,
+        messageHtml,
         type,
         category,
         sendEmail,
@@ -131,8 +150,7 @@ export function NotificationsSection({
         alert(`✅ Notificação enviada com sucesso!\n${sendToAll ? `Enviado para ${data.count} usuários` : 'Enviado para 1 usuário'}${emailSummary}`)
 
         // Limpar formulário
-        setTitle('')
-        setMessage('')
+        setMessageHtml('')
         setUserEmail('')
         setLink('')
         setLinkText('')
@@ -203,37 +221,22 @@ export function NotificationsSection({
     }
   }
 
+  const previewPlainText = htmlToPlainText(messageHtml)
+  const previewTitle = deriveTitle(previewPlainText)
+  const previewClientName =
+    !sendToAll && userEmail.trim()
+      ? (userEmail.includes('@') ? userEmail.split('@')[0] : userEmail.trim())
+      : 'Cliente'
+
   return (
     <div className="space-y-6">
       {/* Tabs */}
       <div className={panelTabList}>
         <button
-          onClick={() => setActiveTab('renewal-templates')}
-          className={`${panelTabBtn} flex items-center gap-2 ${
-            activeTab === 'renewal-templates' 
-              ? 'border-b-red-500 text-red-600' 
-              : 'text-gray-600 hover:text-gray-800'
-          }`}
-        >
-          <Palette className="w-4 h-4" />
-          Templates Renovação
-        </button>
-        <button
-          onClick={() => setActiveTab('send')}
-          className={`${panelTabBtn} flex items-center gap-2 ${
-            activeTab === 'send' 
-              ? 'border-b-gray-700 text-gray-900' 
-              : 'text-gray-600 hover:text-gray-800'
-          }`}
-        >
-          <Send className="w-4 h-4" />
-          Enviar Notificação
-        </button>
-        <button
           onClick={() => setActiveTab('list')}
           className={`${panelTabBtn} flex items-center gap-2 ${
-            activeTab === 'list' 
-              ? 'border-b-gray-700 text-gray-900' 
+            activeTab === 'list'
+              ? 'border-b-gray-700 text-gray-900'
               : 'text-gray-600 hover:text-gray-800'
           }`}
         >
@@ -242,6 +245,17 @@ export function NotificationsSection({
           <span className="px-2 py-0.5 bg-gray-100 text-gray-600 text-xs rounded-full">
             {stats.total}
           </span>
+        </button>
+        <button
+          onClick={() => setActiveTab('send')}
+          className={`${panelTabBtn} flex items-center gap-2 ${
+            activeTab === 'send'
+              ? 'border-b-gray-700 text-gray-900'
+              : 'text-gray-600 hover:text-gray-800'
+          }`}
+        >
+          <Send className="w-4 h-4" />
+          Enviar Notificação
         </button>
       </div>
 
@@ -299,29 +313,13 @@ export function NotificationsSection({
               )}
             </div>
 
-            {/* Título e Mensagem */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Título</label>
-              <input
-                type="text"
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                placeholder="Ex: Manutenção Programada"
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
-                required
-              />
-            </div>
-
+            {/* Mensagem — mesmo editor completo (formatação, cores, links) dos
+                Templates de Renovação, sem o campo de Título separado: o título
+                mostrado no sino de notificações é gerado automaticamente a
+                partir do texto escrito aqui. */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Mensagem</label>
-              <textarea
-                value={message}
-                onChange={(e) => setMessage(e.target.value)}
-                placeholder="Descreva a notificação..."
-                rows={4}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm resize-none"
-                required
-              />
+              <NotificationRichEditor value={messageHtml} onChange={setMessageHtml} />
             </div>
 
             {/* Tipo e Categoria */}
@@ -396,13 +394,13 @@ export function NotificationsSection({
             </div>
 
             {/* Preview */}
-            {title && message && (
+            {previewPlainText && (
               <div className={`p-4 rounded-lg border ${getTypeColor(type)}`}>
                 <div className="flex items-start gap-3">
                   {getTypeIcon(type)}
                   <div>
-                    <p className="font-medium">{title}</p>
-                    <p className="text-sm mt-1 opacity-90">{message}</p>
+                    <p className="font-medium">{previewTitle}</p>
+                    <p className="text-sm mt-1 opacity-90">{previewPlainText}</p>
                     {link && (
                       <p className="text-sm mt-2 underline">{linkText || 'Ver mais'}</p>
                     )}
@@ -414,7 +412,7 @@ export function NotificationsSection({
             {/* Botão Enviar */}
             <button
               type="submit"
-              disabled={sending || !title || !message}
+              disabled={sending || !previewPlainText}
               className="w-full py-3 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
             >
               {sending ? (
@@ -441,9 +439,10 @@ export function NotificationsSection({
             <div
               dangerouslySetInnerHTML={{
                 __html: buildSimpleNotificationEmailHtml({
-                  clientName: 'Cliente',
-                  title: title || 'Título da notificação',
-                  message: message || 'A mensagem que escreveres aqui aparece assim no email.',
+                  clientName: previewClientName,
+                  title: previewPlainText ? previewTitle : '',
+                  message: previewPlainText || 'A mensagem que escreveres aqui aparece assim no email.',
+                  messageHtml: messageHtml || undefined,
                   link: link || undefined,
                   linkText: linkText || undefined,
                   type,
@@ -452,95 +451,6 @@ export function NotificationsSection({
             />
           </div>
         </div>
-        </div>
-      )}
-
-      {/* Tab: Templates Renovação */}
-      {activeTab === 'renewal-templates' && (
-        <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
-          <div className="flex items-center justify-between mb-6">
-            <div className="flex items-center gap-3">
-              <div className="p-3 bg-purple-100 rounded-lg">
-                <Palette className="w-6 h-6 text-purple-600" />
-              </div>
-              <div>
-                <h3 className="text-lg font-semibold text-gray-900">Templates de Renovação</h3>
-                <p className="text-sm text-gray-500">Edite as notificações automáticas de renovação de domínios e hospedagem</p>
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-gradient-to-r from-purple-50 to-blue-50 rounded-xl p-6 border border-purple-200">
-            <div className="flex items-center gap-4">
-              <div className="p-4 bg-white rounded-xl shadow-sm">
-                <Palette className="w-8 h-8 text-purple-600" />
-              </div>
-              <div className="flex-1">
-                <h4 className="font-semibold text-gray-900 mb-1">Editor Completo de Templates</h4>
-                <p className="text-sm text-gray-600 mb-3">
-                  Acesse o editor visual para personalizar as 8 notificações automáticas de renovação. 
-                  Edite títulos, mensagens, cores, emails e veja preview ao vivo.
-                </p>
-                <div className="flex flex-wrap gap-2 mb-4">
-                  <span className="px-2 py-1 bg-blue-100 text-blue-700 text-xs rounded">60 dias</span>
-                  <span className="px-2 py-1 bg-blue-100 text-blue-700 text-xs rounded">45 dias</span>
-                  <span className="px-2 py-1 bg-yellow-100 text-yellow-700 text-xs rounded">30 dias</span>
-                  <span className="px-2 py-1 bg-yellow-100 text-yellow-700 text-xs rounded">15 dias</span>
-                  <span className="px-2 py-1 bg-red-100 text-red-700 text-xs rounded">7 dias</span>
-                  <span className="px-2 py-1 bg-red-100 text-red-700 text-xs rounded">3 dias</span>
-                  <span className="px-2 py-1 bg-red-100 text-red-700 text-xs rounded">1 dia</span>
-                  <span className="px-2 py-1 bg-green-100 text-green-700 text-xs rounded">Confirmação</span>
-                </div>
-              </div>
-              <button
-                onClick={() => {
-                  const isAdmin = window.location.pathname.includes('/dashboard')
-                  router.push(isAdmin ? '/dashboard?section=renewals' : '/revendedor?section=renewals')
-                }}
-                className="px-6 py-3 bg-purple-600 text-white rounded-xl font-medium hover:bg-purple-700 flex items-center gap-2 shadow-lg shadow-purple-200 transition-all hover:shadow-xl"
-              >
-                Abrir Editor
-                <ArrowRight className="w-5 h-5" />
-              </button>
-            </div>
-          </div>
-
-          <div className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="p-4 bg-gray-50 rounded-lg">
-              <h5 className="font-medium text-gray-700 mb-2 flex items-center gap-2">
-                <CheckCircle className="w-4 h-4 text-green-500" />
-                Variáveis Dinâmicas
-              </h5>
-              <p className="text-xs text-gray-500">
-                Use {'{{clientName}}'}, {'{{serviceName}}'}, {'{{expirationDate}}'} e outras variáveis que são substituídas automaticamente.
-              </p>
-            </div>
-            <div className="p-4 bg-gray-50 rounded-lg">
-              <h5 className="font-medium text-gray-700 mb-2 flex items-center gap-2">
-                <CheckCircle className="w-4 h-4 text-green-500" />
-                Preview ao Vivo
-              </h5>
-              <p className="text-xs text-gray-500">
-                Veja como a notificação aparecerá para o cliente enquanto edita.
-              </p>
-            </div>
-            <div className="p-4 bg-gray-50 rounded-lg">
-              <h5 className="font-medium text-gray-700 mb-2 flex items-center gap-2">
-                <CheckCircle className="w-4 h-4 text-green-500" />
-                8 Templates
-              </h5>
-              <p className="text-xs text-gray-500">
-                Configure mensagens para 60, 45, 30, 15, 7, 3, 1 dias e confirmação.
-              </p>
-            </div>
-          </div>
-
-          <div className="mt-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
-            <p className="text-sm text-blue-700">
-              <strong>💡 Dica:</strong> O editor completo está localizado na seção <strong>"Renovações"</strong> do menu lateral. 
-              Clique no botão acima ou navegue pelo menu para acessar todas as funcionalidades.
-            </p>
-          </div>
         </div>
       )}
 
