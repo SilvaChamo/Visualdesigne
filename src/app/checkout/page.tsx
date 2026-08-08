@@ -775,9 +775,7 @@ function CheckoutContent() {
                             </div>
                             <div>
                               <label className="text-xs font-bold text-slate-600 dark:text-zinc-400 mb-1.5 block">País</label>
-                              <select value={accountForm.pais} onChange={e => setAccountForm(p => ({ ...p, pais: e.target.value }))} className="w-full px-4 py-2 border border-slate-200 dark:border-zinc-800 bg-slate-50 dark:bg-zinc-950 text-slate-800 dark:text-zinc-100 rounded-md text-sm outline-none focus:ring-1 focus:ring-blue-500">
-                                <option value="Mozambique">Mozambique</option>
-                              </select>
+                              <input type="text" value="Moçambique" disabled readOnly className="w-full px-4 py-2 border border-slate-200 dark:border-zinc-800 bg-slate-100 dark:bg-zinc-900 text-slate-500 dark:text-zinc-400 rounded-md text-sm outline-none cursor-not-allowed" />
                             </div>
                           </div>
                         </div>
@@ -791,7 +789,7 @@ function CheckoutContent() {
                       Resumo da Compra
                     </h3>
 
-                    <div className="divide-y divide-slate-100 dark:divide-zinc-800/40">
+                    <div className="border-t border-slate-200 dark:border-zinc-800 divide-y divide-slate-100 dark:divide-zinc-800/40">
                       {items.map((item) => (
                         <div key={item.id} className="py-3 grid grid-cols-1 sm:grid-cols-[1.4fr_1.2fr_auto] gap-2 sm:gap-4 sm:items-center">
                           <div className="flex gap-2.5 items-start min-w-0">
@@ -806,10 +804,10 @@ function CheckoutContent() {
                             </div>
                           </div>
 
-                          <div className="pl-[42px] sm:pl-0 min-w-0">
+                          <div className="pl-[42px] sm:pl-0 min-w-0 sm:flex sm:flex-col sm:items-center sm:justify-center sm:text-center">
                             {item.type === 'domain' ? (
-                              <label className="flex items-center gap-1.5">
-                                <span className="text-[10px] text-slate-400">Registar por:</span>
+                              <label className="flex items-center gap-2">
+                                <span className="text-xs text-slate-400">Registar por:</span>
                                 <select
                                   value={item.period}
                                   onChange={(e) => {
@@ -818,7 +816,7 @@ function CheckoutContent() {
                                     const newPrice = tld ? domainRegistrationPriceMt(tld, years) : item.price;
                                     updateItemPeriod(item.id, years, newPrice);
                                   }}
-                                  className="rounded border border-slate-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 px-1.5 py-0.5 text-[10px] font-bold text-slate-600 dark:text-zinc-300"
+                                  className="rounded border border-slate-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 px-2.5 py-1.5 text-xs font-bold text-slate-600 dark:text-zinc-300"
                                 >
                                   {DOMAIN_REGISTRATION_YEARS.map((y) => (
                                     <option key={y} value={y}>{y} {y === 1 ? 'ano' : 'anos'}</option>
@@ -826,9 +824,9 @@ function CheckoutContent() {
                                 </select>
                               </label>
                             ) : item.type === 'hosting' ? (
-                              <div className="space-y-1">
-                                <label className="flex items-center gap-1.5">
-                                  <span className="text-[10px] text-slate-400">Ciclo:</span>
+                              <div className="space-y-2 sm:flex sm:flex-col sm:items-center">
+                                <label className="flex items-center gap-2">
+                                  <span className="text-xs text-slate-400">Ciclo:</span>
                                   <select
                                     value={item.period}
                                     onChange={(e) => {
@@ -840,21 +838,21 @@ function CheckoutContent() {
                                       const newPrice = plan && cycle ? getHostingCyclePrice(plan.basePrice, cycle) : item.price;
                                       updateItemPeriod(item.id, months, newPrice);
                                     }}
-                                    className="rounded border border-slate-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 px-1.5 py-0.5 text-[10px] font-bold text-slate-600 dark:text-zinc-300"
+                                    className="rounded border border-slate-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 px-2.5 py-1.5 text-xs font-bold text-slate-600 dark:text-zinc-300"
                                   >
                                     {(Object.keys(HOSTING_CYCLE_MONTHS) as HostingBillingCycle[]).map((cycle) => (
                                       <option key={cycle} value={HOSTING_CYCLE_MONTHS[cycle]}>{HOSTING_CYCLE_LABELS[cycle]}</option>
                                     ))}
                                   </select>
                                 </label>
-                                <label className="flex items-center gap-1.5">
-                                  <span className="text-[10px] text-slate-400 whitespace-nowrap">Domínio:</span>
+                                <label className="flex items-center gap-2">
+                                  <span className="text-xs text-slate-400 whitespace-nowrap">Domínio:</span>
                                   <input
                                     type="text"
                                     value={item.hostingDomain || ''}
                                     onChange={(e) => updateItemHostingDomain(item.id, e.target.value.toLowerCase().trim())}
                                     placeholder="ex: oseudominio.co.mz"
-                                    className={`w-full rounded border px-1.5 py-0.5 text-[10px] font-bold text-slate-600 dark:text-zinc-300 bg-white dark:bg-zinc-950 ${
+                                    className={`w-full rounded border px-2.5 py-1.5 text-xs font-bold text-slate-600 dark:text-zinc-300 bg-white dark:bg-zinc-950 ${
                                       item.hostingDomain && !HOSTING_DOMAIN_REGEX.test(item.hostingDomain)
                                         ? 'border-red-400'
                                         : 'border-slate-200 dark:border-zinc-800'
@@ -862,13 +860,13 @@ function CheckoutContent() {
                                   />
                                 </label>
                                 {items.some((i) => i.type === 'domain') && (
-                                  <div className="flex flex-wrap gap-1">
+                                  <div className="flex flex-wrap justify-center gap-1.5">
                                     {items.filter((i) => i.type === 'domain').map((domainItem) => (
                                       <button
                                         key={domainItem.id}
                                         type="button"
                                         onClick={() => updateItemHostingDomain(item.id, domainItem.name.toLowerCase().trim())}
-                                        className="text-[9px] px-1.5 py-0.5 rounded bg-slate-100 dark:bg-zinc-800 text-slate-500 dark:text-zinc-400 hover:bg-slate-200 dark:hover:bg-zinc-700"
+                                        className="text-[11px] px-2 py-1 rounded bg-slate-100 dark:bg-zinc-800 text-slate-500 dark:text-zinc-400 hover:bg-slate-200 dark:hover:bg-zinc-700"
                                       >
                                         Usar {domainItem.name}
                                       </button>
@@ -877,8 +875,8 @@ function CheckoutContent() {
                                 )}
                               </div>
                             ) : item.type === 'email' && EMAIL_CATALOG[item.id] ? (
-                              <label className="flex items-center gap-1.5">
-                                <span className="text-[10px] text-slate-400">Ciclo:</span>
+                              <label className="flex items-center gap-2">
+                                <span className="text-xs text-slate-400">Ciclo:</span>
                                 <select
                                   value={item.period}
                                   onChange={(e) => {
@@ -887,14 +885,14 @@ function CheckoutContent() {
                                     const newPrice = months === 12 ? plan.annual : plan.monthly;
                                     updateItemPeriod(item.id, months, newPrice);
                                   }}
-                                  className="rounded border border-slate-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 px-1.5 py-0.5 text-[10px] font-bold text-slate-600 dark:text-zinc-300"
+                                  className="rounded border border-slate-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 px-2.5 py-1.5 text-xs font-bold text-slate-600 dark:text-zinc-300"
                                 >
                                   <option value={1}>Mensal</option>
                                   <option value={12}>Anual</option>
                                 </select>
                               </label>
                             ) : (
-                              <span className="text-[10px] text-slate-400">Período: {item.period} {item.period === 1 ? 'mês' : 'meses'}</span>
+                              <span className="text-xs text-slate-400">Período: {item.period} {item.period === 1 ? 'mês' : 'meses'}</span>
                             )}
                           </div>
 
@@ -906,7 +904,7 @@ function CheckoutContent() {
                     </div>
 
                     <div className="pt-3 mt-1 border-t border-dashed border-slate-300 dark:border-zinc-700 space-y-1.5">
-                      <div className="pt-2 border-t border-dashed border-slate-300 dark:border-zinc-700 flex justify-between items-center">
+                      <div className="flex justify-between items-center">
                         <span className="font-black text-slate-800 dark:text-zinc-100 text-sm uppercase">Total</span>
                         <span className="font-black text-xl text-red-600 dark:text-red-400">{formatPrice(total)}</span>
                       </div>
