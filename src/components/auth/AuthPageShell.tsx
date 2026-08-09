@@ -4,14 +4,6 @@ import { ThemeToggle } from '@/components/theme/ThemeToggle';
 import { authShellClass } from '@/components/auth/auth-styles';
 import { Spinner } from '@/components/ui/spinner';
 
-/** URL da home page — em localhost vai para '/', em produção para o site principal. */
-function getLogoHomeUrl(): string {
-  if (typeof window === 'undefined') return 'https://visualdesignmoz.com';
-  const host = window.location.hostname;
-  if (host === 'localhost' || host === '127.0.0.1') return '/';
-  return 'https://visualdesignmoz.com';
-}
-
 type AuthPageShellProps = {
   children: React.ReactNode;
   /** Largura do cartão — por defeito 420px */
@@ -31,8 +23,8 @@ export function AuthPageShell({ children, wide }: AuthPageShellProps) {
       </div>
 
       <div className="relative z-10 flex flex-1 flex-col items-center justify-center px-4 py-10">
-        <a 
-          href={getLogoHomeUrl()} 
+        <a
+          href="/"
           className="mb-1 flex justify-center items-center transition-transform duration-300 hover:scale-105 hover:opacity-90 active:scale-95"
         >
           <img
