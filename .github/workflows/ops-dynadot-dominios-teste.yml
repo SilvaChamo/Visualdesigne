@@ -1,90 +1,23 @@
-name: Ops — dominios de teste na Dynadot (info + desligar renovação) + repor basededadosagro.com
+name: Ops — repor basededadosagro.com em domain_renewals
 
-# Execução manual só. Dois jobs independentes:
+# Execução manual só.
 #
-# 1) dominios-teste-dynadot: para os 3 domínios registados por engano numa
-#    sessão anterior (claude-ns-raw-*, claude-vd-teste-*, claude-vd-teste2-*),
-#    mostra a data de registo real (para se saber se ainda estão dentro do
-#    prazo de reembolso da Dynadot) e desliga a renovação automática — a
-#    única acção de "remover" que a API da Dynadot expõe de forma fiável
-#    (apagar/reembolsar só existe no site deles, dentro de poucos dias do
-#    registo, sem API documentada com confiança aqui). Não custa mais nada e
-#    os domínios somem sozinhos nas datas de expiração já mostradas no painel.
+# Nota (2026-08-09): esta workflow tinha originalmente um segundo job para
+# "limpar" 3 domínios (claude-ns-raw-*, claude-vd-teste-*, claude-vd-teste2-*)
+# que pareciam ter sido registados a sério por engano numa sessão anterior.
+# Confirmado directamente contra a API da Dynadot: esses domínios só existem
+# no ambiente de testes (sandbox, api-sandbox.dynadot.com) — nunca estiveram
+# na conta real, nunca custaram nada. O ecrã "Domínios" no localhost mostrou-os
+# porque o dev local usa DYNADOT_ENV=sandbox por omissão. Job removido — nada
+# para limpar aí.
 #
-# 2) repor-basededadosagro: desfaz a remoção de domain_renewals feita por
-#    engano — o utilizador confirmou que basededadosagro.com é um domínio
-#    real (comprado via Dynadot) e não deve ser removido do nosso registo
-#    interno de acompanhamento de renovações.
+# Fica só o passo que continua válido: repor o registo de basededadosagro.com
+# em domain_renewals, removido por engano antes de o utilizador confirmar que
+# é um domínio real (comprado via Dynadot, conta de produção) a manter.
 on:
   workflow_dispatch:
 
 jobs:
-  dominios-teste-dynadot:
-    name: Ver idade real + desligar renovação automática (domínios de teste)
-    runs-on: ubuntu-latest
-    env:
-      DYNADOT_API_KEY: ${{ secrets.DYNADOT_API_KEY }}
-      DYNADOT_SECRET_KEY: ${{ secrets.DYNADOT_SECRET_KEY }}
-    steps:
-      - name: Consultar e desligar renovação automática via API da Dynadot
-        run: |
-          cat > dynadot-cleanup.js << 'EOF'
-          const crypto = require('crypto');
-
-          const DOMAINS = [
-            'claude-ns-raw-1785932037879.com',
-            'claude-vd-teste-1785931313729.com',
-            'claude-vd-teste2-1785931711003.com',
-          ];
-
-          const apiKey = process.env.DYNADOT_API_KEY;
-          const secretKey = process.env.DYNADOT_SECRET_KEY;
-          const BASE_URL = 'https://api.dynadot.com';
-
-          function sign(path, requestId, body) {
-            const stringToSign = `${apiKey}\n${path}\n${requestId}\n${body}`;
-            return crypto.createHmac('sha256', secretKey).update(stringToSign).digest('hex');
-          }
-
-          async function call(method, path, body) {
-            const bodyStr = body !== undefined ? JSON.stringify(body) : '';
-            const requestId = crypto.randomUUID();
-            const signature = sign(path, requestId, bodyStr);
-            const headers = {
-              Accept: 'application/json',
-              Authorization: `Bearer ${apiKey}`,
-              'X-Request-ID': requestId,
-              'X-Signature': signature,
-            };
-            if (bodyStr) headers['Content-Type'] = 'application/json';
-            const res = await fetch(`${BASE_URL}${path}`, { method, headers, body: bodyStr || undefined });
-            const json = await res.json().catch(() => ({}));
-            return json;
-          }
-
-          (async () => {
-            for (const domain of DOMAINS) {
-              console.log(`\n=== ${domain} ===`);
-              const details = await call('GET', `/restful/v1/domains/${encodeURIComponent(domain)}`);
-              const info = details?.data?.domainInfo?.[0];
-              if (info) {
-                const reg = info.registration ? new Date(info.registration).toISOString() : 'desconhecida';
-                const exp = info.expiration ? new Date(info.expiration).toISOString() : 'desconhecida';
-                const ageDays = info.registration ? ((Date.now() - info.registration) / 86400000).toFixed(1) : '?';
-                console.log(`Registado em: ${reg} (há ${ageDays} dias) | Expira: ${exp} | renew_option: ${info.renew_option}`);
-              } else {
-                console.log('Não consegui obter detalhes:', JSON.stringify(details));
-              }
-
-              const result = await call('PUT', `/restful/v1/domains/${encodeURIComponent(domain)}/renew_option`, {
-                renew_option: 'reset',
-              });
-              console.log('Desligar renovação automática ->', JSON.stringify(result));
-            }
-          })();
-          EOF
-          node dynadot-cleanup.js
-
   repor-basededadosagro:
     name: Repor basededadosagro.com em domain_renewals (é um domínio real)
     runs-on: ubuntu-latest
