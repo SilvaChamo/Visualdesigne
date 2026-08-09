@@ -6,6 +6,13 @@ import {
   listAllHostingUsersFromDa,
 } from '@/lib/directadmin-adapter';
 import { daPostViaSsh } from '@/lib/da-api-ssh';
+import {
+  getProviderByUsername,
+  suspendHostingAccount,
+  unsuspendHostingAccount,
+  deleteHostingAccount,
+  changeHostingAccountPassword,
+} from '@/lib/hosting-provider';
 import { requireAdminOrReseller } from '@/lib/panel-api-auth';
 import { runDaFullSyncDeduped, scheduleDaSync } from '@/lib/da-sync-engine';
 import { loadResellerCredentialsByDaUsername, encryptDaSecret } from '@/lib/da-credential-store';
@@ -704,12 +711,14 @@ export async function PATCH(req: NextRequest) {
 
     switch (action) {
       case 'suspend': {
-        const r = await daPostViaSsh('CMD_API_SELECT_USERS', { suspend: 'yes', select0: userName });
+        const provider = await getProviderByUsername(userName);
+        const r = await suspendHostingAccount(provider, userName);
         data = { success: r.ok, error: r.error };
         break;
       }
       case 'unsuspend': {
-        const r = await daPostViaSsh('CMD_API_SELECT_USERS', { suspend: 'no', select0: userName });
+        const provider = await getProviderByUsername(userName);
+        const r = await unsuspendHostingAccount(provider, userName);
         data = { success: r.ok, error: r.error };
         break;
       }
@@ -718,16 +727,21 @@ export async function PATCH(req: NextRequest) {
           return NextResponse.json({ success: false, error: 'Password inválida' }, { status: 400 });
         }
         {
-          const r = await daPostViaSsh('CMD_API_MODIFY_USER', {
-            action: 'single',
-            user: userName,
-            passwd: String(password),
-            passwd2: String(password),
-          });
+          const provider = await getProviderByUsername(userName);
+          const r = await changeHostingAccountPassword(provider, userName, String(password));
           data = { success: r.ok, error: r.error };
         }
         break;
       case 'moveToReseller': {
+        // Conceito exclusivo do DirectAdmin — o Hestia não tem hierarquia de
+        // revendedor equivalente (cada conta é independente lá).
+        const provider = await getProviderByUsername(userName);
+        if (provider === 'hestia') {
+          return NextResponse.json(
+            { success: false, error: 'Esta conta vive no HestiaCP, que não tem conceito de revendedor — mudança não aplicável.' },
+            { status: 409 },
+          );
+        }
         const fromReseller = String(body.fromReseller || '').trim();
         const toReseller = String(body.toReseller || '').trim();
         if (!fromReseller || !toReseller) {
@@ -756,7 +770,8 @@ export async function PATCH(req: NextRequest) {
         break;
       }
       case 'delete': {
-        const r = await daPostViaSsh('CMD_API_SELECT_USERS', { delete: 'yes', select0: userName });
+        const provider = await getProviderByUsername(userName);
+        const r = await deleteHostingAccount(provider, userName);
         data = { success: r.ok, error: r.error };
         break;
       }

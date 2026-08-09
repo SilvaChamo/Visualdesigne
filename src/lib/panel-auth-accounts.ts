@@ -13,6 +13,7 @@ export type PanelAuthAccountRow = {
   server_linked: boolean;
   da_username: string | null;
   reseller_tier?: string | null;
+  provider?: string;
   created_at?: string;
   updated_at?: string;
 };
@@ -28,14 +29,16 @@ CREATE TABLE IF NOT EXISTS public.panel_auth_accounts (
   server_linked BOOLEAN NOT NULL DEFAULT false,
   da_username TEXT,
   reseller_tier TEXT,
+  provider TEXT NOT NULL DEFAULT 'directadmin',
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   UNIQUE (panel_slug, email)
 );
 -- CREATE TABLE IF NOT EXISTS acima é no-op numa tabela já existente — quem já
--- tinha esta tabela sem reseller_tier precisa deste ALTER explícito (o
--- upsert em upsertPanelAuthAccount grava sempre este campo).
+-- tinha esta tabela sem reseller_tier/provider precisa destes ALTER
+-- explícitos (o upsert em upsertPanelAuthAccount grava sempre estes campos).
 ALTER TABLE public.panel_auth_accounts ADD COLUMN IF NOT EXISTS reseller_tier TEXT;
+ALTER TABLE public.panel_auth_accounts ADD COLUMN IF NOT EXISTS provider TEXT NOT NULL DEFAULT 'directadmin';
 CREATE INDEX IF NOT EXISTS idx_panel_auth_accounts_slug ON public.panel_auth_accounts (panel_slug);
 CREATE INDEX IF NOT EXISTS idx_panel_auth_accounts_role ON public.panel_auth_accounts (role);
 CREATE INDEX IF NOT EXISTS idx_panel_auth_accounts_email ON public.panel_auth_accounts (email);
@@ -80,12 +83,15 @@ export async function upsertPanelAuthAccount(
     daUsername?: string | null;
     resellerTier?: string | null;
     panelSlug?: string;
+    /** Qual servidor de hospedagem trata esta conta. Omitir preserva o valor
+     * actual num upsert (não sobrescreve para 'directadmin' por engano). */
+    provider?: 'directadmin' | 'hestia';
   },
 ): Promise<void> {
   await ensurePanelAuthAccountsSchema(admin);
 
   const email = params.email.toLowerCase().trim();
-  const payload = {
+  const payload: Record<string, unknown> = {
     user_id: params.userId,
     email,
     role: params.role,
@@ -96,6 +102,7 @@ export async function upsertPanelAuthAccount(
     reseller_tier: params.resellerTier?.trim() || null,
     updated_at: new Date().toISOString(),
   };
+  if (params.provider) payload.provider = params.provider;
 
   const { error } = await admin.from('panel_auth_accounts').upsert(payload, { onConflict: 'user_id' });
   if (error) throw new Error(error.message);

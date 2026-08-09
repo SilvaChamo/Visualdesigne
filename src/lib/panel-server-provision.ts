@@ -5,6 +5,7 @@
 
 import { createClient } from '@supabase/supabase-js';
 import { daPostViaSsh } from '@/lib/da-api-ssh';
+import * as hestiaAdapter from '@/lib/hestia-adapter';
 import { decryptDaSecret } from '@/lib/da-credential-store';
 import { upsertPanelAuthAccount } from '@/lib/panel-auth-accounts';
 import { saveProfileForAuthUser } from '@/lib/profile-db';
@@ -112,7 +113,7 @@ export async function provisionPanelAccountToServer(userName: string): Promise<{
 
   const { data: authRow } = await sb
     .from('panel_auth_accounts')
-    .select('server_linked, email, role, name')
+    .select('server_linked, email, role, name, provider')
     .eq('user_id', userId)
     .eq('panel_slug', PANEL_SLUG.toLowerCase())
     .maybeSingle();
@@ -157,14 +158,15 @@ export async function provisionPanelAccountToServer(userName: string): Promise<{
   }
 
   const acl = String(panelUser.acl || 'user').toLowerCase();
-  const cmd = acl === 'reseller' ? 'CMD_API_ACCOUNT_RESELLER' : 'CMD_API_ACCOUNT_USER';
-  const result = await daPostViaSsh(cmd, accountCreateFields({
-    userName: username,
-    email,
-    password,
-    domain,
-    packageName,
-  }));
+  const provider = authRow?.provider === 'hestia' ? 'hestia' : 'directadmin';
+
+  const result =
+    provider === 'hestia'
+      ? await hestiaAdapter.createAccount({ username, password, email, domain, packageName })
+      : await daPostViaSsh(
+          acl === 'reseller' ? 'CMD_API_ACCOUNT_RESELLER' : 'CMD_API_ACCOUNT_USER',
+          accountCreateFields({ userName: username, email, password, domain, packageName }),
+        );
 
   if (!result.ok && !isDaAlreadyExistsError(result.error)) {
     return {

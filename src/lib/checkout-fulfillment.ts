@@ -8,6 +8,7 @@ import { upsertPanelAuthAccount } from '@/lib/panel-auth-accounts';
 import { upsertMirrorUser, upsertMirrorSite } from '@/lib/panel-mirror-write';
 import { provisionPanelAccountToServer } from '@/lib/panel-server-provision';
 import { getAdminDirectAdminAPI } from '@/lib/directadmin-adapter';
+import { listPackages as listHestiaPackages } from '@/lib/hestia-adapter';
 import { getDaSyncAdmin } from '@/lib/da-sync-schema';
 import { autoProvisionPurchasedDomain } from '@/lib/domain-purchase-provision';
 import { after } from 'next/server';
@@ -27,24 +28,40 @@ const HOSTING_PLAN_PACKAGE_NAMES: Record<string, string> = {
 // resolveHostingPackageName).
 const FALLBACK_PACKAGE = 'VisualDESIGN';
 
-let packageNameCache: { at: number; names: Set<string> } | null = null;
+/**
+ * Qual servidor de hospedagem recebe as contas NOVAS a partir de agora.
+ * Só fica 'hestia' na instância do Contabo (variável definida só no
+ * `.env.local` desse deploy) — o Hetzner nunca a recebe, por isso continua
+ * 100% DirectAdmin sem qualquer mudança de comportamento.
+ */
+function resolveNewAccountProvider(): 'directadmin' | 'hestia' {
+  return (process.env.DEFAULT_HOSTING_PROVIDER || '').trim().toLowerCase() === 'hestia'
+    ? 'hestia'
+    : 'directadmin';
+}
+
+let packageNameCache: { at: number; provider: string; names: Set<string> } | null = null;
 const PACKAGE_NAME_CACHE_MS = 5 * 60 * 1000;
 
-async function listRealPackageNames(): Promise<Set<string>> {
-  if (packageNameCache && Date.now() - packageNameCache.at < PACKAGE_NAME_CACHE_MS) {
+async function listRealPackageNames(provider: 'directadmin' | 'hestia'): Promise<Set<string>> {
+  if (
+    packageNameCache &&
+    packageNameCache.provider === provider &&
+    Date.now() - packageNameCache.at < PACKAGE_NAME_CACHE_MS
+  ) {
     return packageNameCache.names;
   }
   try {
-    const api = await getAdminDirectAdminAPI();
-    const packages = await api.listPackages();
+    const packages =
+      provider === 'hestia' ? await listHestiaPackages() : await (await getAdminDirectAdminAPI()).listPackages();
     const names = new Set(packages.map((p) => String(p.packageName || '').trim()).filter(Boolean));
-    packageNameCache = { at: Date.now(), names };
+    packageNameCache = { at: Date.now(), provider, names };
     return names;
   } catch {
     // Falha a consultar o servidor: não presumir nada sobre o que existe lá —
     // devolve o que houver em cache (mesmo expirado) ou vazio, forçando o
     // fallback seguro em vez de arriscar um pacote inexistente.
-    return packageNameCache?.names ?? new Set();
+    return packageNameCache?.provider === provider ? packageNameCache.names : new Set();
   }
 }
 
@@ -57,14 +74,14 @@ async function listRealPackageNames(): Promise<Set<string>> {
  * pacote de recurso e avisa o admin, em vez de fingir que a diferenciação de
  * planos está a funcionar.
  */
-async function resolveHostingPackageName(planId: string): Promise<string> {
+async function resolveHostingPackageName(planId: string, provider: 'directadmin' | 'hestia'): Promise<string> {
   const desired = HOSTING_PLAN_PACKAGE_NAMES[planId];
   if (!desired) return FALLBACK_PACKAGE;
-  const realNames = await listRealPackageNames();
+  const realNames = await listRealPackageNames(provider);
   if (realNames.has(desired)) return desired;
   await alertAdminOfTrackingFailure(
     'pacote de hospedagem em falta',
-    `O plano "${planId}" devia usar o pacote "${desired}" no DirectAdmin, mas esse pacote ainda não existe no servidor — a conta foi criada com "${FALLBACK_PACKAGE}" em vez disso, sem os limites do plano vendido. Cria o pacote "${desired}" na secção Pacotes do painel admin (usa o preset já pronto) para este plano ficar realmente diferenciado.`,
+    `O plano "${planId}" devia usar o pacote "${desired}" no ${provider === 'hestia' ? 'HestiaCP' : 'DirectAdmin'}, mas esse pacote ainda não existe no servidor — a conta foi criada com "${FALLBACK_PACKAGE}" em vez disso, sem os limites do plano vendido. Cria o pacote "${desired}" para este plano ficar realmente diferenciado.`,
   );
   return FALLBACK_PACKAGE;
 }
@@ -107,6 +124,9 @@ export async function provisionHostingAccountOnPanel(params: {
   packageName: string;
   renewalId: string | null;
   sharedPassword?: string | null;
+  /** Servidor de hospedagem que vai tratar esta conta. Omitir mantém o
+   * comportamento actual (DirectAdmin). */
+  provider?: 'directadmin' | 'hestia';
 }): Promise<{ ok: boolean; daUsername: string; password: string; error?: string }> {
   const { admin, userId, email, displayName, domainName, packageName, renewalId } = params;
   try {
@@ -125,6 +145,7 @@ export async function provisionHostingAccountOnPanel(params: {
       name: displayName,
       serverLinked: false,
       daUsername: null,
+      provider: params.provider,
     });
     await upsertMirrorUser({
       username: daUsername,
@@ -483,7 +504,8 @@ export async function fulfillCheckout(
         );
       }
       const domainName = hostingDomainValid ? rawHostingDomain : '';
-      const packageName = await resolveHostingPackageName(item.id);
+      const hostingProvider = resolveNewAccountProvider();
+      const packageName = await resolveHostingPackageName(item.id, hostingProvider);
       // Só há algo para provisionar no servidor se houver admin client e email —
       // sem isso o bloco abaixo nem tenta, por isso o estado fica 'active' de
       // imediato (nada realmente pendente). Quando há tentativa real, o
@@ -504,7 +526,7 @@ export async function fulfillCheckout(
           renewal_price: item.price,
           currency: 'MZN',
           status: willProvision ? 'pending' : 'active',
-          server: 'DirectAdmin',
+          server: hostingProvider === 'hestia' ? 'Hestia' : 'DirectAdmin',
           notes: `Compra carrinho (${paymentMethod})`,
         })
         .select('id')
@@ -538,6 +560,7 @@ export async function fulfillCheckout(
           packageName,
           renewalId,
           sharedPassword: sharedHostingPassword,
+          provider: hostingProvider,
         });
       }
     }

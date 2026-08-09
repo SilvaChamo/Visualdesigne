@@ -75,6 +75,13 @@ jobs:
             set_env_var NEXT_PUBLIC_SUPABASE_URL "${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}"
             set_env_var NEXT_PUBLIC_SUPABASE_ANON_KEY "${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}"
             set_env_var SUPABASE_SERVICE_ROLE_KEY "${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}"
+            set_env_var HESTIA_HOST "${{ secrets.HESTIA_HOST }}"
+            set_env_var HESTIA_USER "${{ secrets.HESTIA_USER }}"
+            set_env_var HESTIA_PASSWORD "${{ secrets.HESTIA_PASSWORD }}"
+            # Único sítio onde isto fica activo: contas novas passam a ir para o
+            # Hestia a partir daqui. O Hetzner (produção) nunca recebe esta
+            # variável, por isso continua 100% DirectAdmin sem qualquer mudança.
+            set_env_var DEFAULT_HOSTING_PROVIDER "hestia"
             npm ci
             npm run build
             pm2 restart visualdesign-site-teste || pm2 start npm --name "visualdesign-site-teste" -- start -- -p 3002
