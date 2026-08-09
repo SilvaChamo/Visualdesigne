@@ -79,6 +79,18 @@ jobs:
             # password, "aceder ao painel" em emails, origem do OAuth) caem no
             # domínio de produção mesmo a partir daqui.
             set_env_var NEXT_PUBLIC_SITE_URL "https://teste.visualdesignmoz.com"
+            # Só para LEITURA (listar contas antigas do DirectAdmin no painel
+            # admin) — sem isto a página "Contas" falhava sempre a mostrar as
+            # contas antigas e ficava lenta/com erro. Suspender/apagar/mudar
+            # password numa conta DirectAdmin a partir daqui ainda não está
+            # configurado de propósito (precisa de acesso SSH próprio ao
+            # servidor do Hetzner, decisão à parte).
+            set_env_var DIRECTADMIN_HOST "${{ secrets.DIRECTADMIN_HOST }}"
+            set_env_var DIRECTADMIN_PORT "${{ secrets.DIRECTADMIN_PORT }}"
+            set_env_var DIRECTADMIN_PROTOCOL "${{ secrets.DIRECTADMIN_PROTOCOL }}"
+            set_env_var DIRECTADMIN_USER "${{ secrets.DIRECTADMIN_USER }}"
+            set_env_var DIRECTADMIN_PASSWORD "${{ secrets.DIRECTADMIN_PASSWORD }}"
+            set_env_var DIRECTADMIN_LOGIN_KEY "${{ secrets.DIRECTADMIN_LOGIN_KEY }}"
             set_env_var STRIPE_SECRET_KEY "${{ secrets.STRIPE_SECRET_KEY }}"
             set_env_var STRIPE_WEBHOOK_SECRET "${{ secrets.STRIPE_WEBHOOK_SECRET }}"
             set_env_var NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY "${{ secrets.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY }}"
