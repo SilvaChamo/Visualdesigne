@@ -73,6 +73,7 @@ async function markAccountServerLinked(params: {
   if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY) return;
   const admin = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
   await saveProfileForAuthUser(admin, params.userId, {
+    email: params.email,
     da_username: params.userName,
     da_domain: params.domain,
     da_provisioned_at: new Date().toISOString(),
