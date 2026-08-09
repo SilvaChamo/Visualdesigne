@@ -1,0 +1,78 @@
+name: Deploy to Contabo (teste)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    name: Deploy to Contabo test instance
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build project
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: npm run build
+
+      - name: Setup SSH key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.CONTABO_SSH_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan "${{ secrets.CONTABO_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
+
+      - name: Sync files to Contabo
+        run: |
+          rsync -avz --delete \
+            -e "ssh -i ~/.ssh/deploy_key" \
+            --exclude 'node_modules' --exclude '.next' --exclude '.git' --exclude '*.env*' --exclude '.DS_Store' \
+            ./ "root@${{ secrets.CONTABO_HOST }}:/opt/visualdesign-site-teste/"
+
+      - name: Build and (re)start on Contabo
+        uses: appleboy/ssh-action@v1.2.5
+        with:
+          host: ${{ secrets.CONTABO_HOST }}
+          username: root
+          key: ${{ secrets.CONTABO_SSH_KEY }}
+          # Instância de TESTE: liga-se à MESMA base de dados de produção
+          # (para os testes serem reais) mas de propósito SEM os cron jobs
+          # (renewal-check / da-sync / mailmarketing queue) que o Hetzner tem
+          # — correr os dois em simultâneo duplicaria efeitos reais (emails,
+          # cobranças). Esta instância é só para teste manual no browser.
+          command_timeout: 30m
+          script: |
+            set -e
+            cd /opt/visualdesign-site-teste
+            touch .env.local
+            set_env_var() {
+              local key="$1" value="$2"
+              if grep -q "^${key}=" .env.local; then
+                sed -i "s|^${key}=.*|${key}=${value}|" .env.local
+              else
+                echo "${key}=${value}" >> .env.local
+              fi
+            }
+            set_env_var DYNADOT_ENV "production"
+            set_env_var DYNADOT_API_KEY "${{ secrets.DYNADOT_API_KEY }}"
+            set_env_var DYNADOT_SECRET_KEY "${{ secrets.DYNADOT_SECRET_KEY }}"
+            set_env_var CRON_SECRET "${{ secrets.CRON_SECRET }}"
+            set_env_var CLOUDFLARE_API_TOKEN_ACCOUNT "${{ secrets.CLOUDFLARE_API_TOKEN_ACCOUNT }}"
+            set_env_var CLOUDFLARE_ACCOUNT_ID "${{ secrets.CLOUDFLARE_ACCOUNT_ID }}"
+            npm ci
+            npm run build
+            pm2 restart visualdesign-site-teste || pm2 start npm --name "visualdesign-site-teste" -- start -- -p 3002
+            pm2 save
