@@ -72,6 +72,9 @@ jobs:
             set_env_var CRON_SECRET "${{ secrets.CRON_SECRET }}"
             set_env_var CLOUDFLARE_API_TOKEN_ACCOUNT "${{ secrets.CLOUDFLARE_API_TOKEN_ACCOUNT }}"
             set_env_var CLOUDFLARE_ACCOUNT_ID "${{ secrets.CLOUDFLARE_ACCOUNT_ID }}"
+            set_env_var NEXT_PUBLIC_SUPABASE_URL "${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}"
+            set_env_var NEXT_PUBLIC_SUPABASE_ANON_KEY "${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}"
+            set_env_var SUPABASE_SERVICE_ROLE_KEY "${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}"
             npm ci
             npm run build
             pm2 restart visualdesign-site-teste || pm2 start npm --name "visualdesign-site-teste" -- start -- -p 3002
