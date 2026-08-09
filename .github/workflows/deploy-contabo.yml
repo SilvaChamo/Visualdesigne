@@ -66,9 +66,13 @@ jobs:
                 echo "${key}=${value}" >> .env.local
               fi
             }
-            set_env_var DYNADOT_ENV "production"
-            set_env_var DYNADOT_API_KEY "${{ secrets.DYNADOT_API_KEY }}"
-            set_env_var DYNADOT_SECRET_KEY "${{ secrets.DYNADOT_SECRET_KEY }}"
+            # Sandbox aqui de propósito — instância de teste não deve registar
+            # domínios a sério nem cobrar dinheiro real (ver
+            # feedback_never-register-real-test-domains). Produção (Hetzner)
+            # continua com DYNADOT_ENV=production, sem mudança nenhuma.
+            set_env_var DYNADOT_ENV "sandbox"
+            set_env_var DYNADOT_SANDBOX_API_KEY "${{ secrets.DYNADOT_SANDBOX_API_KEY }}"
+            set_env_var DYNADOT_SANDBOX_SECRET_KEY "${{ secrets.DYNADOT_SANDBOX_SECRET_KEY }}"
             set_env_var CRON_SECRET "${{ secrets.CRON_SECRET }}"
             set_env_var CLOUDFLARE_API_TOKEN_ACCOUNT "${{ secrets.CLOUDFLARE_API_TOKEN_ACCOUNT }}"
             set_env_var CLOUDFLARE_ACCOUNT_ID "${{ secrets.CLOUDFLARE_ACCOUNT_ID }}"

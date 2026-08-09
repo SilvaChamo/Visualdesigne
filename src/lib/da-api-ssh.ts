@@ -91,12 +91,12 @@ async function daRequestViaSshAsDaUser(
     const urlPath = qs
       ? `https://127.0.0.1:${port}/${ep}?${qs}`
       : `https://127.0.0.1:${port}/${ep}`;
-    curl = `${apiSetup}; ${authSetup}; curl -sk -u "$AUTH" -H "Host: ${host}" ${shellQuote(urlPath)} 2>&1`;
+    curl = `${apiSetup}; ${authSetup}; curl -sk --connect-timeout 5 --max-time 25 -u "$AUTH" -H "Host: ${host}" ${shellQuote(urlPath)} 2>&1`;
   } else {
     const body = Object.entries(fields)
       .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`)
       .join('&');
-    curl = `${apiSetup}; ${authSetup}; curl -sk -u "$AUTH" -H "Host: ${host}" -X POST -d ${shellQuote(body)} ${baseUrl} 2>&1`;
+    curl = `${apiSetup}; ${authSetup}; curl -sk --connect-timeout 5 --max-time 25 -u "$AUTH" -H "Host: ${host}" -X POST -d ${shellQuote(body)} ${baseUrl} 2>&1`;
   }
 
   try {
@@ -122,12 +122,12 @@ async function daRequestViaSsh(
 
   let curl: string;
   if (method === 'GET') {
-    curl = `curl -sk -u ${auth} ${shellQuote(daLocalBaseUrl(cmd, fields))} 2>&1`;
+    curl = `curl -sk --connect-timeout 5 --max-time 25 -u ${auth} ${shellQuote(daLocalBaseUrl(cmd, fields))} 2>&1`;
   } else {
     const body = Object.entries(fields)
       .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`)
       .join('&');
-    curl = `curl -sk -u ${auth} -X POST ${shellQuote(daLocalBaseUrl(cmd))} -d ${shellQuote(body)} 2>&1`;
+    curl = `curl -sk --connect-timeout 5 --max-time 25 -u ${auth} -X POST ${shellQuote(daLocalBaseUrl(cmd))} -d ${shellQuote(body)} 2>&1`;
   }
 
   try {
@@ -260,9 +260,9 @@ function buildDaJsonCurlAsUser(
   const methodUp = method.toUpperCase();
   if (options?.body !== undefined) {
     const json = shellQuote(JSON.stringify(options.body));
-    return `${apiSetup}; ${authSetup}; curl -sk -u "$AUTH" -H "Host: ${host}" -H "Content-Type: application/json" -X ${methodUp} -d ${json} ${urlQ} 2>&1`;
+    return `${apiSetup}; ${authSetup}; curl -sk --connect-timeout 5 --max-time 25 -u "$AUTH" -H "Host: ${host}" -H "Content-Type: application/json" -X ${methodUp} -d ${json} ${urlQ} 2>&1`;
   }
-  return `${apiSetup}; ${authSetup}; curl -sk -u "$AUTH" -H "Host: ${host}" -X ${methodUp} ${urlQ} 2>&1`;
+  return `${apiSetup}; ${authSetup}; curl -sk --connect-timeout 5 --max-time 25 -u "$AUTH" -H "Host: ${host}" -X ${methodUp} ${urlQ} 2>&1`;
 }
 
 function parseDaJsonBody(raw: string): { ok: boolean; data?: unknown; error?: string } {
@@ -328,7 +328,7 @@ export async function daBinaryGetViaSshAsDaUser(
   const urlPath = qs
     ? `https://127.0.0.1:${port}/${ep}?${qs}`
     : `https://127.0.0.1:${port}/${ep}`;
-  const curl = `${apiSetup}; ${authSetup}; curl -sk -u "$AUTH" -H "Host: ${host}" ${shellQuote(urlPath)} | base64 -w0 2>&1`;
+  const curl = `${apiSetup}; ${authSetup}; curl -sk --connect-timeout 5 -u "$AUTH" -H "Host: ${host}" ${shellQuote(urlPath)} | base64 -w0 2>&1`;
   try {
     const raw = (await executeServerCommand(curl)).trim();
     if (!raw || isDaAuthFailure(raw)) {
@@ -359,7 +359,7 @@ export async function daImportSqlViaSshAsDaUser(
   const apiSetup = `API=$(${DA_BIN} api-url --user=${userQ} 2>/dev/null | tail -1)`;
   const authSetup = `AUTH=$(echo "$API" | sed -n 's#https://\\([^@]*\\)@.*#\\1#p')`;
   const url = `https://127.0.0.1:${port}/api/db-manage/databases/${dbEnc}/import?${cleanQ}`;
-  const curl = `${apiSetup}; ${authSetup}; TMP=$(mktemp); echo ${b64Q} | base64 -d > "$TMP"; curl -sk -u "$AUTH" -H "Host: ${host}" -F "sqlfile=@$TMP;filename=import.sql" ${shellQuote(url)}; RC=$?; rm -f "$TMP"; exit $RC`;
+  const curl = `${apiSetup}; ${authSetup}; TMP=$(mktemp); echo ${b64Q} | base64 -d > "$TMP"; curl -sk --connect-timeout 5 -u "$AUTH" -H "Host: ${host}" -F "sqlfile=@$TMP;filename=import.sql" ${shellQuote(url)}; RC=$?; rm -f "$TMP"; exit $RC`;
   try {
     const raw = (await executeServerCommand(curl)).trim();
     const parsed = parseDaJsonBody(raw);

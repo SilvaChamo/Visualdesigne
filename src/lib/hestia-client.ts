@@ -54,13 +54,22 @@ export async function hestiaCall(cmd: string, args: string[] = []): Promise<Hest
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: body.toString(),
       cache: 'no-store',
+      // Sem timeout, um host inalcançável (ex.: firewall a bloquear o IP de
+      // origem) deixa o fetch pendurado indefinidamente — a acção no painel
+      // (apagar/suspender conta) nunca chega a responder.
+      signal: AbortSignal.timeout(15000),
     });
   } catch (e: unknown) {
+    const timedOut = e instanceof Error && e.name === 'TimeoutError';
     return {
       ok: false,
       exitCode: -1,
       output: '',
-      error: e instanceof Error ? e.message : 'Ligação ao Hestia falhou',
+      error: timedOut
+        ? `Ligação ao HestiaCP (${host}:${port}) expirou — servidor da app sem acesso de rede a este host.`
+        : e instanceof Error
+          ? e.message
+          : 'Ligação ao Hestia falhou',
     };
   }
 

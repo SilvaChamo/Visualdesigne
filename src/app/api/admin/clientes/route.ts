@@ -172,6 +172,10 @@ export async function GET(req: NextRequest) {
 
     const { searchParams } = new URL(req.url);
     const syncNow = searchParams.get('sync') === '1';
+    // Contabo (DEFAULT_HOSTING_PROVIDER=hestia) não tem conta nenhuma no
+    // DirectAdmin — nunca tentar sincronizar/ler ao vivo do Hetzner a partir
+    // daí, é só espelho local (ver [[project_hestia-migration-longterm-plan]]).
+    const hestiaOnly = (process.env.DEFAULT_HOSTING_PROVIDER || '').trim().toLowerCase() === 'hestia';
 
     const mirrorScope = { role: 'admin' as const, userId: auth.user.id };
     let [users, sites, packages] = await Promise.all([
@@ -181,14 +185,14 @@ export async function GET(req: NextRequest) {
     ]);
 
     let stale = false;
-    if (syncNow) {
+    if (syncNow && !hestiaOnly) {
       await runDaFullSyncDeduped();
       [users, sites, packages] = await Promise.all([
         listMirrorUsers(mirrorScope),
         listMirrorWebsites(mirrorScope),
         listMirrorPackages(mirrorScope),
       ]);
-    } else {
+    } else if (!hestiaOnly) {
       stale = await isMirrorStale(120);
       if (stale) scheduleDaSync(0);
     }
@@ -196,7 +200,7 @@ export async function GET(req: NextRequest) {
     let source: 'mirror' | 'live' = 'mirror';
 
     // Espelho vazio — leitura live do DA (admin + sub-contas revenda) e sync em background
-    if (users.length === 0 && !syncNow) {
+    if (users.length === 0 && !syncNow && !hestiaOnly) {
       scheduleDaSync(0);
       try {
         const adminApi = await getAdminDirectAdminAPI();
@@ -216,7 +220,7 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    const osherCreds = await loadResellerCredentialsByDaUsername(OSHER_RESELLER);
+    const osherCreds = hestiaOnly ? null : await loadResellerCredentialsByDaUsername(OSHER_RESELLER);
 
     // Pacotes admin — leitura live síncrona só quando o espelho está mesmo vazio.
     // Antes também disparava quando "stale" (>120min), o que travava toda a
@@ -225,7 +229,7 @@ export async function GET(req: NextRequest) {
     // — exactamente quando `scheduleDaSync(0)`, já chamado acima, está a
     // refrescar tudo (incluindo pacotes) em background. Deixar o refresco
     // ficar só a cargo do sync assíncrono elimina essa espera duplicada.
-    if (packages.length === 0) {
+    if (packages.length === 0 && !hestiaOnly) {
       try {
         const adminApi = await getAdminDirectAdminAPI();
         const liveAdminPkgs = await adminApi.listPackages();
