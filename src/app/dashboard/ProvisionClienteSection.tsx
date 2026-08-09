@@ -531,7 +531,12 @@ export function ProvisionClienteSection({
     </section>
   );
 
-  const hostingSection = (
+  // "Cliente" (criado manualmente aqui, fora da compra pública) é só acesso
+  // a e-mail/mailmarketing — nunca leva pacote de hospedagem por esta via,
+  // isso só acontece através do checkout público (ver checkout-fulfillment.ts).
+  // Excepção: se a conta em edição já tiver hospedagem real (veio da compra),
+  // a secção mantém-se visível para não esconder/perder o que já existe.
+  const hostingSection = accountType !== 'client' || hasHostingPackage ? (
     <section className={`${formCardCls} space-y-4`}>
       <h2 className="font-bold text-gray-900 flex items-center gap-2">
         <Package className="w-5 h-5 shrink-0" /> Hospedagem
@@ -578,7 +583,7 @@ export function ProvisionClienteSection({
         </>
       )}
     </section>
-  );
+  ) : null;
 
   const summarySidebar = (
     <aside className="sticky top-0 h-fit w-full shrink-0 overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm lg:w-72 dark:border-zinc-700 dark:bg-zinc-900">

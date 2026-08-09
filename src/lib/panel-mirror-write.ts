@@ -23,6 +23,11 @@ export async function upsertMirrorUser(row: {
   package_name?: string | null;
   quota_limit_mb?: number | null;
   bandwidth_limit_mb?: number | null;
+  /** Servidor real por trás desta conta. Omitir mantém o default da coluna
+   * ('directadmin') — só passar explicitamente quando for 'hestia' (ver
+   * [[project_hestia-migration-longterm-plan]]), para a tabela não ficar a
+   * dizer "directadmin" numa conta que na realidade vive no Hestia. */
+  hosting_provider?: 'directadmin' | 'hestia';
 }): Promise<{ ok: boolean; error?: string }> {
   const sb = getDaSyncAdmin();
   if (!sb) return { ok: false, error: 'Base de dados indisponível' };
@@ -42,6 +47,7 @@ export async function upsertMirrorUser(row: {
   };
   if (row.auth_user_id) payload.auth_user_id = row.auth_user_id;
   if (row.package_name) payload.package_name = row.package_name;
+  if (row.hosting_provider) payload.hosting_provider = row.hosting_provider;
   if (row.quota_limit_mb !== undefined) payload.quota_limit_mb = row.quota_limit_mb;
   if (row.bandwidth_limit_mb !== undefined) payload.bandwidth_limit_mb = row.bandwidth_limit_mb;
   const { error } = await sb.from('panel_users').upsert(payload, { onConflict: 'username' });

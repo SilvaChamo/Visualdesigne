@@ -154,6 +154,7 @@ export async function provisionHostingAccountOnPanel(params: {
       acl: 'user',
       auth_user_id: userId,
       package_name: packageName,
+      hosting_provider: params.provider,
     });
     await upsertMirrorSite({ domain: domainName, owner: daUsername, admin_email: email, package: packageName });
 

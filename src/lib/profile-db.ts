@@ -56,11 +56,15 @@ export async function getProfileForAuthUser(
   // criou a linha original também normaliza, mas não é garantido que todos
   // os chamadores façam o mesmo antes de aqui chegar).
   const normalizedEmail = email ? email.toLowerCase().trim() : email;
-  const { data: byUserId } = await admin
+  const { data: byUserId, error: byUserIdError } = await admin
     .from('profiles')
     .select(PROFILE_COLUMNS)
     .eq('user_id', authUserId)
     .maybeSingle();
+  // Um erro aqui (ex.: falha de rede) não pode ser tratado como "não existe" —
+  // isso levava o chamador a este INSERT em vez de UPDATE, duplicando o perfil
+  // do utilizador (visto em produção: mesma conta com 2 linhas em profiles).
+  if (byUserIdError) throw toProfileDbError('profiles.select (user_id)', byUserIdError);
   if (byUserId) return byUserId as ProfileRow;
 
   const { data: byId } = await admin

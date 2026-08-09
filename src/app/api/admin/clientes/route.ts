@@ -648,6 +648,14 @@ export async function PATCH(req: NextRequest) {
           name: displayName,
           ...(resellerTier ? { reseller_tier: resellerTier } : {}),
         });
+        // upsertPanelAuthAccount trata serverLinked ausente como `false` —
+        // sem isto, editar o tipo de conta (Cliente/Profissional/Revendedor)
+        // desligava silenciosamente uma conta já provisionada no servidor real.
+        const { data: currentAuthAccount } = await admin
+          .from('panel_auth_accounts')
+          .select('server_linked')
+          .eq('user_id', String(data.auth_user_id))
+          .maybeSingle();
         await upsertPanelAuthAccount(admin, {
           userId: String(data.auth_user_id),
           email: (email ?? String(data.email || '')).toLowerCase(),
@@ -655,6 +663,7 @@ export async function PATCH(req: NextRequest) {
           name: displayName,
           daUsername: userName,
           resellerTier: resellerTier ?? null,
+          serverLinked: currentAuthAccount?.server_linked === true,
         });
         const { data: authUser } = await admin.auth.admin.getUserById(String(data.auth_user_id));
         if (authUser?.user) {
@@ -670,15 +679,24 @@ export async function PATCH(req: NextRequest) {
         }
       }
 
-      const pushed = await pushUserEditToServer({
-        userName,
-        email: email ?? String(data.email || ''),
-        firstName: body.firstName !== undefined ? String(body.firstName).trim() : String(data.first_name || ''),
-        lastName: body.lastName !== undefined ? String(body.lastName).trim() : String(data.last_name || ''),
-        websitesLimit: Number(data.websites_limit) || 0,
-        emailsLimit: Number(data.emails_limit) || 0,
-        packageName,
-      });
+      // pushUserEditToServer só sabe falar com o DirectAdmin (CMD_API_MODIFY_USER) —
+      // para uma conta Hestia isto falhava sempre (o utilizador nem existe no DA),
+      // sem trazer nenhum benefício. O Hestia ainda não tem um "editar utilizador"
+      // próprio, por isso por agora limitamo-nos a confiar no espelho para essas
+      // contas em vez de gastar um round-trip SSH destinado a falhar.
+      const editProvider = await getProviderByUsername(userName);
+      const pushed =
+        editProvider === 'hestia'
+          ? { ok: true }
+          : await pushUserEditToServer({
+              userName,
+              email: email ?? String(data.email || ''),
+              firstName: body.firstName !== undefined ? String(body.firstName).trim() : String(data.first_name || ''),
+              lastName: body.lastName !== undefined ? String(body.lastName).trim() : String(data.last_name || ''),
+              websitesLimit: Number(data.websites_limit) || 0,
+              emailsLimit: Number(data.emails_limit) || 0,
+              packageName,
+            });
 
       // Só espelha no Supabase depois de confirmar que o DirectAdmin aceitou a
       // alteração — escrever antes (como acontecia aqui) deixava o Supabase a
