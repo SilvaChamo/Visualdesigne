@@ -7954,9 +7954,16 @@ export function PackagesSection({
                         const name = String(pkg.packageName || pkg.name || '-')
                         const split = splitCompositePackageName(name)
                         return (
-                          <p className="truncate text-sm font-semibold text-gray-900 dark:text-zinc-100">
-                            {split.packageName || name || '-'}
-                          </p>
+                          <>
+                            <p className="truncate text-sm font-semibold text-gray-900 dark:text-zinc-100">
+                              {split.packageName || name || '-'}
+                            </p>
+                            {split.ownerDomain ? (
+                              <p className="mt-0.5 inline-flex items-center gap-1 rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-800 dark:bg-amber-900/40 dark:text-amber-300">
+                                Cópia extra · {name}
+                              </p>
+                            ) : null}
+                          </>
                         )
                       })()}
                     </div>
