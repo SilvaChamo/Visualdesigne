@@ -107,3 +107,35 @@ jobs:
               "select count(*) from hosting_renewals where domain_name in ('entrecampos.com','basededadosagro.com','meusite-teste.com');"
             docker exec "$CONTAINER" psql -U "$DB_USER" -d "$DB_NAME" -t -c \
               "select server_linked, count(*) from panel_auth_accounts group by server_linked;"
+
+  limpar-dominio-basededadosagro:
+    name: Remover registo do domínio basededadosagro.com (substituído por basededadosmoz.com)
+    runs-on: ubuntu-latest
+    needs: limpar-dados-teste
+    steps:
+      - name: Apagar de domain_renewals
+        uses: appleboy/ssh-action@v1.2.5
+        with:
+          host: ${{ secrets.HETZNER_HOST }}
+          port: ${{ secrets.HETZNER_PORT }}
+          username: ${{ secrets.HETZNER_USER }}
+          key: ${{ secrets.HETZNER_SSH_KEY }}
+          command_timeout: 5m
+          script: |
+            set -e
+            CONTAINER=$(docker ps --format '{{.Names}}' | grep -iE 'supabase.*db|supabase-db|postgres' | head -n1)
+            if [ -z "$CONTAINER" ]; then
+              echo "Não encontrei nenhum container de Postgres/Supabase a correr:" >&2
+              docker ps --format '{{.Names}}'
+              exit 1
+            fi
+            DB_USER=$(docker exec "$CONTAINER" printenv POSTGRES_USER 2>/dev/null || echo postgres)
+            DB_NAME=$(docker exec "$CONTAINER" printenv POSTGRES_DB 2>/dev/null || echo postgres)
+            echo "--- Antes ---"
+            docker exec "$CONTAINER" psql -U "$DB_USER" -d "$DB_NAME" -t -c \
+              "select count(*) from domain_renewals where domain_name = 'basededadosagro.com';"
+            docker exec "$CONTAINER" psql -U "$DB_USER" -d "$DB_NAME" -v ON_ERROR_STOP=1 -c \
+              "delete from domain_renewals where domain_name = 'basededadosagro.com';"
+            echo "--- Depois ---"
+            docker exec "$CONTAINER" psql -U "$DB_USER" -d "$DB_NAME" -t -c \
+              "select count(*) from domain_renewals where domain_name = 'basededadosagro.com';"
