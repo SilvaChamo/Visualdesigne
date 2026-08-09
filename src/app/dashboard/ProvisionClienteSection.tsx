@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { CheckCircle, Eye, EyeOff, Globe, Loader2, Package, RefreshCw, Shield, UserPlus, Users } from 'lucide-react';
 import type { DirectAdminPackage } from '@/lib/directadmin-api';
 import { readPackagesCache, writePackagesCache } from '@/lib/panel-packages-cache';
+import { splitCompositePackageName } from '@/lib/reseller-package-form';
 import { panelBtnPrimary, panelBtnSecondary } from '@/lib/panel-ui';
 import { Spinner } from '@/components/ui/spinner';
 import { parseJsonResponse } from '@/lib/safe-fetch-json';
@@ -216,7 +217,14 @@ export function ProvisionClienteSection({
   const hasHostingPackage = Boolean(selectedPackageName);
   const expectedPanelRole = panelRoleForAccountTypeUi(accountType);
   const matchingPanelUsers = panelUsers.filter((u) => u.panelRole === expectedPanelRole);
-  const packageOptions = packages;
+  // Pacotes "__dominio" são cópias com limites à medida de UMA conta paga
+  // específica (criadas ao editar o pacote dessa conta) — não são planos de
+  // base para escolher ao criar uma conta nova, por isso ficam de fora do
+  // selector. Excepção: se a conta em edição já tiver um desses atribuído,
+  // mantém-se visível para não perder a selecção actual.
+  const packageOptions = packages.filter(
+    (p) => !splitCompositePackageName(p.packageName).ownerDomain || p.packageName === packageName,
+  );
   const selectedPackage = packageOptions.find((p) => p.packageName === selectedPackageName);
 
   const canSubmit =
@@ -649,10 +657,10 @@ export function ProvisionClienteSection({
       <div className="flex flex-col gap-6 lg:flex-row lg:items-start">
         <div className="min-w-0 flex-1 space-y-6">
           {accountTypeCards}
+          {hostingSection}
           {panelUserSection}
           {resellerTierSection}
           {identitySection}
-          {hostingSection}
 
           {msg && !done && (
             <p className={`text-sm p-3 rounded-lg ${msg.startsWith('Erro') ? 'bg-red-50 text-red-700' : 'bg-green-50 text-green-700'}`}>{msg}</p>
