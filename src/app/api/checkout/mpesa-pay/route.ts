@@ -78,7 +78,7 @@ export async function POST(request: NextRequest) {
       mpesa_third_party_reference: thirdPartyReference,
       mpesa_transaction_id: result.ok ? result.transactionId || null : null,
       mpesa_conversation_id: result.ok ? result.conversationId || null : null,
-      mpesa_last_response: (result.ok ? result.raw : result.raw) || result.error,
+      mpesa_last_response: result.ok ? result.raw : result.raw || result.error,
     })
     .eq('id', sessionId);
 
