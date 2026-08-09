@@ -74,5 +74,5 @@ jobs:
               --interactive no \
               --hostname "${{ secrets.HESTIA_HOSTNAME }}" \
               --email "${{ secrets.HESTIA_ADMIN_EMAIL }}" \
-              --username admin \
+              --username "${{ secrets.HESTIA_ADMIN_USERNAME }}" \
               --password "${{ secrets.HESTIA_ADMIN_PASSWORD }}"
