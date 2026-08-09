@@ -85,7 +85,7 @@ type ManualSession = {
 function CheckoutContent() {
   const { items, total, clearCart, updateItemPeriod } = useCart();
   const router = useRouter();
-  const { user: authUser, loading: authLoading } = useAuth();
+  const { user: authUser, loading: authLoading, isAdmin } = useAuth();
   const isAuthenticated = authLoading ? null : !!authUser;
   const searchParams = useSearchParams();
   const renewalId = searchParams.get('renewalId');
@@ -229,6 +229,13 @@ function CheckoutContent() {
   const [manualSession, setManualSession] = useState<ManualSession | null>(null);
   const [uploadingComprovativo, setUploadingComprovativo] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // M-Pesa Sandbox automático — só visível a admins enquanto em ambiente de
+  // teste (ver NEXT_PUBLIC_MPESA_ENV), e só para carrinhos só de hospedagem
+  // (nunca domínios, que registam a sério mesmo em sandbox).
+  const [mpesaMsisdn, setMpesaMsisdn] = useState('258843330333');
+  const [mpesaPaying, setMpesaPaying] = useState(false);
+  const [mpesaError, setMpesaError] = useState('');
 
   // Sondagem do estado enquanto o pedido manual está pendente — a equipa
   // confirma no painel admin, sem o cliente ter de recarregar a página.
@@ -405,6 +412,31 @@ function CheckoutContent() {
     }
   };
 
+  // Dispara o pagamento real no sandbox M-Pesa (C2B Single Stage) — a
+  // sondagem de estado já existente (session-status) apanha sozinha a
+  // mudança para 'paid' assim que fulfillCheckout correr no servidor.
+  const handleMpesaSandboxPay = async () => {
+    if (!manualSession) return;
+    setMpesaPaying(true);
+    setMpesaError('');
+    try {
+      const res = await fetch('/api/checkout/mpesa-pay', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sessionId: manualSession.id, msisdn: mpesaMsisdn }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || 'O pagamento não foi confirmado pelo M-Pesa.');
+      }
+      // Sucesso: a sondagem já em curso detecta o status 'paid' sozinha.
+    } catch (err: any) {
+      setMpesaError(err.message || 'Falha ao contactar o M-Pesa Sandbox.');
+    } finally {
+      setMpesaPaying(false);
+    }
+  };
+
   if (isAuthenticated === null) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-zinc-950">
@@ -498,6 +530,37 @@ function CheckoutContent() {
                     </>
                   )}
                 </div>
+
+                {metodoPagamento === 'mpesa' &&
+                  isAdmin &&
+                  process.env.NEXT_PUBLIC_MPESA_ENV === 'sandbox' &&
+                  manualSession.items.every((i) => i.type === 'hosting') && (
+                    <div className="bg-violet-50 dark:bg-violet-900/10 border border-violet-200 dark:border-violet-800/60 rounded-lg p-4 space-y-3">
+                      <p className="text-xs font-bold uppercase tracking-wide text-violet-700 dark:text-violet-300">
+                        M-Pesa Sandbox (só admin — ambiente de teste)
+                      </p>
+                      <input
+                        type="tel"
+                        value={mpesaMsisdn}
+                        onChange={(e) => setMpesaMsisdn(e.target.value)}
+                        placeholder="2588XXXXXXXX"
+                        disabled={mpesaPaying}
+                        className="w-full px-3 py-2 border border-violet-200 dark:border-violet-800 rounded-md text-sm font-mono bg-white dark:bg-zinc-950 outline-none focus:ring-1 focus:ring-violet-500 disabled:opacity-60"
+                      />
+                      <button
+                        type="button"
+                        onClick={handleMpesaSandboxPay}
+                        disabled={mpesaPaying}
+                        className="w-full flex items-center justify-center gap-2 bg-violet-600 hover:bg-violet-700 disabled:opacity-60 disabled:cursor-not-allowed text-white font-bold py-2.5 rounded-md text-sm transition-colors"
+                      >
+                        {mpesaPaying ? <Spinner className="w-4 h-4" /> : <Smartphone className="w-4 h-4" />}
+                        {mpesaPaying ? 'A aguardar confirmação (até 60s)...' : 'Pagar agora via M-Pesa Sandbox'}
+                      </button>
+                      {mpesaError && (
+                        <p className="text-xs text-rose-600 dark:text-rose-400">{mpesaError}</p>
+                      )}
+                    </div>
+                  )}
 
                 {manualSession.comprovativo_url ? (
                   <div className="flex items-center gap-2 text-sm text-green-700 bg-green-50 border border-green-200 rounded-md p-3">
