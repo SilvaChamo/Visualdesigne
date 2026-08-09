@@ -75,6 +75,10 @@ jobs:
             set_env_var NEXT_PUBLIC_SUPABASE_URL "${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}"
             set_env_var NEXT_PUBLIC_SUPABASE_ANON_KEY "${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}"
             set_env_var SUPABASE_SERVICE_ROLE_KEY "${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}"
+            # Domínio próprio desta instância — sem isto, vários links (reset de
+            # password, "aceder ao painel" em emails, origem do OAuth) caem no
+            # domínio de produção mesmo a partir daqui.
+            set_env_var NEXT_PUBLIC_SITE_URL "https://teste.visualdesignmoz.com"
             set_env_var STRIPE_SECRET_KEY "${{ secrets.STRIPE_SECRET_KEY }}"
             set_env_var STRIPE_WEBHOOK_SECRET "${{ secrets.STRIPE_WEBHOOK_SECRET }}"
             set_env_var NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY "${{ secrets.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY }}"
