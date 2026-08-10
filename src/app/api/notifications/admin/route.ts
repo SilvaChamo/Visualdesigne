@@ -215,15 +215,26 @@ export async function GET(request: NextRequest) {
       query = query.eq('category', category)
     }
 
+    // Contagens têm de respeitar os mesmos filtros (userId/category) da lista
+    // principal -- caso contrário o cabeçalho mostra totais globais enquanto
+    // a lista já vem filtrada, dando números que não batem certo (ex.: "Total: 2"
+    // com só 1 linha visível no separador "Servidor").
+    function countQuery() {
+      let q = supabaseAdmin.from('notifications').select('*', { count: 'exact', head: true })
+      if (userId) q = q.eq('user_id', userId)
+      if (category) q = q.eq('category', category)
+      return q
+    }
+
     // A lista principal e as 3 contagens de estatísticas são independentes
     // entre si — correr em paralelo (Promise.all) em vez de 4 pedidos em
     // sequência. Cada pedido a este Supabase (self-hosted) demora ~0.8s de
     // latência de rede; em sequência isso são ~3-4s só nesta rota.
     const [{ data: notifications, error }, totalRes, unreadRes, emailSentRes] = await Promise.all([
       query,
-      supabaseAdmin.from('notifications').select('*', { count: 'exact', head: true }),
-      supabaseAdmin.from('notifications').select('*', { count: 'exact', head: true }).eq('read', false),
-      supabaseAdmin.from('notifications').select('*', { count: 'exact', head: true }).eq('email_sent', true),
+      countQuery(),
+      countQuery().eq('read', false),
+      countQuery().eq('email_sent', true),
     ])
 
     if (error) {
