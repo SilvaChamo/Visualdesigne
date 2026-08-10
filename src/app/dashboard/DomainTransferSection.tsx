@@ -6,6 +6,9 @@ import { panelBtnPrimary, panelBtnSecondary, panelField } from '@/lib/panel-ui';
 import { Spinner } from '@/components/ui/spinner';
 import { useCart } from '@/contexts/CartContext';
 import { useCurrency } from '@/contexts/CurrencyContext';
+import { readListCache, writeListCache } from '@/lib/panel-list-cache';
+
+const TRANSFER_CACHE_KEY = 'vd_domain_transfer_requests_v1';
 
 type TransferRequest = {
   id: string;
@@ -36,14 +39,17 @@ export function DomainTransferSection() {
   const [transferPriceMt, setTransferPriceMt] = useState<number | null>(null);
   const [validatedDomain, setValidatedDomain] = useState('');
 
-  const [requests, setRequests] = useState<TransferRequest[]>([]);
-  const [loadingRequests, setLoadingRequests] = useState(true);
+  const [requests, setRequests] = useState<TransferRequest[]>(() => readListCache<TransferRequest[]>(TRANSFER_CACHE_KEY) ?? []);
+  const [loadingRequests, setLoadingRequests] = useState(() => readListCache<TransferRequest[]>(TRANSFER_CACHE_KEY) === null);
 
   const loadRequests = async () => {
     try {
       const res = await fetch('/api/domain-transfer', { credentials: 'include' });
       const data = await res.json();
-      if (data.success) setRequests(data.pedidos || []);
+      if (data.success) {
+        setRequests(data.pedidos || []);
+        writeListCache(TRANSFER_CACHE_KEY, data.pedidos || []);
+      }
     } catch {
       /* lista fica vazia */
     } finally {

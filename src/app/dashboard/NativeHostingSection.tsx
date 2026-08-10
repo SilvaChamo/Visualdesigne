@@ -3,6 +3,9 @@
 import { useEffect, useState } from 'react'
 import { Server, Loader2, CheckCircle2, XCircle, Trash2, PauseCircle, PlayCircle } from 'lucide-react'
 import { Spinner } from '@/components/ui/spinner'
+import { readListCache, writeListCache } from '@/lib/panel-list-cache'
+
+const CACHE_KEY = 'vd_native_hosting_sites_v1'
 
 type NativeSite = {
   domain: string
@@ -36,9 +39,9 @@ function formatQuota(mb: number): string {
  * antes de confiarmos nisto para clientes a sério.
  */
 export function NativeHostingSection() {
-  const [sites, setSites] = useState<NativeSite[]>([])
+  const [sites, setSites] = useState<NativeSite[]>(() => readListCache<NativeSite[]>(CACHE_KEY) ?? [])
   const [packages, setPackages] = useState<NativePackage[]>(FALLBACK_PACKAGES)
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(() => readListCache<NativeSite[]>(CACHE_KEY) === null)
   const [domain, setDomain] = useState('')
   const [ownerEmail, setOwnerEmail] = useState('')
   const [packageId, setPackageId] = useState('hosting-basico')
@@ -47,14 +50,14 @@ export function NativeHostingSection() {
   const [changingPackageFor, setChangingPackageFor] = useState<string | null>(null)
 
   const loadSites = async () => {
-    setLoading(true)
     try {
       const res = await fetch('/api/site-manager?action=list')
       const data = await res.json()
       setSites(data.sites || [])
+      writeListCache(CACHE_KEY, data.sites || [])
       if (Array.isArray(data.packages) && data.packages.length) setPackages(data.packages)
     } catch {
-      setSites([])
+      /* mantém lista actual */
     } finally {
       setLoading(false)
     }

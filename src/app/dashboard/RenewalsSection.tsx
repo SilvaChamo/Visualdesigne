@@ -23,6 +23,9 @@ import {
 import { panelTabList, panelTabBtn } from '@/lib/panel-ui'
 import { Spinner } from '@/components/ui/spinner'
 import { splitCompositePackageName } from '@/lib/reseller-package-form'
+import { readListCache, writeListCache } from '@/lib/panel-list-cache'
+
+const RENEWALS_CACHE_KEY = 'vd_renewals_v1'
 
 interface Renewal {
   id: string
@@ -51,10 +54,13 @@ interface RenewalsSectionProps {
   hideTabs?: boolean
 }
 
+type CachedRenewals = { domains: Renewal[]; hosting: Renewal[]; stats: Stats }
+
 export function RenewalsSection({ initialTab = 'overview', hideTabs = false }: RenewalsSectionProps) {
-  const [domains, setDomains] = useState<Renewal[]>([])
-  const [hosting, setHosting] = useState<Renewal[]>([])
-  const [stats, setStats] = useState<Stats>({
+  const cachedRenewals = readListCache<CachedRenewals>(RENEWALS_CACHE_KEY)
+  const [domains, setDomains] = useState<Renewal[]>(cachedRenewals?.domains ?? [])
+  const [hosting, setHosting] = useState<Renewal[]>(cachedRenewals?.hosting ?? [])
+  const [stats, setStats] = useState<Stats>(cachedRenewals?.stats ?? {
     total: 0,
     active: 0,
     expired: 0,
@@ -62,7 +68,7 @@ export function RenewalsSection({ initialTab = 'overview', hideTabs = false }: R
     expiring60Days: 0,
     totalRevenue: 0
   })
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(cachedRenewals === null)
   const [activeTab, setActiveTab] = useState<'overview' | 'domains' | 'hosting' | 'add'>(initialTab)
   const [searchQuery, setSearchQuery] = useState('')
   const [runningCheck, setRunningCheck] = useState(false)
@@ -139,6 +145,7 @@ export function RenewalsSection({ initialTab = 'overview', hideTabs = false }: R
         setDomains(data.domains)
         setHosting(data.hosting)
         setStats(data.stats)
+        writeListCache<CachedRenewals>(RENEWALS_CACHE_KEY, { domains: data.domains, hosting: data.hosting, stats: data.stats })
       }
     } catch (error) {
       console.error('Erro ao carregar:', error)
