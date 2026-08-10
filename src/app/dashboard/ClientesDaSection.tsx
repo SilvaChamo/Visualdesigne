@@ -9,7 +9,7 @@ import { ProvisionClienteSection } from '@/app/dashboard/ProvisionClienteSection
 import { consumeHostingAccountEdit } from '@/lib/panel-hosting-edit-nav';
 import type { DirectAdminPackage } from '@/lib/directadmin-api';
 import { panelBtnPrimary, panelBtnSecondary, panelField, panelTabList, panelTabBtn } from '@/lib/panel-ui';
-import { PRIMARY_RESELLER_DA_USER } from '@/lib/panel-contas-enrich';
+import { PRIMARY_RESELLER_DA_USER, isPanelAdminAccount } from '@/lib/panel-contas-enrich';
 import { clearAllPanelClientCaches } from '@/lib/panel-session-cache-clear';
 import { Spinner } from '@/components/ui/spinner';
 import { parseJsonResponse } from '@/lib/safe-fetch-json';
@@ -357,6 +357,9 @@ export function ClientesDaSection({
     const acl = String(u.type || '').toLowerCase();
     if (activeTypeTab === 'client') {
       if (acl === 'reseller' || acl === 'manager') return false;
+      // A conta root/admin (ex.: "visualdesign") não é cliente de ninguém —
+      // sem isto, aparecia no separador Clientes por não bater com reseller/manager.
+      if (isPanelAdminAccount(u)) return false;
     } else if (activeTypeTab === 'professional') {
       if (acl !== 'manager') return false;
     } else if (activeTypeTab === 'reseller') {
