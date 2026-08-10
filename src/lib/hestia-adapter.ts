@@ -72,3 +72,76 @@ export async function changePassword(
   const result = await hestiaCall('v-change-user-password', [username, password]);
   return { ok: result.ok, error: result.error };
 }
+
+export type HestiaUser = {
+  username: string;
+  email: string;
+  firstName: string;
+  lastName: string;
+  packageName: string;
+  suspended: boolean;
+  diskUsedMb: number;
+  bandwidthUsedMb: number;
+  diskLimitMb: number | null;
+  bandwidthLimitMb: number | null;
+};
+
+function parseHestiaLimit(value: string | undefined): number | null {
+  if (!value || value.toLowerCase() === 'unlimited') return null;
+  const n = Number(value);
+  return Number.isFinite(n) ? n : null;
+}
+
+function parseHestiaUsage(value: string | undefined): number {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : 0;
+}
+
+/**
+ * Lista todas as contas reais do Hestia (equivalente a `listAllHostingUsersFromDa`
+ * do DirectAdmin) — usado pelo hestia-sync para espelhar o estado real do
+ * servidor no Supabase. Exclui o próprio utilizador de login da API
+ * (HESTIA_USER, ex: 'vdadmin'), que não é uma conta de cliente.
+ */
+export async function listUsers(): Promise<HestiaUser[]> {
+  const result = await hestiaCallJson<Record<string, Record<string, string>>>('v-list-users');
+  if (!result.ok) return [];
+  const apiUser = (process.env.HESTIA_USER || 'vdadmin').trim();
+  return Object.entries(result.data)
+    .filter(([username]) => username !== apiUser)
+    .map(([username, u]) => ({
+      username,
+      email: u.EMAIL || '',
+      firstName: u.FNAME || '',
+      lastName: u.LNAME || '',
+      packageName: u.PACKAGE || '',
+      suspended: (u.SUSPENDED || 'no').toLowerCase() === 'yes',
+      diskUsedMb: parseHestiaUsage(u.U_DISK),
+      bandwidthUsedMb: parseHestiaUsage(u.U_BANDWIDTH),
+      diskLimitMb: parseHestiaLimit(u.DISK_QUOTA),
+      bandwidthLimitMb: parseHestiaLimit(u.BANDWIDTH_QUOTA),
+    }));
+}
+
+export type HestiaWebDomain = {
+  domain: string;
+  ip: string;
+  suspended: boolean;
+  sslEnabled: boolean;
+  diskUsedMb: number;
+  bandwidthUsedMb: number;
+};
+
+/** Lista os domínios/websites reais de uma conta Hestia (equivalente a `da.listWebsites()` filtrado por dono). */
+export async function listWebDomains(username: string): Promise<HestiaWebDomain[]> {
+  const result = await hestiaCallJson<Record<string, Record<string, string>>>('v-list-web-domains', [username]);
+  if (!result.ok) return [];
+  return Object.entries(result.data).map(([domain, d]) => ({
+    domain,
+    ip: d.IP || '',
+    suspended: (d.SUSPENDED || 'no').toLowerCase() === 'yes',
+    sslEnabled: (d.SSL || 'no').toLowerCase() !== 'no' && Boolean(d.SSL),
+    diskUsedMb: parseHestiaUsage(d.U_DISK),
+    bandwidthUsedMb: parseHestiaUsage(d.U_BANDWIDTH),
+  }));
+}

@@ -129,3 +129,11 @@ jobs:
             npm run build
             pm2 restart visualdesign-site-teste || pm2 start npm --name "visualdesign-site-teste" -- start -- -p 3002
             pm2 save
+
+            # Reflecte o estado real do Hestia (contas/domínios/suspensões) de volta
+            # para o espelho Supabase — sem isto, mudanças feitas directamente no
+            # painel Hestia nunca apareciam no painel VisualDesign. Idempotente:
+            # substitui só a linha marcada com a própria tag.
+            CRON_SECRET_VALUE=$(grep '^CRON_SECRET=' .env.local | cut -d= -f2-)
+            (crontab -l 2>/dev/null | grep -v '# visualdesign-hestia-sync'; \
+              echo "*/20 * * * * curl -fsS -H \"Authorization: Bearer ${CRON_SECRET_VALUE}\" http://127.0.0.1:3002/api/cron/hestia-sync >> /var/log/visualdesign-cron.log 2>&1 # visualdesign-hestia-sync") | crontab -
