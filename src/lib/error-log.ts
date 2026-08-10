@@ -9,11 +9,10 @@ import { createClient } from '@supabase/supabase-js';
 import { sendEmail } from '@/lib/email-service';
 import { emailHeader, emailGreeting, emailFooter } from '@/lib/renewal-templates';
 
-// Mesmo email para onde o DirectAdmin já envia os seus próprios alertas de
-// segurança (tentativas de SSH, falhas de 2FA — confirmado via
-// CMD_API_SHOW_USER_CONFIG?user=admin, campo "email"). Mantém tudo junto
-// numa única caixa de entrada em vez de espalhar por vários emails.
-const TEAM_EMAIL = 'silva.chamo@gmail.com';
+// Caixa de sistema dedicada — antes ia para o email pessoal do admin
+// (silva.chamo@gmail.com), o que misturava alertas de servidor com correio
+// normal e passava despercebido.
+const TEAM_EMAIL = 'servidor@visualdesignmoz.com';
 const SUPPORT_EMAIL = 'suporte@visualdesignmoz.com';
 const SUPPORT_PHONE = '+258 85 242 5525';
 const COMPANY_NAME = 'VisualDesign';

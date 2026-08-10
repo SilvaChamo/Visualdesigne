@@ -22,9 +22,16 @@
 
 // URL base do site - usa variável de ambiente ou fallback para o domínio de produção
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'https://visualdesignmoz.com'
+// Imagens de email têm de ser sempre alcançáveis por quem as recebe — ao
+// contrário de SITE_URL (usado em links "clique aqui"), nunca deve resolver
+// para localhost mesmo quando NEXT_PUBLIC_SITE_URL aponta para lá em
+// desenvolvimento local (o logo aparecia partido nos emails de erro do dev).
+const ASSET_BASE_URL = /^https?:\/\/(localhost|127\.0\.0\.1)/i.test(SITE_URL)
+  ? 'https://visualdesignmoz.com'
+  : SITE_URL
 // Logo horizontal (texto a branco, pensado para fundos escuros) — o mesmo já usado
 // nos templates de mailmarketing (src/components/admin/EmailTemplates.tsx).
-const LOGO_URL = `${SITE_URL}/assets/Logo_horizontal_branco.png`
+const LOGO_URL = `${ASSET_BASE_URL}/assets/Logo_horizontal_branco.png`
 const LOGO_NATIVE_WIDTH = 2241
 const LOGO_NATIVE_HEIGHT = 642
 const LOGO_DISPLAY_WIDTH = 160
