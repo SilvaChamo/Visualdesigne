@@ -34,7 +34,7 @@ export default function EscolherDominioPage() {
 
   // Registar
   const [regName, setRegName] = useState('');
-  const [regTld, setRegTld] = useState('.co.mz');
+  const [regTld, setRegTld] = useState(DOMAIN_TLD_PRICES[0].value);
   const [regChecking, setRegChecking] = useState(false);
   const [regResult, setRegResult] = useState<{ available: boolean; domain: string; error?: string } | null>(null);
 
