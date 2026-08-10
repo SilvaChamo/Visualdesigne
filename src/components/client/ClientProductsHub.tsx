@@ -16,6 +16,7 @@ import {
 import type { ClientProductTier, UserProductsSummary } from '@/lib/user-products';
 import { useCart } from '@/contexts/CartContext';
 import { Spinner } from '@/components/ui/spinner';
+import { PendingOrdersSection } from '@/components/client/PendingOrdersSection';
 
 type Props = {
   onNavigate?: (section: string) => void;
@@ -58,6 +59,16 @@ export function ClientProductsHub({ onNavigate }: Props) {
       .catch(() => {});
   }, []);
 
+  // Enquanto houver encomendas pendentes, sonda de vez em quando — assim que
+  // a equipa (ou o webhook do Stripe/saldo) confirmar um item, a secção
+  // correspondente liga-se sozinha sem o cliente ter de recarregar a página.
+  const pendingCount = products?.pendingSessions?.length ?? 0;
+  useEffect(() => {
+    if (pendingCount === 0) return;
+    const interval = setInterval(loadProducts, 6000);
+    return () => clearInterval(interval);
+  }, [pendingCount]);
+
   const handleAttachEmailDomain = async () => {
     const domain = emailDomainInput.trim().toLowerCase();
     if (!domain) return;
@@ -92,8 +103,9 @@ export function ClientProductsHub({ onNavigate }: Props) {
   }
 
   const hasEmailPlan = (products?.emailPlans?.length ?? 0) > 0;
+  const pendingSessions = products?.pendingSessions ?? [];
 
-  if (!products || (tier === 'none' && !hasEmailPlan)) {
+  if (!products || (tier === 'none' && !hasEmailPlan && pendingSessions.length === 0)) {
     return (
       <div className="p-6 bg-amber-50 border border-amber-200 rounded-xl text-sm text-amber-900">
         Ainda não encontrámos produtos na sua conta. Se acabou de comprar, aguarde alguns minutos
@@ -111,6 +123,17 @@ export function ClientProductsHub({ onNavigate }: Props) {
 
   const showDomainPanel = tier === 'domain' || tier === 'both';
   const showHostingPanel = tier === 'hosting' || tier === 'both';
+
+  const pendingDomainRows = pendingSessions.flatMap((s) =>
+    s.items
+      .filter((i) => i.type === 'domain')
+      .map((i) => ({ sessionId: s.id, name: i.name })),
+  );
+  const pendingHostingRows = pendingSessions.flatMap((s) =>
+    s.items
+      .filter((i) => i.type === 'hosting')
+      .map((i) => ({ sessionId: s.id, domain: i.hostingDomain || i.name, plan: i.name })),
+  );
 
   return (
     <div className="space-y-6 p-5">
@@ -143,6 +166,8 @@ export function ClientProductsHub({ onNavigate }: Props) {
         </a>
       )}
 
+      <PendingOrdersSection sessions={pendingSessions} onUploaded={loadProducts} />
+
       {showDomainPanel && (
         <section className="bg-white border border-gray-200 rounded-xl overflow-hidden">
           <div className="px-5 py-4 border-b border-gray-100 flex items-center gap-2">
@@ -150,10 +175,33 @@ export function ClientProductsHub({ onNavigate }: Props) {
             <h2 className="font-bold text-gray-900">Domínios</h2>
           </div>
           <div className="p-5 space-y-3">
-            {products.domains.length === 0 ? (
+            {products.domains.length === 0 && pendingDomainRows.length === 0 ? (
               <p className="text-sm text-gray-500">Nenhum domínio registado ainda.</p>
             ) : (
-              products.domains.map((d) => (
+              <>
+              {pendingDomainRows.map((row) => (
+                <div
+                  key={`pending-${row.sessionId}-${row.name}`}
+                  className="flex flex-wrap items-center justify-between gap-3 p-4 bg-gray-50 rounded-lg border border-gray-100 opacity-60"
+                >
+                  <div>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <p className="font-bold text-gray-900">{row.name}</p>
+                      <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full">
+                        Pagamento pendente
+                      </span>
+                    </div>
+                    <p className="text-xs text-amber-700 mt-1 flex items-center gap-1">
+                      <AlertCircle className="w-3.5 h-3.5" />
+                      A aguardar confirmação do pagamento.
+                    </p>
+                  </div>
+                  <a href="#pedidos-pendentes" className="text-xs font-bold text-blue-600 hover:underline">
+                    Ver detalhes de pagamento ↑
+                  </a>
+                </div>
+              ))}
+              {products.domains.map((d) => (
                 <div
                   key={d.id ?? d.name}
                   className="flex flex-wrap items-center justify-between gap-3 p-4 bg-gray-50 rounded-lg border border-gray-100"
@@ -185,7 +233,8 @@ export function ClientProductsHub({ onNavigate }: Props) {
                     </a>
                   </div>
                 </div>
-              ))
+              ))}
+              </>
             )}
             <button
               type="button"
@@ -205,34 +254,60 @@ export function ClientProductsHub({ onNavigate }: Props) {
             <h2 className="font-bold text-gray-900">Hospedagem</h2>
           </div>
           <div className="p-5 space-y-3">
-            {products.hosting.length === 0 ? (
+            {products.hosting.length === 0 && pendingHostingRows.length === 0 ? (
               <p className="text-sm text-gray-500">Nenhum pacote de hospedagem activo.</p>
             ) : (
-              products.hosting.map((h) => {
-                const isProvisioning = h.status === 'pending';
+              [
+                ...pendingHostingRows.map((row) => ({
+                  key: `pending-${row.sessionId}-${row.domain}`,
+                  domain: row.domain,
+                  plan: row.plan,
+                  expirationDate: undefined as string | undefined,
+                  state: 'awaiting_payment' as const,
+                })),
+                ...products.hosting.map((h) => ({
+                  key: h.id ?? h.domain,
+                  domain: h.domain,
+                  plan: h.plan,
+                  expirationDate: h.expirationDate ?? undefined,
+                  state: h.status === 'pending' ? ('provisioning' as const) : ('active' as const),
+                })),
+              ].map((row) => {
+                const disabled = row.state !== 'active';
                 return (
                 <div
-                  key={h.id ?? h.domain}
-                  className="flex flex-wrap items-center justify-between gap-3 p-4 bg-gray-50 rounded-lg border border-gray-100"
+                  key={row.key}
+                  className={`flex flex-wrap items-center justify-between gap-3 p-4 bg-gray-50 rounded-lg border border-gray-100 ${row.state === 'awaiting_payment' ? 'opacity-60' : ''}`}
                 >
                   <div>
                     <div className="flex items-center gap-2 flex-wrap">
-                      <p className="font-bold text-gray-900">{h.domain}</p>
-                      {isProvisioning && (
+                      <p className="font-bold text-gray-900">{row.domain}</p>
+                      {row.state === 'provisioning' && (
                         <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full">
                           A provisionar
                         </span>
                       )}
+                      {row.state === 'awaiting_payment' && (
+                        <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full">
+                          Pagamento pendente
+                        </span>
+                      )}
                     </div>
                     <p className="text-xs text-gray-500 mt-1">
-                      Plano: {h.plan || 'Standard'}
-                      {h.expirationDate &&
-                        ` · Renova: ${new Date(h.expirationDate).toLocaleDateString('pt-PT')}`}
+                      Plano: {row.plan || 'Standard'}
+                      {row.expirationDate &&
+                        ` · Renova: ${new Date(row.expirationDate).toLocaleDateString('pt-PT')}`}
                     </p>
-                    {isProvisioning && (
+                    {row.state === 'provisioning' && (
                       <p className="text-xs text-amber-700 mt-1 flex items-center gap-1">
                         <AlertCircle className="w-3.5 h-3.5" />
                         Estamos a preparar a sua conta de hospedagem — pode demorar alguns minutos.
+                      </p>
+                    )}
+                    {row.state === 'awaiting_payment' && (
+                      <p className="text-xs text-amber-700 mt-1 flex items-center gap-1">
+                        <AlertCircle className="w-3.5 h-3.5" />
+                        <a href="#pedidos-pendentes" className="underline">A aguardar confirmação do pagamento ↑</a>
                       </p>
                     )}
                   </div>
@@ -241,16 +316,16 @@ export function ClientProductsHub({ onNavigate }: Props) {
                       href="/api/client-directadmin-access"
                       target="_blank"
                       rel="noopener noreferrer"
-                      aria-disabled={isProvisioning}
-                      onClick={(e) => { if (isProvisioning) e.preventDefault(); }}
-                      className={`text-xs font-bold border border-gray-300 px-4 py-2 rounded-lg ${isProvisioning ? 'opacity-50 cursor-not-allowed' : 'hover:border-red-400'}`}
+                      aria-disabled={disabled}
+                      onClick={(e) => { if (disabled) e.preventDefault(); }}
+                      className={`text-xs font-bold border border-gray-300 px-4 py-2 rounded-lg ${disabled ? 'opacity-50 cursor-not-allowed' : 'hover:border-red-400'}`}
                     >
                       Direct Admin
                     </a>
                     <button
                       type="button"
                       onClick={() => onNavigate?.('webmail')}
-                      disabled={isProvisioning}
+                      disabled={disabled}
                       className="text-xs font-bold border border-gray-300 px-4 py-2 rounded-lg hover:border-red-400 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       Webmail
@@ -258,7 +333,8 @@ export function ClientProductsHub({ onNavigate }: Props) {
                     <button
                       type="button"
                       onClick={() => onNavigate?.('facturas')}
-                      className="text-xs font-bold bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700"
+                      disabled={disabled}
+                      className="text-xs font-bold bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       Renovar
                     </button>

@@ -12,6 +12,7 @@ import { listPackages as listHestiaPackages } from '@/lib/hestia-adapter';
 import { getDaSyncAdmin } from '@/lib/da-sync-schema';
 import { autoProvisionPurchasedDomain } from '@/lib/domain-purchase-provision';
 import { after } from 'next/server';
+import { getProfileForAuthUser, saveProfileForAuthUser } from '@/lib/profile-db';
 
 // Pacote dedicado por plano — tem de corresponder aos `defaultPackageName` de
 // HOSTING_PLAN_PRESETS em reseller-package-form.ts, que é o que a secção
@@ -289,6 +290,44 @@ async function notifyClientOfDomainProvisionResult(
   } catch {
     /* uma notificação falhada nunca deve impedir o checkout de terminar */
   }
+}
+
+/**
+ * Promove guest -> client (metadata do Auth + profiles.role), sem tocar nos
+ * produtos em si. Extraído do fim de `fulfillCheckout` para poder correr logo
+ * na SUBMISSÃO da encomenda (antes de qualquer confirmação de pagamento) —
+ * é o que deixa o cliente entrar já no painel real (`/cliente`) com a secção
+ * do produto comprado visível mas desactivada, em vez de ser mandado para o
+ * `/guest` genérico até um humano (M-Pesa/transferência) ou o webhook
+ * (Stripe/saldo) confirmar. Nunca despromove uma conta já elevada
+ * (admin/manager/reseller) — mesma regra de sempre.
+ */
+export async function promoteGuestToClient(admin: SupabaseClient, userId: string): Promise<void> {
+  const { data: authUser } = await admin.auth.admin.getUserById(userId);
+  if (!authUser?.user) return;
+  const currentMetadata = authUser.user.user_metadata || {};
+  const email = authUser.user.email;
+  const displayName = currentMetadata.nome || currentMetadata.full_name || email?.split('@')[0];
+
+  const existingProfile = await getProfileForAuthUser(admin, userId, email);
+
+  // Só promove guest -> client. Nunca despromove uma conta já elevada (admin/manager/reseller)
+  // que, por exemplo, esteja apenas a testar uma compra.
+  const ELEVATED_ROLES = ['admin', 'manager', 'reseller'];
+  const isElevated =
+    ELEVATED_ROLES.includes(existingProfile?.role || '') || ELEVATED_ROLES.includes(currentMetadata.role);
+
+  if (!isElevated) {
+    await admin.auth.admin.updateUserById(userId, {
+      user_metadata: { ...currentMetadata, role: 'client', nome: displayName },
+    });
+  }
+
+  await saveProfileForAuthUser(admin, userId, {
+    email,
+    role: isElevated ? undefined : 'client',
+    name: displayName,
+  });
 }
 
 /**
@@ -601,35 +640,18 @@ export async function fulfillCheckout(
     status: 'paid',
   });
 
-  if (admin) {
-    const { getProfileForAuthUser, saveProfileForAuthUser } = await import('@/lib/profile-db');
-    const existingProfile = await getProfileForAuthUser(admin, userId, email);
-
-    // Só promove guest -> client. Nunca despromove uma conta já elevada (admin/manager/reseller)
-    // que, por exemplo, esteja apenas a testar uma compra.
-    const ELEVATED_ROLES = ['admin', 'manager', 'reseller'];
-    const isElevated =
-      ELEVATED_ROLES.includes(existingProfile?.role || '') || ELEVATED_ROLES.includes(currentMetadata.role);
-
-    // #5: a password de login (Supabase Auth) do cliente nunca é tocada aqui —
-    // era sobrescrita pela password gerada para a conta de hospedagem, o que
-    // trancava o cliente fora da própria conta depois de comprar. O botão
-    // "Direct Admin" não depende delas serem iguais: usa um one-time login-url
-    // por username (ver /api/client-directadmin-access), e a criação real da
-    // conta no servidor lê a password de profiles.da_password_encrypted
-    // (gravada acima, sharedHostingPassword), não a de login.
-    if (!isElevated) {
-      await admin.auth.admin.updateUserById(userId, {
-        user_metadata: { ...currentMetadata, role: 'client', nome: displayName },
-      });
-    }
-
-    await saveProfileForAuthUser(admin, userId, {
-      email,
-      role: isElevated ? undefined : 'client',
-      name: displayName,
-    });
-  }
+  // #5: a password de login (Supabase Auth) do cliente nunca é tocada por
+  // promoteGuestToClient — era sobrescrita pela password gerada para a conta
+  // de hospedagem, o que trancava o cliente fora da própria conta depois de
+  // comprar. O botão "Direct Admin" não depende delas serem iguais: usa um
+  // one-time login-url por username (ver /api/client-directadmin-access), e
+  // a criação real da conta no servidor lê a password de
+  // profiles.da_password_encrypted (gravada acima, sharedHostingPassword),
+  // não a de login. Normalmente já é chamada de novo aqui (idempotente — ver
+  // §submissão da encomenda), mas mantém-se também aqui para o caso de
+  // `fulfillCheckout` ser invocada por um caminho que nunca passou por lá
+  // (ex.: script de correcção manual/admin).
+  if (admin) await promoteGuestToClient(admin, userId);
 
   return { created, total };
 }

@@ -4,6 +4,7 @@ import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { resolveCartItems, toValidatedCartItems, type CatalogCartItem } from '@/lib/package-catalog';
 import { notifyQuoteTeam } from '@/lib/notify-quote-team';
 import { isProfileWhoisComplete } from '@/lib/profile-db';
+import { promoteGuestToClient } from '@/lib/checkout-fulfillment';
 
 const VALID_METHODS = ['mpesa', 'transferencia'];
 
@@ -76,6 +77,18 @@ export async function POST(request: NextRequest) {
     if (insertError || !session) {
       console.error('[checkout/manual-session] insert error:', insertError);
       return NextResponse.json({ error: 'Não foi possível iniciar o pedido.' }, { status: 500 });
+    }
+
+    // Promove já para 'client' — deixa o cliente entrar no painel real
+    // (secção do produto visível mas desactivada) enquanto aguarda a equipa
+    // confirmar o comprovativo, em vez de ficar preso no /guest genérico.
+    // Espera terminar (o browser navega para /cliente logo a seguir a esta
+    // resposta) mas nunca falha a criação do pedido por causa disto — o
+    // pedido em si já está gravado.
+    try {
+      await promoteGuestToClient(admin, user.id);
+    } catch (err) {
+      console.error('[checkout/manual-session] promoteGuestToClient falhou:', err);
     }
 
     notifyQuoteTeam({

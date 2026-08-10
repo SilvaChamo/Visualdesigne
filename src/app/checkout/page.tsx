@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useRef, Suspense } from 'react';
+import React, { useState, useEffect, Suspense } from 'react';
 import { useCart } from '@/contexts/CartContext';
 import { useCurrency } from '@/contexts/CurrencyContext';
 import { supabase } from '@/lib/supabase-client';
@@ -39,7 +39,6 @@ import {
   CreditCard,
   Lock,
   Loader2,
-  CheckCircle2,
   AlertCircle,
   ShoppingCart,
   Globe,
@@ -50,10 +49,8 @@ import {
   EyeOff,
   Smartphone,
   Landmark,
-  Upload,
   ShieldCheck,
   BadgeCheck,
-  Clock,
   Zap,
   Printer,
   FileDown,
@@ -74,18 +71,10 @@ const METODO_META: Record<MetodoPagamento, { label: string; icon: typeof Smartph
   saldo: { label: 'Saldo da Conta', icon: Wallet },
 };
 
-type ManualSession = {
-  id: string;
-  status: 'pending' | 'paid' | 'failed' | 'expired';
-  comprovativo_url: string | null;
-  created_at: string;
-  items: { type: string }[];
-};
-
 function CheckoutContent() {
   const { items, total, clearCart, updateItemPeriod } = useCart();
   const router = useRouter();
-  const { user: authUser, loading: authLoading, isAdmin } = useAuth();
+  const { user: authUser, loading: authLoading } = useAuth();
   const isAuthenticated = authLoading ? null : !!authUser;
   const searchParams = useSearchParams();
   const renewalId = searchParams.get('renewalId');
@@ -223,41 +212,6 @@ function CheckoutContent() {
   const [status, setStatus] = useState<'idle' | 'registering' | 'redirecting' | 'error'>('idle');
   const [errorMessage, setErrorMessage] = useState('');
 
-  // Pedido de pagamento manual (M-Pesa/Transferência) criado — fica visível
-  // até a equipa confirmar/rejeitar; substitui o botão "Pagar" por um
-  // resumo + upload de comprovativo (mesmo padrão de /cotacao/[id]/pagamento).
-  const [manualSession, setManualSession] = useState<ManualSession | null>(null);
-  const [uploadingComprovativo, setUploadingComprovativo] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-
-  // M-Pesa Sandbox automático — só visível a admins enquanto em ambiente de
-  // teste (ver NEXT_PUBLIC_MPESA_ENV), e só para carrinhos só de hospedagem
-  // (nunca domínios, que registam a sério mesmo em sandbox).
-  const [mpesaMsisdn, setMpesaMsisdn] = useState('258843330333');
-  const [mpesaPaying, setMpesaPaying] = useState(false);
-  const [mpesaError, setMpesaError] = useState('');
-
-  // Sondagem do estado enquanto o pedido manual está pendente — a equipa
-  // confirma no painel admin, sem o cliente ter de recarregar a página.
-  useEffect(() => {
-    if (!manualSession || manualSession.status !== 'pending') return;
-    let cancelled = false;
-    const poll = async () => {
-      try {
-        const res = await fetch(`/api/checkout/session-status?session_id=${manualSession.id}`);
-        const data = await res.json();
-        if (cancelled || !data.success) return;
-        if (data.session.status !== 'pending') {
-          setManualSession((prev) => (prev ? { ...prev, status: data.session.status } : prev));
-        }
-      } catch {
-        /* tenta novamente no próximo intervalo */
-      }
-    };
-    const interval = setInterval(poll, 4000);
-    return () => { cancelled = true; clearInterval(interval); };
-  }, [manualSession]);
-
   const handlePay = async (e: React.FormEvent) => {
     e.preventDefault();
     if (isSubmitting) return; // Evita duplo-clique / duplo pagamento
@@ -334,8 +288,10 @@ function CheckoutContent() {
       }
 
       if (metodoPagamento === 'saldo') {
-        // Saldo do revendedor já é "dinheiro confirmado" — não fica pendente
-        // como M-Pesa/Transferência, activa e redirecciona logo para o sucesso.
+        // Saldo do revendedor já é "dinheiro confirmado" — activa na hora.
+        // Ainda assim entra pelo painel real (não por uma página de sucesso
+        // à parte), mesmo mecanismo dos outros métodos — aqui já chega lá
+        // com o produto já activo, não cinzento.
         const res = await fetch('/api/checkout/saldo-session', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -346,7 +302,8 @@ function CheckoutContent() {
           throw new Error(data.error || 'Não foi possível pagar com o saldo.');
         }
         clearCart();
-        router.push(`/checkout/sucesso?session_id=${data.session.id}`);
+        await supabase.auth.refreshSession();
+        router.push('/cliente');
         return;
       }
 
@@ -368,7 +325,11 @@ function CheckoutContent() {
       }
 
       // M-Pesa / Transferência — regista o pedido como pendente; a equipa
-      // confirma manualmente depois de ver o comprovativo (ver /api/admin/checkout-pagamentos).
+      // confirma manualmente depois de ver o comprovativo (ver
+      // /api/admin/checkout-pagamentos). Entra já no painel real com a
+      // secção do produto visível mas desactivada — os dados de pagamento
+      // e o upload do comprovativo passam a viver lá (ver PendingOrdersSection),
+      // não aqui no checkout.
       const res = await fetch('/api/checkout/manual-session', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -378,62 +339,14 @@ function CheckoutContent() {
       if (!res.ok || !data.success) {
         throw new Error(data.error || 'Não foi possível registar o pedido de pagamento.');
       }
-      setManualSession({
-        id: data.session.id,
-        status: 'pending',
-        comprovativo_url: null,
-        created_at: data.session.created_at,
-        items: data.session.items || items,
-      });
       clearCart();
-      setStatus('idle');
-      setIsSubmitting(false);
+      await supabase.auth.refreshSession();
+      router.push('/cliente');
+      return;
     } catch (err: any) {
       setErrorMessage(err.message || 'Falha ao comunicar com o servidor de registo.');
       setStatus('error');
       setIsSubmitting(false);
-    }
-  };
-
-  const handleUploadComprovativo = async (file: File) => {
-    if (!manualSession) return;
-    setUploadingComprovativo(true);
-    try {
-      const form = new FormData();
-      form.append('file', file);
-      const res = await fetch(`/api/checkout/${manualSession.id}/comprovativo`, { method: 'POST', body: form });
-      const data = await res.json();
-      if (!res.ok || !data.success) throw new Error(data.error || 'Não foi possível enviar o comprovativo.');
-      setManualSession((prev) => (prev ? { ...prev, comprovativo_url: data.session.comprovativo_url } : prev));
-    } catch (err: any) {
-      window.alert(err.message || 'Falha ao enviar o comprovativo.');
-    } finally {
-      setUploadingComprovativo(false);
-    }
-  };
-
-  // Dispara o pagamento real no sandbox M-Pesa (C2B Single Stage) — a
-  // sondagem de estado já existente (session-status) apanha sozinha a
-  // mudança para 'paid' assim que fulfillCheckout correr no servidor.
-  const handleMpesaSandboxPay = async () => {
-    if (!manualSession) return;
-    setMpesaPaying(true);
-    setMpesaError('');
-    try {
-      const res = await fetch('/api/checkout/mpesa-pay', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ sessionId: manualSession.id, msisdn: mpesaMsisdn }),
-      });
-      const data = await res.json();
-      if (!res.ok || !data.success) {
-        throw new Error(data.error || 'O pagamento não foi confirmado pelo M-Pesa.');
-      }
-      // Sucesso: a sondagem já em curso detecta o status 'paid' sozinha.
-    } catch (err: any) {
-      setMpesaError(err.message || 'Falha ao contactar o M-Pesa Sandbox.');
-    } finally {
-      setMpesaPaying(false);
     }
   };
 
@@ -484,119 +397,7 @@ function CheckoutContent() {
     <div className="min-h-screen bg-slate-50 dark:bg-zinc-950 pt-32 pb-16 transition-colors duration-200">
       <div className="max-w-7xl mx-auto px-[40px] mt-4">
 
-        {manualSession ? (
-          <div className="max-w-2xl mx-auto space-y-5">
-            {manualSession.status === 'paid' ? (
-              <div className="bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-lg p-10 text-center space-y-4 shadow-sm">
-                <CheckCircle2 className="w-14 h-14 text-green-500 mx-auto" />
-                <h2 className="text-xl font-bold text-slate-800 dark:text-zinc-100 font-panel">Pagamento confirmado</h2>
-                <p className="text-sm text-slate-500 dark:text-zinc-400">Os seus produtos já foram activados.</p>
-                <button
-                  onClick={() => router.push('/cliente')}
-                  className="bg-red-600 hover:bg-red-700 text-white font-bold py-3 px-6 rounded-md transition-colors"
-                >
-                  Ir para o Painel
-                </button>
-              </div>
-            ) : manualSession.status === 'failed' ? (
-              <div className="bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-lg p-10 text-center space-y-4 shadow-sm">
-                <AlertCircle className="w-14 h-14 text-rose-500 mx-auto" />
-                <h2 className="text-xl font-bold text-slate-800 dark:text-zinc-100 font-panel">Pagamento não confirmado</h2>
-                <p className="text-sm text-slate-500 dark:text-zinc-400">
-                  A nossa equipa não conseguiu confirmar este pagamento. Contacte o suporte ou tente novamente.
-                </p>
-                <button
-                  onClick={() => setManualSession(null)}
-                  className="bg-red-600 hover:bg-red-700 text-white font-bold py-3 px-6 rounded-md transition-colors"
-                >
-                  Voltar ao Checkout
-                </button>
-              </div>
-            ) : (
-              <div className="bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-lg p-6 shadow-sm space-y-5">
-                <div className="flex items-center gap-2 text-blue-700 dark:text-blue-400">
-                  <Clock className="w-5 h-5" />
-                  <h3 className="font-bold text-sm">Pedido registado — a aguardar confirmação</h3>
-                </div>
-
-                <div className="bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200 dark:border-zinc-800 rounded-lg p-4 text-sm text-zinc-700 dark:text-zinc-300 space-y-0.5">
-                  {metodoPagamento === 'mpesa' ? (
-                    <p>Envie o valor para <span className="font-bold">{MPESA_NUMBER}</span>.</p>
-                  ) : (
-                    <>
-                      <p>{BANK_NAME}</p>
-                      <p>Conta BCI: <span className="font-bold">{BANK_ACCOUNT}</span></p>
-                      <p>NIB: <span className="font-bold">{BANK_NIB}</span></p>
-                    </>
-                  )}
-                </div>
-
-                {metodoPagamento === 'mpesa' &&
-                  isAdmin &&
-                  process.env.NEXT_PUBLIC_MPESA_ENV === 'sandbox' &&
-                  manualSession.items.every((i) => i.type === 'hosting') && (
-                    <div className="bg-violet-50 dark:bg-violet-900/10 border border-violet-200 dark:border-violet-800/60 rounded-lg p-4 space-y-3">
-                      <p className="text-xs font-bold uppercase tracking-wide text-violet-700 dark:text-violet-300">
-                        M-Pesa Sandbox (só admin — ambiente de teste)
-                      </p>
-                      <input
-                        type="tel"
-                        value={mpesaMsisdn}
-                        onChange={(e) => setMpesaMsisdn(e.target.value)}
-                        placeholder="2588XXXXXXXX"
-                        disabled={mpesaPaying}
-                        className="w-full px-3 py-2 border border-violet-200 dark:border-violet-800 rounded-md text-sm font-mono bg-white dark:bg-zinc-950 outline-none focus:ring-1 focus:ring-violet-500 disabled:opacity-60"
-                      />
-                      <button
-                        type="button"
-                        onClick={handleMpesaSandboxPay}
-                        disabled={mpesaPaying}
-                        className="w-full flex items-center justify-center gap-2 bg-violet-600 hover:bg-violet-700 disabled:opacity-60 disabled:cursor-not-allowed text-white font-bold py-2.5 rounded-md text-sm transition-colors"
-                      >
-                        {mpesaPaying ? <Spinner className="w-4 h-4" /> : <Smartphone className="w-4 h-4" />}
-                        {mpesaPaying ? 'A aguardar confirmação (até 60s)...' : 'Pagar agora via M-Pesa Sandbox'}
-                      </button>
-                      {mpesaError && (
-                        <p className="text-xs text-rose-600 dark:text-rose-400">{mpesaError}</p>
-                      )}
-                    </div>
-                  )}
-
-                {manualSession.comprovativo_url ? (
-                  <div className="flex items-center gap-2 text-sm text-green-700 bg-green-50 border border-green-200 rounded-md p-3">
-                    <CheckCircle2 className="w-4 h-4 shrink-0" /> Comprovativo enviado — a aguardar confirmação da equipa.
-                  </div>
-                ) : (
-                  <>
-                    <p className="text-sm text-slate-600 dark:text-zinc-300">
-                      Depois de pagar, anexe o comprovativo para acelerar a confirmação.
-                    </p>
-                    <label className="flex items-center justify-center gap-2 w-full px-4 py-3 border-2 border-dashed border-slate-300 dark:border-zinc-700 rounded-md text-sm text-slate-600 dark:text-zinc-300 hover:border-red-400 hover:text-red-600 cursor-pointer transition-colors">
-                      {uploadingComprovativo ? <Spinner className="w-4 h-4" /> : <Upload className="w-4 h-4" />}
-                      {uploadingComprovativo ? 'A enviar...' : 'Anexar comprovativo de pagamento'}
-                      <input
-                        ref={fileInputRef}
-                        type="file"
-                        accept="image/*,.pdf"
-                        className="hidden"
-                        disabled={uploadingComprovativo}
-                        onChange={(e) => { const f = e.target.files?.[0]; if (f) handleUploadComprovativo(f); }}
-                      />
-                    </label>
-                  </>
-                )}
-
-                <button
-                  type="button"
-                  onClick={() => router.push('/cliente')}
-                  className="w-full border border-slate-200 dark:border-zinc-800 text-slate-600 dark:text-zinc-400 font-bold py-2.5 rounded-md text-sm hover:bg-slate-50 dark:hover:bg-zinc-800 transition-colors"
-                >
-                  Ir para o Painel (acompanhar depois)
-                </button>
-              </div>
-            )}
-          </div>
-        ) : items.length === 0 ? (
+        {items.length === 0 ? (
           <div className="bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-lg p-12 text-center max-w-lg mx-auto space-y-6 shadow-sm">
             <ShoppingCart className="w-16 h-16 text-slate-300 dark:text-zinc-700 mx-auto" />
             <h2 className="text-xl font-bold text-slate-800 dark:text-zinc-100 font-panel">O seu carrinho está vazio</h2>
