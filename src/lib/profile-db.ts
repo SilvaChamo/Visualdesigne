@@ -14,8 +14,15 @@ export type ProfileRow = {
   created_at?: string | null;
 };
 
+// reseller_tier fica de fora aqui de propósito: a coluna profiles.reseller_tier
+// nunca chegou a existir a sério na base de dados real (a migração em
+// da-sync-schema.ts que devia tê-la criado não foi aplicada) — seleccioná-la
+// ou escrevê-la rebentava qualquer chamada a este ficheiro com
+// "column profiles.reseller_tier does not exist". A fonte real para o tier
+// de revenda é panel_auth_accounts.reseller_tier (essa existe), usada em
+// panel-reseller-tier.ts.
 const PROFILE_COLUMNS =
-  'id, user_id, email, role, name, da_username, da_password_encrypted, da_domain, da_provisioned_at, reseller_tier, created_at';
+  'id, user_id, email, role, name, da_username, da_password_encrypted, da_domain, da_provisioned_at, created_at';
 
 /** Campos WHOIS obrigatórios antes de deixar comprar um domínio (ver dynadot-adapter.ts). */
 const WHOIS_REQUIRED_FIELDS = ['telefone', 'morada', 'cidade'] as const;
@@ -133,7 +140,11 @@ export async function saveProfileForAuthUser(
   }
   if (fields.da_domain !== undefined) payload.da_domain = fields.da_domain;
   if (fields.da_provisioned_at !== undefined) payload.da_provisioned_at = fields.da_provisioned_at;
-  if (fields.reseller_tier !== undefined) payload.reseller_tier = fields.reseller_tier;
+  // reseller_tier NÃO vai para profiles — ver comentário em PROFILE_COLUMNS,
+  // a coluna não existe na base de dados real. Quem chama isto continua a
+  // poder passar o campo (não obriga a mexer nos chamadores), só que aqui
+  // fica sem efeito; panel_auth_accounts.reseller_tier é que é gravado a
+  // sério (ver upsertPanelAuthAccount).
   if (fields.telefone !== undefined) payload.telefone = fields.telefone;
   if (fields.empresa !== undefined) payload.empresa = fields.empresa;
   if (fields.morada !== undefined) payload.morada = fields.morada;
