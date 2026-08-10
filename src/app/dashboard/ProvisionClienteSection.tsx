@@ -141,6 +141,14 @@ export function ProvisionClienteSection({
   const [existingUserId, setExistingUserId] = useState('');
   const [resellerTier, setResellerTier] = useState<'essencial' | 'expandido'>('essencial');
   const [panelUsers, setPanelUsers] = useState<Array<{ id: string; email: string; userName: string; panelRole: string }>>([]);
+  // Contas de hospedagem reais que já existem no servidor mas ainda não têm
+  // login do painel associado — para ligar em vez de "criar pacote novo"
+  // (hospedagem a sério nasce sempre no checkout público, nunca aqui).
+  const [unlinkedHostingAccounts, setUnlinkedHostingAccounts] = useState<
+    Array<{ daUsername: string; email: string; packageName: string; domain: string }>
+  >([]);
+  const [linkHostingUsername, setLinkHostingUsername] = useState('');
+  const [loadingUnlinkedHosting, setLoadingUnlinkedHosting] = useState(false);
 
   useEffect(() => {
     if (isEdit || panelScope !== 'admin') return;
@@ -189,6 +197,21 @@ export function ProvisionClienteSection({
       writePackagesCache(packagesProp, panelScope);
     }
   }, [packagesProp, panelScope]);
+
+  useEffect(() => {
+    if (isEdit || panelScope !== 'admin') return;
+    let cancelled = false;
+    setLoadingUnlinkedHosting(true);
+    void fetch('/api/admin/unlinked-hosting-accounts', { credentials: 'include' })
+      .then((res) => res.json())
+      .then((data: { success?: boolean; accounts?: Array<{ daUsername: string; email: string; packageName: string; domain: string }> }) => {
+        if (cancelled || !data.success || !Array.isArray(data.accounts)) return;
+        setUnlinkedHostingAccounts(data.accounts);
+      })
+      .catch(() => undefined)
+      .finally(() => { if (!cancelled) setLoadingUnlinkedHosting(false); });
+    return () => { cancelled = true; };
+  }, [isEdit, panelScope]);
 
   useEffect(() => {
     if (isEdit || usernameTouched) return;
@@ -311,8 +334,8 @@ export function ProvisionClienteSection({
             accountType === 'reseller' || accountType === 'professional'
               ? normalizedDomain || `${resolvedUsername}.com`
               : normalizedDomain,
-          packageName: selectedPackageName || undefined,
-          simpleAccount: !hasHostingPackage,
+          linkExistingHostingUsername: linkHostingUsername || undefined,
+          simpleAccount: !linkHostingUsername,
           adminEmail,
         }),
       });
@@ -325,16 +348,13 @@ export function ProvisionClienteSection({
       const createdDomain =
         String(json.domain || normalizedDomain || (accountType !== 'client' ? `${resolvedUsername}.com` : '')).trim();
       const typeLabel = panelRoleLabel(accountType);
-      const serverNote =
-        json.serverSynced === true
-          ? ''
-          : hasHostingPackage
-            ? ' A sincronização com o servidor de hospedagem será feita automaticamente quando estiver disponível.'
-            : '';
+      const linkedNote = linkHostingUsername
+        ? ` Ligado à conta de hospedagem já existente "${linkHostingUsername}".`
+        : '';
       const simpleNote = json.provisionMode === 'simple' ? ' Conta simples (acesso ao painel).' : '';
       setMsg(
-        hasHostingPackage
-          ? `Conta ${typeLabel} ${resolvedUsername}${createdDomain ? ` (${createdDomain})` : ''} criada no painel.${serverNote}`
+        linkHostingUsername
+          ? `Conta ${typeLabel} ${json.userName || resolvedUsername} criada no painel.${linkedNote}`
           : `Utilizador ${typeLabel} criado no painel.${simpleNote}`,
       );
       onComplete?.({ user: json.user as ProvisionCreatedUser | undefined });
@@ -541,45 +561,47 @@ export function ProvisionClienteSection({
       <h2 className="font-bold text-gray-900 flex items-center gap-2">
         <Package className="w-5 h-5 shrink-0" /> Hospedagem
       </h2>
-      <p className="text-xs text-zinc-500">
-        Os limites (disco, emails, domínios) vêm do pacote seleccionado. Sem pacote, a conta fica simples (só painel).
-      </p>
-      {packageOptions.length === 0 ? (
-        <p className="text-sm text-amber-700 bg-amber-50 p-3 rounded-lg">
-          Nenhum pacote disponível — conta simples.
-        </p>
+      {isEdit ? (
+        // Hospedagem real (se existir) já veio do checkout público — aqui é só
+        // informativo, não editável, para não confundir "mostra guardado" com
+        // "está guardado a sério" (o pacote muda-se na página Pacotes, não aqui).
+        hasHostingPackage && selectedPackage ? (
+          <p className="text-sm text-gray-700 dark:text-zinc-300">
+            Pacote <strong>{selectedPackageName}</strong>
+            {domain ? <> · Domínio <strong>{domain}</strong></> : null}
+            <br />
+            <span className="text-xs text-gray-500">
+              Disco {formatPackageLimit(selectedPackage.diskSpace, 'MB')} · BW {formatPackageLimit(selectedPackage.bandwidth, 'MB')} · Emails {formatPackageLimit(selectedPackage.emailAccounts)} · Domínios {formatPackageLimit(selectedPackage.allowedDomains)}
+            </span>
+          </p>
+        ) : (
+          <p className="text-sm text-gray-500">Conta simples — sem hospedagem.</p>
+        )
       ) : (
         <>
-          <select
-            value={packageName}
-            onChange={(e) => setPackageName(e.target.value)}
-            className={inputCls}
-          >
-            <option value="">Conta simples (sem pacote)</option>
-            {packageOptions.map((p) => (
-              <option key={p.packageName} value={p.packageName}>
-                {p.packageName}
-              </option>
-            ))}
-          </select>
-          {hasHostingPackage && selectedPackage ? (
-            <p className="text-xs text-gray-500">
-              Disco {formatPackageLimit(selectedPackage.diskSpace, 'MB')} · BW {formatPackageLimit(selectedPackage.bandwidth, 'MB')} · Emails {formatPackageLimit(selectedPackage.emailAccounts)} · Domínios {formatPackageLimit(selectedPackage.allowedDomains)}
+          <p className="text-xs text-zinc-500">
+            Ligar a uma conta de hospedagem que já existe no servidor (contas novas nascem sempre na compra pública, não aqui).
+          </p>
+          {loadingUnlinkedHosting ? (
+            <p className="text-sm text-gray-500">A carregar contas disponíveis…</p>
+          ) : unlinkedHostingAccounts.length === 0 ? (
+            <p className="text-sm text-amber-700 bg-amber-50 p-3 rounded-lg">
+              Nenhuma conta de hospedagem por associar — fica conta simples.
             </p>
-          ) : null}
-          {hasHostingPackage ? (
-            <div className="space-y-1">
-              <label className="text-xs font-medium text-zinc-500">
-                {accountType === 'client' ? 'Domínio' : 'Domínio principal'}
-              </label>
-              <input
-                placeholder={accountType === 'client' ? 'exemplo.com' : 'opcional — preenche automaticamente se vazio'}
-                value={domain}
-                onChange={(e) => setDomain(e.target.value)}
-                className={inputCls}
-              />
-            </div>
-          ) : null}
+          ) : (
+            <select
+              value={linkHostingUsername}
+              onChange={(e) => setLinkHostingUsername(e.target.value)}
+              className={inputCls}
+            >
+              <option value="">Conta simples (sem hospedagem)</option>
+              {unlinkedHostingAccounts.map((a) => (
+                <option key={a.daUsername} value={a.daUsername}>
+                  {a.daUsername}{a.domain ? ` — ${a.domain}` : ''}{a.packageName ? ` (${a.packageName})` : ''}
+                </option>
+              ))}
+            </select>
+          )}
         </>
       )}
     </section>
@@ -608,15 +630,19 @@ export function ProvisionClienteSection({
           <dd className="break-all text-zinc-800">{identity.email || '—'}</dd>
         </div>
         <div>
-          <dt className="text-xs text-zinc-400">Pacote</dt>
-          <dd className="text-zinc-900">{hasHostingPackage ? selectedPackageName : 'Conta simples'}</dd>
+          <dt className="text-xs text-zinc-400">Hospedagem</dt>
+          <dd className="text-zinc-900">
+            {hasHostingPackage
+              ? selectedPackageName
+              : linkHostingUsername
+                ? `Ligar a "${linkHostingUsername}"`
+                : 'Conta simples'}
+          </dd>
         </div>
-        {hasHostingPackage ? (
+        {hasHostingPackage && domain ? (
           <div>
             <dt className="text-xs text-zinc-400">Domínio</dt>
-            <dd className="break-all text-zinc-900">
-              {domain || (accountType !== 'client' ? `${resolvedUsername}.com` : '—')}
-            </dd>
+            <dd className="break-all text-zinc-900">{domain}</dd>
           </div>
         ) : null}
       </dl>

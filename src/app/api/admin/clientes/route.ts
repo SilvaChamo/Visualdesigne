@@ -303,7 +303,12 @@ export async function POST(req: NextRequest) {
     const password = String(body.password || '');
     const domain = String(body.domain || '').trim().toLowerCase();
     const packageName = String(body.packageName || '').trim();
-    const simpleAccount = body.simpleAccount === true || !packageName;
+    // Ligar a uma conta de hospedagem já real no servidor (ver
+    // /api/admin/unlinked-hosting-accounts) em vez de criar hospedagem nova a
+    // partir de um pacote — é o caminho normal aqui: contas reais nascem no
+    // checkout público, este formulário só dá login do painel a quem já as tem.
+    const linkExistingHostingUsername = String(body.linkExistingHostingUsername || '').trim();
+    const simpleAccount = !linkExistingHostingUsername && (body.simpleAccount === true || !packageName);
     const adminEmail = String(body.adminEmail || email).trim();
     let userName = String(body.userName || '').trim() || deriveUsername(domain, email);
     const resellerTier =
@@ -332,14 +337,14 @@ export async function POST(req: NextRequest) {
     const panelAcl = panelAclForAccountType(accountType);
     const displayName = `${firstName} ${lastName}`.trim() || email.split('@')[0] || userName;
 
-    if (!simpleAccount && !effectivePackageName) {
+    if (!simpleAccount && !linkExistingHostingUsername && !effectivePackageName) {
       return NextResponse.json(
-        { success: false, error: 'Seleccione um pacote ou crie conta simples.' },
+        { success: false, error: 'Seleccione uma conta de hospedagem ou crie conta simples.' },
         { status: 400 },
       );
     }
 
-    if (!simpleAccount && accountType === 'client' && !domain.includes('.')) {
+    if (!simpleAccount && !linkExistingHostingUsername && accountType === 'client' && !domain.includes('.')) {
       return NextResponse.json(
         { success: false, error: 'Domínio obrigatório para cliente (ex.: exemplo.com).' },
         { status: 400 },
@@ -477,6 +482,76 @@ export async function POST(req: NextRequest) {
           firstName,
           lastName,
           packageName: '—',
+          quotaLabel: '—',
+          diskUsedLabel: '—',
+          resellerOwner: '—',
+          domainCount: 0,
+          registeredAt: new Date().toISOString(),
+          suspended: false,
+          ownedDomains: [],
+        },
+      });
+    }
+
+    if (linkExistingHostingUsername) {
+      const sb = getDaSyncAdmin();
+      if (!sb) {
+        return NextResponse.json({ success: false, error: 'Base de dados indisponível.' }, { status: 503 });
+      }
+      const { data: hostingRow, error: hostingLookupError } = await sb
+        .from('panel_users')
+        .select('username, email, package_name, auth_user_id')
+        .eq('username', linkExistingHostingUsername)
+        .maybeSingle();
+      if (hostingLookupError || !hostingRow) {
+        return NextResponse.json(
+          { success: false, error: 'Conta de hospedagem não encontrada.' },
+          { status: 404 },
+        );
+      }
+      if (hostingRow.auth_user_id) {
+        return NextResponse.json(
+          { success: false, error: 'Essa conta de hospedagem já tem um login associado.' },
+          { status: 409 },
+        );
+      }
+
+      // Só liga o login (auth_user_id) — não mexe em email/pacote/quota já
+      // reais dessa conta, ao contrário de um upsert completo.
+      const { error: linkError } = await sb
+        .from('panel_users')
+        .update({ auth_user_id: authUserId, updated_at: new Date().toISOString() })
+        .eq('username', linkExistingHostingUsername);
+      if (linkError) {
+        return NextResponse.json({ success: false, error: linkError.message }, { status: 500 });
+      }
+
+      const hostingProvider = await getProviderByUsername(linkExistingHostingUsername);
+      await upsertPanelAuthAccount(admin, {
+        userId: authUserId,
+        email: normalizedEmail,
+        role: panelRole,
+        name: displayName,
+        serverLinked: true,
+        daUsername: linkExistingHostingUsername,
+        resellerTier,
+        provider: hostingProvider,
+      });
+
+      return NextResponse.json({
+        success: true,
+        userName: linkExistingHostingUsername,
+        domain: '',
+        accountType,
+        provisionMode: 'linked',
+        serverSynced: true,
+        user: {
+          userName: linkExistingHostingUsername,
+          email: normalizedEmail,
+          type: panelAcl,
+          firstName,
+          lastName,
+          packageName: hostingRow.package_name || '—',
           quotaLabel: '—',
           diskUsedLabel: '—',
           resellerOwner: '—',
