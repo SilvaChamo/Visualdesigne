@@ -401,7 +401,13 @@ export function ClientesDaSection({
       setShowPasswordModal(false);
       return;
     }
-    if (action === 'delete' && !confirm(`Remover conta "${userName}"? Irreversível.`)) return;
+    if (action === 'delete') {
+      const isSimpleAccount = !user.packageName || user.packageName === '—';
+      const confirmMsg = isSimpleAccount
+        ? `"${userName}" é uma conta simples (sem hospedagem real). Isto só a remove desta lista — o login da pessoa no painel NÃO é apagado. Continuar?`
+        : `Remover conta "${userName}"? Isto apaga a hospedagem real no servidor. Irreversível.`;
+      if (!confirm(confirmMsg)) return;
+    }
     if (action === 'suspend' && !confirm(`Suspender "${userName}"?`)) return;
 
     setBusy(true);

@@ -865,9 +865,27 @@ export async function PATCH(req: NextRequest) {
           return NextResponse.json({ success: false, error: 'Password inválida' }, { status: 400 });
         }
         {
-          const provider = await getProviderByUsername(userName);
-          const r = await changeHostingAccountPassword(provider, userName, String(password));
-          data = { success: r.ok, error: r.error };
+          // Conta simples (sem hospedagem real) não existe em nenhum servidor
+          // DA/Hestia -- tentar mudar a password lá falhava sempre. Para essas,
+          // a única password que existe a sério é a do login (auth.users).
+          const sbPwd = getDaSyncAdmin();
+          const { data: pwdRow } = sbPwd
+            ? await sbPwd.from('panel_users').select('hosting_provider, auth_user_id').eq('username', userName).maybeSingle()
+            : { data: null };
+          if (pwdRow && !pwdRow.hosting_provider) {
+            if (!pwdRow.auth_user_id || !SUPABASE_URL || !SUPABASE_SERVICE_KEY) {
+              return NextResponse.json({ success: false, error: 'Conta sem login associado.' }, { status: 409 });
+            }
+            const authAdmin = createAdminClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
+            const { error: authPwdError } = await authAdmin.auth.admin.updateUserById(String(pwdRow.auth_user_id), {
+              password: String(password),
+            });
+            data = { success: !authPwdError, error: authPwdError?.message };
+          } else {
+            const provider = await getProviderByUsername(userName);
+            const r = await changeHostingAccountPassword(provider, userName, String(password));
+            data = { success: r.ok, error: r.error };
+          }
         }
         break;
       case 'moveToReseller': {

@@ -253,7 +253,7 @@ export function ProvisionClienteSection({
   const canSubmit =
     identityEmailOk &&
     passwordOk &&
-    Boolean(resolvedUsername) &&
+    resolvedUsername.length >= 5 &&
     (!hasHostingPackage || accountType !== 'client' || domain.includes('.'));
 
   const handleProvision = async () => {
@@ -499,14 +499,17 @@ export function ProvisionClienteSection({
         <div className="space-y-1 sm:col-span-2">
           <label className="text-xs font-medium text-zinc-500">Utilizador</label>
           <input
-            placeholder="ex: provisualc"
+            placeholder="ex: Provisualc"
             value={username}
             onChange={(e) => {
               setUsernameTouched(true);
-              setUsername(e.target.value.replace(/[^a-zA-Z0-9]/g, '').toLowerCase());
+              setUsername(e.target.value.replace(/[^a-zA-Z0-9]/g, ''));
             }}
             className={inputCls}
           />
+          {usernameTouched && username.length > 0 && username.length < 5 ? (
+            <p className="text-xs text-red-600">Mínimo 5 caracteres.</p>
+          ) : null}
         </div>
         <input
           placeholder="E-mail"
