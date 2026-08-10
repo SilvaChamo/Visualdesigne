@@ -207,7 +207,7 @@ export function AdminSidebar({
   React.useEffect(() => {
     let cancelled = false;
     const fetchUnread = () => {
-      fetch('/api/notifications/admin?limit=1')
+      fetch('/api/notifications/admin?category=system&limit=1')
         .then((r) => r.json())
         .then((data) => {
           if (!cancelled && data?.success) setUnreadNotifications(data.stats?.unread || 0);
