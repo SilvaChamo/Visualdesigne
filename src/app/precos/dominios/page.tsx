@@ -5,19 +5,25 @@ import Link from 'next/link'
 import { ArrowLeft } from 'lucide-react'
 
 import DomainSearch from '@/components/DomainSearch'
-import { DOMAIN_TLD_PRICES } from '@/lib/domain-tld-prices'
-
-const formatUsd = (value: number) => `${value.toFixed(2).replace('.', ',')} US$`
+import { useCurrency } from '@/contexts/CurrencyContext'
+import {
+  DOMAIN_TLD_PRICES,
+  domainRegistrationPriceMt,
+  domainRenewalPriceMt,
+  domainTransferPriceMt,
+  domainIcannFeeMt,
+} from '@/lib/domain-tld-prices'
 
 export default function PrecosDominios() {
   const { t } = useI18n()
+  const { formatPrice } = useCurrency()
 
   const domains = DOMAIN_TLD_PRICES.map((tld) => ({
     ext: tld.value,
-    reg: formatUsd(tld.price),
-    ren: formatUsd(tld.renewPrice),
-    icann: `${formatUsd(tld.icann)} /ano`,
-    trans: formatUsd(tld.transfer),
+    reg: formatPrice(domainRegistrationPriceMt(tld, 1)),
+    ren: formatPrice(domainRenewalPriceMt(tld, 1)),
+    icann: `${formatPrice(domainIcannFeeMt(tld))} /ano`,
+    trans: formatPrice(domainTransferPriceMt(tld, 1)),
   }))
 
   return (

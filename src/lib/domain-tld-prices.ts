@@ -39,7 +39,7 @@ export const DOMAIN_TLD_PRICES: DomainTldPrice[] = [
   { value: '.net', label: '.net', price: 12.52, renewPrice: 12.52, icann: 0.2, transfer: 12.52 },
   { value: '.org', label: '.org', price: 7.99, renewPrice: 11.64, icann: 0.2, transfer: 11.64 },
   { value: '.farm', label: '.farm', price: 4.14, renewPrice: 31.05, icann: 0.2, transfer: 31.05 },
-  { value: '.ai', label: '.ai', price: 85.6, renewPrice: 85.6, icann: 0.2, transfer: 171.2 },
+  { value: '.ai', label: '.ai', price: 85.6, renewPrice: 85.6, icann: 0.2, transfer: 85.6 },
   { value: '.co', label: '.co', price: 3.48, renewPrice: 31.2, icann: 0.2, transfer: 31.2 },
   { value: '.io', label: '.io', price: 28.89, renewPrice: 53.5, icann: 0.2, transfer: 53.5 },
   { value: '.app', label: '.app', price: 9.99, renewPrice: 14.5, icann: 0.2, transfer: 13.99 },
@@ -118,4 +118,9 @@ export function domainTransferPriceMt(
 ): number {
   const safeYears = Math.max(1, years || 1)
   return Math.round(tld.transfer * safeYears * MZN_TO_USD_RATE)
+}
+
+/** Taxa ICANN em MT — sempre pela fórmula. */
+export function domainIcannFeeMt(tld: Pick<DomainTldPrice, 'icann'>): number {
+  return Math.round(tld.icann * MZN_TO_USD_RATE)
 }
