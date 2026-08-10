@@ -3,6 +3,9 @@
 import React, { useState, useEffect } from 'react'
 import { Shield, Save, CheckSquare, Square, CheckCircle2, ExternalLink, Plus, X } from 'lucide-react'
 import { ResellerMenuPermissionsConfig } from './ResellerMenuPermissionsConfig'
+import { readListCache, writeListCache } from '@/lib/panel-list-cache'
+
+const PERMS_CACHE_KEY = 'vd_client_permissions_v1'
 
 interface PermissionOption {
   id: string
@@ -58,10 +61,13 @@ interface Props {
   role: 'client' | 'reseller'
 }
 
+type CachedPerms = { permissions: Record<string, boolean>; customOptions: PermissionOption[] }
+
 function ClientPanelPermissionsConfig() {
-  const [permissions, setPermissions] = useState<Record<string, boolean>>({})
-  const [customOptions, setCustomOptions] = useState<PermissionOption[]>([])
-  const [loading, setLoading] = useState(true)
+  const cached = readListCache<CachedPerms>(PERMS_CACHE_KEY)
+  const [permissions, setPermissions] = useState<Record<string, boolean>>(cached?.permissions ?? {})
+  const [customOptions, setCustomOptions] = useState<PermissionOption[]>(cached?.customOptions ?? [])
+  const [loading, setLoading] = useState(cached === null)
   const [saving, setSaving] = useState(false)
   const [savedStatus, setSavedStatus] = useState(false)
   const [showAddForm, setShowAddForm] = useState(false)
@@ -79,6 +85,7 @@ function ClientPanelPermissionsConfig() {
           const data = await res.json()
           setPermissions(data.permissions || {})
           setCustomOptions(data.customOptions || [])
+          writeListCache<CachedPerms>(PERMS_CACHE_KEY, { permissions: data.permissions || {}, customOptions: data.customOptions || [] })
         } else {
           // Fallback para defaults
           const defaults: Record<string, boolean> = {}

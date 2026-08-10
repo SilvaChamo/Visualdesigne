@@ -15,6 +15,9 @@ import { Spinner } from '@/components/ui/spinner'
 import { panelBtnPrimary, panelBtnSecondary, panelField, panelSectionCard, panelInnerDetailCard, panelMobileCardGrid } from '@/lib/panel-ui'
 import { SiteThumbnail } from '@/components/panel/ListWebsitesSection'
 import type { DirectAdminWebsite } from '@/lib/directadmin-api'
+import { readListCache, writeListCache } from '@/lib/panel-list-cache'
+
+const CACHE_KEY = 'vd_nextjs_sites_v1'
 
 interface NextJsSiteRow {
   id: string
@@ -76,8 +79,8 @@ export function NextJsSitesSection({
   sites: DirectAdminWebsite[]
   onNavigate: (section: string, opts?: { domain?: string }) => void
 }) {
-  const [rows, setRows] = useState<NextJsSiteRow[]>([])
-  const [loading, setLoading] = useState(true)
+  const [rows, setRows] = useState<NextJsSiteRow[]>(() => readListCache<NextJsSiteRow[]>(CACHE_KEY) ?? [])
+  const [loading, setLoading] = useState(() => readListCache<NextJsSiteRow[]>(CACHE_KEY) === null)
   const [processes, setProcesses] = useState<Pm2Process[]>([])
   const [health, setHealth] = useState<Record<string, HealthState>>({})
   const [expandedDomain, setExpandedDomain] = useState<string | null>(null)
@@ -107,7 +110,10 @@ export function NextJsSitesSection({
     try {
       const res = await fetch('/api/nextjs-sites', { cache: 'no-store' })
       const data = await res.json()
-      if (data.success) setRows(data.sites)
+      if (data.success) {
+        setRows(data.sites)
+        writeListCache(CACHE_KEY, data.sites)
+      }
     } catch (e) {
       console.error('Erro ao carregar sites Next.js:', e)
     } finally {

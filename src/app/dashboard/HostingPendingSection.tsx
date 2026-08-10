@@ -5,6 +5,9 @@ import { AlertTriangle, RefreshCw } from 'lucide-react'
 import { panelBtnPrimary, panelBtnSecondary, panelField } from '@/lib/panel-ui'
 import { Spinner } from '@/components/ui/spinner'
 import { parseJsonResponse } from '@/lib/safe-fetch-json'
+import { readListCache, writeListCache } from '@/lib/panel-list-cache'
+
+const CACHE_KEY = 'vd_hosting_pending_v1'
 
 type PendingHosting = {
   id: string
@@ -21,18 +24,20 @@ type PendingHosting = {
 const DOMAIN_REGEX = /^(?=.{1,253}$)([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,}$/
 
 export function HostingPendingSection() {
-  const [items, setItems] = useState<PendingHosting[]>([])
-  const [loading, setLoading] = useState(true)
+  const [items, setItems] = useState<PendingHosting[]>(() => readListCache<PendingHosting[]>(CACHE_KEY) ?? [])
+  const [loading, setLoading] = useState(() => readListCache<PendingHosting[]>(CACHE_KEY) === null)
   const [domainDrafts, setDomainDrafts] = useState<Record<string, string>>({})
   const [submitting, setSubmitting] = useState<Record<string, boolean>>({})
   const [rowMsg, setRowMsg] = useState<Record<string, { text: string; error: boolean }>>({})
 
   const load = async () => {
-    setLoading(true)
     try {
       const res = await fetch('/api/admin/hosting-pending', { credentials: 'include' })
       const data = await parseJsonResponse<{ success?: boolean; pending?: PendingHosting[] }>(res)
-      if (data.success && Array.isArray(data.pending)) setItems(data.pending)
+      if (data.success && Array.isArray(data.pending)) {
+        setItems(data.pending)
+        writeListCache(CACHE_KEY, data.pending)
+      }
     } catch {
       /* mantém lista actual */
     } finally {

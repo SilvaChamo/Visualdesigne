@@ -6,6 +6,7 @@ import { useAdminSectionChrome } from '@/components/admin/AdminSectionChrome';
 import { panelBtnPrimary, panelBtnSecondary, panelField } from '@/lib/panel-ui';
 import { PRIMARY_RESELLER_DA_USER } from '@/lib/panel-contas-enrich';
 import { Spinner } from '@/components/ui/spinner';
+import { readListCache, writeListCache } from '@/lib/panel-list-cache';
 
 type DaUserRow = {
   userName: string;
@@ -113,13 +114,13 @@ function isHostingAccount(row: DaUserRow): boolean {
 
 export function MoveUsersBetweenResellersSection({ isActive = true }: { isActive?: boolean }) {
   const { setChrome } = useAdminSectionChrome();
-  const [users, setUsers] = useState<DaUserRow[]>([]);
-  const [packages, setPackages] = useState<DaPackageRow[]>([]);
+  const [users, setUsers] = useState<DaUserRow[]>(() => readMoveClientesCache()?.users.filter(isHostingAccount) ?? []);
+  const [packages, setPackages] = useState<DaPackageRow[]>(() => readMoveClientesCache()?.packages ?? []);
   const [resellers, setResellers] = useState<string[]>([]);
   const [selectedUser, setSelectedUser] = useState('');
   const [fromReseller, setFromReseller] = useState('');
   const [toReseller, setToReseller] = useState('');
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(() => readMoveClientesCache() === null);
   const [syncing, setSyncing] = useState(false);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState('');
@@ -594,10 +595,12 @@ export function AccountMessageTemplatesSection({ isActive = true }: { isActive?:
   );
 }
 
+const BULK_PWD_USERS_CACHE_KEY = 'vd-bulk-pwd-users-v1';
+
 export function BulkChangePasswordsSection({ isActive = true }: { isActive?: boolean }) {
   const { setChrome } = useAdminSectionChrome();
-  const [users, setUsers] = useState<DaUserRow[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [users, setUsers] = useState<DaUserRow[]>(() => readListCache<DaUserRow[]>(BULK_PWD_USERS_CACHE_KEY) ?? []);
+  const [loading, setLoading] = useState(() => readListCache<DaUserRow[]>(BULK_PWD_USERS_CACHE_KEY) === null);
   const [search, setSearch] = useState('');
   const [passwords, setPasswords] = useState<Record<string, string>>({});
   const [busyUser, setBusyUser] = useState<string | null>(null);
@@ -606,7 +609,9 @@ export function BulkChangePasswordsSection({ isActive = true }: { isActive?: boo
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      setUsers(await loadHostingUsers());
+      const fetched = await loadHostingUsers();
+      setUsers(fetched);
+      writeListCache(BULK_PWD_USERS_CACHE_KEY, fetched);
     } catch (e: unknown) {
       setMsg(e instanceof Error ? e.message : 'Erro ao carregar');
     }
@@ -673,7 +678,7 @@ export function BulkChangePasswordsSection({ isActive = true }: { isActive?: boo
           <div className="col-span-5">Nova password</div>
           <div className="col-span-3 text-right">Acção</div>
         </div>
-        {loading ? (
+        {loading && users.length === 0 ? (
           <div className="flex items-center justify-center gap-2 py-12 text-sm text-gray-400">
             <Spinner className="h-4 w-4" />
             A carregar…

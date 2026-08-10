@@ -61,6 +61,7 @@ import { useAdminSectionChrome } from '@/components/admin/AdminSectionChrome'
 import { HostingPackageFormInline } from '@/app/dashboard/HostingPackageFormInline'
 import { composePackageName, createDefaultResellerPackageForm, normalizePackageFormForEditor, packageListRowToForm, splitCompositePackageName, type ResellerPackageFormState } from '@/lib/reseller-package-form'
 import { parseJsonResponse } from '@/lib/safe-fetch-json'
+import { readListCache, writeListCache } from '@/lib/panel-list-cache'
 import { VISUALDESIGN_DEFAULT_NS } from '@/lib/visualdesign-dns'
 import {
   RefreshCw, Globe, Globe2, PlusCircle, Plus, Package, Trash2, Database, Users, Mail, Lock, LockOpen, Shield, ShieldCheck,
@@ -7322,28 +7323,27 @@ export function DKIMManagerSection({ sites }: { sites: DirectAdminWebsite[] }) {
 // ============================================================
 // GIT DEPLOY SECTION
 // ============================================================
+function readGitDeployCache(): any {
+  if (typeof window === 'undefined') return null
+  try {
+    const cached = localStorage.getItem('git-deploy-cache')
+    if (!cached) return null
+    const parsed = JSON.parse(cached)
+    // Só usa cache se tiver menos de 5 minutos
+    if (Date.now() - (parsed._cachedAt || 0) < 5 * 60 * 1000) return parsed
+    return null
+  } catch {
+    return null
+  }
+}
+
 export function GitDeploySection() {
-  const [data, setData] = useState<any>(null)
-  const [loading, setLoading] = useState(true)
+  const [data, setData] = useState<any>(() => readGitDeployCache())
+  const [loading, setLoading] = useState(() => readGitDeployCache() === null)
   const [deploying, setDeploying] = useState(false)
   const [commitMsg, setCommitMsg] = useState('')
   const [result, setResult] = useState<any>(null)
   const abortRef = useRef<AbortController | null>(null)
-
-  // Carrega do cache local primeiro (instantâneo)
-  useEffect(() => {
-    try {
-      const cached = localStorage.getItem('git-deploy-cache')
-      if (cached) {
-        const parsed = JSON.parse(cached)
-        // Só usa cache se tiver menos de 5 minutos
-        if (Date.now() - (parsed._cachedAt || 0) < 5 * 60 * 1000) {
-          setData(parsed)
-          setLoading(false) // Mostra dados imediatamente
-        }
-      }
-    } catch { /* ignora erro de cache */ }
-  }, [])
 
   const loadStatus = async (useCache = true) => {
     // Cancela request anterior
@@ -11664,9 +11664,11 @@ type BrevoEmailStatus = {
   }
 }
 
+const SMTP_STATUS_CACHE_KEY = 'vd_smtp_status_v1'
+
 export function SMTPConfigSection() {
-  const [status, setStatus] = useState<BrevoEmailStatus | null>(null)
-  const [statusLoading, setStatusLoading] = useState(true)
+  const [status, setStatus] = useState<BrevoEmailStatus | null>(() => readListCache<BrevoEmailStatus>(SMTP_STATUS_CACHE_KEY))
+  const [statusLoading, setStatusLoading] = useState(() => readListCache<BrevoEmailStatus>(SMTP_STATUS_CACHE_KEY) === null)
 
   const loadStatus = async () => {
     setStatusLoading(true)
@@ -11674,6 +11676,7 @@ export function SMTPConfigSection() {
       const response = await fetch('/api/check-smtp-config')
       const data = await response.json()
       setStatus(data)
+      writeListCache(SMTP_STATUS_CACHE_KEY, data)
     } catch {
       setStatus(null)
     } finally {
