@@ -150,10 +150,17 @@ export function enrichPanelAccounts(
     );
     const diskUsedMb =
       typeof u.diskUsedMb === 'number' && u.diskUsedMb > 0 ? u.diskUsedMb : siteDiskSum;
-    const quotaLabel =
-      u.quotaLimitMb !== undefined
+    // Preferir sempre os dados ao vivo do pacote (pkgMeta, construído a partir
+    // do estado actual real) em vez da "fotografia" gravada em quotaLimitMb no
+    // momento em que a conta foi criada — essa nunca era actualizada depois,
+    // por isso divergia silenciosamente do pacote a sério quando este era
+    // editado mais tarde. quotaLimitMb só serve de recurso para contas órfãs
+    // sem pacote correspondente encontrado.
+    const quotaLabel = pkgMeta
+      ? formatPackageSize(pkgMeta.diskSpace)
+      : u.quotaLimitMb !== undefined
         ? formatPackageSize(u.quotaLimitMb)
-        : formatPackageSize(pkgMeta?.diskSpace);
+        : '—';
     const resellerOwner =
       u.parentUsername ||
       (acl === 'admin' || (acl === 'reseller' && !u.parentUsername) ? ownerLabel : '—');

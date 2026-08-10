@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { CheckCircle, Eye, EyeOff, Globe, Loader2, Package, RefreshCw, Shield, UserPlus, Users } from 'lucide-react';
+import { CheckCircle, Eye, EyeOff, Globe, Loader2, RefreshCw, Shield, UserPlus, Users } from 'lucide-react';
 import type { DirectAdminPackage } from '@/lib/directadmin-api';
 import { readPackagesCache, writePackagesCache } from '@/lib/panel-packages-cache';
 import { splitCompositePackageName } from '@/lib/reseller-package-form';
@@ -141,6 +141,14 @@ export function ProvisionClienteSection({
   const [existingUserId, setExistingUserId] = useState('');
   const [resellerTier, setResellerTier] = useState<'essencial' | 'expandido'>('essencial');
   const [panelUsers, setPanelUsers] = useState<Array<{ id: string; email: string; userName: string; panelRole: string }>>([]);
+  // Contas de hospedagem reais que já existem no servidor mas ainda não têm
+  // login do painel associado — para ligar em vez de "criar pacote novo"
+  // (hospedagem a sério nasce sempre no checkout público, nunca aqui).
+  const [unlinkedHostingAccounts, setUnlinkedHostingAccounts] = useState<
+    Array<{ daUsername: string; email: string; packageName: string; domain: string }>
+  >([]);
+  const [linkHostingUsername, setLinkHostingUsername] = useState('');
+  const [loadingUnlinkedHosting, setLoadingUnlinkedHosting] = useState(false);
 
   useEffect(() => {
     if (isEdit || panelScope !== 'admin') return;
@@ -189,6 +197,21 @@ export function ProvisionClienteSection({
       writePackagesCache(packagesProp, panelScope);
     }
   }, [packagesProp, panelScope]);
+
+  useEffect(() => {
+    if (isEdit || panelScope !== 'admin') return;
+    let cancelled = false;
+    setLoadingUnlinkedHosting(true);
+    void fetch('/api/admin/unlinked-hosting-accounts', { credentials: 'include' })
+      .then((res) => res.json())
+      .then((data: { success?: boolean; accounts?: Array<{ daUsername: string; email: string; packageName: string; domain: string }> }) => {
+        if (cancelled || !data.success || !Array.isArray(data.accounts)) return;
+        setUnlinkedHostingAccounts(data.accounts);
+      })
+      .catch(() => undefined)
+      .finally(() => { if (!cancelled) setLoadingUnlinkedHosting(false); });
+    return () => { cancelled = true; };
+  }, [isEdit, panelScope]);
 
   useEffect(() => {
     if (isEdit || usernameTouched) return;
@@ -311,8 +334,8 @@ export function ProvisionClienteSection({
             accountType === 'reseller' || accountType === 'professional'
               ? normalizedDomain || `${resolvedUsername}.com`
               : normalizedDomain,
-          packageName: selectedPackageName || undefined,
-          simpleAccount: !hasHostingPackage,
+          linkExistingHostingUsername: linkHostingUsername || undefined,
+          simpleAccount: !linkHostingUsername,
           adminEmail,
         }),
       });
@@ -325,16 +348,13 @@ export function ProvisionClienteSection({
       const createdDomain =
         String(json.domain || normalizedDomain || (accountType !== 'client' ? `${resolvedUsername}.com` : '')).trim();
       const typeLabel = panelRoleLabel(accountType);
-      const serverNote =
-        json.serverSynced === true
-          ? ''
-          : hasHostingPackage
-            ? ' A sincronização com o servidor de hospedagem será feita automaticamente quando estiver disponível.'
-            : '';
+      const linkedNote = linkHostingUsername
+        ? ` Ligado à conta de hospedagem já existente "${linkHostingUsername}".`
+        : '';
       const simpleNote = json.provisionMode === 'simple' ? ' Conta simples (acesso ao painel).' : '';
       setMsg(
-        hasHostingPackage
-          ? `Conta ${typeLabel} ${resolvedUsername}${createdDomain ? ` (${createdDomain})` : ''} criada no painel.${serverNote}`
+        linkHostingUsername
+          ? `Conta ${typeLabel} ${json.userName || resolvedUsername} criada no painel.${linkedNote}`
           : `Utilizador ${typeLabel} criado no painel.${simpleNote}`,
       );
       onComplete?.({ user: json.user as ProvisionCreatedUser | undefined });
@@ -363,7 +383,10 @@ export function ProvisionClienteSection({
             type="button"
             onClick={() => {
               setAccountType(opt.id);
-              if (!isEdit && userMode === 'existing' && existingUserId) {
+              if (!isEdit && opt.id !== 'client') {
+                setUserMode('new');
+                setExistingUserId('');
+              } else if (!isEdit && userMode === 'existing' && existingUserId) {
                 const row = panelUsers.find((u) => u.id === existingUserId);
                 const role = panelRoleForAccountTypeUi(opt.id);
                 if (row && row.panelRole !== role) setExistingUserId('');
@@ -384,10 +407,10 @@ export function ProvisionClienteSection({
     </section>
   );
 
-  const panelUserSection = !isEdit && panelScope === 'admin' && (
+  const panelUserSection = !isEdit && panelScope === 'admin' && accountType === 'client' && (
     <section className={`${formCardCls} space-y-4`}>
       <h2 className="font-bold text-gray-900">Utilizador do painel</h2>
-      <div className="flex flex-wrap gap-2">
+      <div className="flex flex-wrap items-center gap-2">
         <button
           type="button"
           onClick={() => setUserMode('new')}
@@ -406,33 +429,33 @@ export function ProvisionClienteSection({
         >
           Associar existente
         </button>
+        {userMode === 'existing' && (
+          <select
+            value={existingUserId}
+            onChange={(e) => {
+              const id = e.target.value;
+              setExistingUserId(id);
+              const row = matchingPanelUsers.find((u) => u.id === id);
+              if (row) {
+                setIdentity((prev) => ({
+                  ...prev,
+                  email: row.email,
+                  firstName: prev.firstName || row.userName.split(' ')[0] || '',
+                  lastName: prev.lastName || row.userName.split(' ').slice(1).join(' ') || '',
+                }));
+              }
+            }}
+            className="min-w-[220px] flex-1 rounded border border-gray-300 px-3 py-2 text-sm outline-none focus:border-zinc-400 focus:ring-1 focus:ring-zinc-400/30"
+          >
+            <option value="">Seleccionar utilizador…</option>
+            {matchingPanelUsers.map((u) => (
+              <option key={u.id} value={u.id}>
+                {u.email} ({u.panelRole})
+              </option>
+            ))}
+          </select>
+        )}
       </div>
-      {userMode === 'existing' && (
-        <select
-          value={existingUserId}
-          onChange={(e) => {
-            const id = e.target.value;
-            setExistingUserId(id);
-            const row = matchingPanelUsers.find((u) => u.id === id);
-            if (row) {
-              setIdentity((prev) => ({
-                ...prev,
-                email: row.email,
-                firstName: prev.firstName || row.userName.split(' ')[0] || '',
-                lastName: prev.lastName || row.userName.split(' ').slice(1).join(' ') || '',
-              }));
-            }
-          }}
-          className={inputCls}
-        >
-          <option value="">Seleccionar utilizador…</option>
-          {matchingPanelUsers.map((u) => (
-            <option key={u.id} value={u.id}>
-              {u.email} ({u.panelRole})
-            </option>
-          ))}
-        </select>
-      )}
       {userMode === 'existing' && matchingPanelUsers.length === 0 ? (
         <p className="text-xs text-amber-700">
           Nenhum utilizador com papel «{panelRoleLabel(accountType)}». Crie novo ou altere o tipo de conta.
@@ -493,6 +516,48 @@ export function ProvisionClienteSection({
           disabled={!isEdit && userMode === 'existing'}
           className={`${inputCls} sm:col-span-2 disabled:bg-gray-50`}
         />
+        <div className="space-y-1 sm:col-span-2">
+          <label className="text-xs font-medium text-zinc-500">Domínio</label>
+          <input
+            placeholder="ex: exemplo.com"
+            value={domain}
+            onChange={(e) => setDomain(e.target.value)}
+            className={inputCls}
+          />
+          {isEdit && hasHostingPackage && selectedPackage ? (
+            <p className="text-xs text-gray-500">
+              Pacote <strong>{selectedPackageName}</strong> · Disco {formatPackageLimit(selectedPackage.diskSpace, 'MB')} · BW{' '}
+              {formatPackageLimit(selectedPackage.bandwidth, 'MB')} · Emails {formatPackageLimit(selectedPackage.emailAccounts)} ·
+              Domínios {formatPackageLimit(selectedPackage.allowedDomains)}
+            </p>
+          ) : null}
+        </div>
+        {!isEdit && panelScope === 'admin' && accountType !== 'client' ? (
+          <div className="space-y-1 sm:col-span-2">
+            <label className="text-xs font-medium text-zinc-500">Hospedagem</label>
+            <p className="text-xs text-zinc-500">
+              Ligar a uma conta de hospedagem que já existe no servidor (contas novas nascem sempre na compra pública, não aqui).
+            </p>
+            {loadingUnlinkedHosting ? (
+              <p className="text-sm text-gray-500">A carregar contas disponíveis…</p>
+            ) : unlinkedHostingAccounts.length === 0 ? (
+              <p className="text-sm text-amber-700 bg-amber-50 p-3 rounded-lg">
+                Nenhuma conta de hospedagem por associar — fica conta simples.
+              </p>
+            ) : (
+              <select value={linkHostingUsername} onChange={(e) => setLinkHostingUsername(e.target.value)} className={inputCls}>
+                <option value="">Conta simples (sem hospedagem)</option>
+                {unlinkedHostingAccounts.map((a) => (
+                  <option key={a.daUsername} value={a.daUsername}>
+                    {a.daUsername}
+                    {a.domain ? ` — ${a.domain}` : ''}
+                    {a.packageName ? ` (${a.packageName})` : ''}
+                  </option>
+                ))}
+              </select>
+            )}
+          </div>
+        ) : null}
         <div className="relative sm:col-span-2 grid grid-cols-1 gap-3 sm:grid-cols-2">
           <div className="relative">
             <input
@@ -531,55 +596,6 @@ export function ProvisionClienteSection({
     </section>
   );
 
-  const hostingSection = (
-    <section className={`${formCardCls} space-y-4`}>
-      <h2 className="font-bold text-gray-900 flex items-center gap-2">
-        <Package className="w-5 h-5 shrink-0" /> Hospedagem
-      </h2>
-      <p className="text-xs text-zinc-500">
-        Os limites (disco, emails, domínios) vêm do pacote seleccionado. Sem pacote, a conta fica simples (só painel).
-      </p>
-      {packageOptions.length === 0 ? (
-        <p className="text-sm text-amber-700 bg-amber-50 p-3 rounded-lg">
-          Nenhum pacote disponível — conta simples.
-        </p>
-      ) : (
-        <>
-          <select
-            value={packageName}
-            onChange={(e) => setPackageName(e.target.value)}
-            className={inputCls}
-          >
-            <option value="">Conta simples (sem pacote)</option>
-            {packageOptions.map((p) => (
-              <option key={p.packageName} value={p.packageName}>
-                {p.packageName}
-              </option>
-            ))}
-          </select>
-          {hasHostingPackage && selectedPackage ? (
-            <p className="text-xs text-gray-500">
-              Disco {formatPackageLimit(selectedPackage.diskSpace, 'MB')} · BW {formatPackageLimit(selectedPackage.bandwidth, 'MB')} · Emails {formatPackageLimit(selectedPackage.emailAccounts)} · Domínios {formatPackageLimit(selectedPackage.allowedDomains)}
-            </p>
-          ) : null}
-          {hasHostingPackage ? (
-            <div className="space-y-1">
-              <label className="text-xs font-medium text-zinc-500">
-                {accountType === 'client' ? 'Domínio' : 'Domínio principal'}
-              </label>
-              <input
-                placeholder={accountType === 'client' ? 'exemplo.com' : 'opcional — preenche automaticamente se vazio'}
-                value={domain}
-                onChange={(e) => setDomain(e.target.value)}
-                className={inputCls}
-              />
-            </div>
-          ) : null}
-        </>
-      )}
-    </section>
-  );
-
   const summarySidebar = (
     <aside className="sticky top-0 h-fit w-full shrink-0 overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm lg:w-72 dark:border-zinc-700 dark:bg-zinc-900">
       <div className="border-b border-gray-200 px-5 py-4">
@@ -603,15 +619,19 @@ export function ProvisionClienteSection({
           <dd className="break-all text-zinc-800">{identity.email || '—'}</dd>
         </div>
         <div>
-          <dt className="text-xs text-zinc-400">Pacote</dt>
-          <dd className="text-zinc-900">{hasHostingPackage ? selectedPackageName : 'Conta simples'}</dd>
+          <dt className="text-xs text-zinc-400">Hospedagem</dt>
+          <dd className="text-zinc-900">
+            {hasHostingPackage
+              ? selectedPackageName
+              : linkHostingUsername
+                ? `Ligar a "${linkHostingUsername}"`
+                : 'Conta simples'}
+          </dd>
         </div>
-        {hasHostingPackage ? (
+        {hasHostingPackage && domain ? (
           <div>
             <dt className="text-xs text-zinc-400">Domínio</dt>
-            <dd className="break-all text-zinc-900">
-              {domain || (accountType !== 'client' ? `${resolvedUsername}.com` : '—')}
-            </dd>
+            <dd className="break-all text-zinc-900">{domain}</dd>
           </div>
         ) : null}
       </dl>
@@ -657,7 +677,6 @@ export function ProvisionClienteSection({
       <div className="flex flex-col gap-6 lg:flex-row lg:items-start">
         <div className="min-w-0 flex-1 space-y-6">
           {accountTypeCards}
-          {hostingSection}
           {panelUserSection}
           {resellerTierSection}
           {identitySection}

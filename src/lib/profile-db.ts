@@ -11,10 +11,18 @@ export type ProfileRow = {
   da_domain?: string | null;
   da_provisioned_at?: string | null;
   reseller_tier?: string | null;
+  created_at?: string | null;
 };
 
+// reseller_tier fica de fora aqui de propósito: a coluna profiles.reseller_tier
+// nunca chegou a existir a sério na base de dados real (a migração em
+// da-sync-schema.ts que devia tê-la criado não foi aplicada) — seleccioná-la
+// ou escrevê-la rebentava qualquer chamada a este ficheiro com
+// "column profiles.reseller_tier does not exist". A fonte real para o tier
+// de revenda é panel_auth_accounts.reseller_tier (essa existe), usada em
+// panel-reseller-tier.ts.
 const PROFILE_COLUMNS =
-  'id, user_id, email, role, name, da_username, da_password_encrypted, da_domain, da_provisioned_at, reseller_tier';
+  'id, user_id, email, role, name, da_username, da_password_encrypted, da_domain, da_provisioned_at, created_at';
 
 /** Campos WHOIS obrigatórios antes de deixar comprar um domínio (ver dynadot-adapter.ts). */
 const WHOIS_REQUIRED_FIELDS = ['telefone', 'morada', 'cidade'] as const;
@@ -56,12 +64,26 @@ export async function getProfileForAuthUser(
   // criou a linha original também normaliza, mas não é garantido que todos
   // os chamadores façam o mesmo antes de aqui chegar).
   const normalizedEmail = email ? email.toLowerCase().trim() : email;
-  const { data: byUserId } = await admin
+  const { data: byUserIdRows, error: byUserIdError } = await admin
     .from('profiles')
     .select(PROFILE_COLUMNS)
-    .eq('user_id', authUserId)
-    .maybeSingle();
-  if (byUserId) return byUserId as ProfileRow;
+    .eq('user_id', authUserId);
+  // Um erro aqui (ex.: falha de rede) não pode ser tratado como "não existe" —
+  // isso levava o chamador a este INSERT em vez de UPDATE, duplicando o perfil
+  // do utilizador (visto em produção: mesma conta com 2 linhas em profiles).
+  if (byUserIdError) throw toProfileDbError('profiles.select (user_id)', byUserIdError);
+  if (byUserIdRows && byUserIdRows.length > 0) {
+    if (byUserIdRows.length === 1) return byUserIdRows[0] as ProfileRow;
+    // Duplicado pré-existente (ver comentário acima) — não escolher ao acaso.
+    // A linha "real" é a que tem dados de hospedagem; entre iguais, a mais antiga.
+    const sorted = [...byUserIdRows].sort((a, b) => {
+      const aHas = a.da_username ? 1 : 0;
+      const bHas = b.da_username ? 1 : 0;
+      if (aHas !== bHas) return bHas - aHas;
+      return String(a.created_at || '').localeCompare(String(b.created_at || ''));
+    });
+    return sorted[0] as ProfileRow;
+  }
 
   const { data: byId } = await admin
     .from('profiles')
@@ -118,7 +140,11 @@ export async function saveProfileForAuthUser(
   }
   if (fields.da_domain !== undefined) payload.da_domain = fields.da_domain;
   if (fields.da_provisioned_at !== undefined) payload.da_provisioned_at = fields.da_provisioned_at;
-  if (fields.reseller_tier !== undefined) payload.reseller_tier = fields.reseller_tier;
+  // reseller_tier NÃO vai para profiles — ver comentário em PROFILE_COLUMNS,
+  // a coluna não existe na base de dados real. Quem chama isto continua a
+  // poder passar o campo (não obriga a mexer nos chamadores), só que aqui
+  // fica sem efeito; panel_auth_accounts.reseller_tier é que é gravado a
+  // sério (ver upsertPanelAuthAccount).
   if (fields.telefone !== undefined) payload.telefone = fields.telefone;
   if (fields.empresa !== undefined) payload.empresa = fields.empresa;
   if (fields.morada !== undefined) payload.morada = fields.morada;

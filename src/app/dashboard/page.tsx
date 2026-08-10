@@ -1342,8 +1342,6 @@ function AdminPageContent() {
         return <FileManagerSection domain={fileManagerDomain || primaryDomain} sites={filteredSites} isActive={isActive} />
       case 'news-manager':
         return <NewsManagerSection />
-      case 'clientes':
-        return <CPUsersSection variant="panels" panelScope="client" isActive={isActive} onBootstrapRefresh={() => void loadDirectAdminData(true)} onNavigate={handleNavigate} />
       case 'utilizadores-revendedores':
       case 'revendedores':
         return (

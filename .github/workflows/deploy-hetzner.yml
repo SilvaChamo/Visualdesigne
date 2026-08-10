@@ -94,3 +94,8 @@ jobs:
               echo "*/30 * * * * curl -fsS \"http://127.0.0.1:3003/api/cron/renewal-check?secret=${CRON_SECRET_VALUE}\" >> /var/log/visualdesign-cron.log 2>&1 # visualdesign-renewal-check") | crontab -
             (crontab -l 2>/dev/null | grep -v '# visualdesign-da-sync'; \
               echo "*/20 * * * * curl -fsS -H \"Authorization: Bearer ${CRON_SECRET_VALUE}\" http://127.0.0.1:3003/api/cron/da-sync >> /var/log/visualdesign-cron.log 2>&1 # visualdesign-da-sync") | crontab -
+            # Reprocessa domínios comprados cujo DNS (zona Cloudflare + nameservers)
+            # ficou por concluir (dns_status='pending') — antes só recuperava com um
+            # admin a carregar manualmente em "Reprocessar Configuração DNS".
+            (crontab -l 2>/dev/null | grep -v '# visualdesign-dns-retry'; \
+              echo "*/30 * * * * curl -fsS -H \"Authorization: Bearer ${CRON_SECRET_VALUE}\" http://127.0.0.1:3003/api/cron/dns-retry >> /var/log/visualdesign-cron.log 2>&1 # visualdesign-dns-retry") | crontab -

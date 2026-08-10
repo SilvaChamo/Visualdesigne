@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+<meta charset="utf-8" />
+<title>A limpar cache…</title>
+<style>
+  body { font-family: sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; background: #111; color: #fff; }
+  p { font-size: 18px; }
+</style>
+</head>
+<body>
+<p id="msg">A limpar cache antiga do painel…</p>
+<script>
+  async function limpar() {
+    if ('serviceWorker' in navigator) {
+      const regs = await navigator.serviceWorker.getRegistrations();
+      for (const reg of regs) await reg.unregister();
+    }
+    if ('caches' in window) {
+      const names = await caches.keys();
+      for (const name of names) await caches.delete(name);
+    }
+    document.getElementById('msg').textContent = 'Cache limpa. A voltar ao painel…';
+    setTimeout(() => {
+      window.location.href = '/dashboard';
+    }, 1200);
+  }
+  limpar();
+</script>
+</body>
+</html>

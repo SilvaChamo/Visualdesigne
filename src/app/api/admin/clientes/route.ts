@@ -303,7 +303,12 @@ export async function POST(req: NextRequest) {
     const password = String(body.password || '');
     const domain = String(body.domain || '').trim().toLowerCase();
     const packageName = String(body.packageName || '').trim();
-    const simpleAccount = body.simpleAccount === true || !packageName;
+    // Ligar a uma conta de hospedagem já real no servidor (ver
+    // /api/admin/unlinked-hosting-accounts) em vez de criar hospedagem nova a
+    // partir de um pacote — é o caminho normal aqui: contas reais nascem no
+    // checkout público, este formulário só dá login do painel a quem já as tem.
+    const linkExistingHostingUsername = String(body.linkExistingHostingUsername || '').trim();
+    const simpleAccount = !linkExistingHostingUsername && (body.simpleAccount === true || !packageName);
     const adminEmail = String(body.adminEmail || email).trim();
     let userName = String(body.userName || '').trim() || deriveUsername(domain, email);
     const resellerTier =
@@ -332,14 +337,14 @@ export async function POST(req: NextRequest) {
     const panelAcl = panelAclForAccountType(accountType);
     const displayName = `${firstName} ${lastName}`.trim() || email.split('@')[0] || userName;
 
-    if (!simpleAccount && !effectivePackageName) {
+    if (!simpleAccount && !linkExistingHostingUsername && !effectivePackageName) {
       return NextResponse.json(
-        { success: false, error: 'Seleccione um pacote ou crie conta simples.' },
+        { success: false, error: 'Seleccione uma conta de hospedagem ou crie conta simples.' },
         { status: 400 },
       );
     }
 
-    if (!simpleAccount && accountType === 'client' && !domain.includes('.')) {
+    if (!simpleAccount && !linkExistingHostingUsername && accountType === 'client' && !domain.includes('.')) {
       return NextResponse.json(
         { success: false, error: 'Domínio obrigatório para cliente (ex.: exemplo.com).' },
         { status: 400 },
@@ -464,9 +469,32 @@ export async function POST(req: NextRequest) {
     }
 
     if (simpleAccount) {
+      // Conta simples (sem hospedagem) só ficava em profiles/panel_auth_accounts
+      // -- nunca aparecia em Hospedagem > Contas, que lê só panel_users. Cria-se
+      // aqui também uma linha "conta simples" (sem da_username/pacote real) para
+      // ela aparecer na mesma listagem, editável/removível como qualquer outra.
+      const simpleUserName = userName || deriveUsername('', normalizedEmail);
+      const sbSimple = getDaSyncAdmin();
+      if (sbSimple) {
+        await sbSimple.from('panel_users').upsert(
+          {
+            username: simpleUserName,
+            email: normalizedEmail,
+            first_name: firstName,
+            last_name: lastName,
+            acl: panelAcl,
+            status: 'Active',
+            auth_user_id: authUserId,
+            websites_limit: 0,
+            emails_limit: 0,
+          },
+          { onConflict: 'username' },
+        );
+      }
+
       return NextResponse.json({
         success: true,
-        userName: userName || normalizedEmail.split('@')[0],
+        userName: simpleUserName,
         domain: '',
         accountType,
         provisionMode: 'simple',
@@ -477,6 +505,76 @@ export async function POST(req: NextRequest) {
           firstName,
           lastName,
           packageName: '—',
+          quotaLabel: '—',
+          diskUsedLabel: '—',
+          resellerOwner: '—',
+          domainCount: 0,
+          registeredAt: new Date().toISOString(),
+          suspended: false,
+          ownedDomains: [],
+        },
+      });
+    }
+
+    if (linkExistingHostingUsername) {
+      const sb = getDaSyncAdmin();
+      if (!sb) {
+        return NextResponse.json({ success: false, error: 'Base de dados indisponível.' }, { status: 503 });
+      }
+      const { data: hostingRow, error: hostingLookupError } = await sb
+        .from('panel_users')
+        .select('username, email, package_name, auth_user_id')
+        .eq('username', linkExistingHostingUsername)
+        .maybeSingle();
+      if (hostingLookupError || !hostingRow) {
+        return NextResponse.json(
+          { success: false, error: 'Conta de hospedagem não encontrada.' },
+          { status: 404 },
+        );
+      }
+      if (hostingRow.auth_user_id) {
+        return NextResponse.json(
+          { success: false, error: 'Essa conta de hospedagem já tem um login associado.' },
+          { status: 409 },
+        );
+      }
+
+      // Só liga o login (auth_user_id) — não mexe em email/pacote/quota já
+      // reais dessa conta, ao contrário de um upsert completo.
+      const { error: linkError } = await sb
+        .from('panel_users')
+        .update({ auth_user_id: authUserId, updated_at: new Date().toISOString() })
+        .eq('username', linkExistingHostingUsername);
+      if (linkError) {
+        return NextResponse.json({ success: false, error: linkError.message }, { status: 500 });
+      }
+
+      const hostingProvider = await getProviderByUsername(linkExistingHostingUsername);
+      await upsertPanelAuthAccount(admin, {
+        userId: authUserId,
+        email: normalizedEmail,
+        role: panelRole,
+        name: displayName,
+        serverLinked: true,
+        daUsername: linkExistingHostingUsername,
+        resellerTier,
+        provider: hostingProvider,
+      });
+
+      return NextResponse.json({
+        success: true,
+        userName: linkExistingHostingUsername,
+        domain: '',
+        accountType,
+        provisionMode: 'linked',
+        serverSynced: true,
+        user: {
+          userName: linkExistingHostingUsername,
+          email: normalizedEmail,
+          type: panelAcl,
+          firstName,
+          lastName,
+          packageName: hostingRow.package_name || '—',
           quotaLabel: '—',
           diskUsedLabel: '—',
           resellerOwner: '—',
@@ -622,6 +720,28 @@ export async function PATCH(req: NextRequest) {
         return NextResponse.json({ success: false, error: 'Conta não encontrada' }, { status: 404 });
       }
 
+      // O formulário "Editar conta" só actualizava o espelho (panel_users/
+      // profiles) quando o e-mail mudava — o login real (auth.users) nunca
+      // era tocado, por isso o painel mostrava "guardado" mas entrar com o
+      // e-mail novo continuava a ser rejeitado. Corrige-se AQUI, antes de
+      // tocar no espelho, para nunca ficar um "guardado" parcial/enganador
+      // se o e-mail novo já estiver noutra conta.
+      const emailChanged =
+        email !== undefined && email.toLowerCase() !== String(beforeRow.email || '').toLowerCase();
+      if (emailChanged && beforeRow.auth_user_id && SUPABASE_URL && SUPABASE_SERVICE_KEY) {
+        const authAdmin = createAdminClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
+        const { error: authEmailError } = await authAdmin.auth.admin.updateUserById(
+          String(beforeRow.auth_user_id),
+          { email: email!.toLowerCase(), email_confirm: true },
+        );
+        if (authEmailError) {
+          return NextResponse.json(
+            { success: false, error: `Não foi possível mudar o e-mail de login: ${authEmailError.message}` },
+            { status: 409 },
+          );
+        }
+      }
+
       const { data, error } = await sb
         .from('panel_users')
         .update(updates)
@@ -648,6 +768,14 @@ export async function PATCH(req: NextRequest) {
           name: displayName,
           ...(resellerTier ? { reseller_tier: resellerTier } : {}),
         });
+        // upsertPanelAuthAccount trata serverLinked ausente como `false` —
+        // sem isto, editar o tipo de conta (Cliente/Profissional/Revendedor)
+        // desligava silenciosamente uma conta já provisionada no servidor real.
+        const { data: currentAuthAccount } = await admin
+          .from('panel_auth_accounts')
+          .select('server_linked')
+          .eq('user_id', String(data.auth_user_id))
+          .maybeSingle();
         await upsertPanelAuthAccount(admin, {
           userId: String(data.auth_user_id),
           email: (email ?? String(data.email || '')).toLowerCase(),
@@ -655,6 +783,7 @@ export async function PATCH(req: NextRequest) {
           name: displayName,
           daUsername: userName,
           resellerTier: resellerTier ?? null,
+          serverLinked: currentAuthAccount?.server_linked === true,
         });
         const { data: authUser } = await admin.auth.admin.getUserById(String(data.auth_user_id));
         if (authUser?.user) {
@@ -670,15 +799,24 @@ export async function PATCH(req: NextRequest) {
         }
       }
 
-      const pushed = await pushUserEditToServer({
-        userName,
-        email: email ?? String(data.email || ''),
-        firstName: body.firstName !== undefined ? String(body.firstName).trim() : String(data.first_name || ''),
-        lastName: body.lastName !== undefined ? String(body.lastName).trim() : String(data.last_name || ''),
-        websitesLimit: Number(data.websites_limit) || 0,
-        emailsLimit: Number(data.emails_limit) || 0,
-        packageName,
-      });
+      // pushUserEditToServer só sabe falar com o DirectAdmin (CMD_API_MODIFY_USER) —
+      // para uma conta Hestia isto falhava sempre (o utilizador nem existe no DA),
+      // sem trazer nenhum benefício. O Hestia ainda não tem um "editar utilizador"
+      // próprio, por isso por agora limitamo-nos a confiar no espelho para essas
+      // contas em vez de gastar um round-trip SSH destinado a falhar.
+      const editProvider = await getProviderByUsername(userName);
+      const pushed =
+        editProvider === 'hestia'
+          ? { ok: true }
+          : await pushUserEditToServer({
+              userName,
+              email: email ?? String(data.email || ''),
+              firstName: body.firstName !== undefined ? String(body.firstName).trim() : String(data.first_name || ''),
+              lastName: body.lastName !== undefined ? String(body.lastName).trim() : String(data.last_name || ''),
+              websitesLimit: Number(data.websites_limit) || 0,
+              emailsLimit: Number(data.emails_limit) || 0,
+              packageName,
+            });
 
       // Só espelha no Supabase depois de confirmar que o DirectAdmin aceitou a
       // alteração — escrever antes (como acontecia aqui) deixava o Supabase a
@@ -774,6 +912,32 @@ export async function PATCH(req: NextRequest) {
         const r = await deleteHostingAccount(provider, userName);
         data = { success: r.ok, error: r.error };
         break;
+      }
+      case 'setQuota': {
+        // Edição em linha da quota na tabela Contas — grava só no espelho por
+        // agora (não empurra ainda para o servidor real). Um valor explícito
+        // aqui passa a ser respeitado pelo da-sync-engine (não é substituído
+        // pelo valor ao vivo do DA em cada sincronização, ver esse ficheiro).
+        const sb = getDaSyncAdmin();
+        if (!sb) {
+          return NextResponse.json({ success: false, error: 'Base de dados indisponível.' }, { status: 503 });
+        }
+        const raw = body.quotaMb;
+        const quotaMb = raw === null || raw === '' || raw === undefined ? null : Number(raw);
+        if (quotaMb !== null && (!Number.isFinite(quotaMb) || quotaMb <= 0)) {
+          return NextResponse.json({ success: false, error: 'Quota inválida.' }, { status: 400 });
+        }
+        const { error: quotaError } = await sb
+          .from('panel_users')
+          .update({ quota_limit_mb: quotaMb, updated_at: new Date().toISOString() })
+          .eq('username', userName);
+        if (quotaError) {
+          return NextResponse.json({ success: false, error: quotaError.message }, { status: 500 });
+        }
+        return NextResponse.json({
+          success: true,
+          data: { quotaLabel: quotaMb === null ? 'Ilimitado' : formatPackageSize(quotaMb) },
+        });
       }
       case 'sendMessage': {
         const users = await listMirrorUsers({ role: 'admin', userId: auth.user.id });

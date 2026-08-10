@@ -154,6 +154,7 @@ export async function provisionHostingAccountOnPanel(params: {
       acl: 'user',
       auth_user_id: userId,
       package_name: packageName,
+      hosting_provider: params.provider,
     });
     await upsertMirrorSite({ domain: domainName, owner: daUsername, admin_email: email, package: packageName });
 
@@ -227,7 +228,7 @@ const KNOWN_ADMIN_EMAILS = [
  * sempre com violação de FK, engolida em silêncio pelo catch abaixo. Corrigido
  * lendo o id directamente de auth.users, nunca de profiles.
  */
-async function alertAdminOfTrackingFailure(context: string, message: string) {
+export async function alertAdminOfTrackingFailure(context: string, message: string) {
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   if (!serviceKey || !supabaseUrl) return;

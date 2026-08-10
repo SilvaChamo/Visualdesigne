@@ -66,9 +66,11 @@ jobs:
                 echo "${key}=${value}" >> .env.local
               fi
             }
-            set_env_var DYNADOT_ENV "production"
-            set_env_var DYNADOT_API_KEY "${{ secrets.DYNADOT_API_KEY }}"
-            set_env_var DYNADOT_SECRET_KEY "${{ secrets.DYNADOT_SECRET_KEY }}"
+            # Sandbox aqui de propósito — instância de teste não deve registar
+            # domínios a sério nem cobrar dinheiro real.
+            set_env_var DYNADOT_ENV "sandbox"
+            set_env_var DYNADOT_SANDBOX_API_KEY "${{ secrets.DYNADOT_SANDBOX_API_KEY }}"
+            set_env_var DYNADOT_SANDBOX_SECRET_KEY "${{ secrets.DYNADOT_SANDBOX_SECRET_KEY }}"
             set_env_var CRON_SECRET "${{ secrets.CRON_SECRET }}"
             set_env_var CLOUDFLARE_API_TOKEN_ACCOUNT "${{ secrets.CLOUDFLARE_API_TOKEN_ACCOUNT }}"
             set_env_var CLOUDFLARE_ACCOUNT_ID "${{ secrets.CLOUDFLARE_ACCOUNT_ID }}"
@@ -111,7 +113,27 @@ jobs:
             set_env_var MPESA_SERVICE_PROVIDER_CODE "${{ secrets.MPESA_SERVICE_PROVIDER_CODE }}"
             set_env_var MPESA_HOST "${{ secrets.MPESA_HOST }}"
             set_env_var MPESA_PORT "${{ secrets.MPESA_PORT }}"
+            # SSH genérico (secção "Websites": listar/gerir WordPress via
+            # wp-cli, ver src/lib/wp-cli-server.ts) — a app liga-se a si
+            # própria por SSH para correr comandos no servidor onde já está,
+            # tal como acontece no Hetzner. Reaproveita a mesma chave já usada
+            # para o deploy, escrita agora num ficheiro estável no servidor.
+            mkdir -p /root/.ssh
+            echo "${{ secrets.CONTABO_SSH_KEY }}" > /root/.ssh/app_self_key
+            chmod 600 /root/.ssh/app_self_key
+            set_env_var SERVER_SSH_KEY_PATH "/root/.ssh/app_self_key"
+            set_env_var SERVER_IP "${{ secrets.CONTABO_HOST }}"
+            set_env_var SERVER_SSH_USER "root"
+            set_env_var SERVER_SSH_PORT "22"
             npm ci
             npm run build
             pm2 restart visualdesign-site-teste || pm2 start npm --name "visualdesign-site-teste" -- start -- -p 3002
             pm2 save
+
+            # Reflecte o estado real do Hestia (contas/domínios/suspensões) de volta
+            # para o espelho Supabase — sem isto, mudanças feitas directamente no
+            # painel Hestia nunca apareciam no painel VisualDesign. Idempotente:
+            # substitui só a linha marcada com a própria tag.
+            CRON_SECRET_VALUE=$(grep '^CRON_SECRET=' .env.local | cut -d= -f2-)
+            (crontab -l 2>/dev/null | grep -v '# visualdesign-hestia-sync'; \
+              echo "*/20 * * * * curl -fsS -H \"Authorization: Bearer ${CRON_SECRET_VALUE}\" http://127.0.0.1:3002/api/cron/hestia-sync >> /var/log/visualdesign-cron.log 2>&1 # visualdesign-hestia-sync") | crontab -

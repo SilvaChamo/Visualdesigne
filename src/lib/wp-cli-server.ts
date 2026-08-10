@@ -1,5 +1,9 @@
 /**
- * WordPress via wp-cli no servidor Hetzner (SSH).
+ * WordPress via wp-cli no servidor (SSH) — funciona tanto no Hetzner
+ * (DirectAdmin, pastas em .../domains/<dominio>/public_html) como no Contabo
+ * (HestiaCP, pastas em .../web/<dominio>/public_html); o utilizador dono do
+ * site fica sempre no 3º segmento do caminho a partir de /home em ambos os
+ * casos.
  */
 
 import crypto from 'crypto';
@@ -7,6 +11,18 @@ import { executeServerCommand } from '@/lib/server-ssh-exec';
 
 function shellQuote(value: string): string {
   return `'${value.replace(/'/g, `'\\''`)}'`;
+}
+
+/** Raízes onde um site pode viver, consoante o painel de hospedagem por trás do servidor. */
+const SITE_ROOT_DIRS = ['domains', 'web'] as const;
+
+function siteRootGlobs(safeDomain: string): string {
+  return SITE_ROOT_DIRS.map((dir) => `/home/*/${dir}/${safeDomain}/public_html`).join(' ');
+}
+
+function parseSiteOwner(path: string): string {
+  const match = path.match(/^\/home\/([^/]+)\/(?:domains|web)\//);
+  return match ? match[1] : '';
 }
 
 export interface WpInstallInfo {
@@ -37,13 +53,12 @@ export async function resolveDomainSitePath(
   if (!safeDomain) return null;
 
   const raw = await executeServerCommand(
-    `ls -d /home/*/domains/${safeDomain}/public_html 2>/dev/null | head -1`,
+    `ls -d ${siteRootGlobs(safeDomain)} 2>/dev/null | head -1`,
   );
   const path = raw.trim();
   if (!path) return null;
 
-  const match = path.match(/^\/home\/([^/]+)\/domains\//);
-  const user = match ? match[1] : '';
+  const user = parseSiteOwner(path);
   return user ? { user, path } : null;
 }
 
@@ -102,14 +117,14 @@ export async function resolveWpInstall(domain: string): Promise<WpInstallInfo | 
   const safeDomain = domain.replace(/[^a-zA-Z0-9.-]/g, '');
   if (!safeDomain) return null;
 
+  const globs = SITE_ROOT_DIRS.map((dir) => `/home/*/${dir}/${safeDomain}/public_html/wp-config.php`).join(' ');
   const configPath = (
-    await executeServerCommand(`ls -d /home/*/domains/${safeDomain}/public_html/wp-config.php 2>/dev/null | head -1`)
+    await executeServerCommand(`ls -d ${globs} 2>/dev/null | head -1`)
   ).trim();
   if (!configPath) return null;
 
   const wpPath = configPath.replace(/\/wp-config\.php$/, '');
-  const match = wpPath.match(/^\/home\/([^/]+)\/domains\//);
-  const user = match ? match[1] : '';
+  const user = parseSiteOwner(wpPath);
   if (!user) return null;
 
   return { domain: safeDomain, path: wpPath, user };
@@ -117,15 +132,18 @@ export async function resolveWpInstall(domain: string): Promise<WpInstallInfo | 
 
 export async function listWpInstalls(): Promise<WpInstallInfo[]> {
   // -maxdepth 5 evita descer para dentro de public_html (uploads, cache, etc.) —
-  // wp-config.php está sempre a essa profundidade fixa a partir de /home.
-  const findCmd = `find /home -maxdepth 5 -path '*/domains/*/public_html/wp-config.php' 2>/dev/null | grep -vi backup | sort`;
+  // wp-config.php está sempre a essa profundidade fixa a partir de /home, tanto
+  // em DirectAdmin (/domains/) como em HestiaCP (/web/).
+  const findCmd =
+    `find /home -maxdepth 5 \\( -path '*/domains/*/public_html/wp-config.php' -o -path '*/web/*/public_html/wp-config.php' \\) ` +
+    `2>/dev/null | grep -vi backup | sort`;
   const raw = (await executeServerCommand(findCmd)).trim();
   if (!raw) return [];
 
   const installs: WpInstallInfo[] = [];
   for (const configPath of raw.split('\n').filter(Boolean)) {
     const match = configPath.match(
-      /^\/home\/([^/]+)\/domains\/([^/]+)\/public_html\/wp-config\.php$/,
+      /^\/home\/([^/]+)\/(?:domains|web)\/([^/]+)\/public_html\/wp-config\.php$/,
     );
     if (!match) continue;
     const [, user, domain] = match;
@@ -337,7 +355,7 @@ export async function listWpUsers(domain: string): Promise<WpUserRow[]> {
   }
 
   const script = `
-    CONFIG=$(ls -d /home/*/domains/${safeDomain}/public_html/wp-config.php 2>/dev/null | head -1)
+    CONFIG=$(ls -d /home/*/domains/${safeDomain}/public_html/wp-config.php /home/*/web/${safeDomain}/public_html/wp-config.php 2>/dev/null | head -1)
     if [ -z "$CONFIG" ]; then
       echo '{"error": "WordPress não encontrado"}'
       exit 0
