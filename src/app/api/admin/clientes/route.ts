@@ -622,6 +622,28 @@ export async function PATCH(req: NextRequest) {
         return NextResponse.json({ success: false, error: 'Conta não encontrada' }, { status: 404 });
       }
 
+      // O formulário "Editar conta" só actualizava o espelho (panel_users/
+      // profiles) quando o e-mail mudava — o login real (auth.users) nunca
+      // era tocado, por isso o painel mostrava "guardado" mas entrar com o
+      // e-mail novo continuava a ser rejeitado. Corrige-se AQUI, antes de
+      // tocar no espelho, para nunca ficar um "guardado" parcial/enganador
+      // se o e-mail novo já estiver noutra conta.
+      const emailChanged =
+        email !== undefined && email.toLowerCase() !== String(beforeRow.email || '').toLowerCase();
+      if (emailChanged && beforeRow.auth_user_id && SUPABASE_URL && SUPABASE_SERVICE_KEY) {
+        const authAdmin = createAdminClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
+        const { error: authEmailError } = await authAdmin.auth.admin.updateUserById(
+          String(beforeRow.auth_user_id),
+          { email: email!.toLowerCase(), email_confirm: true },
+        );
+        if (authEmailError) {
+          return NextResponse.json(
+            { success: false, error: `Não foi possível mudar o e-mail de login: ${authEmailError.message}` },
+            { status: 409 },
+          );
+        }
+      }
+
       const { data, error } = await sb
         .from('panel_users')
         .update(updates)
