@@ -6,9 +6,13 @@ name: Ops — corrigir links partidos em basededadosagro.com
 # encontrou 3 classes de link partido, corrigidas aqui via sed directo nos
 # ficheiros fonte, seguido de rebuild + restart do PM2:
 #
-# 1) 13 ocorrências de /login (deveria ser /auth/login) em 10 ficheiros —
+# 1) 15 ocorrências de /login (deveria ser /auth/login) em 12 ficheiros —
 #    incluindo o redirect de autenticação do admin e do dashboard do
 #    utilizador, ou seja, hoje NINGUÉM chega ao login a partir desses sítios.
+#    (Nota: a 1ª tentativa desta automação, 2026-08-10, só cobria 13/10 —
+#    o próprio passo de confirmação abaixo travou a tempo, sem tocar em nada,
+#    ao encontrar mais 2 ficheiros com /login em aspas simples que a
+#    auditoria inicial não apanhou. Corrigido, ver lista completa abaixo.)
 # 2) /servicos/talentos (não existe) -> /servicos, em 2 ficheiros.
 # 3) /mercado/produtores, /mercado/fornecedores, /mercado/consumidores (mega-
 #    menu "Mercado", páginas nunca construídas) -> /mercado.
@@ -52,7 +56,9 @@ jobs:
             fix_login "app/[locale]/destaque/page.tsx"
             fix_login "app/[locale]/checkout/registro/page.tsx"
             fix_login "app/[locale]/forum/topic/[topicId]/page.tsx"
+            fix_login "app/[locale]/forum/novo-topico/page.tsx"
             fix_login "components/Footer.tsx"
+            fix_login "components/admin/AdminShell.tsx"
 
             F="components/ProfessionalRegistrationForm.tsx"
             cp "$F" "$F.bak-linkfix-$STAMP"
