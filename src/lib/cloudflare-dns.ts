@@ -5,8 +5,9 @@
 // DirectAdmin) — ver domain-email-auth.ts para a lógica de escolha.
 //
 // Precisa de CLOUDFLARE_API_TOKEN_ACCOUNT com permissão "Zone / DNS / Edit"
-// em "Todas as zonas" da conta (não o CLOUDFLARE_API_TOKEN antigo, que só
-// tem acesso à zona do visualdesignmoz.com).
+// em "Todas as zonas" da conta, e de CLOUDFLARE_ACCOUNT_ID (para criar zonas
+// novas). Não usa nenhum token com escopo só à zona do visualdesignmoz.com —
+// esse tipo de token antigo foi removido do .env por não ter uso no código.
 
 const CF_API_BASE = 'https://api.cloudflare.com/client/v4';
 
