@@ -217,6 +217,48 @@ export function ClientesDaSection({
   const [primaryResellerAccount, setPrimaryResellerAccount] = useState<string | null>(
     variant === 'reseller' ? null : PRIMARY_RESELLER_DA_USER,
   );
+  const [editingQuotaUser, setEditingQuotaUser] = useState<string | null>(null);
+  const [quotaDraft, setQuotaDraft] = useState('');
+  const [savingQuota, setSavingQuota] = useState(false);
+
+  const startEditQuota = (u: DaUserRow) => {
+    const label = String(u.quotaLabel || '');
+    const digits = label.match(/[\d.]+/)?.[0];
+    const isGb = /g$/i.test(label.trim());
+    const mb = digits ? Math.round(Number(digits) * (isGb ? 1024 : 1)) : undefined;
+    setQuotaDraft(mb !== undefined && !/ilimitado/i.test(label) ? String(mb) : '');
+    setEditingQuotaUser(u.userName);
+  };
+
+  const saveQuota = async (userName: string) => {
+    const trimmed = quotaDraft.trim();
+    // O campo pede sempre MB (mesma unidade da base de dados) — sem conversão,
+    // para não haver ambiguidade com o rótulo mostrado (que às vezes é "G").
+    const quotaMb = trimmed === '' ? null : Math.round(Number(trimmed));
+    if (quotaMb !== null && (!Number.isFinite(quotaMb) || quotaMb <= 0)) {
+      setMsg('❌ Quota inválida.');
+      setEditingQuotaUser(null);
+      return;
+    }
+    setSavingQuota(true);
+    try {
+      const res = await fetch(accountsApiBase, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'setQuota', userName, quotaMb }),
+      });
+      const data = await parseJsonResponse<any>(res);
+      if (!res.ok || !data.success) throw new Error(data.error || 'Falha ao gravar quota');
+      setUsers((prev) =>
+        prev.map((u) => (u.userName === userName ? { ...u, quotaLabel: data.data?.quotaLabel || u.quotaLabel } : u)),
+      );
+      setMsg(`✅ Quota de ${userName} actualizada.`);
+    } catch (e: unknown) {
+      setMsg(`❌ ${e instanceof Error ? e.message : 'Erro ao gravar quota'}`);
+    }
+    setSavingQuota(false);
+    setEditingQuotaUser(null);
+  };
 
   const load = useCallback(async (options?: { sync?: boolean }) => {
     const withSync = options?.sync === true;
@@ -673,7 +715,34 @@ export function ClientesDaSection({
                   </td>
                   <td className={`${accountsCellBorder} text-gray-600 dark:text-zinc-400`}>{u.email || '—'}</td>
                   <td className={`${accountsCellBorder} text-gray-700 tabular-nums dark:text-zinc-300`}>
-                    {isSimpleAccount ? <span className="text-gray-400 dark:text-zinc-600">—</span> : (u.quotaLabel || '—')}
+                    {isSimpleAccount || variant === 'reseller' ? (
+                      isSimpleAccount ? <span className="text-gray-400 dark:text-zinc-600">—</span> : (u.quotaLabel || '—')
+                    ) : editingQuotaUser === u.userName ? (
+                      <input
+                        type="number"
+                        autoFocus
+                        min={1}
+                        placeholder="MB (vazio = ilimitado)"
+                        value={quotaDraft}
+                        disabled={savingQuota}
+                        onChange={(e) => setQuotaDraft(e.target.value)}
+                        onBlur={() => void saveQuota(u.userName)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') void saveQuota(u.userName);
+                          if (e.key === 'Escape') setEditingQuotaUser(null);
+                        }}
+                        className="w-28 rounded border border-red-300 px-1.5 py-0.5 text-sm outline-none focus:border-red-500"
+                      />
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => startEditQuota(u)}
+                        title="Clicar para editar a quota (MB)"
+                        className="rounded px-1 -mx-1 hover:bg-red-50 hover:text-red-700 dark:hover:bg-red-950/30"
+                      >
+                        {u.quotaLabel || '—'}
+                      </button>
+                    )}
                   </td>
                   <td className={`${accountsCellBorder} text-gray-700 tabular-nums dark:text-zinc-300`}>
                     {isSimpleAccount ? <span className="text-gray-400 dark:text-zinc-600">—</span> : (u.diskUsedLabel || '0 MB')}

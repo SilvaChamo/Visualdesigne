@@ -890,6 +890,32 @@ export async function PATCH(req: NextRequest) {
         data = { success: r.ok, error: r.error };
         break;
       }
+      case 'setQuota': {
+        // Edição em linha da quota na tabela Contas — grava só no espelho por
+        // agora (não empurra ainda para o servidor real). Um valor explícito
+        // aqui passa a ser respeitado pelo da-sync-engine (não é substituído
+        // pelo valor ao vivo do DA em cada sincronização, ver esse ficheiro).
+        const sb = getDaSyncAdmin();
+        if (!sb) {
+          return NextResponse.json({ success: false, error: 'Base de dados indisponível.' }, { status: 503 });
+        }
+        const raw = body.quotaMb;
+        const quotaMb = raw === null || raw === '' || raw === undefined ? null : Number(raw);
+        if (quotaMb !== null && (!Number.isFinite(quotaMb) || quotaMb <= 0)) {
+          return NextResponse.json({ success: false, error: 'Quota inválida.' }, { status: 400 });
+        }
+        const { error: quotaError } = await sb
+          .from('panel_users')
+          .update({ quota_limit_mb: quotaMb, updated_at: new Date().toISOString() })
+          .eq('username', userName);
+        if (quotaError) {
+          return NextResponse.json({ success: false, error: quotaError.message }, { status: 500 });
+        }
+        return NextResponse.json({
+          success: true,
+          data: { quotaLabel: quotaMb === null ? 'Ilimitado' : formatPackageSize(quotaMb) },
+        });
+      }
       case 'sendMessage': {
         const users = await listMirrorUsers({ role: 'admin', userId: auth.user.id });
         const target = users.find((u) => u.userName === userName);
