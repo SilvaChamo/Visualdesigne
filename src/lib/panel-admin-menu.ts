@@ -22,7 +22,6 @@ export const NEW_MENU_ITEM_DEFS: PanelMenuItemDef[] = [
     label: 'Utilizadores',
     isNewMenu: true,
     subItems: [
-      { id: 'clientes', label: 'Clientes' },
       { id: 'utilizadores-visitantes', label: 'Visitantes' },
       { id: 'utilizadores-gestao', label: 'Gestão' },
     ],

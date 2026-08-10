@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { CheckCircle, Eye, EyeOff, Globe, Loader2, Package, RefreshCw, Shield, UserPlus, Users } from 'lucide-react';
+import { CheckCircle, Eye, EyeOff, Globe, Loader2, RefreshCw, Shield, UserPlus, Users } from 'lucide-react';
 import type { DirectAdminPackage } from '@/lib/directadmin-api';
 import { readPackagesCache, writePackagesCache } from '@/lib/panel-packages-cache';
 import { splitCompositePackageName } from '@/lib/reseller-package-form';
@@ -383,7 +383,10 @@ export function ProvisionClienteSection({
             type="button"
             onClick={() => {
               setAccountType(opt.id);
-              if (!isEdit && userMode === 'existing' && existingUserId) {
+              if (!isEdit && opt.id !== 'client') {
+                setUserMode('new');
+                setExistingUserId('');
+              } else if (!isEdit && userMode === 'existing' && existingUserId) {
                 const row = panelUsers.find((u) => u.id === existingUserId);
                 const role = panelRoleForAccountTypeUi(opt.id);
                 if (row && row.panelRole !== role) setExistingUserId('');
@@ -404,10 +407,10 @@ export function ProvisionClienteSection({
     </section>
   );
 
-  const panelUserSection = !isEdit && panelScope === 'admin' && (
+  const panelUserSection = !isEdit && panelScope === 'admin' && accountType === 'client' && (
     <section className={`${formCardCls} space-y-4`}>
       <h2 className="font-bold text-gray-900">Utilizador do painel</h2>
-      <div className="flex flex-wrap gap-2">
+      <div className="flex flex-wrap items-center gap-2">
         <button
           type="button"
           onClick={() => setUserMode('new')}
@@ -426,33 +429,33 @@ export function ProvisionClienteSection({
         >
           Associar existente
         </button>
+        {userMode === 'existing' && (
+          <select
+            value={existingUserId}
+            onChange={(e) => {
+              const id = e.target.value;
+              setExistingUserId(id);
+              const row = matchingPanelUsers.find((u) => u.id === id);
+              if (row) {
+                setIdentity((prev) => ({
+                  ...prev,
+                  email: row.email,
+                  firstName: prev.firstName || row.userName.split(' ')[0] || '',
+                  lastName: prev.lastName || row.userName.split(' ').slice(1).join(' ') || '',
+                }));
+              }
+            }}
+            className="min-w-[220px] flex-1 rounded border border-gray-300 px-3 py-2 text-sm outline-none focus:border-zinc-400 focus:ring-1 focus:ring-zinc-400/30"
+          >
+            <option value="">Seleccionar utilizador…</option>
+            {matchingPanelUsers.map((u) => (
+              <option key={u.id} value={u.id}>
+                {u.email} ({u.panelRole})
+              </option>
+            ))}
+          </select>
+        )}
       </div>
-      {userMode === 'existing' && (
-        <select
-          value={existingUserId}
-          onChange={(e) => {
-            const id = e.target.value;
-            setExistingUserId(id);
-            const row = matchingPanelUsers.find((u) => u.id === id);
-            if (row) {
-              setIdentity((prev) => ({
-                ...prev,
-                email: row.email,
-                firstName: prev.firstName || row.userName.split(' ')[0] || '',
-                lastName: prev.lastName || row.userName.split(' ').slice(1).join(' ') || '',
-              }));
-            }
-          }}
-          className={inputCls}
-        >
-          <option value="">Seleccionar utilizador…</option>
-          {matchingPanelUsers.map((u) => (
-            <option key={u.id} value={u.id}>
-              {u.email} ({u.panelRole})
-            </option>
-          ))}
-        </select>
-      )}
       {userMode === 'existing' && matchingPanelUsers.length === 0 ? (
         <p className="text-xs text-amber-700">
           Nenhum utilizador com papel «{panelRoleLabel(accountType)}». Crie novo ou altere o tipo de conta.
@@ -513,6 +516,48 @@ export function ProvisionClienteSection({
           disabled={!isEdit && userMode === 'existing'}
           className={`${inputCls} sm:col-span-2 disabled:bg-gray-50`}
         />
+        <div className="space-y-1 sm:col-span-2">
+          <label className="text-xs font-medium text-zinc-500">Domínio</label>
+          <input
+            placeholder="ex: exemplo.com"
+            value={domain}
+            onChange={(e) => setDomain(e.target.value)}
+            className={inputCls}
+          />
+          {isEdit && hasHostingPackage && selectedPackage ? (
+            <p className="text-xs text-gray-500">
+              Pacote <strong>{selectedPackageName}</strong> · Disco {formatPackageLimit(selectedPackage.diskSpace, 'MB')} · BW{' '}
+              {formatPackageLimit(selectedPackage.bandwidth, 'MB')} · Emails {formatPackageLimit(selectedPackage.emailAccounts)} ·
+              Domínios {formatPackageLimit(selectedPackage.allowedDomains)}
+            </p>
+          ) : null}
+        </div>
+        {!isEdit && panelScope === 'admin' && accountType !== 'client' ? (
+          <div className="space-y-1 sm:col-span-2">
+            <label className="text-xs font-medium text-zinc-500">Hospedagem</label>
+            <p className="text-xs text-zinc-500">
+              Ligar a uma conta de hospedagem que já existe no servidor (contas novas nascem sempre na compra pública, não aqui).
+            </p>
+            {loadingUnlinkedHosting ? (
+              <p className="text-sm text-gray-500">A carregar contas disponíveis…</p>
+            ) : unlinkedHostingAccounts.length === 0 ? (
+              <p className="text-sm text-amber-700 bg-amber-50 p-3 rounded-lg">
+                Nenhuma conta de hospedagem por associar — fica conta simples.
+              </p>
+            ) : (
+              <select value={linkHostingUsername} onChange={(e) => setLinkHostingUsername(e.target.value)} className={inputCls}>
+                <option value="">Conta simples (sem hospedagem)</option>
+                {unlinkedHostingAccounts.map((a) => (
+                  <option key={a.daUsername} value={a.daUsername}>
+                    {a.daUsername}
+                    {a.domain ? ` — ${a.domain}` : ''}
+                    {a.packageName ? ` (${a.packageName})` : ''}
+                  </option>
+                ))}
+              </select>
+            )}
+          </div>
+        ) : null}
         <div className="relative sm:col-span-2 grid grid-cols-1 gap-3 sm:grid-cols-2">
           <div className="relative">
             <input
@@ -550,62 +595,6 @@ export function ProvisionClienteSection({
       </div>
     </section>
   );
-
-  // "Cliente" (criado manualmente aqui, fora da compra pública) é só acesso
-  // a e-mail/mailmarketing — nunca leva pacote de hospedagem por esta via,
-  // isso só acontece através do checkout público (ver checkout-fulfillment.ts).
-  // Excepção: se a conta em edição já tiver hospedagem real (veio da compra),
-  // a secção mantém-se visível para não esconder/perder o que já existe.
-  const hostingSection = accountType !== 'client' || hasHostingPackage ? (
-    <section className={`${formCardCls} space-y-4`}>
-      <h2 className="font-bold text-gray-900 flex items-center gap-2">
-        <Package className="w-5 h-5 shrink-0" /> Hospedagem
-      </h2>
-      {isEdit ? (
-        // Hospedagem real (se existir) já veio do checkout público — aqui é só
-        // informativo, não editável, para não confundir "mostra guardado" com
-        // "está guardado a sério" (o pacote muda-se na página Pacotes, não aqui).
-        hasHostingPackage && selectedPackage ? (
-          <p className="text-sm text-gray-700 dark:text-zinc-300">
-            Pacote <strong>{selectedPackageName}</strong>
-            {domain ? <> · Domínio <strong>{domain}</strong></> : null}
-            <br />
-            <span className="text-xs text-gray-500">
-              Disco {formatPackageLimit(selectedPackage.diskSpace, 'MB')} · BW {formatPackageLimit(selectedPackage.bandwidth, 'MB')} · Emails {formatPackageLimit(selectedPackage.emailAccounts)} · Domínios {formatPackageLimit(selectedPackage.allowedDomains)}
-            </span>
-          </p>
-        ) : (
-          <p className="text-sm text-gray-500">Conta simples — sem hospedagem.</p>
-        )
-      ) : (
-        <>
-          <p className="text-xs text-zinc-500">
-            Ligar a uma conta de hospedagem que já existe no servidor (contas novas nascem sempre na compra pública, não aqui).
-          </p>
-          {loadingUnlinkedHosting ? (
-            <p className="text-sm text-gray-500">A carregar contas disponíveis…</p>
-          ) : unlinkedHostingAccounts.length === 0 ? (
-            <p className="text-sm text-amber-700 bg-amber-50 p-3 rounded-lg">
-              Nenhuma conta de hospedagem por associar — fica conta simples.
-            </p>
-          ) : (
-            <select
-              value={linkHostingUsername}
-              onChange={(e) => setLinkHostingUsername(e.target.value)}
-              className={inputCls}
-            >
-              <option value="">Conta simples (sem hospedagem)</option>
-              {unlinkedHostingAccounts.map((a) => (
-                <option key={a.daUsername} value={a.daUsername}>
-                  {a.daUsername}{a.domain ? ` — ${a.domain}` : ''}{a.packageName ? ` (${a.packageName})` : ''}
-                </option>
-              ))}
-            </select>
-          )}
-        </>
-      )}
-    </section>
-  ) : null;
 
   const summarySidebar = (
     <aside className="sticky top-0 h-fit w-full shrink-0 overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm lg:w-72 dark:border-zinc-700 dark:bg-zinc-900">
@@ -688,7 +677,6 @@ export function ProvisionClienteSection({
       <div className="flex flex-col gap-6 lg:flex-row lg:items-start">
         <div className="min-w-0 flex-1 space-y-6">
           {accountTypeCards}
-          {hostingSection}
           {panelUserSection}
           {resellerTierSection}
           {identitySection}
