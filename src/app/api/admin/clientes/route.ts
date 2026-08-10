@@ -469,9 +469,32 @@ export async function POST(req: NextRequest) {
     }
 
     if (simpleAccount) {
+      // Conta simples (sem hospedagem) só ficava em profiles/panel_auth_accounts
+      // -- nunca aparecia em Hospedagem > Contas, que lê só panel_users. Cria-se
+      // aqui também uma linha "conta simples" (sem da_username/pacote real) para
+      // ela aparecer na mesma listagem, editável/removível como qualquer outra.
+      const simpleUserName = userName || deriveUsername('', normalizedEmail);
+      const sbSimple = getDaSyncAdmin();
+      if (sbSimple) {
+        await sbSimple.from('panel_users').upsert(
+          {
+            username: simpleUserName,
+            email: normalizedEmail,
+            first_name: firstName,
+            last_name: lastName,
+            acl: panelAcl,
+            status: 'Active',
+            auth_user_id: authUserId,
+            websites_limit: 0,
+            emails_limit: 0,
+          },
+          { onConflict: 'username' },
+        );
+      }
+
       return NextResponse.json({
         success: true,
-        userName: userName || normalizedEmail.split('@')[0],
+        userName: simpleUserName,
         domain: '',
         accountType,
         provisionMode: 'simple',
