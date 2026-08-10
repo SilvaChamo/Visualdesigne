@@ -79,26 +79,31 @@ export async function logServerError(context: string, error: unknown): Promise<v
     const admin = adminClient();
     if (!admin) return;
 
+    // #28: user_id em notifications aponta para auth.users (FK) -- profiles.id
+    // é a chave própria da linha de profiles, não o login real. Usar profiles.id
+    // aqui violava sempre a foreign key e a escrita falhava em silêncio (o
+    // insert nunca lança excepção sozinho, só devolve `error` por ignorar).
     const { data: adminProfile } = await admin
       .from('profiles')
-      .select('id')
+      .select('user_id')
       .eq('role', 'admin')
       .limit(1)
       .maybeSingle();
-    if (!adminProfile?.id) return;
+    if (!adminProfile?.user_id) return;
 
     const message = error instanceof Error ? error.message : String(error);
     const stack = error instanceof Error ? error.stack : undefined;
 
     const fullMessage = stack ? `${message}\n\n${stack.slice(0, 1500)}` : message;
 
-    await admin.from('notifications').insert({
-      user_id: adminProfile.id,
+    const { error: insertError } = await admin.from('notifications').insert({
+      user_id: adminProfile.user_id,
       title: `Erro: ${context}`,
       message: fullMessage,
       type: 'error',
       category: 'system',
     });
+    if (insertError) console.error('[error-log] falha ao gravar notificação:', insertError);
 
     // Uma notificação por si só facilmente passa despercebida — um erro
     // deste tipo é raro o suficiente para merecer sempre um email.
