@@ -1,0 +1,15 @@
+name: Check domain transfer status
+
+on:
+  schedule:
+    # De 30 em 30 minutos — a aprovação do registador anterior pode levar dias, não vale a pena mais frequente.
+    - cron: '*/30 * * * *'
+  workflow_dispatch: {}
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Chamar endpoint de verificação de transferências
+        run: |
+          curl -sS -f "https://visualdesignmoz.com/api/cron/domain-transfer-check?secret=${{ secrets.CRON_SECRET }}"
