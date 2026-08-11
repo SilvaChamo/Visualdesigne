@@ -119,7 +119,10 @@ export async function listUsers(): Promise<HestiaUser[]> {
       diskUsedMb: parseHestiaUsage(u.U_DISK),
       bandwidthUsedMb: parseHestiaUsage(u.U_BANDWIDTH),
       diskLimitMb: parseHestiaLimit(u.DISK_QUOTA),
-      bandwidthLimitMb: parseHestiaLimit(u.BANDWIDTH_QUOTA),
+      // #campo-real: v-list-users devolve "BANDWIDTH", não "BANDWIDTH_QUOTA"
+      // (confirmado directamente na resposta real do servidor) — o nome
+      // errado fazia isto ser sempre null, mesmo com quota real definida.
+      bandwidthLimitMb: parseHestiaLimit(u.BANDWIDTH),
     }));
 }
 

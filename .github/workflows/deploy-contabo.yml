@@ -135,5 +135,19 @@ jobs:
             # painel Hestia nunca apareciam no painel VisualDesign. Idempotente:
             # substitui só a linha marcada com a própria tag.
             CRON_SECRET_VALUE=$(grep '^CRON_SECRET=' .env.local | cut -d= -f2-)
+            # #host-header: sem "Host: teste.visualdesignmoz.com" o Next.js
+            # devolve 308 (redirect para si mesmo) em vez de correr a rota —
+            # com -f isso não conta como erro (3xx não é falha), por isso o
+            # cron "tinha sucesso" há meses sem alguma vez chegar à rota a
+            # sério. Confirmado a reproduzir isto manualmente antes de corrigir.
             (crontab -l 2>/dev/null | grep -v '# visualdesign-hestia-sync'; \
-              echo "*/20 * * * * curl -fsS -H \"Authorization: Bearer ${CRON_SECRET_VALUE}\" http://127.0.0.1:3002/api/cron/hestia-sync >> /var/log/visualdesign-cron.log 2>&1 # visualdesign-hestia-sync") | crontab -
+              echo "*/20 * * * * curl -fsS -H \"Host: teste.visualdesignmoz.com\" -H \"Authorization: Bearer ${CRON_SECRET_VALUE}\" http://127.0.0.1:3002/api/cron/hestia-sync >> /var/log/visualdesign-cron.log 2>&1 # visualdesign-hestia-sync") | crontab -
+            # #hestia-cron-silent-fail: já apanhámos este passo a "ter sucesso"
+            # sem deixar nenhuma linha real instalada (motivo nunca confirmado —
+            # possível corrida com o set_env_var do CRON_SECRET acima numa
+            # execução antiga). Falha o deploy alto e bom som em vez de continuar
+            # calado, para nunca mais passar 18h+ sem ninguém reparar.
+            crontab -l | grep -q '# visualdesign-hestia-sync' || {
+              echo "ERRO: linha de cron do hestia-sync não ficou instalada" >&2
+              exit 1
+            }

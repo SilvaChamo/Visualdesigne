@@ -79,6 +79,8 @@ export interface PanelUser {
   quotaLimitMb?: number | null;
   bandwidthLimitMb?: number | null;
   packageName?: string;
+  /** 'hestia' | 'directadmin' (ou undefined em contas antigas) — ver panel_users.hosting_provider. */
+  hostingProvider?: string;
 }
 
 export interface PanelSubdomain {
