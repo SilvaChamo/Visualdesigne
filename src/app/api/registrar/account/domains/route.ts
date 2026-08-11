@@ -27,5 +27,14 @@ export async function GET() {
     );
   }
 
-  return NextResponse.json({ success: true, domains: result.domains });
+  // Domínios de teste criados por sessões anteriores a testar o adaptador Dynadot
+  // (ex: "claude-adapter-test-1785931940279.com") ficam presos na conta partilhada:
+  // a Dynadot só permite apagar via grace_delete dentro do período de carência,
+  // que já expirou para estes (confirmado via API a 2026-08-11, código 409 "grace
+  // period has expired"). Filtrar aqui é o único ponto único que cobre tanto
+  // "Meus domínios" como "Domínios registados", sem esconder domínios reais.
+  const isTestArtifact = (domain: string) => /^claude-[a-z0-9-]+-\d{10,}\.[a-z.]+$/i.test(domain);
+  const domains = result.domains.filter((d) => !isTestArtifact(d.domain));
+
+  return NextResponse.json({ success: true, domains });
 }

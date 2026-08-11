@@ -13,6 +13,7 @@ import {
   deleteHostingAccount,
   changeHostingAccountPassword,
 } from '@/lib/hosting-provider';
+import * as hestiaAdapter from '@/lib/hestia-adapter';
 import { requireAdminOrReseller } from '@/lib/panel-api-auth';
 import { runDaFullSyncDeduped, scheduleDaSync } from '@/lib/da-sync-engine';
 import { loadResellerCredentialsByDaUsername, encryptDaSecret } from '@/lib/da-credential-store';
@@ -802,12 +803,15 @@ export async function PATCH(req: NextRequest) {
       // pushUserEditToServer só sabe falar com o DirectAdmin (CMD_API_MODIFY_USER) —
       // para uma conta Hestia isto falhava sempre (o utilizador nem existe no DA),
       // sem trazer nenhum benefício. O Hestia ainda não tem um "editar utilizador"
-      // próprio, por isso por agora limitamo-nos a confiar no espelho para essas
-      // contas em vez de gastar um round-trip SSH destinado a falhar.
+      // próprio (nome/email/limites individuais), por isso confiamos no espelho
+      // para esses campos — mas mudar de PACOTE já tem comando directo
+      // (v-change-user-package) e aplicamos a sério.
       const editProvider = await getProviderByUsername(userName);
       const pushed =
         editProvider === 'hestia'
-          ? { ok: true }
+          ? packageName
+            ? await hestiaAdapter.changeUserPackage(userName, packageName)
+            : { ok: true }
           : await pushUserEditToServer({
               userName,
               email: email ?? String(data.email || ''),

@@ -1449,7 +1449,7 @@ export function FTPSection({ sites }: { sites: DirectAdminWebsite[] }) {
   const handleDelete = async (user: string) => {
     if (!confirm(`Eliminar conta FTP ${user}?`)) return
     try {
-      const ok = await directAdminAPI.deleteFTPAccount({ username: user })
+      const ok = await directAdminAPI.deleteFTPAccount({ username: user, domain: selectedDomain })
       if (isDaCommandOk(ok)) {
         cpRemoveFTP(selectedDomain, user)
         loadFTP(selectedDomain)
@@ -10223,9 +10223,12 @@ export function DomainManagerSection({
   useEffect(() => {
     if (!openMenuDomain) return
     const handleClickOutside = (e: MouseEvent) => {
-      if (domainMenuRef.current && !domainMenuRef.current.contains(e.target as Node)) {
-        setOpenMenuDomain(null)
-      }
+      const target = e.target as HTMLElement
+      if (domainMenuRef.current && domainMenuRef.current.contains(target)) return
+      // Ignora cliques nos próprios botões "..." de cada linha — o próprio onClick
+      // deles já trata de alternar (abrir/fechar), senão fechava e reabria em sequência.
+      if (target.closest('[data-domain-menu-trigger]')) return
+      setOpenMenuDomain(null)
     }
     document.addEventListener('mousedown', handleClickOutside)
     return () => document.removeEventListener('mousedown', handleClickOutside)
@@ -10382,78 +10385,108 @@ export function DomainManagerSection({
       <button type="button" className={`${domainCardBtn} font-bold`} onClick={() => openManage(d)}>
         Gerir website
       </button>
-      <div
-        ref={openMenuDomain === d.domain ? domainMenuRef : undefined}
-        className="relative"
+      <button
+        type="button"
+        data-domain-menu-trigger
+        className={domainCardBtn}
+        onClick={() => setOpenMenuDomain((prev) => (prev === d.domain ? null : d.domain))}
+        aria-expanded={openMenuDomain === d.domain}
+        aria-haspopup="menu"
+        aria-label="Mais opções"
       >
-        <button
-          type="button"
-          className={domainCardBtn}
-          onClick={() => setOpenMenuDomain((prev) => (prev === d.domain ? null : d.domain))}
-          aria-expanded={openMenuDomain === d.domain}
-          aria-haspopup="menu"
-          aria-label="Mais opções"
-        >
-          <MoreVertical className="h-4 w-4" />
-        </button>
-        {openMenuDomain === d.domain && (
-          <div className="absolute right-0 top-1/2 z-50 min-w-[11rem] -translate-y-1/2 rounded border border-gray-200 bg-white py-1 shadow-lg dark:border-zinc-700 dark:bg-zinc-900">
-            <button type="button" className={domainCardMenuItem} onClick={() => { setOpenMenuDomain(null); onNavigate?.('cp-dns-nameserver', { domain: d.domain }) }}>
-              Nameservers
-            </button>
-            <button type="button" className={domainCardMenuItem} onClick={() => { setOpenMenuDomain(null); setEmailModal({ show: true, domain: d.domain }) }}>
-              Criar e-mail
-            </button>
-            <button type="button" className={domainCardMenuItem} onClick={() => { setOpenMenuDomain(null); onNavigate?.('dns-central', { domain: d.domain }) }}>
-              Editar Zona de DNS
-            </button>
-            <button type="button" className={domainCardMenuItem} onClick={() => void handleRenewDomain(d.domain)}>
-              Renovar domínio
-            </button>
-            <button type="button" className={domainCardMenuItem} onClick={() => openManage(d)}>
-              Redireccionamento
-            </button>
-            <button type="button" className={domainCardMenuItem} onClick={() => void handleSuspendDomain(d)}>
-              {domainHostingStateLabel(d) === 'Activo' ? 'Suspender domínio' : 'Activar domínio'}
-            </button>
-            <button
-              type="button"
-              className={domainCardMenuItem}
-              onClick={() => {
-                setOpenMenuDomain(null)
-                setTransferOwnerModal({ show: true, domain: d.domain, targetEmail: '', saving: false })
-              }}
-            >
-              Mover para outra conta
-            </button>
-            <button
-              type="button"
-              className={domainCardMenuItem}
-              onClick={() => {
-                setOpenMenuDomain(null)
-                setAttachHostingSteps([])
-                setAttachHostingModal({ show: true, domain: d.domain, daUsername: '', saving: false })
-              }}
-            >
-              Associar a hospedagem existente
-            </button>
-            <button type="button" className={domainCardMenuItem} onClick={() => void handleToggleAutoRenew(d.domain)}>
-              Desactivar renovação automática
-            </button>
-            <button
-              type="button"
-              className={domainCardMenuItem}
-              onClick={() => {
-                setOpenMenuDomain(null)
-                window.open(`https://${d.domain}`, '_blank', 'noopener,noreferrer')
-              }}
-            >
-              Visitar site
-            </button>
-          </div>
-        )}
-      </div>
+        <MoreVertical className="h-4 w-4" />
+      </button>
     </div>
+  )
+
+  const menuDomainRow = openMenuDomain
+    ? filteredDomains.find((row) => row.domain === openMenuDomain) || null
+    : null
+
+  // Barra lateral de acções rápidas por domínio — substitui o antigo dropdown
+  // posicionado por linha (`absolute ... top-1/2`), que ficava cortado atrás do
+  // cabeçalho fixo quando aberto numa linha perto do topo da lista. Largura igual
+  // à barra lateral esquerda do painel (242px), consistente com o painel "Gerenciar"
+  // da página de detalhe do domínio.
+  const domainQuickActionsPanel = menuDomainRow && (
+    <>
+      <div
+        className="fixed inset-0 z-40 bg-black/20"
+        onClick={() => setOpenMenuDomain(null)}
+        aria-hidden="true"
+      />
+      <div
+        ref={domainMenuRef}
+        role="menu"
+        className="fixed inset-y-0 right-0 z-50 w-[242px] overflow-y-auto border-l border-gray-200 bg-white shadow-xl dark:border-zinc-700 dark:bg-zinc-900"
+      >
+        <div className="flex items-center justify-between border-b border-gray-100 px-4 py-3 dark:border-zinc-800">
+          <p className="truncate text-xs font-bold uppercase text-gray-500 dark:text-zinc-500">{menuDomainRow.domain}</p>
+          <button
+            type="button"
+            onClick={() => setOpenMenuDomain(null)}
+            className="shrink-0 text-gray-400 hover:text-red-600 dark:text-zinc-500 dark:hover:text-red-400"
+            aria-label="Fechar"
+          >
+            ✕
+          </button>
+        </div>
+        <div className="divide-y divide-gray-100 dark:divide-zinc-800">
+          <button type="button" className={domainCardMenuItem} onClick={() => { setOpenMenuDomain(null); onNavigate?.('cp-dns-nameserver', { domain: menuDomainRow.domain }) }}>
+            Nameservers
+          </button>
+          <button type="button" className={domainCardMenuItem} onClick={() => { setOpenMenuDomain(null); setEmailModal({ show: true, domain: menuDomainRow.domain }) }}>
+            Criar e-mail
+          </button>
+          <button type="button" className={domainCardMenuItem} onClick={() => { setOpenMenuDomain(null); onNavigate?.('dns-central', { domain: menuDomainRow.domain }) }}>
+            Editar Zona de DNS
+          </button>
+          <button type="button" className={domainCardMenuItem} onClick={() => void handleRenewDomain(menuDomainRow.domain)}>
+            Renovar domínio
+          </button>
+          <button type="button" className={domainCardMenuItem} onClick={() => openManage(menuDomainRow)}>
+            Redireccionamento
+          </button>
+          <button type="button" className={domainCardMenuItem} onClick={() => void handleSuspendDomain(menuDomainRow)}>
+            {domainHostingStateLabel(menuDomainRow) === 'Activo' ? 'Suspender domínio' : 'Activar domínio'}
+          </button>
+          <button
+            type="button"
+            className={domainCardMenuItem}
+            onClick={() => {
+              setOpenMenuDomain(null)
+              setTransferOwnerModal({ show: true, domain: menuDomainRow.domain, targetEmail: '', saving: false })
+            }}
+          >
+            Mover para outra conta
+          </button>
+          <button
+            type="button"
+            className={domainCardMenuItem}
+            onClick={() => {
+              setOpenMenuDomain(null)
+              setAttachHostingSteps([])
+              setAttachHostingModal({ show: true, domain: menuDomainRow.domain, daUsername: '', saving: false })
+            }}
+          >
+            Associar a hospedagem existente
+          </button>
+          <button type="button" className={domainCardMenuItem} onClick={() => void handleToggleAutoRenew(menuDomainRow.domain)}>
+            Desactivar renovação automática
+          </button>
+          <button
+            type="button"
+            className={domainCardMenuItem}
+            onClick={() => {
+              setOpenMenuDomain(null)
+              window.open(`https://${menuDomainRow.domain}`, '_blank', 'noopener,noreferrer')
+            }}
+          >
+            Visitar site
+          </button>
+        </div>
+      </div>
+    </>
   )
 
   if (hubMode && hubPanel === 'add') {
@@ -10572,6 +10605,8 @@ export function DomainManagerSection({
           })}
         </div>
       )}
+
+      {domainQuickActionsPanel}
 
       {/* Modal de Criação de Email */}
       <EmailCreateModal

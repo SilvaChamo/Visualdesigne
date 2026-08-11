@@ -466,8 +466,8 @@ export function DomainDetailSection({ domain, sites, onNavigate, onRefresh, setA
         </span>
       </div>
 
-      <div className="grid w-full grid-cols-1 gap-4 lg:grid-cols-3">
-        <div className="space-y-4 lg:col-span-2">
+      <div className="grid w-full grid-cols-1 gap-4 lg:grid-cols-[1fr_242px]">
+        <div className="space-y-4">
           <div className="rounded border border-gray-200 bg-white p-5 dark:border-zinc-700 dark:bg-zinc-900">
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
               <div className="rounded border border-gray-100 bg-gray-50 p-3 dark:border-zinc-800 dark:bg-zinc-950">
