@@ -11,9 +11,9 @@ export function Spinner({ className }: { className?: string }) {
   return (
     <span
       className={cn(
-        'panel-spinner inline-block shrink-0 animate-spin rounded-full border-red-600 border-t-gray-300 dark:border-red-500 dark:border-t-gray-400',
+        'panel-spinner inline-block shrink-0 animate-spin rounded-full border-red-600 border-t-gray-200 dark:border-red-500 dark:border-t-gray-600',
         className,
-        'w-7 h-7 border-[3px]',
+        'w-6 h-6 border-2',
       )}
       role="status"
       aria-label="A processar"
