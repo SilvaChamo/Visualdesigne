@@ -6,7 +6,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { useI18n } from '@/lib/i18n'
 
 import {
-  LogOut, RefreshCw, ChevronRight, Globe, Lock, Edit, Plus, Search, LockOpen, ExternalLink, Server, Archive, Database, Power, Trash2, Home, Users, Mail, Layout, Shield, ShieldCheck, Settings, Download, Send, Code, FolderOpen, Upload, X, Zap, Cloud, RotateCcw, FileCode, ArrowLeft, CheckCircle, HardDrive, AlertCircle, ChevronDown, Globe2, Plug, Layers, List, ChevronLeft, Bell, PauseCircle, Calendar, Clock, MoreVertical, Eye, EyeOff
+  LogOut, RefreshCw, ChevronRight, Globe, Lock, Edit, Plus, Search, LockOpen, ExternalLink, Server, Archive, Database, Power, Trash2, Home, Users, Mail, Layout, Shield, ShieldCheck, Settings, Download, Send, Code, FolderOpen, Upload, X, Zap, Cloud, RotateCcw, FileCode, ArrowLeft, CheckCircle, HardDrive, AlertCircle, ChevronDown, Globe2, Plug, Layers, List, ChevronLeft, Bell, PauseCircle, Calendar, Clock, MoreVertical, Eye, EyeOff, ArrowRightLeft
 } from 'lucide-react'
 import {
   DropdownMenu,
@@ -1071,6 +1071,33 @@ function AdminPageContent() {
   const [accountPrimaryDomain, setAccountPrimaryDomain] = useState<string | null>(null)
   const [dashboardSearch, setDashboardSearch] = useState('')
 
+  // Sinal persistente (visível em qualquer secção do painel, não só na página
+  // "Transferir Domínio") de que há uma transferência de domínio em curso —
+  // sem isto, era fácil pensar que "parou" só por não se estar a ver a página
+  // certa. Desaparece sozinho assim que o cron server-side confirmar a
+  // conclusão (ver /api/cron/domain-transfer-check).
+  const [pendingDomainTransfers, setPendingDomainTransfers] = useState<{ domain_name: string }[]>([])
+  useEffect(() => {
+    let cancelled = false
+    const checkPending = async () => {
+      try {
+        const res = await fetch('/api/domain-transfer', { credentials: 'include' })
+        const data = await res.json()
+        if (cancelled || !data.success) return
+        const pending = (data.pedidos || []).filter((p: { status: string }) => p.status === 'submitted' || p.status === 'waiting')
+        setPendingDomainTransfers(pending)
+      } catch {
+        /* mantém o último estado conhecido */
+      }
+    }
+    void checkPending()
+    const interval = setInterval(checkPending, 60_000)
+    return () => {
+      cancelled = true
+      clearInterval(interval)
+    }
+  }, [])
+
   // Modal de criação de email (movido para nível do AdminPage)
   const [showEmailModal, setShowEmailModal] = useState(false)
   const [emailForm, setEmailForm] = useState({
@@ -1851,7 +1878,26 @@ function AdminPageContent() {
               : undefined)
           }
           toolbar={chrome?.toolbar}
-          alerts={chrome?.alerts}
+          alerts={
+            pendingDomainTransfers.length > 0 || chrome?.alerts ? (
+              <>
+                {pendingDomainTransfers.length > 0 ? (
+                  <button
+                    type="button"
+                    onClick={() => handleNavigate('transferir-dominio')}
+                    className="flex w-full items-center gap-2 rounded border border-amber-200 bg-amber-50 px-3 py-2 text-left text-xs font-medium text-amber-800 transition-colors hover:bg-amber-100 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-300 dark:hover:bg-amber-950/50"
+                  >
+                    <ArrowRightLeft className="h-3.5 w-3.5 shrink-0 animate-pulse" />
+                    {pendingDomainTransfers.length === 1
+                      ? `Transferência de domínio em curso: ${pendingDomainTransfers[0].domain_name} — a aguardar o registador anterior.`
+                      : `${pendingDomainTransfers.length} transferências de domínio em curso — a aguardar o registador anterior.`}
+                    <span className="ml-auto shrink-0 underline">Ver estado</span>
+                  </button>
+                ) : null}
+                {chrome?.alerts}
+              </>
+            ) : undefined
+          }
           hidden={isComposeActive && activeSection === 'webmail'}
           actions={
             <>
