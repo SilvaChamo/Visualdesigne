@@ -24,14 +24,14 @@ const STATUS_META: Record<
 > = {
   pending: { label: 'A processar pagamento', icon: Clock, className: 'text-gray-500' },
   submitted: {
-    label: 'Pedido enviado ao registador',
+    label: 'Transferência em curso, aguarde até finalizar!',
     subtitle: 'Processo a decorrer — pode demorar alguns dias. Vai receber um aviso assim que terminar.',
     icon: Clock,
     className: 'text-amber-600',
     pulse: true,
   },
   waiting: {
-    label: 'À espera de aprovação do registador anterior',
+    label: 'Transferência em curso, aguarde até finalizar!',
     subtitle: 'Processo a decorrer — pode demorar alguns dias. Vai receber um aviso assim que terminar.',
     icon: Clock,
     className: 'text-amber-600',
