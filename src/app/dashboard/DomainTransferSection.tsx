@@ -20,8 +20,8 @@ type TransferRequest = {
 
 const STATUS_META: Record<TransferRequest['status'], { label: string; icon: typeof Clock; className: string }> = {
   pending: { label: 'A processar pagamento', icon: Clock, className: 'text-gray-500' },
-  submitted: { label: 'Pedido enviado ao registador', icon: Clock, className: 'text-amber-600' },
-  waiting: { label: 'À espera de aprovação do registador anterior', icon: Clock, className: 'text-amber-600' },
+  submitted: { label: 'Transferência em curso, aguarde até finalizar!', icon: Clock, className: 'text-amber-600' },
+  waiting: { label: 'Transferência em curso, aguarde até finalizar!', icon: Clock, className: 'text-amber-600' },
   completed: { label: 'Concluída — domínio já é seu', icon: CheckCircle2, className: 'text-green-600' },
   rejected: { label: 'Rejeitada pelo registador anterior', icon: XCircle, className: 'text-red-600' },
   failed: { label: 'Falhou ao submeter — contacte o suporte', icon: XCircle, className: 'text-red-600' },
