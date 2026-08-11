@@ -1501,6 +1501,7 @@ function AdminPageContent() {
           <DNSCentralSection
             sites={filteredSites}
             initialDomain={selectedDNSDomain || primaryDomain}
+            isActive={isActive}
           />
         )
       case 'cp-php':
@@ -1586,6 +1587,7 @@ function AdminPageContent() {
           <DNSCentralSection
             sites={filteredSites}
             initialDomain={selectedDNSDomain || primaryDomain}
+            isActive={isActive}
           />
         )
       case 'cp-dns-delete-zone':

@@ -1,3 +1,23 @@
+# Esta é a pasta de trabalho prioritária
+
+Este projecto (`visualdesign-teste`, branch `fix/contabo-websites-audit`, deploy em
+`teste.visualdesignmoz.com` via Contabo, dev server na porta 3003) é onde o trabalho
+novo deve acontecer por defeito. Existe uma segunda pasta irmã, `../visualdesign`
+(branch `main`, produção real em `visualdesignmoz.com` no Hetzner, dev server na
+porta 3002) — **não é a mesma pasta, não partilha ficheiros automaticamente**, e um
+`git push` lá despoleta deploy imediato para produção.
+
+As duas pastas partilham a mesma base de dados Supabase, mas código/UI só existe onde
+foi escrito. Se pedires para "adicionar X" sem dizer onde, o agente deve assumir esta
+pasta (`visualdesign-teste`), a não ser que o pedido seja claramente sobre produção
+(ex: "o site principal está em baixo") ou o utilizador diga expressamente "no Hetzner"/
+"em produção". Alterações que façam sentido nos dois sítios só devem ir para `main`
+depois de confirmadas aqui, através do fluxo normal de PR
+(`fix/contabo-websites-audit` → `main`) — nunca directamente.
+
+Detalhe completo desta topologia (portas, branches, como trazer alterações de um lado
+para o outro) fica na memória `project_dual-folder-git-topology`.
+
 # Verificação visual de alterações de UI
 
 Antes de reportar qualquer alteração visual (CSS/layout/alinhamentos) como concluída,

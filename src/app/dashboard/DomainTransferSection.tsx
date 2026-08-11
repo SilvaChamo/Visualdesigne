@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { ArrowRightLeft, Loader2, CheckCircle2, XCircle, Clock } from 'lucide-react';
+import { ArrowRightLeft, Loader2, CheckCircle2, XCircle, Clock, HelpCircle, Server } from 'lucide-react';
 import { panelBtnPrimary, panelBtnSecondary, panelField } from '@/lib/panel-ui';
 import { Spinner } from '@/components/ui/spinner';
 import { useCart } from '@/contexts/CartContext';
@@ -18,14 +18,91 @@ type TransferRequest = {
   created_at: string;
 };
 
-const STATUS_META: Record<TransferRequest['status'], { label: string; icon: typeof Clock; className: string }> = {
+const STATUS_META: Record<
+  TransferRequest['status'],
+  { label: string; subtitle?: string; icon: typeof Clock; className: string; pulse?: boolean }
+> = {
   pending: { label: 'A processar pagamento', icon: Clock, className: 'text-gray-500' },
-  submitted: { label: 'Pedido enviado ao registador', icon: Clock, className: 'text-amber-600' },
-  waiting: { label: 'À espera de aprovação do registador anterior', icon: Clock, className: 'text-amber-600' },
+  submitted: {
+    label: 'Pedido enviado ao registador',
+    subtitle: 'Processo a decorrer — pode demorar alguns dias. Vai receber um aviso assim que terminar.',
+    icon: Clock,
+    className: 'text-amber-600',
+    pulse: true,
+  },
+  waiting: {
+    label: 'À espera de aprovação do registador anterior',
+    subtitle: 'Processo a decorrer — pode demorar alguns dias. Vai receber um aviso assim que terminar.',
+    icon: Clock,
+    className: 'text-amber-600',
+    pulse: true,
+  },
   completed: { label: 'Concluída — domínio já é seu', icon: CheckCircle2, className: 'text-green-600' },
   rejected: { label: 'Rejeitada pelo registador anterior', icon: XCircle, className: 'text-red-600' },
   failed: { label: 'Falhou ao submeter — contacte o suporte', icon: XCircle, className: 'text-red-600' },
 };
+
+const TRANSFER_STEPS = [
+  'Pede-se a transferência com o código de autorização (EPP) do registador actual.',
+  'O registador anterior recebe o pedido e tem de aprovar — ou passar 5 a 7 dias sem responder, o que conta como aprovação silenciosa.',
+  'Assim que aprovado, o domínio passa a ser gerido por nós e fica logo activo na sua conta.',
+];
+
+type DnsSnapshot = { domain: string; nameservers: string[]; mailExchangers: string[] } | null;
+
+function DnsSnapshotCard({ domain }: { domain: string }) {
+  const [snapshot, setSnapshot] = useState<DnsSnapshot>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    fetch(`/api/domain-transfer/dns-snapshot?domain=${encodeURIComponent(domain)}`, { credentials: 'include' })
+      .then((res) => res.json())
+      .then((data) => {
+        if (!cancelled && data.success) setSnapshot(data);
+      })
+      .catch(() => undefined)
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [domain]);
+
+  return (
+    <div className="rounded border border-gray-200 p-3 dark:border-zinc-800">
+      <p className="mb-2 truncate font-mono text-xs font-bold text-gray-900 dark:text-zinc-100">{domain}</p>
+      {loading ? (
+        <div className="flex items-center gap-2 text-xs text-gray-400">
+          <Loader2 className="h-3 w-3 animate-spin" /> A consultar DNS...
+        </div>
+      ) : !snapshot || (snapshot.nameservers.length === 0 && snapshot.mailExchangers.length === 0) ? (
+        <p className="text-xs text-gray-400 dark:text-zinc-500">Sem resposta de DNS neste momento.</p>
+      ) : (
+        <div className="space-y-1.5 text-[11px] text-gray-600 dark:text-zinc-400">
+          {snapshot.nameservers.length > 0 && (
+            <div>
+              <p className="font-bold uppercase tracking-tight text-gray-500 dark:text-zinc-500">Nameservers</p>
+              {snapshot.nameservers.map((ns) => (
+                <p key={ns} className="truncate font-mono">{ns}</p>
+              ))}
+            </div>
+          )}
+          {snapshot.mailExchangers.length > 0 && (
+            <div>
+              <p className="font-bold uppercase tracking-tight text-gray-500 dark:text-zinc-500">Email (MX)</p>
+              {snapshot.mailExchangers.map((mx) => (
+                <p key={mx} className="truncate font-mono">{mx}</p>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
 
 export function DomainTransferSection() {
   const { addItem, setIsCartOpen } = useCart();
@@ -144,9 +221,12 @@ export function DomainTransferSection() {
     setMsg('');
   };
 
+  const pendingRequests = requests.filter((r) => r.status === 'submitted' || r.status === 'waiting');
+
   return (
-    <div className="w-full space-y-6">
-      <div className="w-full rounded border border-gray-200 bg-white p-6 dark:border-zinc-700 dark:bg-zinc-900">
+    <div className="w-full gap-5 lg:flex lg:items-start">
+      <div className="min-w-0 flex-1 space-y-5">
+      <div className="w-full rounded border border-gray-200 bg-white p-5 dark:border-zinc-700 dark:bg-zinc-900">
         <div className="mb-4 flex items-start gap-3">
           <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded border border-gray-200 dark:border-zinc-700">
             <ArrowRightLeft className="h-5 w-5 text-gray-600 dark:text-zinc-400" />
@@ -157,7 +237,7 @@ export function DomainTransferSection() {
           </div>
         </div>
 
-        <div className="-mx-6 mb-[30px] border-b border-gray-200 dark:border-zinc-700" aria-hidden="true" />
+        <div className="-mx-5 mb-5 border-b border-gray-200 dark:border-zinc-700" aria-hidden="true" />
 
         <form onSubmit={handleValidate} className="space-y-4">
           <div className="grid w-full grid-cols-1 gap-4 md:grid-cols-2">
@@ -227,7 +307,7 @@ export function DomainTransferSection() {
         </form>
       </div>
 
-      <div className="w-full rounded border border-gray-200 bg-white p-6 dark:border-zinc-700 dark:bg-zinc-900">
+      <div className="w-full rounded border border-gray-200 bg-white p-5 dark:border-zinc-700 dark:bg-zinc-900">
         <h3 className="mb-4 text-sm font-bold uppercase text-gray-500 dark:text-zinc-500">As suas transferências</h3>
         {loadingRequests ? (
           <div className="flex items-center gap-2 py-4 text-sm text-gray-400">
@@ -243,20 +323,57 @@ export function DomainTransferSection() {
               return (
                 <div
                   key={r.id}
-                  className="flex items-center justify-between gap-3 rounded border border-gray-100 px-4 py-3 dark:border-zinc-800"
+                  className={`flex items-center justify-between gap-3 rounded border px-4 py-3 ${
+                    meta.pulse
+                      ? 'border-amber-200 bg-amber-50/50 dark:border-amber-900/50 dark:bg-amber-950/20'
+                      : 'border-gray-100 dark:border-zinc-800'
+                  }`}
                 >
                   <div className="min-w-0">
                     <p className="truncate font-mono text-sm font-bold text-gray-900 dark:text-zinc-100">{r.domain_name}</p>
                     {r.status === 'failed' && r.error_message && (
                       <p className="mt-0.5 text-xs text-red-500">{r.error_message}</p>
                     )}
+                    {meta.subtitle && (
+                      <p className="mt-0.5 text-xs text-amber-700 dark:text-amber-400">{meta.subtitle}</p>
+                    )}
                   </div>
                   <div className={`flex shrink-0 items-center gap-1.5 text-xs font-bold ${meta.className}`}>
-                    <Icon className="h-3.5 w-3.5" /> {meta.label}
+                    <Icon className={`h-3.5 w-3.5 ${meta.pulse ? 'animate-pulse' : ''}`} /> {meta.label}
                   </div>
                 </div>
               );
             })}
+          </div>
+        )}
+      </div>
+      </div>
+
+      <div className="mt-5 w-full shrink-0 space-y-5 lg:mt-0 lg:w-[242px]">
+        <div className="rounded border border-gray-200 bg-white p-5 dark:border-zinc-700 dark:bg-zinc-900">
+          <div className="mb-3 flex items-center gap-2 text-xs font-bold uppercase text-gray-500 dark:text-zinc-500">
+            <HelpCircle className="h-3.5 w-3.5" /> Como funciona
+          </div>
+          <ol className="space-y-2 text-[11px] text-gray-600 dark:text-zinc-400">
+            {TRANSFER_STEPS.map((step, i) => (
+              <li key={step} className="flex gap-1.5">
+                <span className="shrink-0 font-bold text-gray-400 dark:text-zinc-600">{i + 1}.</span>
+                <span>{step}</span>
+              </li>
+            ))}
+          </ol>
+        </div>
+
+        {pendingRequests.length > 0 && (
+          <div className="rounded border border-gray-200 bg-white p-5 dark:border-zinc-700 dark:bg-zinc-900">
+            <div className="mb-3 flex items-center gap-2 text-xs font-bold uppercase text-gray-500 dark:text-zinc-500">
+              <Server className="h-3.5 w-3.5" /> DNS actual (ainda no registador antigo)
+            </div>
+            <div className="space-y-2">
+              {pendingRequests.map((r) => (
+                <DnsSnapshotCard key={r.id} domain={r.domain_name} />
+              ))}
+            </div>
           </div>
         )}
       </div>

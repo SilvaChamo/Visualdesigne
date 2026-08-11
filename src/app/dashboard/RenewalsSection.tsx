@@ -35,7 +35,7 @@ interface Renewal {
   renewal_price: number
   currency: string
   auto_renew: boolean
-  status: 'active' | 'expired' | 'pending' | 'cancelled' | 'renewed'
+  status: 'active' | 'expired' | 'pending' | 'cancelled' | 'renewed' | 'transferring'
   notes?: string
   user_email?: string
 }
@@ -465,9 +465,10 @@ export function RenewalsSection({ initialTab = 'overview', hideTabs = false }: R
                           <span className={`px-2 py-1 rounded text-xs ${
                             service.status === 'active' ? 'bg-green-100 text-green-700' :
                             service.status === 'expired' ? 'bg-red-100 text-red-700' :
+                            service.status === 'transferring' ? 'bg-amber-100 text-amber-700' :
                             'bg-gray-100 text-gray-700'
                           }`}>
-                            {service.status}
+                            {service.status === 'transferring' ? 'A transferir — ainda não é nosso' : service.status}
                           </span>
                         </div>
                       </div>
