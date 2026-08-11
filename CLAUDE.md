@@ -1,3 +1,20 @@
+# Esta pasta é PRODUÇÃO — não é a pasta de trabalho por defeito
+
+Este projecto (`visualdesign`, branch `main`, dev server na porta 3002) despoleta
+**deploy automático para produção real** (`visualdesignmoz.com`, Hetzner) a cada
+`git push`. Existe uma pasta irmã, `../visualdesign-teste` (branch
+`fix/contabo-websites-audit`, deploy em `teste.visualdesignmoz.com` no Contabo, porta
+3003), que é onde o trabalho novo deve acontecer por defeito — as duas pastas não
+partilham ficheiros automaticamente (só a base de dados Supabase é comum).
+
+Se um pedido não disser explicitamente "no Hetzner"/"em produção"/"neste projecto
+principal", confirma antes de implementar aqui — o mais provável é que devesse ir para
+`../visualdesign-teste`. Alterações feitas nesta pasta só devem existir aqui se forem
+correcções específicas de produção (ex: reverter algo já publicado por engano) ou
+mudanças já validadas em teste e trazidas via PR normal.
+
+Detalhe completo desta topologia fica na memória `project_dual-folder-git-topology`.
+
 # Verificação visual de alterações de UI
 
 Antes de reportar qualquer alteração visual (CSS/layout/alinhamentos) como concluída,
