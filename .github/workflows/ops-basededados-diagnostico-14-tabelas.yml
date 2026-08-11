@@ -1,0 +1,72 @@
+name: Ops — diagnóstico das 14 tabelas novas (basededadosagro.com)
+
+# Execução manual só, SÓ LEITURA — não altera nada. As 14 tabelas criadas em
+# 2560c3be (roles, capabilities, role_redirects, role_capabilities,
+# role_menu_visibility, news, baseagrodata_news, entrecampos_news,
+# plant_collection, category_site_mapping, video_ads, plans, stores,
+# produtos) foram criadas só com estrutura (DDL a partir da definição
+# OpenAPI da origem), sem dados. Antes de escrever qualquer SQL de
+# população, este workflow confirma: quantas linhas tem cada uma agora,
+# que ficheiros do site as usam (para saber que páginas dependem delas), e
+# se há alguma pista de como os dados reais foram copiados das outras 12
+# tabelas em 2026-08-10 (ficheiros de dump/backup deixados no servidor,
+# variáveis de ligação a um Supabase Cloud antigo, etc.) — essa ligação não
+# está guardada em nenhum secret nem script deste repo.
+on:
+  workflow_dispatch:
+
+jobs:
+  diagnostico:
+    name: Recolher estado das 14 tabelas + pistas de origem dos dados
+    runs-on: ubuntu-latest
+    steps:
+      - name: Diagnóstico via SSH (só leitura)
+        uses: appleboy/ssh-action@v1.2.5
+        with:
+          host: ${{ secrets.HETZNER_HOST }}
+          port: ${{ secrets.HETZNER_PORT }}
+          username: ${{ secrets.HETZNER_USER }}
+          key: ${{ secrets.HETZNER_SSH_KEY }}
+          command_timeout: 5m
+          script: |
+            set -e
+            CONTAINER=$(docker ps --format '{{.Names}}' | grep -iE 'supabase.*db|supabase-db|postgres' | head -n1)
+            if [ -z "$CONTAINER" ]; then
+              echo "Não encontrei nenhum container de Postgres/Supabase a correr:" >&2
+              docker ps --format '{{.Names}}'
+              exit 1
+            fi
+            DB_USER=$(docker exec "$CONTAINER" printenv POSTGRES_USER 2>/dev/null || echo postgres)
+            DB_NAME=$(docker exec "$CONTAINER" printenv POSTGRES_DB 2>/dev/null || echo postgres)
+
+            echo "=== 1) Linhas por tabela em basededados ==="
+            for T in roles capabilities role_redirects role_capabilities role_menu_visibility news baseagrodata_news entrecampos_news plant_collection category_site_mapping video_ads plans stores produtos; do
+              docker exec "$CONTAINER" psql -U "$DB_USER" -d "$DB_NAME" -t -c \
+                "select '$T: ' || count(*) from basededados.$T;" 2>&1 | sed 's/^/  /'
+            done
+
+            echo "=== 2) Onde o site usa estas tabelas (grep no código) ==="
+            cd /opt/basededadosagro-site
+            for T in roles capabilities role_redirects role_capabilities role_menu_visibility news baseagrodata_news entrecampos_news plant_collection category_site_mapping video_ads plans stores produtos; do
+              MATCHES=$(grep -rln "from(['\"]$T['\"])" app components lib 2>/dev/null || true)
+              if [ -n "$MATCHES" ]; then
+                echo "--- $T usada em: ---"
+                echo "$MATCHES" | sed 's/^/  /'
+              fi
+            done
+
+            echo "=== 3) Variáveis SUPABASE no .env do site (só nomes + host, nunca a key) ==="
+            if [ -f .env ]; then
+              grep -iE '^[A-Z_]*SUPABASE[A-Z_]*=' .env | sed -E 's/(KEY|SECRET|TOKEN)=.*/\1=<redacted>/' | sed 's/^/  /'
+            else
+              echo "  (sem .env em /opt/basededadosagro-site)"
+            fi
+
+            echo "=== 4) Ficheiros .env de backup / dumps deixados de sessões anteriores ==="
+            find /opt/basededadosagro-site -maxdepth 1 -iname ".env*" 2>/dev/null | sed 's/^/  /'
+            find /root -maxdepth 2 \( -iname "*dump*" -o -iname "*.sql" -o -iname "*baseagrodata*" -o -iname "*basededados*" \) 2>/dev/null | sed 's/^/  /'
+
+            echo "=== 5) PGRST_DB_SCHEMAS actual (self-hosted) ==="
+            grep '^PGRST_DB_SCHEMAS=' /opt/supabase-aamihe/docker/.env 2>/dev/null | sed 's/^/  /' || echo "  (não encontrado)"
+
+            echo "=== Fim do diagnóstico ==="
