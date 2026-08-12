@@ -10,13 +10,46 @@ import { readListCache, writeListCache } from '@/lib/panel-list-cache';
 
 const TRANSFER_CACHE_KEY = 'vd_domain_transfer_requests_v1';
 
+type TransferOrder = {
+  orderId: string;
+  costMt: number;
+  paidMt: number;
+  metodoPagamento: string;
+  status: 'pending' | 'paid' | 'failed';
+};
+
 type TransferRequest = {
   id: string;
   domain_name: string;
   status: 'pending' | 'submitted' | 'waiting' | 'locked' | 'completed' | 'rejected' | 'failed';
   error_message?: string | null;
   created_at: string;
+  order?: TransferOrder | null;
 };
+
+const METODO_LABEL: Record<string, string> = { mpesa: 'M-Pesa', emola: 'e-Mola', transferencia: 'Transferência', stripe: 'Cartão' };
+const ORDER_STATUS_META: Record<TransferOrder['status'], { label: string; className: string }> = {
+  pending: { label: 'A aguardar pagamento', className: 'bg-amber-100 text-amber-700' },
+  paid: { label: 'Pago', className: 'bg-green-100 text-green-700' },
+  failed: { label: 'Pagamento rejeitado', className: 'bg-red-100 text-red-700' },
+};
+
+/**
+ * A ICANN dá ao registador anterior até 5-7 dias para responder a um pedido
+ * de transferência (ver TRANSFER_STEPS abaixo) — se não fizer nada, conta
+ * como aprovação silenciosa. Usamos 7 dias (o pior caso) para a barra de
+ * progresso e a data prevista não prometerem mais rápido do que a realidade.
+ */
+const ESTIMATED_TRANSFER_DAYS = 7;
+
+function getTransferProgress(createdAt: string) {
+  const start = new Date(createdAt).getTime();
+  const totalMs = ESTIMATED_TRANSFER_DAYS * 24 * 60 * 60 * 1000;
+  const elapsedMs = Date.now() - start;
+  const percent = Math.min(100, Math.max(5, Math.round((elapsedMs / totalMs) * 100)));
+  const eta = new Date(start + totalMs);
+  return { percent, eta };
+}
 
 const STATUS_META: Record<
   TransferRequest['status'],
@@ -313,8 +346,54 @@ export function DomainTransferSection() {
         </form>
       </div>
 
+      {requests.some((r) => r.order) && (
+        <div className="w-full overflow-hidden rounded border border-gray-200 bg-white dark:border-zinc-700 dark:bg-zinc-900">
+          <h3 className="border-b border-gray-200 px-5 py-4 text-sm font-bold uppercase text-gray-500 dark:border-zinc-700 dark:text-zinc-500">
+            Pedidos Abertos
+          </h3>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-gray-200 bg-gray-50 text-xs font-bold uppercase tracking-wide text-gray-500 dark:border-zinc-700 dark:bg-zinc-900/50 dark:text-zinc-400">
+                  <th className="px-4 py-2 text-left">Itens</th>
+                  <th className="whitespace-nowrap px-4 py-2 text-left">ID do Pedido</th>
+                  <th className="whitespace-nowrap px-4 py-2 text-left">Data de Envio</th>
+                  <th className="whitespace-nowrap px-4 py-2 text-left">Custo</th>
+                  <th className="whitespace-nowrap px-4 py-2 text-left">Pago</th>
+                  <th className="whitespace-nowrap px-4 py-2 text-left">Status</th>
+                  <th className="whitespace-nowrap px-4 py-2 text-left">Tipo de Pagamento</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100 dark:divide-zinc-800">
+                {requests.filter((r) => r.order).map((r) => {
+                  const order = r.order as TransferOrder;
+                  const meta = ORDER_STATUS_META[order.status];
+                  return (
+                    <tr key={r.id}>
+                      <td className="px-4 py-2.5 font-mono font-medium text-gray-900 dark:text-white">{r.domain_name}</td>
+                      <td className="whitespace-nowrap px-4 py-2.5 text-gray-500 dark:text-zinc-400">{order.orderId}</td>
+                      <td className="whitespace-nowrap px-4 py-2.5 text-gray-500 dark:text-zinc-400">
+                        {new Date(r.created_at).toLocaleDateString('pt-PT')}
+                      </td>
+                      <td className="whitespace-nowrap px-4 py-2.5 font-bold text-gray-900 dark:text-white">{formatPrice(order.costMt)}</td>
+                      <td className="whitespace-nowrap px-4 py-2.5 text-gray-500 dark:text-zinc-400">{formatPrice(order.paidMt)}</td>
+                      <td className="whitespace-nowrap px-4 py-2.5">
+                        <span className={`rounded-full px-2.5 py-1 text-xs font-bold ${meta.className}`}>{meta.label}</span>
+                      </td>
+                      <td className="whitespace-nowrap px-4 py-2.5 text-gray-500 dark:text-zinc-400">
+                        {METODO_LABEL[order.metodoPagamento] || order.metodoPagamento}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
       <div className="w-full rounded border border-gray-200 bg-white p-5 dark:border-zinc-700 dark:bg-zinc-900">
-        <h3 className="mb-4 text-sm font-bold uppercase text-gray-500 dark:text-zinc-500">As suas transferências</h3>
+        <h3 className="mb-4 text-sm font-bold uppercase text-gray-500 dark:text-zinc-500">Transferências Pendentes</h3>
         {loadingRequests ? (
           <div className="flex items-center gap-2 py-4 text-sm text-gray-400">
             <Loader2 className="h-4 w-4 animate-spin" /> A carregar...
@@ -326,10 +405,12 @@ export function DomainTransferSection() {
             {requests.map((r) => {
               const meta = STATUS_META[r.status];
               const Icon = meta.icon;
+              const showProgress = r.status === 'submitted' || r.status === 'waiting';
+              const progress = showProgress ? getTransferProgress(r.created_at) : null;
               return (
                 <div
                   key={r.id}
-                  className={`flex items-center justify-between gap-3 rounded border px-4 py-3 ${
+                  className={`rounded border px-4 py-3 ${
                     meta.pulse
                       ? 'border-amber-200 bg-amber-50/50 dark:border-amber-900/50 dark:bg-amber-950/20'
                       : r.status === 'locked'
@@ -337,18 +418,34 @@ export function DomainTransferSection() {
                         : 'border-gray-100 dark:border-zinc-800'
                   }`}
                 >
-                  <div className="min-w-0">
-                    <p className="truncate font-mono text-sm font-bold text-gray-900 dark:text-zinc-100">{r.domain_name}</p>
-                    {r.status === 'failed' && r.error_message && (
-                      <p className="mt-0.5 text-xs text-red-500">{r.error_message}</p>
-                    )}
-                    {meta.subtitle && (
-                      <p className={`mt-0.5 text-xs ${meta.className}`}>{meta.subtitle}</p>
-                    )}
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="truncate font-mono text-sm font-bold text-gray-900 dark:text-zinc-100">{r.domain_name}</p>
+                      {r.status === 'failed' && r.error_message && (
+                        <p className="mt-0.5 text-xs text-red-500">{r.error_message}</p>
+                      )}
+                      {meta.subtitle && (
+                        <p className={`mt-0.5 text-xs ${meta.className}`}>{meta.subtitle}</p>
+                      )}
+                    </div>
+                    <div className={`flex shrink-0 items-center gap-1.5 text-xs font-bold ${meta.className}`}>
+                      <Icon className={`h-3.5 w-3.5 ${meta.pulse ? 'animate-pulse' : ''}`} /> {meta.label}
+                    </div>
                   </div>
-                  <div className={`flex shrink-0 items-center gap-1.5 text-xs font-bold ${meta.className}`}>
-                    <Icon className={`h-3.5 w-3.5 ${meta.pulse ? 'animate-pulse' : ''}`} /> {meta.label}
-                  </div>
+                  {progress && (
+                    <div className="mt-3">
+                      <div className="h-2 w-full overflow-hidden rounded-full bg-amber-100 dark:bg-amber-950/40">
+                        <div
+                          className="h-full rounded-full bg-amber-500 transition-all"
+                          style={{ width: `${progress.percent}%` }}
+                        />
+                      </div>
+                      <p className="mt-1.5 text-xs text-gray-500 dark:text-zinc-400">
+                        Iniciado {new Date(r.created_at).toLocaleDateString('pt-PT')}, deve ser concluído até{' '}
+                        {progress.eta.toLocaleDateString('pt-PT', { weekday: 'long', day: '2-digit', month: 'short' })}
+                      </p>
+                    </div>
+                  )}
                 </div>
               );
             })}
