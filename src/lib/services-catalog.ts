@@ -29,7 +29,7 @@ export const SERVICE_BRANDS: ServiceBrand[] = [
       { slug: 'marketing-digital', title: 'Marketing Digital', desc: 'Campanhas de tráfego pago e estratégias de crescimento.', href: '/web' },
       { slug: 'redes-sociais', title: 'Redes Sociais', desc: 'Gestão e produção de conteúdo para as suas redes.', href: '/web' },
       { slug: 'seo', title: 'SEO', desc: 'Otimização para motores de busca e visibilidade orgânica.', href: '/web' },
-      { slug: 'dominios', title: 'Domínios', desc: 'Registo e gestão de domínios .com, .co.mz e mais.', href: '/precos/dominios' },
+      { slug: 'dominios', title: 'Domínios', desc: 'Registo e gestão de domínios .com, .co.mz e mais.', href: '/servicos/dominios' },
       { slug: 'hospedagem', title: 'Hospedagem', desc: 'Alojamento web rápido, seguro e com suporte 24/7.', href: '/precos/hospedagem' },
       { slug: 'servidor', title: 'Servidor', desc: 'VPS e servidores dedicados para projectos exigentes.', href: '/web' },
       { slug: 'ssl', title: 'SSL', desc: 'Certificados de segurança para o seu website.', href: '/precos/ssl' },

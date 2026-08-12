@@ -27,7 +27,7 @@ const webNavigation = [
   },
   { id: 'domain', nameKey: 'header.nav.domain', href: '/servicos/dominios', isMega: true, items: [
       { nameKey: 'header.nav.domain.register', descKey: 'header.nav.domain.register.desc', href: '/servicos/dominios', icon: 'globe' },
-      { nameKey: 'header.nav.domain.prices', descKey: 'header.nav.domain.prices.desc', href: '/precos/dominios', icon: 'tag' },
+      { nameKey: 'header.nav.domain.prices', descKey: 'header.nav.domain.prices.desc', href: '/servicos/dominios', icon: 'tag' },
       { nameKey: 'header.nav.domain.transfer', descKey: 'header.nav.domain.transfer.desc', href: '/servicos/transferencia', icon: 'refresh' },
       { nameKey: 'header.nav.domain.renewal', descKey: 'header.nav.domain.renewal.desc', href: PANEL_LOGIN_HREF, icon: 'lock' },
       { nameKey: 'header.nav.domain.premium', descKey: 'header.nav.domain.premium.desc', href: '/servicos/premium', icon: 'award' },
