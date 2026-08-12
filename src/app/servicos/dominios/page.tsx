@@ -1,9 +1,11 @@
 'use client'
 
 import Link from 'next/link'
+import Image from 'next/image'
 import { useI18n } from '@/lib/i18n'
 import { Globe, Shield, RefreshCw, Search, Zap, Lock, HardDrive } from 'lucide-react'
 import DomainSearch from '@/components/DomainSearch'
+import { NotchSection } from '@/components/home/NotchSection'
 
 export default function Dominios() {
   const { t } = useI18n()
@@ -38,10 +40,15 @@ export default function Dominios() {
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Banner Principal com Motor de Busca */}
-      <div className="bg-[#404040] relative overflow-hidden">
-        <div 
-          className="absolute inset-0 bg-cover bg-center bg-no-repeat opacity-20"
-          style={{ backgroundImage: "url('/assets/BG.jpg')" }}
+      <NotchSection shape="start" bg="bg-black" first>
+        <Image
+          src="/assets/IMG-VD/web-hosting.svg"
+          alt=""
+          fill
+          priority
+          sizes="100vw"
+          className="object-cover object-center opacity-20"
+          aria-hidden
         />
         <div className="absolute inset-0 bg-black/50" />
         <div className="container mx-auto max-w-7xl px-6 pt-[160px] pb-[100px] relative z-10">
@@ -51,16 +58,16 @@ export default function Dominios() {
               Encontre o nome perfeito para o seu negócio e garanta a sua presença online hoje mesmo.
             </p>
           </div>
-          
+
           {/* Motor de busca de domínios */}
           <div className="max-w-4xl mx-auto">
             <DomainSearch />
           </div>
         </div>
-      </div>
+      </NotchSection>
 
       {/* Seção de Apelo com 4 Cards */}
-      <div className="py-20">
+      <div className="pt-20 pb-10">
         <div className="container mx-auto max-w-7xl px-6">
           <div className="text-center max-w-3xl mx-auto mb-12">
             <h2 className="text-3xl font-bold text-slate-800 mb-4">Registe seu domínio com segurança.</h2>
