@@ -230,6 +230,38 @@ export function RenewalsSection({ initialTab = 'overview', hideTabs = false }: R
     return Math.ceil(diff / (1000 * 60 * 60 * 24))
   }
 
+  /**
+   * Só para domínios (não hospedagem): depois de expirar, a Dynadot segue
+   * ~30 dias de "período de graça" (renova ao preço normal), depois ~30 dias
+   * de "período de redenção" (o domínio já saiu do registo, só recuperável
+   * pagando uma taxa bem mais cara à Dynadot), e por fim fica livre para
+   * qualquer pessoa registar. Prazos exactos variam por extensão — isto é só
+   * um aviso aproximado; o estado real fica sempre na conta da Dynadot.
+   */
+  const getRedemptionInfo = (daysRemaining: number) => {
+    const daysPastExpiry = -daysRemaining
+    if (daysPastExpiry <= 0) return null
+    if (daysPastExpiry <= 30) {
+      return {
+        label: 'Expirado — período de graça',
+        hint: `Expirou há ${daysPastExpiry} dias. Ainda pode renovar ao preço normal, mas não demore.`,
+        className: 'bg-amber-100 text-amber-700',
+      }
+    }
+    if (daysPastExpiry <= 60) {
+      return {
+        label: 'Período de redenção — recuperação cara',
+        hint: `Expirou há ${daysPastExpiry} dias. Já saiu do registo — só é recuperável pagando uma taxa bem mais alta do que uma renovação normal, directamente no site da Dynadot.`,
+        className: 'bg-orange-100 text-orange-700',
+      }
+    }
+    return {
+      label: 'Provavelmente perdido',
+      hint: `Expirou há ${daysPastExpiry} dias. Pode já estar livre para qualquer pessoa registar — confirme no site da Dynadot.`,
+      className: 'bg-red-100 text-red-700',
+    }
+  }
+
   const allServices = [...domains, ...hosting].map(s => ({
     ...s,
     type: domains.find(d => d.id === s.id) ? 'domain' : 'hosting' as 'domain' | 'hosting',
@@ -392,10 +424,13 @@ export function RenewalsSection({ initialTab = 'overview', hideTabs = false }: R
                   <p className="text-gray-500">Nenhum serviço próximo do vencimento</p>
                 ) : (
                   <div className="space-y-3">
-                    {filteredServices.filter(s => s.daysRemaining <= 60).slice(0, 10).map(service => (
-                      <div 
-                        key={service.id} 
+                    {filteredServices.filter(s => s.daysRemaining <= 60).slice(0, 10).map(service => {
+                      const redemption = service.type === 'domain' ? getRedemptionInfo(service.daysRemaining) : null
+                      return (
+                      <div
+                        key={service.id}
                         className={`p-4 rounded border ${
+                          redemption ? 'bg-orange-50 border-orange-200' :
                           service.daysRemaining <= 7 ? 'bg-red-50 border-red-200' :
                           service.daysRemaining <= 30 ? 'bg-yellow-50 border-yellow-200' :
                           'bg-blue-50 border-blue-200'
@@ -405,21 +440,36 @@ export function RenewalsSection({ initialTab = 'overview', hideTabs = false }: R
                           <div>
                             <p className="font-medium">{service.domain_name}</p>
                             <p className="text-sm text-gray-500">
-                              {service.type === 'domain' ? 'Domínio' : 'Hospedagem'} | 
-                              expira em {service.daysRemaining} dias | 
+                              {service.type === 'domain' ? 'Domínio' : 'Hospedagem'} |
+                              {service.daysRemaining >= 0 ? `expira em ${service.daysRemaining} dias` : `expirou há ${-service.daysRemaining} dias`} |
                               {service.renewal_price} MT
                             </p>
+                            {redemption && <p className="text-sm text-orange-700 mt-1">{redemption.hint}</p>}
                           </div>
-                          <span className={`px-3 py-1 rounded-full text-xs font-medium ${
-                            service.daysRemaining <= 7 ? 'bg-red-100 text-red-700' :
-                            service.daysRemaining <= 30 ? 'bg-yellow-100 text-yellow-700' :
-                            'bg-blue-100 text-blue-700'
-                          }`}>
-                            {service.daysRemaining} dias
-                          </span>
+                          <div className="flex flex-col items-end gap-1.5">
+                            <span className={`px-3 py-1 rounded-full text-xs font-medium ${
+                              redemption ? redemption.className :
+                              service.daysRemaining <= 7 ? 'bg-red-100 text-red-700' :
+                              service.daysRemaining <= 30 ? 'bg-yellow-100 text-yellow-700' :
+                              'bg-blue-100 text-blue-700'
+                            }`}>
+                              {redemption ? redemption.label : `${service.daysRemaining} dias`}
+                            </span>
+                            {redemption && (
+                              <a
+                                href="https://www.dynadot.com"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-xs font-medium text-orange-700 hover:underline"
+                              >
+                                Recuperar na Dynadot →
+                              </a>
+                            )}
+                          </div>
                         </div>
                       </div>
-                    ))}
+                      )
+                    })}
                   </div>
                 )}
               </div>
@@ -450,30 +500,45 @@ export function RenewalsSection({ initialTab = 'overview', hideTabs = false }: R
                 <div className="space-y-3">
                   {filteredServices
                     .filter(s => activeTab === 'domains' ? s.type === 'domain' : s.type === 'hosting')
-                    .map(service => (
-                    <div key={service.id} className="p-4 bg-gray-50 rounded border border-gray-200">
+                    .map(service => {
+                      const redemption = service.type === 'domain' ? getRedemptionInfo(service.daysRemaining) : null
+                      return (
+                    <div key={service.id} className={`p-4 rounded border ${redemption ? 'bg-orange-50 border-orange-200' : 'bg-gray-50 border-gray-200'}`}>
                       <div className="flex items-center justify-between">
                         <div>
                           <p className="font-medium">{service.domain_name}</p>
                           <p className="text-sm text-gray-500">
-                            Cliente: {service.user_email || service.user_id} | 
-                            Expira: {new Date(service.expiration_date).toLocaleDateString('pt-PT')} | 
+                            Cliente: {service.user_email || service.user_id} |
+                            Expira: {new Date(service.expiration_date).toLocaleDateString('pt-PT')} |
                             {service.renewal_price} MT
                           </p>
+                          {redemption && <p className="text-sm text-orange-700 mt-1">{redemption.hint}</p>}
                         </div>
-                        <div className="flex items-center gap-2">
+                        <div className="flex flex-col items-end gap-1.5">
                           <span className={`px-2 py-1 rounded text-xs ${
+                            redemption ? redemption.className :
                             service.status === 'active' ? 'bg-green-100 text-green-700' :
                             service.status === 'expired' ? 'bg-red-100 text-red-700' :
                             service.status === 'transferring' ? 'bg-amber-100 text-amber-700' :
                             'bg-gray-100 text-gray-700'
                           }`}>
-                            {service.status === 'transferring' ? 'A transferir — ainda não é nosso' : service.status}
+                            {redemption ? redemption.label : service.status === 'transferring' ? 'A transferir — ainda não é nosso' : service.status}
                           </span>
+                          {redemption && (
+                            <a
+                              href="https://www.dynadot.com"
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-xs font-medium text-orange-700 hover:underline"
+                            >
+                              Recuperar na Dynadot →
+                            </a>
+                          )}
                         </div>
                       </div>
                     </div>
-                  ))}
+                      )
+                  })}
                 </div>
               )}
             </div>
