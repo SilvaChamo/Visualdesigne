@@ -28,23 +28,23 @@ const webNavigation = [
   { id: 'domain', nameKey: 'header.nav.domain', href: '/servicos/dominios', isMega: true, items: [
       { nameKey: 'header.nav.domain.register', descKey: 'header.nav.domain.register.desc', href: '/servicos/dominios', icon: 'globe' },
       { nameKey: 'header.nav.domain.prices', descKey: 'header.nav.domain.prices.desc', href: '/servicos/dominios', icon: 'tag' },
-      { nameKey: 'header.nav.domain.transfer', descKey: 'header.nav.domain.transfer.desc', href: '/servicos/transferencia', icon: 'refresh' },
+      { nameKey: 'header.nav.domain.transfer', descKey: 'header.nav.domain.transfer.desc', href: '/servicos/dominios', icon: 'refresh' },
       { nameKey: 'header.nav.domain.renewal', descKey: 'header.nav.domain.renewal.desc', href: PANEL_LOGIN_HREF, icon: 'lock' },
-      { nameKey: 'header.nav.domain.premium', descKey: 'header.nav.domain.premium.desc', href: '/servicos/premium', icon: 'award' },
-      { nameKey: 'header.nav.domain.privacy', descKey: 'header.nav.domain.privacy.desc', href: '/servicos/privacidade', icon: 'shield' }
+      { nameKey: 'header.nav.domain.premium', descKey: 'header.nav.domain.premium.desc', href: '/servicos/dominios', icon: 'award' },
+      { nameKey: 'header.nav.domain.privacy', descKey: 'header.nav.domain.privacy.desc', href: '/servicos/dominios', icon: 'shield' }
     ]
   },
-  { id: 'hosting', nameKey: 'header.nav.hosting', href: '/servicos/hospedagem', dropdown: [
-      { nameKey: 'header.nav.hosting.web', href: '/servicos/hospedagem', icon: 'monitor' },
+  { id: 'hosting', nameKey: 'header.nav.hosting', href: '/precos/hospedagem', dropdown: [
+      { nameKey: 'header.nav.hosting.web', href: '/precos/hospedagem', icon: 'monitor' },
       { nameKey: 'header.nav.hosting.prices', href: '/precos/hospedagem', icon: 'tag' }
     ]
   },
-  { id: 'server', nameKey: 'header.nav.server', href: '/servicos/servidor', dropdown: [
-      { nameKey: 'header.nav.server.vps', href: '/servicos/servidor', icon: 'monitor' }
+  { id: 'server', nameKey: 'header.nav.server', href: '/precos/hospedagem', dropdown: [
+      { nameKey: 'header.nav.server.vps', href: '/precos/hospedagem', icon: 'monitor' }
     ]
   },
-  { id: 'support', nameKey: 'header.nav.support', href: '/servicos/suporte', dropdown: [
-      { nameKey: 'header.nav.support.technical', href: '/servicos/suporte', icon: 'help-circle' },
+  { id: 'support', nameKey: 'header.nav.support', href: '/precos/suporte', dropdown: [
+      { nameKey: 'header.nav.support.technical', href: '/precos/suporte', icon: 'help-circle' },
       { nameKey: 'header.nav.support.faq', href: '/faq', icon: 'help-circle' }
     ]
   }

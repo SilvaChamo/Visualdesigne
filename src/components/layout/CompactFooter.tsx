@@ -76,7 +76,7 @@ export function CompactFooter() {
               </h4>
               <nav className="flex flex-col space-y-2.5 text-sm text-zinc-400">
                 <Link href="/servicos/dominios" className="hover:text-white hover:translate-x-1.5 transition-all duration-300 inline-block">Registo de Domínios</Link>
-                <Link href="/servicos/transferencia" className="hover:text-white hover:translate-x-1.5 transition-all duration-300 inline-block">Transferir Domínio</Link>
+                <Link href="/servicos/dominios" className="hover:text-white hover:translate-x-1.5 transition-all duration-300 inline-block">Transferir Domínio</Link>
                 <Link href="/servicos/dominios" className="hover:text-white hover:translate-x-1.5 transition-all duration-300 inline-block">Renovar Domínio</Link>
                 <Link href="/servicos/dominios" className="hover:text-white hover:translate-x-1.5 transition-all duration-300 inline-block">Domínios .mz</Link>
                 <Link href="/servicos/dominios" className="hover:text-white hover:translate-x-1.5 transition-all duration-300 inline-block">Pesquisa WHOIS</Link>
@@ -89,11 +89,11 @@ export function CompactFooter() {
                 Hospedagem
               </h4>
               <nav className="flex flex-col space-y-2.5 text-sm text-zinc-400">
-                <Link href="/servicos/hospedagem" className="hover:text-white hover:translate-x-1.5 transition-all duration-300 inline-block">Alojamento Web</Link>
-                <Link href="/servicos/hospedagem" className="hover:text-white hover:translate-x-1.5 transition-all duration-300 inline-block">Revenda de Hospedagem</Link>
+                <Link href="/precos/hospedagem" className="hover:text-white hover:translate-x-1.5 transition-all duration-300 inline-block">Alojamento Web</Link>
+                <Link href="/precos/hospedagem" className="hover:text-white hover:translate-x-1.5 transition-all duration-300 inline-block">Revenda de Hospedagem</Link>
                 <Link href="/servicos/email" className="hover:text-white hover:translate-x-1.5 transition-all duration-300 inline-block">E-mail Profissional</Link>
                 <Link href="/servicos/ssl" className="hover:text-white hover:translate-x-1.5 transition-all duration-300 inline-block">Certificados SSL</Link>
-                <Link href="/servicos/servidor" className="hover:text-white hover:translate-x-1.5 transition-all duration-300 inline-block">Servidores VPS</Link>
+                <Link href="/precos/hospedagem" className="hover:text-white hover:translate-x-1.5 transition-all duration-300 inline-block">Servidores VPS</Link>
               </nav>
             </div>
 
@@ -106,7 +106,7 @@ export function CompactFooter() {
                 <Link href="/sobre-nos" className="hover:text-white hover:translate-x-1.5 transition-all duration-300 inline-block">Sobre Nós</Link>
                 <Link href="/portfolio" className="hover:text-white hover:translate-x-1.5 transition-all duration-300 inline-block">Portfólio</Link>
                 <Link href="/cursos" className="hover:text-white hover:translate-x-1.5 transition-all duration-300 inline-block">Base de Conhecimentos</Link>
-                <Link href="/servicos/suporte" className="hover:text-white hover:translate-x-1.5 transition-all duration-300 inline-block">Suporte & FAQ</Link>
+                <Link href="/precos/suporte" className="hover:text-white hover:translate-x-1.5 transition-all duration-300 inline-block">Suporte & FAQ</Link>
                 <Link href="/contacto" className="hover:text-white hover:translate-x-1.5 transition-all duration-300 inline-block">Contactos</Link>
               </nav>
             </div>
