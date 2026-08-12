@@ -8,7 +8,7 @@ import { CLIP_PATHS } from '@/components/home/NotchSection'
 export function CompactFooter() {
   return (
     <footer
-      className="bg-black text-white border-t border-white/5 relative z-10 overflow-hidden"
+      className="bg-zinc-900 text-white border-t border-white/5 relative z-10 overflow-hidden"
       style={
         {
           '--cl': 'max(24px, calc(50% - 616px))',
