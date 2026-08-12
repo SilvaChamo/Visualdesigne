@@ -15,7 +15,7 @@ import { ThemeProvider } from "@/contexts/ThemeContext";
 import { OrganizationJsonLd } from "@/components/seo/OrganizationJsonLd";
 
 const SITE_DESCRIPTION =
-  "Agência de design e serviços digitais em Maputo, Moçambique — sites, alojamento web, domínios, email profissional e marketing digital.";
+  "Agência de design gráfico e serviços digitais em Maputo, Moçambique — sites, alojamento web, domínios, email profissional e marketing digital.";
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://visualdesignmoz.com"),
@@ -24,6 +24,7 @@ export const metadata: Metadata = {
     template: "%s | VisualDesign",
   },
   description: SITE_DESCRIPTION,
+  keywords: ["VisualDesign", "VisualDesignMoz", "Visual Designer", "Visual Design", "Visual", "Design", "Design Gráfico", "Moçambique", "Maputo"],
   manifest: "/manifest.json",
   icons: {
     icon: [

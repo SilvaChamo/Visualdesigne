@@ -2,6 +2,7 @@ const ORGANIZATION_JSON_LD = {
   "@context": "https://schema.org",
   "@type": "LocalBusiness",
   name: "VisualDesign",
+  alternateName: ["VisualDesignMoz", "Visual Designer", "Visual Design", "Visual", "Design", "Design Gráfico"],
   url: "https://visualdesignmoz.com",
   logo: "https://visualdesignmoz.com/icons/icon-512x512.png",
   image: "https://visualdesignmoz.com/icons/icon-512x512.png",
