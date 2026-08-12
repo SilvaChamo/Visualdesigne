@@ -63,6 +63,7 @@ import { composePackageName, createDefaultResellerPackageForm, normalizePackageF
 import { parseJsonResponse } from '@/lib/safe-fetch-json'
 import { readListCache, writeListCache } from '@/lib/panel-list-cache'
 import { VISUALDESIGN_DEFAULT_NS } from '@/lib/visualdesign-dns'
+import { getRedemptionInfo, getDaysRemaining, DYNADOT_ACCOUNT_URL } from '@/lib/domain-redemption'
 import {
   RefreshCw, Globe, Globe2, PlusCircle, Plus, Package, Trash2, Database, Users, Mail, Lock, LockOpen, Shield, ShieldCheck,
   Server, HardDrive, Key, Settings, Code, AlertCircle, AlertTriangle, CheckCircle, Eye, EyeOff, Zap,
@@ -10058,6 +10059,28 @@ export function DomainManagerSection({
     }
   }, [domainListMode, isActive, hubPanel])
 
+  // Data de expiração vinda de domain_renewals (mesma fonte usada no aviso
+  // de período de redenção do admin) — só os domínios do próprio utilizador,
+  // API já filtra por conta quando não é pedido explicitamente em modo admin.
+  const [ownExpirationByDomain, setOwnExpirationByDomain] = useState<Map<string, string>>(new Map())
+
+  useEffect(() => {
+    if (!isActive || hubPanel !== 'list') return
+    let cancelled = false
+    fetch('/api/renewals?type=domain', { credentials: 'include' })
+      .then((res) => res.json())
+      .then((data: { domains?: { domain_name: string; expiration_date: string }[] }) => {
+        if (cancelled || !Array.isArray(data.domains)) return
+        setOwnExpirationByDomain(
+          new Map(data.domains.map((r) => [r.domain_name.toLowerCase(), r.expiration_date])),
+        )
+      })
+      .catch(() => {})
+    return () => {
+      cancelled = true
+    }
+  }, [isActive, hubPanel])
+
   const mergedRegistrarRows = useMemo(
     () =>
       registrarListRows.map((row) => {
@@ -10568,11 +10591,15 @@ export function DomainManagerSection({
             const tld = domainParts.length > 1 ? `.${domainParts.slice(1).join('.')}` : ''
             const baseName = domainParts[0]
             const hasSsl = siteHasSsl(site)
+            const ownExpiration = ownExpirationByDomain.get(d.domain.toLowerCase())
+            const redemption = ownExpiration ? getRedemptionInfo(getDaysRemaining(ownExpiration)) : null
 
             return (
               <article
                 key={d.domain}
-                className="flex flex-col gap-3 rounded-lg border border-gray-200 bg-white px-5 py-4 shadow-sm dark:border-zinc-700 dark:bg-zinc-900 lg:flex-row lg:items-center lg:justify-between"
+                className={`flex flex-col gap-3 rounded-lg border px-5 py-4 shadow-sm lg:flex-row lg:items-center lg:justify-between ${
+                  redemption ? 'border-orange-200 bg-orange-50 dark:border-orange-900/40 dark:bg-orange-950/20' : 'border-gray-200 bg-white dark:border-zinc-700 dark:bg-zinc-900'
+                }`}
               >
                 <div className="flex min-w-0 flex-1 items-start gap-3 md:items-center md:gap-4">
                   <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-zinc-200 bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-800">
@@ -10607,6 +10634,24 @@ export function DomainManagerSection({
                         </>
                       )}
                     </div>
+                    {redemption && (
+                      <div className="mt-2 flex flex-wrap items-center gap-2">
+                        <span className={`rounded px-2 py-0.5 text-[11px] font-bold ${redemption.className}`}>
+                          {redemption.label}
+                        </span>
+                        <a
+                          href={DYNADOT_ACCOUNT_URL}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-[11px] font-medium text-orange-700 hover:underline dark:text-orange-400"
+                        >
+                          Recuperar na Dynadot →
+                        </a>
+                      </div>
+                    )}
+                    {redemption && (
+                      <p className="mt-1 text-[11px] text-orange-700 dark:text-orange-400">{redemption.hint}</p>
+                    )}
                   </div>
                 </div>
 

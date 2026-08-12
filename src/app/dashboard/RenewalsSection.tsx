@@ -24,6 +24,7 @@ import { panelTabList, panelTabBtn } from '@/lib/panel-ui'
 import { Spinner } from '@/components/ui/spinner'
 import { splitCompositePackageName } from '@/lib/reseller-package-form'
 import { readListCache, writeListCache } from '@/lib/panel-list-cache'
+import { getRedemptionInfo, DYNADOT_ACCOUNT_URL } from '@/lib/domain-redemption'
 
 const RENEWALS_CACHE_KEY = 'vd_renewals_v1'
 
@@ -230,37 +231,6 @@ export function RenewalsSection({ initialTab = 'overview', hideTabs = false }: R
     return Math.ceil(diff / (1000 * 60 * 60 * 24))
   }
 
-  /**
-   * Só para domínios (não hospedagem): depois de expirar, a Dynadot segue
-   * ~30 dias de "período de graça" (renova ao preço normal), depois ~30 dias
-   * de "período de redenção" (o domínio já saiu do registo, só recuperável
-   * pagando uma taxa bem mais cara à Dynadot), e por fim fica livre para
-   * qualquer pessoa registar. Prazos exactos variam por extensão — isto é só
-   * um aviso aproximado; o estado real fica sempre na conta da Dynadot.
-   */
-  const getRedemptionInfo = (daysRemaining: number) => {
-    const daysPastExpiry = -daysRemaining
-    if (daysPastExpiry <= 0) return null
-    if (daysPastExpiry <= 30) {
-      return {
-        label: 'Expirado — período de graça',
-        hint: `Expirou há ${daysPastExpiry} dias. Ainda pode renovar ao preço normal, mas não demore.`,
-        className: 'bg-amber-100 text-amber-700',
-      }
-    }
-    if (daysPastExpiry <= 60) {
-      return {
-        label: 'Período de redenção — recuperação cara',
-        hint: `Expirou há ${daysPastExpiry} dias. Já saiu do registo — só é recuperável pagando uma taxa bem mais alta do que uma renovação normal, directamente no site da Dynadot.`,
-        className: 'bg-orange-100 text-orange-700',
-      }
-    }
-    return {
-      label: 'Provavelmente perdido',
-      hint: `Expirou há ${daysPastExpiry} dias. Pode já estar livre para qualquer pessoa registar — confirme no site da Dynadot.`,
-      className: 'bg-red-100 text-red-700',
-    }
-  }
 
   const allServices = [...domains, ...hosting].map(s => ({
     ...s,
@@ -457,7 +427,7 @@ export function RenewalsSection({ initialTab = 'overview', hideTabs = false }: R
                             </span>
                             {redemption && (
                               <a
-                                href="https://www.dynadot.com"
+                                href={DYNADOT_ACCOUNT_URL}
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 className="text-xs font-medium text-orange-700 hover:underline"
@@ -526,7 +496,7 @@ export function RenewalsSection({ initialTab = 'overview', hideTabs = false }: R
                           </span>
                           {redemption && (
                             <a
-                              href="https://www.dynadot.com"
+                              href={DYNADOT_ACCOUNT_URL}
                               target="_blank"
                               rel="noopener noreferrer"
                               className="text-xs font-medium text-orange-700 hover:underline"
