@@ -50,6 +50,14 @@ export async function createAccount(input: {
   return { ok: true };
 }
 
+/** Remove só este site da conta (`v-delete-web-domain`) — nunca a conta em
+ * si, mesmo quando `username` é a conta principal (ex.: "admin"), que fica
+ * intacta com os restantes sites que tiver. */
+export async function deleteWebDomain(username: string, domain: string): Promise<{ ok: boolean; error?: string }> {
+  const result = await hestiaCall('v-delete-web-domain', [username, domain]);
+  return { ok: result.ok, error: result.error };
+}
+
 export async function suspendAccount(username: string): Promise<{ ok: boolean; error?: string }> {
   const result = await hestiaCall('v-suspend-user', [username]);
   return { ok: result.ok, error: result.error };
