@@ -150,8 +150,9 @@ export function WebmailSection({
     return () => clearTimeout(timer)
   }, [searchQuery])
 
-  // Estado para compose avançado (EmailWebmailSection)
-  const [showAdvancedCompose, setShowAdvancedCompose] = useState(true)
+  // Estado para compose avançado (EmailWebmailSection) — só abre ao clicar em
+  // "Nova Mensagem" (ver setShowAdvancedCompose(true) abaixo); nunca ao entrar.
+  const [showAdvancedCompose, setShowAdvancedCompose] = useState(false)
   
   // Estados para assinaturas - sistema completo copiado do EmailWebmailSection
   const [assinatura, setAssinatura] = useState('')

@@ -1,6 +1,6 @@
 export const GENERAL_INACTIVITY_MS = 30 * 60 * 1000
-/** Painel: só deslogar após 25 min sem actividade real */
-export const PANEL_INACTIVITY_MS = 25 * 60 * 1000
+/** Painel: só deslogar após 30 min sem actividade real */
+export const PANEL_INACTIVITY_MS = 30 * 60 * 1000
 
 export const LAST_ACTIVITY_STORAGE_KEY = 'vd_panel_last_activity_at'
 
@@ -40,7 +40,7 @@ export function getInactivityConfig(pathname: string) {
   const isPanel = isPanelRoute(pathname)
   return {
     limitMs: isPanel ? PANEL_INACTIVITY_MS : GENERAL_INACTIVITY_MS,
-    minutes: isPanel ? 25 : 30,
+    minutes: isPanel ? 30 : 30,
     reason: isPanel ? 'panel_inactivity' : 'inactivity',
   } as const
 }

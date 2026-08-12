@@ -4,7 +4,7 @@ import React, { useState, useEffect, useRef, useMemo } from 'react'
 import dynamic from 'next/dynamic'
 import { createPortal } from 'react-dom'
 import { cn } from '@/lib/utils'
-import { panelBtnPrimary, panelBtnSecondary, panelCard, panelField, panelInnerDetailCard, panelMobileActions, panelMobileCardGrid, panelMobileStack, panelMobileStackCard } from '@/lib/panel-ui'
+import { panelBtnPrimary, panelBtnSecondary, panelCard, panelField, panelInnerDetailCard, panelMobileActions, panelMobileCardGrid, panelMobileStack, panelMobileStackCard, panelTabList, panelTabBtn } from '@/lib/panel-ui'
 import { PanelIconTip } from '@/components/panel/PanelIconTip'
 import { Spinner } from '@/components/ui/spinner'
 import { clearAllPanelClientCaches } from '@/lib/panel-session-cache-clear'
@@ -3508,19 +3508,30 @@ export function CPUsersSection({
             <div className="flex min-w-0 flex-1 flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
               {(panelScope === 'users' || panelScope === 'client') && (
                 <>
-                  <select
-                    value={usersScopeFilter}
-                    onChange={(e) => setUsersScopeFilter(e.target.value as UsersScopeFilter)}
-                    className={`${panelField} w-full shrink-0 sm:min-w-[18rem] sm:w-[20rem]`}
-                  >
-                    {panelScope === 'users' && (
-                      <option value="all">Todos ({usersScopeCounts.all ?? 0})</option>
-                    )}
-                    <option value="admin">Administradores ({usersScopeCounts.admin ?? 0})</option>
-                    <option value="reseller">Revendedores ({usersScopeCounts.reseller ?? 0})</option>
-                    <option value="guest">Visitantes ({usersScopeCounts.guest ?? 0})</option>
-                    <option value="client">Clientes ({usersScopeCounts.client ?? 0})</option>
-                  </select>
+                  <nav className={`${panelTabList} shrink-0`} aria-label="Nível de utilizador">
+                    {(
+                      [
+                        ...(panelScope === 'users' ? [{ id: 'all' as const, label: `Todos (${usersScopeCounts.all ?? 0})` }] : []),
+                        { id: 'admin' as const, label: `Administradores (${usersScopeCounts.admin ?? 0})` },
+                        { id: 'reseller' as const, label: `Revendedores (${usersScopeCounts.reseller ?? 0})` },
+                        { id: 'guest' as const, label: `Visitantes (${usersScopeCounts.guest ?? 0})` },
+                        { id: 'client' as const, label: `Clientes (${usersScopeCounts.client ?? 0})` },
+                      ]
+                    ).map((tab) => (
+                      <button
+                        key={tab.id}
+                        type="button"
+                        onClick={() => setUsersScopeFilter(tab.id)}
+                        className={`${panelTabBtn} relative font-bold whitespace-nowrap ${
+                          usersScopeFilter === tab.id
+                            ? 'z-10 border-b-red-600 text-red-600 dark:border-b-red-500 dark:text-red-400'
+                            : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-zinc-400 dark:hover:text-zinc-200'
+                        }`}
+                      >
+                        {tab.label}
+                      </button>
+                    ))}
+                  </nav>
                   {panelScope === 'users' && selectedPanelIds.length > 0 && (
                     <>
                       <select

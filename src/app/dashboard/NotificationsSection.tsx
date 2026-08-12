@@ -66,6 +66,7 @@ export function NotificationsSection({
   const [loading, setLoading] = useState(false)
   const [sending, setSending] = useState(false)
   const [activeTab, setActiveTab] = useState<NotificationsTab>(defaultTab)
+  const [expandedId, setExpandedId] = useState<string | null>(null)
 
   const fetchNotifications = async () => {
     setLoading(true)
@@ -483,10 +484,15 @@ export function NotificationsSection({
             </div>
           ) : (
             <div className="space-y-3 max-h-96 overflow-y-auto">
-              {notifications.map((notification) => (
+              {notifications.map((notification) => {
+                const expanded = expandedId === notification.id
+                return (
                 <div
                   key={notification.id}
-                  onClick={() => markAsRead(notification.id)}
+                  onClick={() => {
+                    setExpandedId(expanded ? null : notification.id)
+                    markAsRead(notification.id)
+                  }}
                   className={`p-4 rounded-lg border cursor-pointer ${getTypeColor(notification.type)} ${
                     notification.read ? 'opacity-75' : ''
                   }`}
@@ -507,7 +513,9 @@ export function NotificationsSection({
                             <span className="w-2 h-2 rounded-full bg-red-600" title="Não lida" />
                           )}
                         </div>
-                        <p className={`text-sm mt-1 opacity-90 ${notification.read ? '' : 'font-semibold'}`}>{notification.message}</p>
+                        {expanded && (
+                          <p className={`text-sm mt-1 opacity-90 ${notification.read ? '' : 'font-semibold'}`}>{notification.message}</p>
+                        )}
                         <p className="text-xs mt-2 opacity-70">
                           {new Date(notification.created_at).toLocaleString('pt-PT')}
                         </p>
@@ -522,7 +530,8 @@ export function NotificationsSection({
                     </button>
                   </div>
                 </div>
-              ))}
+                )
+              })}
             </div>
           )}
         </div>

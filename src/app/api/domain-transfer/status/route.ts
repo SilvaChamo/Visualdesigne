@@ -11,7 +11,21 @@ const DYNADOT_STATUS_MAP: Record<string, string> = {
   rejected: 'rejected',
   cancelled: 'rejected',
   failed: 'failed',
+  locked: 'locked',
 };
+
+/**
+ * A Dynadot devolve o estado "locked" quando o registador antigo tem o
+ * domínio bloqueado contra transferências — fica parado até o dono
+ * desbloquear lá, não é algo que resolvamos deste lado. O nome exacto do
+ * valor devolvido não está documentado com certeza, por isso aceitamos
+ * qualquer variante que contenha "lock" (ex: "locked", "LOCKED").
+ */
+function mapDynadotStatus(raw: string, fallback: string): string {
+  const lower = raw.toLowerCase();
+  if (lower.includes('lock')) return 'locked';
+  return DYNADOT_STATUS_MAP[lower] || fallback;
+}
 
 /**
  * Consulta o estado actual de um pedido de transferência — sempre pergunta à
@@ -67,7 +81,7 @@ export async function GET(request: NextRequest) {
     });
   }
 
-  const mapped = DYNADOT_STATUS_MAP[live.status.toLowerCase()] || request_.status;
+  const mapped = mapDynadotStatus(live.status, request_.status);
   if (mapped !== request_.status || live.orderId !== request_.dynadot_order_id) {
     await supabase
       .from('domain_transfer_requests')
@@ -94,6 +108,14 @@ export async function GET(request: NextRequest) {
         title: 'Transferência de domínio rejeitada',
         message: `O pedido de transferência de ${domain} foi rejeitado pelo registador anterior. Contacte o suporte se precisar de ajuda.`,
         type: 'error',
+        category: 'system',
+      });
+    } else if (mapped === 'locked' && request_.status !== 'locked') {
+      await supabase.from('notifications').insert({
+        user_id: request_.user_id,
+        title: 'Transferência de domínio bloqueada — precisa da sua acção',
+        message: `O domínio ${domain} está bloqueado ("locked") no registador antigo, o que impede a transferência de avançar. Entre na conta desse registador e desactive o bloqueio de transferência para o processo continuar.`,
+        type: 'warning',
         category: 'system',
       });
     }

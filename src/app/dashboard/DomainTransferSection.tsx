@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { ArrowRightLeft, Loader2, CheckCircle2, XCircle, Clock, HelpCircle, Server } from 'lucide-react';
+import { ArrowRightLeft, Loader2, CheckCircle2, XCircle, Clock, HelpCircle, Server, Lock } from 'lucide-react';
 import { panelBtnPrimary, panelBtnSecondary, panelField } from '@/lib/panel-ui';
 import { Spinner } from '@/components/ui/spinner';
 import { useCart } from '@/contexts/CartContext';
@@ -13,7 +13,7 @@ const TRANSFER_CACHE_KEY = 'vd_domain_transfer_requests_v1';
 type TransferRequest = {
   id: string;
   domain_name: string;
-  status: 'pending' | 'submitted' | 'waiting' | 'completed' | 'rejected' | 'failed';
+  status: 'pending' | 'submitted' | 'waiting' | 'locked' | 'completed' | 'rejected' | 'failed';
   error_message?: string | null;
   created_at: string;
 };
@@ -36,6 +36,12 @@ const STATUS_META: Record<
     icon: Clock,
     className: 'text-amber-600',
     pulse: true,
+  },
+  locked: {
+    label: 'Bloqueada — precisa da sua acção',
+    subtitle: 'O domínio está "bloqueado" (locked) no registador antigo, o que impede a transferência de avançar. Entre na conta desse registador (ou peça ao suporte dele) e desactive o bloqueio de transferência ("unlock"). Assim que desbloquear, o processo continua sozinho.',
+    icon: Lock,
+    className: 'text-orange-600',
   },
   completed: { label: 'Concluída — domínio já é seu', icon: CheckCircle2, className: 'text-green-600' },
   rejected: { label: 'Rejeitada pelo registador anterior', icon: XCircle, className: 'text-red-600' },
@@ -142,7 +148,7 @@ export function DomainTransferSection() {
   // de vez em quando — a aprovação acontece do lado do registador antigo, fora
   // do nosso controlo, por isso não há outra forma de saber que mudou.
   useEffect(() => {
-    const pending = requests.filter((r) => r.status === 'submitted' || r.status === 'waiting');
+    const pending = requests.filter((r) => r.status === 'submitted' || r.status === 'waiting' || r.status === 'locked');
     if (pending.length === 0) return;
     const interval = setInterval(() => {
       Promise.all(
@@ -221,7 +227,7 @@ export function DomainTransferSection() {
     setMsg('');
   };
 
-  const pendingRequests = requests.filter((r) => r.status === 'submitted' || r.status === 'waiting');
+  const pendingRequests = requests.filter((r) => r.status === 'submitted' || r.status === 'waiting' || r.status === 'locked');
 
   return (
     <div className="w-full gap-5 lg:flex lg:items-start">
@@ -326,7 +332,9 @@ export function DomainTransferSection() {
                   className={`flex items-center justify-between gap-3 rounded border px-4 py-3 ${
                     meta.pulse
                       ? 'border-amber-200 bg-amber-50/50 dark:border-amber-900/50 dark:bg-amber-950/20'
-                      : 'border-gray-100 dark:border-zinc-800'
+                      : r.status === 'locked'
+                        ? 'border-orange-200 bg-orange-50/50 dark:border-orange-900/50 dark:bg-orange-950/20'
+                        : 'border-gray-100 dark:border-zinc-800'
                   }`}
                 >
                   <div className="min-w-0">
@@ -335,7 +343,7 @@ export function DomainTransferSection() {
                       <p className="mt-0.5 text-xs text-red-500">{r.error_message}</p>
                     )}
                     {meta.subtitle && (
-                      <p className="mt-0.5 text-xs text-amber-700 dark:text-amber-400">{meta.subtitle}</p>
+                      <p className={`mt-0.5 text-xs ${meta.className}`}>{meta.subtitle}</p>
                     )}
                   </div>
                   <div className={`flex shrink-0 items-center gap-1.5 text-xs font-bold ${meta.className}`}>

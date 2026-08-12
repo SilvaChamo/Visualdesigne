@@ -46,6 +46,7 @@ export function NotificationsPanel({
   const [isOpen, setIsOpen] = useState(false)
   const [loading, setLoading] = useState(false)
   const [showAll, setShowAll] = useState(false)
+  const [expandedId, setExpandedId] = useState<string | null>(null)
 
   const fetchNotifications = useCallback(async () => {
     try {
@@ -206,11 +207,16 @@ export function NotificationsPanel({
               </div>
             ) : (
               <div className="divide-y divide-gray-100">
-                {displayedNotifications.map((notification) => (
+                {displayedNotifications.map((notification) => {
+                  const expanded = expandedId === notification.id
+                  return (
                   <div
                     key={notification.id}
                     className={`p-4 hover:bg-gray-50 transition-colors cursor-pointer ${getBgColor(notification.type, notification.read)}`}
-                    onClick={() => !notification.read && markAsRead(notification.id)}
+                    onClick={() => {
+                      setExpandedId(expanded ? null : notification.id)
+                      if (!notification.read) markAsRead(notification.id)
+                    }}
                   >
                     <div className="flex gap-3">
                       <div className="flex-shrink-0 mt-0.5">
@@ -225,18 +231,22 @@ export function NotificationsPanel({
                             {formatDate(notification.created_at)}
                           </span>
                         </div>
-                        <p className={`text-sm mt-1 ${notification.read ? 'text-gray-500' : 'text-gray-700'}`}>
-                          {notification.message}
-                        </p>
-                        {notification.link && (
-                          <a
-                            href={notification.link}
-                            className="inline-flex items-center gap-1 mt-2 text-sm text-blue-600 hover:text-blue-800"
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            {notification.link_text || 'Ver mais'}
-                            <ExternalLink className="w-3 h-3" />
-                          </a>
+                        {expanded && (
+                          <>
+                            <p className={`text-sm mt-1 ${notification.read ? 'text-gray-500' : 'text-gray-700'}`}>
+                              {notification.message}
+                            </p>
+                            {notification.link && (
+                              <a
+                                href={notification.link}
+                                className="inline-flex items-center gap-1 mt-2 text-sm text-blue-600 hover:text-blue-800"
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                {notification.link_text || 'Ver mais'}
+                                <ExternalLink className="w-3 h-3" />
+                              </a>
+                            )}
+                          </>
                         )}
                       </div>
                       {!notification.read && (
@@ -244,7 +254,8 @@ export function NotificationsPanel({
                       )}
                     </div>
                   </div>
-                ))}
+                  )
+                })}
               </div>
             )}
           </div>

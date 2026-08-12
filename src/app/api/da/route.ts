@@ -17,6 +17,33 @@ import {
 import { resolveMirrorOrLive } from '@/lib/panel-list-resolve';
 import { getProviderByUsername } from '@/lib/hosting-provider';
 import * as hestiaAdapter from '@/lib/hestia-adapter';
+import { getDaSyncAdmin } from '@/lib/da-sync-schema';
+
+// O Webmail lê sempre a password de email_contas (ver WebmailSection.tsx) —
+// sem isto, contas de email do Hestia criadas/alteradas aqui nunca ficavam
+// com a senha certa aí, e o Webmail deixava de reconhecer a password.
+async function syncEmailContasPassword(email: string, password: string): Promise<void> {
+  if (!email || !password) return;
+  const sb = getDaSyncAdmin();
+  if (!sb) return;
+  const { encryptStoredPassword } = await import('@/lib/panel-access-credentials');
+  await sb.from('email_contas').upsert(
+    {
+      email,
+      senha_servidor: encryptStoredPassword(password),
+      tipo_conta: 'webmail',
+      status: 'active',
+    },
+    { onConflict: 'email' },
+  );
+}
+
+async function deleteEmailContasRow(email: string): Promise<void> {
+  if (!email) return;
+  const sb = getDaSyncAdmin();
+  if (!sb) return;
+  await sb.from('email_contas').delete().eq('email', email);
+}
 
 const MUTATION_ACTIONS = new Set([
   'createUser', 'modifyUser', 'deleteUser',
@@ -135,11 +162,13 @@ async function tryHestiaAction(
           };
         }
         data = await hestiaAdapter.addMailAccount(owner, domain, userName, password, quotaMb);
+        await syncEmailContasPassword(`${userName}@${domain}`, password);
         break;
       }
       case 'deleteEmail': {
         const userName = String(params.userName || emailParam.split('@')[0] || '');
         data = await hestiaAdapter.deleteMailAccount(owner, domain, userName);
+        await deleteEmailContasRow(`${userName}@${domain}`);
         break;
       }
       case 'suspendEmail':
@@ -155,6 +184,7 @@ async function tryHestiaAction(
         const userName = emailParam.split('@')[0] || '';
         const password = String(params.password || '');
         data = await hestiaAdapter.changeMailAccountPassword(owner, domain, userName, password);
+        await syncEmailContasPassword(`${userName}@${domain}`, password);
         break;
       }
       case 'listFTPAccounts': {

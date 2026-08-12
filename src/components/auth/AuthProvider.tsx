@@ -91,7 +91,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, [])
 
-  // Inatividade: 25 min no painel; refresh de sessão Supabase para não expirar token à toa
+  // Inatividade: 30 min no painel; refresh de sessão Supabase para não expirar token à toa
   useEffect(() => {
     if (!user) return
 

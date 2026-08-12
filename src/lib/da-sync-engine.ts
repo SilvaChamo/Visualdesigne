@@ -230,12 +230,29 @@ export async function runDaFullSync(): Promise<DaSyncResult> {
   const syncedAt = nowIso();
   const liveDomains = new Set<string>();
 
+  // Detecta WordPress a sério (procura wp-config.php no servidor) em vez de
+  // confiar só na instalação feita pelo próprio painel — sem isto, um site
+  // WordPress instalado por fora (DA, upload manual, etc.) nunca aparecia
+  // marcado como WordPress aqui, e cada sincronização apagava a marcação
+  // mesmo quando tinha sido o painel a instalar.
+  const { listWpInstalls } = await import('@/lib/wp-cli-server');
+  const wpDomains = new Set(
+    (await listWpInstalls().catch(() => [])).map((w) => w.domain),
+  );
+  const { data: existingSiteTypeRows } = await admin.from('panel_sites').select('domain, site_type');
+  const existingSiteTypeByDomain = new Map(
+    (existingSiteTypeRows || []).map((r) => [r.domain as string, r.site_type as string | null]),
+  );
+
   // ── Sites ──
   for (const site of sites) {
     if (!site.domain) continue;
     liveDomains.add(site.domain);
     const owner = site.owner || 'admin';
     const disk_usage = await resolveSiteDiskUsageMb(owner, site.domain);
+    const site_type = wpDomains.has(site.domain)
+      ? 'wordpress'
+      : site.siteType || existingSiteTypeByDomain.get(site.domain) || 'empty';
     const { error } = await admin.from('panel_sites').upsert(
       {
         domain: site.domain,
@@ -248,7 +265,7 @@ export async function runDaFullSync(): Promise<DaSyncResult> {
         php_version: site.phpVersion || null,
         ssl_status: site.sslStatus || (site.ssl ? 'Secure' : 'No SSL'),
         ip: site.ip || null,
-        site_type: site.siteType || 'empty',
+        site_type,
         synced_at: syncedAt,
         updated_at: syncedAt,
       },
