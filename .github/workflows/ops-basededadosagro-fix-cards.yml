@@ -1,0 +1,117 @@
+name: Ops — corrigir imagens partidas e data inválida nos cartões de artigos
+
+# Execução manual só. 2 problemas cosméticos reportados pelo utilizador nos
+# cartões de "Artigos científicos":
+# 1) Algumas imagens aparecem em branco — os ficheiros locais referenciados
+#    (ex: /images/Prototipo/pragas-v2.jpg) nunca chegaram a ser enviados
+#    para o servidor (pasta existe mas está vazia), e uma imagem do Unsplash
+#    é bloqueada pelo Chrome (ERR_BLOCKED_BY_ORB). NewsCard.tsx já tinha um
+#    fallback, mas só entrava em acção quando "image" vinha vazio — não
+#    quando vinha uma referência que existe mas falha ao carregar. Corrige
+#    com onError no <Image>, trocando para uma imagem de recurso sempre que
+#    a original falhar por qualquer motivo.
+# 2) Um cartão mostrava "INVALID DATE" — a coluna "date" em articles é texto
+#    livre, com formatos inconsistentes (ISO tipo "2024-01-07" e português
+#    por extenso tipo "31 Dez 2025"); o JS não consegue interpretar o
+#    segundo formato. Corrige mostrando a data em bruto quando não é
+#    possível interpretá-la, em vez de "Invalid Date".
+on:
+  workflow_dispatch:
+
+jobs:
+  fix-and-restart:
+    name: Corrigir NewsCard.tsx, rebuild e reiniciar
+    runs-on: ubuntu-latest
+    steps:
+      - name: Aplicar correcção via SSH
+        uses: appleboy/ssh-action@v1.2.5
+        with:
+          host: ${{ secrets.HETZNER_HOST }}
+          port: ${{ secrets.HETZNER_PORT }}
+          username: ${{ secrets.HETZNER_USER }}
+          key: ${{ secrets.HETZNER_SSH_KEY }}
+          command_timeout: 10m
+          script: |
+            set -e
+            cd /opt/basededadosagro-site
+            STAMP=$(date +%Y%m%d-%H%M%S)
+            F="components/NewsCard.tsx"
+            cp "$F" "$F.bak-cardsfix-$STAMP"
+
+            python3 - "$F" <<'PYEOF'
+import sys
+path = sys.argv[1]
+with open(path, 'r', encoding='utf-8') as f:
+    content = f.read()
+
+anchor1 = """import { Calendar, ArrowRight, Pencil, Trash2, Link as LinkIcon, RotateCcw, Archive } from 'lucide-react';
+
+interface NewsCardProps {"""
+replacement1 = """import { Calendar, ArrowRight, Pencil, Trash2, Link as LinkIcon, RotateCcw, Archive } from 'lucide-react';
+
+const DEFAULT_IMAGE = "https://images.unsplash.com/photo-1500937386664-56d1dfef3854?q=80&w=800&auto=format&fit=crop";
+
+interface NewsCardProps {"""
+if anchor1 not in content:
+    print("ERRO: âncora 1 não encontrada", file=sys.stderr)
+    sys.exit(1)
+content = content.replace(anchor1, replacement1, 1)
+
+anchor2 = """    const formattedDate = new Date(date).toLocaleDateString('pt-PT', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric'
+    });
+
+    return ("""
+replacement2 = """    const parsedDate = new Date(date);
+    const formattedDate = isNaN(parsedDate.getTime())
+        ? String(date)
+        : parsedDate.toLocaleDateString('pt-PT', {
+            day: '2-digit',
+            month: '2-digit',
+            year: 'numeric'
+        });
+    const [imgSrc, setImgSrc] = React.useState(image || DEFAULT_IMAGE);
+
+    return ("""
+if anchor2 not in content:
+    print("ERRO: âncora 2 não encontrada", file=sys.stderr)
+    sys.exit(1)
+content = content.replace(anchor2, replacement2, 1)
+
+anchor3 = """                <Image
+                    src={image || "https://images.unsplash.com/photo-1500937386664-56d1dfef3854?q=80&w=800&auto=format&fit=crop"}
+                    alt={title}
+                    fill
+                    sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+                    className="object-cover transition-transform duration-700 group-hover:scale-110"
+                />"""
+replacement3 = """                <Image
+                    src={imgSrc}
+                    alt={title}
+                    fill
+                    sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+                    className="object-cover transition-transform duration-700 group-hover:scale-110"
+                    onError={() => setImgSrc(DEFAULT_IMAGE)}
+                />"""
+if anchor3 not in content:
+    print("ERRO: âncora 3 não encontrada", file=sys.stderr)
+    sys.exit(1)
+content = content.replace(anchor3, replacement3, 1)
+
+with open(path, 'w', encoding='utf-8') as f:
+    f.write(content)
+print("OK: 3 substituições aplicadas")
+PYEOF
+
+            echo "--- confirmação ---"
+            grep -n "DEFAULT_IMAGE\|imgSrc\|isNaN(parsedDate" "$F"
+
+            echo "--- rebuild ---"
+            npm ci
+            npm run build
+
+            echo "--- restart ---"
+            pm2 restart basededadosagro-site
+            pm2 save

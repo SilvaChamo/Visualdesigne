@@ -80,6 +80,11 @@ jobs:
             set_env_var HESTIA_HOST "${{ secrets.HESTIA_HOST }}"
             set_env_var HESTIA_USER "${{ secrets.HESTIA_USER }}"
             set_env_var HESTIA_PASSWORD "${{ secrets.HESTIA_PASSWORD }}"
+            # node_modules já ficou corrompido antes por um deploy anterior ter sido
+            # cortado a meio (timeout) — 'npm ci' sozinho não repara isso (ENOTEMPTY
+            # ao tentar apagar uma pasta parcialmente removida). Começar sempre do
+            # zero evita essa classe de falha, ao custo de um install mais lento.
+            rm -rf node_modules
             npm ci
             npm run build
             pm2 restart visualdesign-site || pm2 start npm --name "visualdesign-site" -- start -- -p 3003

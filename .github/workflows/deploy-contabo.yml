@@ -1,5 +1,19 @@
 name: Deploy to Contabo (teste)
 
+# ============================================================================
+# AVISO PARA QUALQUER AGENTE/PESSOA A MEXER AQUI (2026-08-10):
+# Apesar do nome "teste", o utilizador já confirmou que este site é o
+# candidato a tornar-se o site PRINCIPAL assim que a configuração terminar
+# (ver plano de corte em project_hestia-migration-longterm-plan na memória) —
+# não é uma instância descartável. Não trates comportamento estranho aqui
+# como "é só sandbox, ignora": os dois sítios abaixo marcados "sandbox"
+# (DYNADOT_ENV, MPESA_ENV) são a ÚNICA razão de partes do site não
+# funcionarem como no mundo real (ex: verificação de domínios não reconhece
+# domínios reais como registados). Antes de mudar isso para produção a
+# sério, confirma sempre com o utilizador — envolve dinheiro real
+# (registos de domínio reais, cobranças M-Pesa reais a clientes).
+# ============================================================================
+
 on:
   workflow_dispatch:
 
