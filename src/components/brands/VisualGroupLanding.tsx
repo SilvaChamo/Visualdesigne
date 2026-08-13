@@ -185,12 +185,12 @@ export function VisualGroupBody({ onCtaClick }: { onCtaClick: () => void }) {
         </NotchSection>
 
       {/* Secção Design Gráfico & Branding (com Sticky Scroll) */}
-      <div className="relative w-full z-10">
+      <div className="relative w-full z-10 bg-white dark:bg-zinc-900">
         <div id="design" />
         <div id="envelopamento" />
         
         {/* Serviço 1: Design Gráfico */}
-        <div className="static lg:sticky lg:top-[125px] z-10 w-full">
+        <div className="static lg:sticky lg:top-[125px] z-10 w-full -mt-[16px]">
           <NotchSection shape="mid" bg="bg-zinc-200 dark:bg-[#262626]" first className="pt-12 pb-[30px] lg:pt-8 lg:pb-[30px] lg:min-h-[calc(75vh+45px)] flex items-center">
             <div className="container mx-auto max-w-7xl px-4 sm:px-6 relative z-10">
               <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 items-center w-full mx-5">
@@ -556,7 +556,7 @@ export function VisualGroupBody({ onCtaClick }: { onCtaClick: () => void }) {
       <NotchSection shape="mid" bg="bg-zinc-200 dark:bg-[#262626]" className="py-8 sm:py-10">
         <div className="container mx-auto max-w-7xl px-4 sm:px-6 relative z-10">
           <div className="mx-5 flex flex-col md:flex-row items-center justify-between gap-6 py-2">
-            <div className="text-center md:text-left space-y-6">
+            <div className="text-center md:text-left space-y-1.5">
               <h3 className="text-xl sm:text-2xl md:text-3xl font-extrabold text-black dark:text-white">
                 Subscreva a nossa newsletter
               </h3>
