@@ -182,3 +182,17 @@ export async function fetchUserProductsSummary(
     pendingSessions,
   };
 }
+
+/**
+ * Verdadeiro se alguma `pendingSessions` foi criada há pouco (ver
+ * `RECENT_PENDING_SESSION_WINDOW_MS` em `user-roles.ts`) — usado como
+ * fallback de papel (guest→client) logo depois do checkout, ver
+ * `resolveUserRole`.
+ */
+export function hasRecentPendingSession(
+  pendingSessions: PendingCheckoutSession[],
+  windowMs: number,
+): boolean {
+  const cutoff = Date.now() - windowMs;
+  return pendingSessions.some((s) => new Date(s.createdAt).getTime() >= cutoff);
+}

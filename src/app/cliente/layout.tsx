@@ -1,9 +1,9 @@
 import { createClient } from "@/utils/supabase/server";
 import { notFound, redirect } from "next/navigation";
-import { resolveUserRole, getRedirectPathForRole } from "@/lib/user-roles";
+import { resolveUserRole, getRedirectPathForRole, RECENT_PENDING_SESSION_WINDOW_MS } from "@/lib/user-roles";
 import { profileAuthOrFilter } from "@/lib/profile-db";
 import { userBelongsToCurrentPanel } from "@/lib/panel-tenant";
-import { fetchUserProductsSummary } from "@/lib/user-products";
+import { fetchUserProductsSummary, hasRecentPendingSession } from "@/lib/user-products";
 
 export default async function ClientLayout({
     children,
@@ -34,6 +34,7 @@ export default async function ClientLayout({
         appMetadata: user.app_metadata,
         profileRole: profile?.role,
         hasPaidProducts: products.hasPaidProducts,
+        hasRecentPendingSession: hasRecentPendingSession(products.pendingSessions, RECENT_PENDING_SESSION_WINDOW_MS),
     });
 
     if (role !== 'client') {

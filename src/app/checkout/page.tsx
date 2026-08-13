@@ -58,7 +58,9 @@ import {
   Info,
   Building2,
   UserCircle,
-  Wallet
+  Wallet,
+  CheckCircle2,
+  Paperclip
 } from 'lucide-react';
 import { Spinner } from '@/components/ui/spinner';
 
@@ -91,6 +93,32 @@ function CheckoutContent() {
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [metodoPagamento, setMetodoPagamento] = useState<MetodoPagamento>('transferencia');
+
+  // Pedido de M-Pesa/Transferência já criado, à espera do comprovativo —
+  // enquanto isto não for null, o checkout mostra o passo de upload em vez
+  // do carrinho (mesmo já vazio) ou do formulário de pagamento.
+  const [manualSession, setManualSession] = useState<{ id: string; metodoPagamento: 'mpesa' | 'transferencia' } | null>(null);
+  const restoredPendingIdRef = React.useRef<string | null>(null);
+
+  // Recupera este passo depois de um recarregamento a meio (ex: refresh
+  // acidental) — sem isto a página cairia no ecrã genérico de "carrinho
+  // vazio" (o carrinho já foi limpo ao criar o pedido pendente).
+  useEffect(() => {
+    const pendingId = searchParams.get('pendingId');
+    if (!pendingId || isAuthenticated !== true || restoredPendingIdRef.current === pendingId) return;
+    restoredPendingIdRef.current = pendingId;
+    fetch(`/api/checkout/session-status?session_id=${encodeURIComponent(pendingId)}`)
+      .then((r) => r.json())
+      .then((data) => {
+        const s = data?.session;
+        if (data.success && s?.status === 'pending' && (s.metodo_pagamento === 'mpesa' || s.metodo_pagamento === 'transferencia')) {
+          setManualSession({ id: s.id, metodoPagamento: s.metodo_pagamento });
+        } else {
+          router.replace('/checkout');
+        }
+      })
+      .catch(() => router.replace('/checkout'));
+  }, [searchParams, isAuthenticated, router]);
 
   // M-Pesa/Transferência/Saldo não processam USD — se o cliente troca a
   // moeda no topo do site enquanto está no checkout, o método tem de
@@ -326,10 +354,9 @@ function CheckoutContent() {
 
       // M-Pesa / Transferência — regista o pedido como pendente; a equipa
       // confirma manualmente depois de ver o comprovativo (ver
-      // /api/admin/checkout-pagamentos). Entra já no painel real com a
-      // secção do produto visível mas desactivada — os dados de pagamento
-      // e o upload do comprovativo passam a viver lá (ver PendingOrdersSection),
-      // não aqui no checkout.
+      // /api/admin/checkout-pagamentos). Fica aqui mesmo no checkout a pedir
+      // o comprovativo — só entra no painel real depois de o enviar com
+      // sucesso (ver ManualPaymentUploadStep abaixo).
       const res = await fetch('/api/checkout/manual-session', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -340,8 +367,12 @@ function CheckoutContent() {
         throw new Error(data.error || 'Não foi possível registar o pedido de pagamento.');
       }
       clearCart();
-      await supabase.auth.refreshSession();
-      router.push('/cliente');
+      const manualMetodo = metodoPagamento === 'mpesa' ? 'mpesa' : 'transferencia';
+      setManualSession({ id: data.session.id, metodoPagamento: manualMetodo });
+      restoredPendingIdRef.current = data.session.id;
+      router.replace(`/checkout?pendingId=${data.session.id}`);
+      setStatus('idle');
+      setIsSubmitting(false);
       return;
     } catch (err: any) {
       setErrorMessage(err.message || 'Falha ao comunicar com o servidor de registo.');
@@ -397,7 +428,16 @@ function CheckoutContent() {
     <div className="min-h-screen bg-slate-50 dark:bg-zinc-950 pt-32 pb-16 transition-colors duration-200">
       <div className="max-w-7xl mx-auto px-[40px] mt-4">
 
-        {items.length === 0 ? (
+        {manualSession ? (
+          <ManualPaymentUploadStep
+            sessionId={manualSession.id}
+            metodoPagamento={manualSession.metodoPagamento}
+            onContinue={async () => {
+              await supabase.auth.refreshSession();
+              router.push('/cliente');
+            }}
+          />
+        ) : items.length === 0 ? (
           <div className="bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-lg p-12 text-center max-w-lg mx-auto space-y-6 shadow-sm">
             <ShoppingCart className="w-16 h-16 text-slate-300 dark:text-zinc-700 mx-auto" />
             <h2 className="text-xl font-bold text-slate-800 dark:text-zinc-100 font-panel">O seu carrinho está vazio</h2>
@@ -966,6 +1006,128 @@ function CheckoutContent() {
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+/**
+ * Passo de anexar o comprovativo, embutido no próprio checkout (sem popup) —
+ * mesmo padrão de `ComprovativoInline` em `cotacao/[id]/pagamento/page.tsx`.
+ * Só depois de o envio ter sucesso é que aparece o botão para entrar no
+ * painel — nunca antes (confirmado com o utilizador).
+ */
+function ManualPaymentUploadStep({
+  sessionId,
+  metodoPagamento,
+  onContinue,
+}: {
+  sessionId: string;
+  metodoPagamento: 'mpesa' | 'transferencia';
+  onContinue: () => Promise<void> | void;
+}) {
+  const [file, setFile] = useState<File | null>(null);
+  const [sending, setSending] = useState(false);
+  const [sent, setSent] = useState(false);
+  const [error, setError] = useState('');
+  const [enteringPanel, setEnteringPanel] = useState(false);
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
+
+  const handleSend = async () => {
+    if (!file) return;
+    setSending(true);
+    setError('');
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      const res = await fetch(`/api/checkout/${sessionId}/comprovativo`, { method: 'POST', body: formData });
+      const data = await res.json();
+      if (!res.ok || !data.success) throw new Error(data.error || 'Não foi possível enviar o comprovativo.');
+      setSent(true);
+    } catch (err: any) {
+      setError(err.message || 'Não foi possível enviar o comprovativo.');
+    } finally {
+      setSending(false);
+    }
+  };
+
+  return (
+    <div className="bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-lg p-8 max-w-lg mx-auto space-y-5 shadow-sm">
+      {sent ? (
+        <div className="text-center space-y-3">
+          <CheckCircle2 className="w-14 h-14 text-green-600 mx-auto" />
+          <h2 className="text-lg font-bold text-slate-800 dark:text-zinc-100 font-panel">
+            Comprovativo enviado com sucesso
+          </h2>
+          <p className="text-sm text-slate-500 dark:text-zinc-400">
+            Aguarde a aprovação da nossa equipa para aceder à gestão do(s) seu(s) produto(s).
+          </p>
+          <button
+            type="button"
+            disabled={enteringPanel}
+            onClick={async () => {
+              setEnteringPanel(true);
+              await onContinue();
+            }}
+            className="mt-2 inline-flex items-center justify-center gap-2 bg-red-600 hover:bg-red-700 disabled:opacity-60 text-white font-bold py-3 px-6 rounded-md transition-colors"
+          >
+            {enteringPanel ? <Spinner className="w-4 h-4" /> : null}
+            {enteringPanel ? 'A entrar...' : 'Aceder ao Painel'}
+          </button>
+        </div>
+      ) : (
+        <>
+          <div className="text-center space-y-1">
+            <h2 className="text-lg font-bold text-slate-800 dark:text-zinc-100 font-panel">
+              Falta anexar o comprovativo
+            </h2>
+            <p className="text-sm text-slate-500 dark:text-zinc-400">
+              O seu pedido foi registado — envie o comprovativo do pagamento para a nossa equipa confirmar.
+            </p>
+          </div>
+
+          <div className="bg-slate-50 dark:bg-zinc-950 border border-slate-200 dark:border-zinc-800 rounded-lg p-4 text-sm text-slate-700 dark:text-zinc-300 space-y-0.5">
+            {metodoPagamento === 'mpesa' ? (
+              <p>Envie o valor para <span className="font-mono font-bold">{MPESA_NUMBER}</span>.</p>
+            ) : (
+              <>
+                <p>{BANK_NAME}</p>
+                <p>Nº Conta: <span className="font-mono font-bold">{BANK_ACCOUNT}</span></p>
+                <p>NIB: <span className="font-mono font-bold">{BANK_NIB}</span></p>
+              </>
+            )}
+          </div>
+
+          <input
+            type="file"
+            ref={fileInputRef}
+            accept="image/*,.pdf"
+            onChange={(e) => setFile(e.target.files?.[0] || null)}
+            className="hidden"
+            disabled={sending}
+          />
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={sending}
+            className="w-full inline-flex items-center gap-2 justify-start border border-dashed border-slate-300 dark:border-zinc-700 rounded-md px-4 py-3 text-sm text-slate-600 dark:text-zinc-400 hover:border-red-400 hover:text-red-600 dark:hover:text-red-400 transition-colors truncate"
+          >
+            <Paperclip className="w-4 h-4 shrink-0" />
+            <span className="truncate">{file ? file.name : 'Escolher ficheiro (imagem ou PDF)'}</span>
+          </button>
+
+          {error && <p className="text-xs text-rose-600 dark:text-rose-400">{error}</p>}
+
+          <button
+            type="button"
+            onClick={handleSend}
+            disabled={!file || sending}
+            className="w-full inline-flex items-center justify-center gap-2 bg-red-600 hover:bg-red-700 disabled:opacity-60 disabled:cursor-not-allowed text-white font-bold py-3 rounded-md transition-colors"
+          >
+            {sending ? <Spinner className="w-4 h-4" /> : null}
+            {sending ? 'A enviar...' : 'Enviar comprovativo'}
+          </button>
+        </>
+      )}
     </div>
   );
 }
