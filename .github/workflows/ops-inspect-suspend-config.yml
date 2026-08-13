@@ -1,0 +1,31 @@
+name: ops - inspect DA suspend page config (read-only)
+
+on:
+  workflow_dispatch: {}
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    steps:
+      - name: SSH inspect
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.HETZNER_HOST }}
+          port: ${{ secrets.HETZNER_PORT }}
+          username: ${{ secrets.HETZNER_USER }}
+          key: ${{ secrets.HETZNER_SSH_KEY }}
+          script: |
+            echo "=== search for suspended-related templates/skins ==="
+            find /usr/local/directadmin -iname "*suspend*" 2>/dev/null
+            echo ""
+            echo "=== domain conf example (admin's visualdesignmoz.com) ==="
+            cat /usr/local/directadmin/data/users/admin/domains/visualdesignmoz.com.conf 2>&1 | head -30
+            echo ""
+            echo "=== any currently suspended domains ==="
+            grep -rl "suspended=yes" /usr/local/directadmin/data/users/*/domains/*.conf 2>/dev/null
+            echo ""
+            echo "=== directadmin.conf suspend-related keys ==="
+            grep -i "suspend" /usr/local/directadmin/conf/directadmin.conf 2>&1
+            echo ""
+            echo "=== DA version ==="
+            cat /usr/local/directadmin/conf/directadmin.conf 2>/dev/null | grep -i "^version" || /usr/local/directadmin/directadmin v 2>&1
