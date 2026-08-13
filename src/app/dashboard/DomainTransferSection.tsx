@@ -258,6 +258,11 @@ export function DomainTransferSection() {
 
   const [requests, setRequests] = useState<TransferRequest[]>(() => readListCache<TransferRequest[]>(TRANSFER_CACHE_KEY) ?? []);
   const [loadingRequests, setLoadingRequests] = useState(() => readListCache<TransferRequest[]>(TRANSFER_CACHE_KEY) === null);
+  // Data de início real do pedido, tal como a Dynadot a regista
+  // (order_created_date) — por domínio, porque é isso que a Dynadot usa para
+  // calcular o prazo dela, e não a data em que a nossa própria tabela criou
+  // a linha do pedido.
+  const [liveCreatedAt, setLiveCreatedAt] = useState<Record<string, string>>({});
 
   const loadRequests = async () => {
     try {
@@ -281,13 +286,31 @@ export function DomainTransferSection() {
   useEffect(() => {
     const pending = requests.filter((r) => r.status === 'submitted' || r.status === 'waiting' || r.status === 'locked');
     if (pending.length === 0) return;
-    const interval = setInterval(() => {
+
+    const refreshLive = () => {
       Promise.all(
         pending.map((r) =>
-          fetch(`/api/domain-transfer/status?domain=${encodeURIComponent(r.domain_name)}`, { credentials: 'include' }).catch(() => null),
+          fetch(`/api/domain-transfer/status?domain=${encodeURIComponent(r.domain_name)}`, { credentials: 'include' })
+            .then((res) => res.json())
+            .then((data) => ({ domain: r.domain_name, data }))
+            .catch(() => null),
         ),
-      ).then(() => void loadRequests());
-    }, 30_000);
+      ).then((results) => {
+        setLiveCreatedAt((prev) => {
+          const next = { ...prev };
+          for (const entry of results) {
+            if (entry?.data?.success && entry.data.createdAt) next[entry.domain] = entry.data.createdAt;
+          }
+          return next;
+        });
+        void loadRequests();
+      });
+    };
+
+    // Corre logo ao detectar pedidos pendentes — não espera 30s para mostrar
+    // a data certa — e depois repete periodicamente.
+    refreshLive();
+    const interval = setInterval(refreshLive, 30_000);
     return () => clearInterval(interval);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [requests.map((r) => r.status).join(',')]);
@@ -469,7 +492,13 @@ export function DomainTransferSection() {
               {pendingRequests.length > 0 ? (
                 <div className="space-y-3">
                   {pendingRequests.map((req) => (
-                    <TransferCountdownCard key={req.id} request={req} />
+                    <TransferCountdownCard
+                      key={req.id}
+                      request={{
+                        ...req,
+                        created_at: liveCreatedAt[req.domain_name] || req.created_at,
+                      }}
+                    />
                   ))}
                 </div>
               ) : (

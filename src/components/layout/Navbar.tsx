@@ -18,7 +18,28 @@ export function Navbar() {
   const { items, setIsCartOpen } = useCart()
   const { currency, setCurrency } = useCurrency()
   const { user, userRole } = useAuth()
-  const showEncomendasLink = userRole !== 'admin' && userRole !== 'manager'
+  // Só mostra o link a quem tem mesmo encomendas de design gráfico — um
+  // cliente que só comprou hospedagem/domínio nunca tem linhas em
+  // quotation_requests, e não faz sentido levá-lo para um painel vazio que
+  // não tem nada a ver com o que ele comprou.
+  const [hasEncomendas, setHasEncomendas] = useState(false)
+  useEffect(() => {
+    if (!user || userRole === 'admin' || userRole === 'manager') {
+      setHasEncomendas(false)
+      return
+    }
+    let cancelled = false
+    fetch('/api/cotacoes', { credentials: 'include' })
+      .then((res) => res.json())
+      .then((data) => {
+        if (!cancelled) setHasEncomendas(Boolean(data?.success && data.quotations?.length > 0))
+      })
+      .catch(() => {})
+    return () => {
+      cancelled = true
+    }
+  }, [user, userRole])
+  const showEncomendasLink = hasEncomendas
   const router = useRouter()
   const [showLaunchpad, setShowLaunchpad] = useState(false)
   const [showTopBar, setShowTopBar] = useState(true)

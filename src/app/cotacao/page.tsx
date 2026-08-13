@@ -62,6 +62,24 @@ function CotacaoContent() {
   // sem depender dessa corrida, evitando mostrar por instantes os campos
   // vazios antes dos dados da última encomenda chegarem.
   const [prefillLoading, setPrefillLoading] = useState(searchParams.get('panel') === '1');
+  // Sinaliza que este iframe está embutido dentro de /encomendas mesmo antes
+  // de a sessão confirmar (isPanelEmbed só fica true depois disso).
+  const isEmbeddedFrame = searchParams.get('embed') === '1';
+
+  // Se a sessão expirar enquanto o iframe "Nova Encomenda" está aberto,
+  // isPanelEmbed passa a false e este componente cairia no formulário
+  // público normal (com cabeçalho e login) — mas isso ficaria preso dentro
+  // da caixinha pequena do iframe, em vez do utilizador ver um ecrã de login
+  // a sério. Em vez disso, navega a janela de topo para /login: sai do
+  // iframe por completo.
+  useEffect(() => {
+    if (isEmbeddedFrame && isAuthenticated === false) {
+      const loginUrl = `/login?redirect=${encodeURIComponent('/encomendas')}`;
+      if (typeof window !== 'undefined' && window.top) {
+        window.top.location.href = loginUrl;
+      }
+    }
+  }, [isEmbeddedFrame, isAuthenticated]);
 
   const [currentStep, setCurrentStep] = useState(0);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -203,7 +221,8 @@ function CotacaoContent() {
         const res = await fetch('/api/cotacoes');
         const data = await res.json();
         const ultima = data?.success ? data.quotations?.[0] : null;
-        if (!cancelled && ultima) {
+        if (cancelled) return;
+        if (ultima) {
           setEmpresa(ultima.empresa || '');
           setNif(ultima.nif || '');
           setEndereco(ultima.endereco || '');
@@ -215,6 +234,33 @@ function CotacaoContent() {
           setTelefoneResponsavel(ultima.telefone || '+258 ');
           setEmailResponsavel(ultima.email || '');
           setTipoCliente(ultima.responsavel && ultima.responsavel === ultima.empresa ? 'individual' : 'empresa');
+          return;
+        }
+        // Primeira encomenda de sempre — não há "última cotação" de onde
+        // copiar, mas se o cliente já chegou autenticado ao painel, é porque
+        // já preencheu nome/telefone/empresa algures (registo ou "O Meu
+        // Perfil"). Usa isso em vez de o obrigar a repetir tudo.
+        const perfilRes = await fetch('/api/encomendas/perfil');
+        const perfil = perfilRes.ok ? await perfilRes.json() : null;
+        if (cancelled || !perfil) return;
+        const email = perfil.email || authUser?.email || '';
+        if (perfil.empresa) {
+          setEmpresa(perfil.empresa);
+          setNif(perfil.nif || '');
+          setTelefoneInstitucional(perfil.telefone || '+258 ');
+          setEmailInstitucional(email);
+          setResponsavel(perfil.nome || '');
+          setTelefoneResponsavel(perfil.telefone || '+258 ');
+          setEmailResponsavel(email);
+          setTipoCliente('empresa');
+        } else if (perfil.nome) {
+          // Sem empresa registada — trata como pessoa singular, reaproveitando
+          // o mesmo campo "empresa" para o nome, tal como acontece quando uma
+          // encomenda anterior de pessoa singular é copiada (linha acima).
+          setEmpresa(perfil.nome);
+          setTelefoneInstitucional(perfil.telefone || '+258 ');
+          setEmailInstitucional(email);
+          setTipoCliente('individual');
         }
       } catch (e) {
         console.error('Erro ao pré-preencher dados da encomenda anterior:', e);
@@ -282,7 +328,7 @@ function CotacaoContent() {
   const responsavelTemDados = Boolean(responsavel || telefoneResponsavelPreenchido || emailResponsavel);
   const mostrarLinhaAntesServicos = mostrarSeccaoResponsavel ? responsavelTemDados : entidadeTemDados;
 
-  if (isAuthenticated === null || (isPanelEmbed && prefillLoading)) {
+  if (isAuthenticated === null || (isPanelEmbed && prefillLoading) || (isEmbeddedFrame && isAuthenticated === false)) {
     return (
       <div className={isPanelEmbed ? 'flex items-center justify-center p-12' : 'min-h-screen flex items-center justify-center bg-zinc-50 dark:bg-zinc-950'}>
         <Spinner className="w-10 h-10" />

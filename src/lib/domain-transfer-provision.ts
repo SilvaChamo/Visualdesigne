@@ -55,6 +55,7 @@ export async function refreshTransferStatus(
   rawStatus?: string;
   orderId?: string;
   completedAt?: string | null;
+  createdAt?: string | null;
 }> {
   const live = await dynadotAPI.getTransferStatus(request_.domain_name);
   if (!live.success) {
@@ -64,7 +65,14 @@ export async function refreshTransferStatus(
   const mapped = mapDynadotStatus(live.status, request_.status);
   const changed = mapped !== request_.status || live.orderId !== request_.dynadot_order_id;
   if (!changed) {
-    return { status: mapped, changed: false, rawStatus: live.status, orderId: live.orderId, completedAt: live.completedDate };
+    return {
+      status: mapped,
+      changed: false,
+      rawStatus: live.status,
+      orderId: live.orderId,
+      completedAt: live.completedDate,
+      createdAt: live.createdDate,
+    };
   }
 
   await admin
@@ -103,7 +111,14 @@ export async function refreshTransferStatus(
     });
   }
 
-  return { status: mapped, changed: true, rawStatus: live.status, orderId: live.orderId, completedAt: live.completedDate };
+  return {
+    status: mapped,
+    changed: true,
+    rawStatus: live.status,
+    orderId: live.orderId,
+    completedAt: live.completedDate,
+    createdAt: live.createdDate,
+  };
 }
 
 export async function submitDomainTransfer(
