@@ -1,22 +1,19 @@
-# Esta é a pasta de trabalho prioritária
+# Esta pasta é PRODUÇÃO — não é a pasta de trabalho por defeito
 
-Este projecto (`visualdesign-teste`, branch `fix/contabo-websites-audit`, deploy em
-`teste.visualdesignmoz.com` via Contabo, dev server na porta 3003) é onde o trabalho
-novo deve acontecer por defeito. Existe uma segunda pasta irmã, `../visualdesign`
-(branch `main`, produção real em `visualdesignmoz.com` no Hetzner, dev server na
-porta 3002) — **não é a mesma pasta, não partilha ficheiros automaticamente**, e um
-`git push` lá despoleta deploy imediato para produção.
+Este projecto (`visualdesign`, branch `main`, dev server na porta 3002) despoleta
+**deploy automático para produção real** (`visualdesignmoz.com`, Hetzner) a cada
+`git push`. Existe uma pasta irmã, `../visualdesign-teste` (branch
+`fix/contabo-websites-audit`, deploy em `teste.visualdesignmoz.com` no Contabo, porta
+3003), que é onde o trabalho novo deve acontecer por defeito — as duas pastas não
+partilham ficheiros automaticamente (só a base de dados Supabase é comum).
 
-As duas pastas partilham a mesma base de dados Supabase, mas código/UI só existe onde
-foi escrito. Se pedires para "adicionar X" sem dizer onde, o agente deve assumir esta
-pasta (`visualdesign-teste`), a não ser que o pedido seja claramente sobre produção
-(ex: "o site principal está em baixo") ou o utilizador diga expressamente "no Hetzner"/
-"em produção". Alterações que façam sentido nos dois sítios só devem ir para `main`
-depois de confirmadas aqui, através do fluxo normal de PR
-(`fix/contabo-websites-audit` → `main`) — nunca directamente.
+Se um pedido não disser explicitamente "no Hetzner"/"em produção"/"neste projecto
+principal", confirma antes de implementar aqui — o mais provável é que devesse ir para
+`../visualdesign-teste`. Alterações feitas nesta pasta só devem existir aqui se forem
+correcções específicas de produção (ex: reverter algo já publicado por engano) ou
+mudanças já validadas em teste e trazidas via PR normal.
 
-Detalhe completo desta topologia (portas, branches, como trazer alterações de um lado
-para o outro) fica na memória `project_dual-folder-git-topology`.
+Detalhe completo desta topologia fica na memória `project_dual-folder-git-topology`.
 
 # Verificação visual de alterações de UI
 
