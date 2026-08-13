@@ -72,9 +72,9 @@ export async function PATCH(request: NextRequest) {
 
     const { data, error } = await supabase
       .from('notifications')
-      .update({ 
-        read, 
-        read_at: read ? new Date().toISOString() : null 
+      .update({
+        read,
+        read_at: read ? new Date().toISOString() : null
       })
       .eq('id', id)
       .eq('user_id', user.id)
@@ -109,9 +109,9 @@ export async function PUT(request: NextRequest) {
 
     const { error } = await supabase
       .from('notifications')
-      .update({ 
-        read: true, 
-        read_at: new Date().toISOString() 
+      .update({
+        read: true,
+        read_at: new Date().toISOString()
       })
       .eq('user_id', user.id)
       .eq('read', false)

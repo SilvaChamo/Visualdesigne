@@ -3,7 +3,7 @@ import { requireAdminOrReseller } from '@/lib/panel-api-auth';
 import { requireDaAccessForDomain } from '@/lib/panel-domain-access';
 import { resolvePanelDaContext } from '@/lib/panel-api-context';
 import { scheduleDaSync } from '@/lib/da-sync-engine';
-import { mirrorAfterDaMutation, mutationSucceeded } from '@/lib/panel-mirror-write';
+import { mirrorAfterDaMutation, mutationSucceeded, deleteMirrorSite } from '@/lib/panel-mirror-write';
 import {
   listMirrorDns,
   listMirrorDatabases,
@@ -114,6 +114,7 @@ async function resolveApi(action?: string, domain?: string) {
 const HESTIA_SUPPORTED_ACTIONS = new Set([
   'listEmails', 'createEmail', 'deleteEmail', 'suspendEmail', 'unsuspendEmail', 'changeEmailPassword',
   'listFTPAccounts', 'createFTPAccount', 'deleteFTPAccount',
+  'deleteWebsite',
 ]);
 
 async function tryHestiaAction(
@@ -208,6 +209,12 @@ async function tryHestiaAction(
       case 'deleteFTPAccount': {
         const ftpUser = String(params.username || params.userName || '');
         data = await hestiaAdapter.deleteFtpAccount(owner, domain, ftpUser);
+        break;
+      }
+      case 'deleteWebsite': {
+        const result = await hestiaAdapter.deleteWebDomain(owner, domain);
+        if (result.ok) await deleteMirrorSite(domain);
+        data = { success: result.ok, error: result.error };
         break;
       }
       default:

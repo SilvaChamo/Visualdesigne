@@ -173,7 +173,7 @@ export function VisualGroupBody({ onCtaClick }: { onCtaClick: () => void }) {
       </div>
 
       {/* Portfolio Showcase Carousel */}
-        <NotchSection shape="mid-alt" bg="bg-zinc-50 dark:bg-zinc-900" className="pt-16 pb-16 sm:pt-24 sm:pb-24">
+        <NotchSection shape="mid-alt" bg="bg-white dark:bg-zinc-900" className="pt-16 pb-16 sm:pt-24 sm:pb-24">
           <div className="container mx-auto max-w-7xl px-4 sm:px-6">
             <div className="text-center">
               <h2 className="text-2xl sm:text-3xl md:text-4xl font-extrabold text-black dark:text-white mb-8">
@@ -424,7 +424,7 @@ export function VisualGroupBody({ onCtaClick }: { onCtaClick: () => void }) {
       </div>
 
       {/* Secção A Nossa Metodologia / Processo de Trabalho */}
-      <NotchSection shape="mid-alt" bg="bg-zinc-50 dark:bg-zinc-900" className="pt-16 pb-16 sm:pt-24 sm:pb-24">
+      <NotchSection shape="mid-alt" bg="bg-white dark:bg-zinc-900" className="pt-16 pb-16 sm:pt-24 sm:pb-24">
         <div id="metodologia" className="container mx-auto max-w-7xl px-4 sm:px-6 relative z-10">
           <div className="text-center flex flex-col items-center max-w-4xl mx-auto space-y-6 mb-12">
             <span className="text-xs sm:text-sm font-bold uppercase tracking-wider flex items-center gap-1.5 text-red-600 dark:text-red-500">
@@ -533,7 +533,7 @@ export function VisualGroupBody({ onCtaClick }: { onCtaClick: () => void }) {
       </NotchSection>
 
       {/* CTA Final */}
-      <NotchSection shape="mid-alt" bg="bg-zinc-50 dark:bg-zinc-900" className="py-24 sm:py-32">
+      <NotchSection shape="mid-alt" bg="bg-white dark:bg-zinc-900" className="py-24 sm:py-32">
         <div className="container mx-auto max-w-7xl px-4 sm:px-6 relative z-10">
           <div className="text-center flex flex-col items-center max-w-[832px] mx-auto space-y-6">
             <h2 className="text-2xl sm:text-3xl md:text-4xl font-extrabold text-black dark:text-white">
