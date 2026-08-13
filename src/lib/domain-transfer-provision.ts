@@ -7,6 +7,105 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { dynadotAPI } from '@/lib/dynadot-adapter';
 
+const DYNADOT_STATUS_MAP: Record<string, string> = {
+  waiting: 'waiting',
+  pending: 'waiting',
+  completed: 'completed',
+  success: 'completed',
+  rejected: 'rejected',
+  cancelled: 'rejected',
+  failed: 'failed',
+  locked: 'locked',
+};
+
+/**
+ * A Dynadot devolve o estado "locked" quando o registador antigo tem o
+ * domínio bloqueado contra transferências — fica parado até o dono
+ * desbloquear lá, não é algo que resolvamos deste lado. O nome exacto do
+ * valor devolvido não está documentado com certeza, por isso aceitamos
+ * qualquer variante que contenha "lock" (ex: "locked", "LOCKED").
+ */
+function mapDynadotStatus(raw: string, fallback: string): string {
+  const lower = raw.toLowerCase();
+  if (lower.includes('lock')) return 'locked';
+  return DYNADOT_STATUS_MAP[lower] || fallback;
+}
+
+type TransferRequestRow = {
+  id: string;
+  user_id: string;
+  domain_name: string;
+  status: string;
+  dynadot_order_id: string | null;
+  error_message: string | null;
+};
+
+/**
+ * Pergunta à Dynadot o estado ao vivo de um pedido já submetido e actualiza a
+ * nossa tabela + notificações se tiver mudado. Partilhado entre o endpoint
+ * consultado pelo dashboard (só corre enquanto o cliente tem a página aberta)
+ * e o cron server-side (corre sempre, independente de haver alguém a ver).
+ */
+export async function refreshTransferStatus(
+  admin: SupabaseClient,
+  request_: TransferRequestRow,
+): Promise<{
+  status: string;
+  changed: boolean;
+  rawStatus?: string;
+  orderId?: string;
+  completedAt?: string | null;
+}> {
+  const live = await dynadotAPI.getTransferStatus(request_.domain_name);
+  if (!live.success) {
+    return { status: request_.status, changed: false };
+  }
+
+  const mapped = mapDynadotStatus(live.status, request_.status);
+  const changed = mapped !== request_.status || live.orderId !== request_.dynadot_order_id;
+  if (!changed) {
+    return { status: mapped, changed: false, rawStatus: live.status, orderId: live.orderId, completedAt: live.completedDate };
+  }
+
+  await admin
+    .from('domain_transfer_requests')
+    .update({ status: mapped, dynadot_order_id: live.orderId, updated_at: new Date().toISOString() })
+    .eq('id', request_.id);
+
+  if (mapped === 'completed' && request_.status !== 'completed') {
+    await admin
+      .from('domain_renewals')
+      .update({ status: 'active', notes: 'Transferência concluída' })
+      .eq('user_id', request_.user_id)
+      .eq('domain_name', request_.domain_name);
+    await admin.from('notifications').insert({
+      user_id: request_.user_id,
+      title: 'Transferência de domínio concluída',
+      message: `O domínio ${request_.domain_name} foi transferido com sucesso e já está activo na sua conta.`,
+      type: 'success',
+      category: 'system',
+    });
+  } else if (mapped === 'rejected' && request_.status !== 'rejected') {
+    await admin.from('notifications').insert({
+      user_id: request_.user_id,
+      title: 'Transferência de domínio rejeitada',
+      message: `O pedido de transferência de ${request_.domain_name} foi rejeitado pelo registador anterior. Contacte o suporte se precisar de ajuda.`,
+      type: 'error',
+      category: 'system',
+    });
+  } else if (mapped === 'locked' && request_.status !== 'locked') {
+    await admin.from('notifications').insert({
+      user_id: request_.user_id,
+      title: 'Transferência de domínio bloqueada — precisa da sua acção',
+      message: `O domínio ${request_.domain_name} está bloqueado ("locked") no registador antigo, o que impede a transferência de avançar. Entre na conta desse registador e desactive o bloqueio de transferência para o processo continuar.`,
+      type: 'warning',
+      category: 'system',
+    });
+  }
+
+  return { status: mapped, changed: true, rawStatus: live.status, orderId: live.orderId, completedAt: live.completedDate };
+}
+
 export async function submitDomainTransfer(
   admin: SupabaseClient,
   userId: string,
