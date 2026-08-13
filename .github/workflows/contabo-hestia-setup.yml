@@ -12,8 +12,34 @@ on:
           - install
           - bootstrap-key
           - test-hestia-api
+          - inspect-api-ip-restriction
 
 jobs:
+  inspect-api-ip-restriction:
+    if: ${{ inputs.stage == 'inspect-api-ip-restriction' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Find what blocks "IP is not allowed to connect with API" (read-only)
+        uses: appleboy/ssh-action@v1.2.5
+        with:
+          host: ${{ secrets.CONTABO_HOST }}
+          username: root
+          password: ${{ secrets.CONTABO_ROOT_PASSWORD }}
+          script: |
+            echo "=== onde a mensagem de erro está definida ==="
+            grep -rn "not allowed to connect with API" /usr/local/hestia/ 2>/dev/null
+            echo ""
+            echo "=== index.php da API — lógica de verificação de IP ==="
+            grep -n -B5 -A15 "not allowed to connect" /usr/local/hestia/web/api/index.php 2>/dev/null
+            echo ""
+            echo "=== ficheiro de acesso à API do utilizador vdadmin ==="
+            cat /usr/local/hestia/data/users/vdadmin/user.conf 2>/dev/null | grep -i "api\|ip"
+            ls -la /usr/local/hestia/data/users/vdadmin/ 2>/dev/null | grep -i api
+            cat /usr/local/hestia/data/users/vdadmin/api-allowed-ip 2>/dev/null
+            echo ""
+            echo "=== config geral do Hestia relacionada com API ==="
+            grep -i "api" /usr/local/hestia/conf/hestia.conf 2>/dev/null
+
   test-hestia-api:
     if: ${{ inputs.stage == 'test-hestia-api' }}
     runs-on: ubuntu-latest
