@@ -13,8 +13,40 @@ on:
           - bootstrap-key
           - test-hestia-api
           - inspect-api-ip-restriction
+          - test-hestia-api-from-server
 
 jobs:
+  test-hestia-api-from-server:
+    if: ${{ inputs.stage == 'test-hestia-api-from-server' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call the Hestia API from inside the Contabo box itself (read-only)
+        uses: appleboy/ssh-action@v1.2.5
+        with:
+          host: ${{ secrets.CONTABO_HOST }}
+          username: root
+          password: ${{ secrets.CONTABO_ROOT_PASSWORD }}
+          script: |
+            cd /opt/visualdesign-site-teste
+            HOST=$(grep '^HESTIA_HOST=' .env.local | cut -d= -f2-)
+            PORT=$(grep '^HESTIA_PORT=' .env.local | cut -d= -f2-)
+            USER=$(grep '^HESTIA_USER=' .env.local | cut -d= -f2-)
+            PASS=$(grep '^HESTIA_PASSWORD=' .env.local | cut -d= -f2-)
+            echo "=== IP público que este servidor usa para se ver a si próprio ==="
+            curl -s https://api.ipify.org
+            echo ""
+            echo ""
+            echo "=== chamada v-list-user-packages, a partir do próprio servidor ==="
+            OUT=$(curl -sk -D /tmp/hh.txt "https://${HOST}:${PORT}/api/" \
+              --data-urlencode "user=${USER}" \
+              --data-urlencode "password=${PASS}" \
+              --data-urlencode "cmd=v-list-user-packages" \
+              --data-urlencode "arg1=json")
+            echo "--- Hestia-Exit-Code ---"
+            grep -i "hestia-exit-code" /tmp/hh.txt || echo "(cabeçalho não encontrado)"
+            echo "--- pacotes devolvidos ---"
+            echo "$OUT" | python3 -c "import json,sys; d=json.load(sys.stdin); print('\n'.join(k for k in d.keys() if k!='system'))" 2>&1 || echo "$OUT" | head -c 500
+
   inspect-api-ip-restriction:
     if: ${{ inputs.stage == 'inspect-api-ip-restriction' }}
     runs-on: ubuntu-latest
