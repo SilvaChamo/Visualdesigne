@@ -11,8 +11,42 @@ on:
           - diagnostics
           - install
           - bootstrap-key
+          - test-hestia-api
 
 jobs:
+  test-hestia-api:
+    if: ${{ inputs.stage == 'test-hestia-api' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Test HESTIA_USER/HESTIA_PASSWORD against the real API (read-only)
+        env:
+          HESTIA_HOST: ${{ secrets.HESTIA_HOST }}
+          HESTIA_PORT: ${{ secrets.HESTIA_PORT }}
+          HESTIA_USER: ${{ secrets.HESTIA_USER }}
+          HESTIA_PASSWORD: ${{ secrets.HESTIA_PASSWORD }}
+          HESTIA_ADMIN_USERNAME: ${{ secrets.HESTIA_ADMIN_USERNAME }}
+        run: |
+          PORT="${HESTIA_PORT:-8083}"
+          echo "=== Secret HESTIA_USER (nome usado pela app) vs HESTIA_ADMIN_USERNAME (nome usado na instalação) ==="
+          if [ "${HESTIA_USER}" = "${HESTIA_ADMIN_USERNAME}" ]; then
+            echo "IGUAIS — não é um problema de nome de utilizador."
+          else
+            echo "DIFERENTES — a app está configurada para logar como '${HESTIA_USER}', mas a conta foi criada como '${HESTIA_ADMIN_USERNAME}'. Provável causa."
+          fi
+          echo ""
+          echo "=== Chamada real v-list-user-packages com HESTIA_USER/HESTIA_PASSWORD (o que a app usa) ==="
+          OUT=$(curl -sk -D /tmp/hh.txt "https://${HESTIA_HOST}:${PORT}/api/" \
+            --data-urlencode "user=${HESTIA_USER}" \
+            --data-urlencode "password=${HESTIA_PASSWORD}" \
+            --data-urlencode "cmd=v-list-user-packages" \
+            --data-urlencode "arg1=json")
+          echo "--- Hestia-Exit-Code ---"
+          grep -i "hestia-exit-code" /tmp/hh.txt || echo "(cabeçalho não encontrado — ligação/DNS pode ter falhado)"
+          echo "--- pacotes devolvidos (se autenticação OK) ---"
+          echo "$OUT" | python3 -c "import json,sys; d=json.load(sys.stdin); print('\n'.join(k for k in d.keys() if k!='system'))" 2>&1 || echo "(resposta não é JSON válido — ver abaixo)"
+          echo "--- resposta crua (primeiros 500 caracteres, para diagnóstico) ---"
+          echo "$OUT" | head -c 500
+
   bootstrap-key:
     if: ${{ inputs.stage == 'bootstrap-key' }}
     runs-on: ubuntu-latest
