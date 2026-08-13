@@ -72,7 +72,7 @@ export default function DomainSearch({
   const fieldPaddingY = spacious ? 'py-2.5' : 'py-2'
   const fieldClass = isAdmin
     ? `w-full px-4 ${fieldPaddingY} ${searchRound} bg-white text-zinc-900 border border-zinc-300 focus:border-red-600 focus:outline-none focus:ring-1 focus:ring-red-600 transition-all font-medium shadow-sm`
-    : `w-full px-4 ${fieldPaddingY} ${searchRound} bg-white dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 border border-slate-300 dark:border-zinc-700 focus:border-red-600 focus:outline-none focus:ring-1 focus:ring-red-600 transition-all font-medium`
+    : `w-full px-4 ${fieldPaddingY} ${searchRound} bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 border border-slate-300 dark:border-zinc-700 focus:border-red-600 focus:outline-none focus:ring-1 focus:ring-red-600 transition-all font-medium`
   const mutedText = isAdmin ? 'text-zinc-600 dark:text-zinc-400' : lightSection ? 'text-slate-500 dark:text-zinc-400' : 'text-slate-500'
   const headingText = isAdmin ? 'text-zinc-900 dark:text-zinc-100' : lightSection ? 'text-zinc-900 dark:text-white' : 'text-white'
 
