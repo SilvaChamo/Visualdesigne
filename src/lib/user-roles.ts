@@ -15,7 +15,19 @@ type RoleSource = {
   profileRole?: string | null;
   daUsername?: string | null;
   hasPaidProducts?: boolean;
+  /** Tem uma checkout_sessions própria com status='pending' criada há pouco
+   * (ver `RECENT_PENDING_SESSION_WINDOW_MS`) — cobre o cliente que acabou de
+   * pagar por M-Pesa/Transferência mas cuja promoção guest→client
+   * (`promoteGuestToClient`) ainda não ficou reflectida (atraso de
+   * propagação, ou falhou em silêncio) no momento em que o papel é
+   * recalculado a seguir ao pagamento. */
+  hasRecentPendingSession?: boolean;
 };
+
+/** Janela de tolerância do fallback acima — suficiente para cobrir o passo
+ * de anexar o comprovativo no checkout, nunca deve ser usada para decidir
+ * acesso passadas essas primeiras compras. */
+export const RECENT_PENDING_SESSION_WINDOW_MS = 5 * 60 * 1000;
 
 function readRole(value: unknown): UserRole | null {
   if (
@@ -59,6 +71,14 @@ export function resolveUserRole(source: RoleSource): UserRole {
   // ser avaliada, ficava sempre presa em guest. É precisamente o mecanismo
   // que o botão de sincronizar utilizadores usa para reparar essas contas.
   if (source.hasPaidProducts) return 'client';
+
+  // Mesma lógica do #7 acima, mas para uma encomenda ainda pendente muito
+  // recente — sem isto, uma conta cuja promoção guest→client ainda não
+  // propagou (ou falhou em silêncio, ver checkout-fulfillment.ts) é mandada
+  // para /guest logo depois de pagar, sem nenhum sítio para anexar o
+  // comprovativo. A janela curta (RECENT_PENDING_SESSION_WINDOW_MS) evita
+  // que isto sirva de acesso permanente — só cobre o momento do checkout.
+  if (source.hasRecentPendingSession) return 'client';
 
   if (profileRole === 'guest' || metaRole === 'guest') return 'guest';
 

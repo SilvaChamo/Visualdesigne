@@ -215,6 +215,30 @@ function CheckoutContent() {
   const [comprovativoUploading, setComprovativoUploading] = useState(false);
   const [comprovativoSent, setComprovativoSent] = useState(false);
   const [comprovativoError, setComprovativoError] = useState('');
+  const [enteringPanel, setEnteringPanel] = useState(false);
+  const restoredPendingIdRef = React.useRef<string | null>(null);
+
+  // Recupera este passo depois de um recarregamento a meio (ex: refresh
+  // acidental) — sem isto a página cairia no ecrã genérico de "carrinho
+  // vazio" (o carrinho já foi limpo ao criar o pedido pendente).
+  useEffect(() => {
+    const pendingId = searchParams.get('pendingId');
+    if (!pendingId || isAuthenticated !== true || restoredPendingIdRef.current === pendingId) return;
+    restoredPendingIdRef.current = pendingId;
+    fetch(`/api/checkout/session-status?session_id=${encodeURIComponent(pendingId)}`)
+      .then((r) => r.json())
+      .then((data) => {
+        const s = data?.session;
+        if (data.success && s?.status === 'pending' && (s.metodo_pagamento === 'mpesa' || s.metodo_pagamento === 'transferencia')) {
+          setPendingSession({ id: s.id, metodo: s.metodo_pagamento });
+          setComprovativoSent(Boolean(s.comprovativo_url));
+          setStatus('awaiting-proof');
+        } else {
+          router.replace('/checkout');
+        }
+      })
+      .catch(() => router.replace('/checkout'));
+  }, [searchParams, isAuthenticated, router]);
 
   const handleUploadComprovativo = async (file: File) => {
     if (!pendingSession) return;
@@ -363,13 +387,15 @@ function CheckoutContent() {
       }
       clearCart();
       await supabase.auth.refreshSession();
-      // Não navega logo para /cliente — fica aqui mesmo para dar já a
-      // oportunidade de anexar o comprovativo (pode sempre fazê-lo mais
-      // tarde em "Pedidos Pendentes" no painel, mas sem isto o campo ficava
-      // escondido demais e ninguém o encontrava a seguir ao pagamento).
+      // Não navega logo para /cliente — fica aqui mesmo a pedir o
+      // comprovativo, só entra no painel depois de o enviar com sucesso
+      // (sem isto o campo ficava escondido demais e ninguém o encontrava a
+      // seguir ao pagamento).
+      restoredPendingIdRef.current = data.session.id;
       setPendingSession({ id: data.session.id, metodo: metodoPagamento as 'mpesa' | 'transferencia' });
       setStatus('awaiting-proof');
       setIsSubmitting(false);
+      router.replace(`/checkout?pendingId=${data.session.id}`);
       return;
     } catch (err: any) {
       setErrorMessage(err.message || 'Falha ao comunicar com o servidor de registo.');
@@ -425,7 +451,12 @@ function CheckoutContent() {
     <div className="min-h-screen bg-slate-50 dark:bg-zinc-950 pt-32 pb-16 transition-colors duration-200">
       <div className="max-w-7xl mx-auto px-[40px] mt-4">
 
-        {items.length === 0 ? (
+        {/* #12: uma vez iniciado um pagamento (idle -> registering/awaiting-proof/
+            error), nunca mais volta a mostrar "carrinho vazio" só por o carrinho
+            ter ficado limpo a meio — isso escondia o cartão de "anexar
+            comprovativo" (que só aparece quando items já está vazio) atrás do
+            ecrã de carrinho vazio, e escondia também mensagens de erro reais. */}
+        {items.length === 0 && status === 'idle' ? (
           <div className="bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-lg p-12 text-center max-w-lg mx-auto space-y-6 shadow-sm">
             <ShoppingCart className="w-16 h-16 text-slate-300 dark:text-zinc-700 mx-auto" />
             <h2 className="text-xl font-bold text-slate-800 dark:text-zinc-100 font-panel">O seu carrinho está vazio</h2>
@@ -433,7 +464,7 @@ function CheckoutContent() {
               Não existem produtos ou domínios prontos para finalização de compra.
             </p>
             <button
-              onClick={() => router.push('/')}
+              onClick={() => router.push('/precos/dominios')}
               className="bg-red-600 hover:bg-red-700 text-white font-bold py-3 px-6 rounded-md transition-colors"
             >
               Pesquisar Domínio
@@ -577,9 +608,13 @@ function CheckoutContent() {
                       )}
                     </div>
                     <div>
-                      <h3 className="text-lg font-bold text-slate-800 dark:text-zinc-100 font-panel">Pedido registado — falta concluir o pagamento</h3>
+                      <h3 className="text-lg font-bold text-slate-800 dark:text-zinc-100 font-panel">
+                        {comprovativoSent ? 'Comprovativo enviado com sucesso' : 'Falta anexar o comprovativo'}
+                      </h3>
                       <p className="text-sm text-slate-500 dark:text-zinc-400 mt-1">
-                        A sua conta só é activada depois de a nossa equipa confirmar o comprovativo. Pode anexá-lo já aqui, ou mais tarde em "Pedidos Pendentes" no seu painel.
+                        {comprovativoSent
+                          ? 'Aguarde a aprovação da nossa equipa para aceder à gestão do(s) seu(s) produto(s).'
+                          : 'O seu pedido foi registado — envie o comprovativo do pagamento para a nossa equipa confirmar.'}
                       </p>
                     </div>
                   </div>
@@ -617,15 +652,25 @@ function CheckoutContent() {
                     </div>
                   )}
 
-                  <div className="flex justify-end pt-2 border-t border-dashed border-slate-200 dark:border-zinc-800">
-                    <button
-                      type="button"
-                      onClick={() => router.push('/cliente')}
-                      className="bg-red-600 hover:bg-red-700 text-white font-bold py-2.5 px-5 rounded-md transition-colors"
-                    >
-                      {comprovativoSent ? 'Ir para o meu painel' : 'Anexar mais tarde e ir para o meu painel'}
-                    </button>
-                  </div>
+                  {/* Só entra no painel depois de o comprovativo ter sido enviado com
+                      sucesso — antes disso não há forma de saltar este passo. */}
+                  {comprovativoSent && (
+                    <div className="flex justify-end pt-2 border-t border-dashed border-slate-200 dark:border-zinc-800">
+                      <button
+                        type="button"
+                        disabled={enteringPanel}
+                        onClick={async () => {
+                          setEnteringPanel(true);
+                          await supabase.auth.refreshSession();
+                          router.push('/cliente');
+                        }}
+                        className="inline-flex items-center gap-2 bg-red-600 hover:bg-red-700 disabled:opacity-60 text-white font-bold py-2.5 px-5 rounded-md transition-colors"
+                      >
+                        {enteringPanel ? <Spinner className="w-4 h-4" /> : null}
+                        {enteringPanel ? 'A entrar...' : 'Aceder ao Painel'}
+                      </button>
+                    </div>
+                  )}
                 </div>
               )}
 

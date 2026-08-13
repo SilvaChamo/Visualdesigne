@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   Globe,
   Server,
@@ -12,6 +12,8 @@ import {
   AlertCircle,
   FileText,
   ArrowRight,
+  CheckCircle2,
+  X,
 } from 'lucide-react';
 import type { ClientProductTier, UserProductsSummary } from '@/lib/user-products';
 import { useCart } from '@/contexts/CartContext';
@@ -38,13 +40,27 @@ export function ClientProductsHub({ onNavigate }: Props) {
   const [emailDomainInput, setEmailDomainInput] = useState('');
   const [attachingDomain, setAttachingDomain] = useState(false);
   const [attachError, setAttachError] = useState<string | null>(null);
+  const [showApprovalBanner, setShowApprovalBanner] = useState(false);
+  // null = ainda não sabemos (primeira leitura) — não deve disparar o aviso,
+  // só uma leitura seguinte com MAIS produtos activos do que a anterior.
+  const previousActiveCountRef = useRef<number | null>(null);
 
   const loadProducts = () => {
     fetch('/api/my-products', { credentials: 'include' })
       .then((r) => r.json())
       .then((data) => {
-        setProducts(data.products ?? null);
-        setTier(data.products?.tier ?? 'none');
+        const nextProducts = data.products ?? null;
+        setProducts(nextProducts);
+        setTier(nextProducts?.tier ?? 'none');
+
+        // A equipa aprovou um pagamento pendente entretanto (M-Pesa/Transferência)
+        // — o polling abaixo já corria para outros fins, só falta avisar o
+        // cliente em vez de ele descobrir sozinho ao recarregar a página.
+        const activeCount = (nextProducts?.domains?.length ?? 0) + (nextProducts?.hosting?.length ?? 0);
+        if (previousActiveCountRef.current !== null && activeCount > previousActiveCountRef.current) {
+          setShowApprovalBanner(true);
+        }
+        previousActiveCountRef.current = activeCount;
       })
       .catch(() => setProducts(null))
       .finally(() => setLoading(false));
@@ -164,6 +180,23 @@ export function ClientProductsHub({ onNavigate }: Props) {
           </div>
           <ArrowRight className="w-4 h-4 text-gray-400 flex-shrink-0" />
         </a>
+      )}
+
+      {showApprovalBanner && (
+        <div className="flex items-start gap-3 bg-green-50 border border-green-200 rounded-xl p-4">
+          <CheckCircle2 className="w-5 h-5 text-green-700 flex-shrink-0 mt-0.5" />
+          <p className="text-sm text-green-800 flex-1">
+            O seu pagamento foi aprovado — o(s) seu(s) produto(s) já estão disponíveis.
+          </p>
+          <button
+            type="button"
+            onClick={() => setShowApprovalBanner(false)}
+            className="text-green-700 hover:text-green-900 flex-shrink-0"
+            aria-label="Fechar aviso"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
       )}
 
       <PendingOrdersSection sessions={pendingSessions} onUploaded={loadProducts} />

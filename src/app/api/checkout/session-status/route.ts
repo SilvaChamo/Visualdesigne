@@ -18,7 +18,7 @@ export async function GET(request: NextRequest) {
 
   const { data, error } = await supabase
     .from('checkout_sessions')
-    .select('id, status, items, total_mt')
+    .select('id, status, items, total_mt, metodo_pagamento, comprovativo_url')
     .eq('id', sessionId)
     .eq('user_id', user.id)
     .maybeSingle();
