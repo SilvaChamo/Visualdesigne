@@ -282,7 +282,10 @@ export async function PATCH(request: NextRequest) {
 
     const { error } = await supabaseAdmin
       .from('notifications')
-      .update({ read: true, read_at: new Date().toISOString() })
+      .update({
+        read: true,
+        read_at: new Date().toISOString()
+      })
       .eq('id', id)
 
     if (error) {

@@ -4,7 +4,7 @@ import React, { useState, useEffect, useRef, useMemo } from 'react'
 import dynamic from 'next/dynamic'
 import { createPortal } from 'react-dom'
 import { cn } from '@/lib/utils'
-import { panelBtnPrimary, panelBtnSecondary, panelCard, panelField, panelInnerDetailCard, panelMobileActions, panelMobileCardGrid, panelMobileStack, panelMobileStackCard } from '@/lib/panel-ui'
+import { panelBtnPrimary, panelBtnSecondary, panelCard, panelField, panelInnerDetailCard, panelMobileActions, panelMobileCardGrid, panelMobileStack, panelMobileStackCard, panelTabList, panelTabBtn } from '@/lib/panel-ui'
 import { PanelIconTip } from '@/components/panel/PanelIconTip'
 import { Spinner } from '@/components/ui/spinner'
 import { clearAllPanelClientCaches } from '@/lib/panel-session-cache-clear'
@@ -63,6 +63,7 @@ import { composePackageName, createDefaultResellerPackageForm, normalizePackageF
 import { parseJsonResponse } from '@/lib/safe-fetch-json'
 import { readListCache, writeListCache } from '@/lib/panel-list-cache'
 import { VISUALDESIGN_DEFAULT_NS } from '@/lib/visualdesign-dns'
+import { getRedemptionInfo, getDaysRemaining, DYNADOT_ACCOUNT_URL } from '@/lib/domain-redemption'
 import {
   RefreshCw, Globe, Globe2, PlusCircle, Plus, Package, Trash2, Database, Users, Mail, Lock, LockOpen, Shield, ShieldCheck,
   Server, HardDrive, Key, Settings, Code, AlertCircle, AlertTriangle, CheckCircle, Eye, EyeOff, Zap,
@@ -1449,7 +1450,7 @@ export function FTPSection({ sites }: { sites: DirectAdminWebsite[] }) {
   const handleDelete = async (user: string) => {
     if (!confirm(`Eliminar conta FTP ${user}?`)) return
     try {
-      const ok = await directAdminAPI.deleteFTPAccount({ username: user })
+      const ok = await directAdminAPI.deleteFTPAccount({ username: user, domain: selectedDomain })
       if (isDaCommandOk(ok)) {
         cpRemoveFTP(selectedDomain, user)
         loadFTP(selectedDomain)
@@ -3508,19 +3509,30 @@ export function CPUsersSection({
             <div className="flex min-w-0 flex-1 flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
               {(panelScope === 'users' || panelScope === 'client') && (
                 <>
-                  <select
-                    value={usersScopeFilter}
-                    onChange={(e) => setUsersScopeFilter(e.target.value as UsersScopeFilter)}
-                    className={`${panelField} w-full shrink-0 sm:min-w-[18rem] sm:w-[20rem]`}
-                  >
-                    {panelScope === 'users' && (
-                      <option value="all">Todos ({usersScopeCounts.all ?? 0})</option>
-                    )}
-                    <option value="admin">Administradores ({usersScopeCounts.admin ?? 0})</option>
-                    <option value="reseller">Revendedores ({usersScopeCounts.reseller ?? 0})</option>
-                    <option value="guest">Visitantes ({usersScopeCounts.guest ?? 0})</option>
-                    <option value="client">Clientes ({usersScopeCounts.client ?? 0})</option>
-                  </select>
+                  <nav className={`${panelTabList} shrink-0`} aria-label="Nível de utilizador">
+                    {(
+                      [
+                        ...(panelScope === 'users' ? [{ id: 'all' as const, label: `Todos (${usersScopeCounts.all ?? 0})` }] : []),
+                        { id: 'admin' as const, label: `Administradores (${usersScopeCounts.admin ?? 0})` },
+                        { id: 'reseller' as const, label: `Revendedores (${usersScopeCounts.reseller ?? 0})` },
+                        { id: 'guest' as const, label: `Visitantes (${usersScopeCounts.guest ?? 0})` },
+                        { id: 'client' as const, label: `Clientes (${usersScopeCounts.client ?? 0})` },
+                      ]
+                    ).map((tab) => (
+                      <button
+                        key={tab.id}
+                        type="button"
+                        onClick={() => setUsersScopeFilter(tab.id)}
+                        className={`${panelTabBtn} relative font-bold whitespace-nowrap ${
+                          usersScopeFilter === tab.id
+                            ? 'z-10 border-b-red-600 text-red-600 dark:border-b-red-500 dark:text-red-400'
+                            : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-zinc-400 dark:hover:text-zinc-200'
+                        }`}
+                      >
+                        {tab.label}
+                      </button>
+                    ))}
+                  </nav>
                   {panelScope === 'users' && selectedPanelIds.length > 0 && (
                     <>
                       <select
@@ -10047,6 +10059,28 @@ export function DomainManagerSection({
     }
   }, [domainListMode, isActive, hubPanel])
 
+  // Data de expiração vinda de domain_renewals (mesma fonte usada no aviso
+  // de período de redenção do admin) — só os domínios do próprio utilizador,
+  // API já filtra por conta quando não é pedido explicitamente em modo admin.
+  const [ownExpirationByDomain, setOwnExpirationByDomain] = useState<Map<string, string>>(new Map())
+
+  useEffect(() => {
+    if (!isActive || hubPanel !== 'list') return
+    let cancelled = false
+    fetch('/api/renewals?type=domain', { credentials: 'include' })
+      .then((res) => res.json())
+      .then((data: { domains?: { domain_name: string; expiration_date: string }[] }) => {
+        if (cancelled || !Array.isArray(data.domains)) return
+        setOwnExpirationByDomain(
+          new Map(data.domains.map((r) => [r.domain_name.toLowerCase(), r.expiration_date])),
+        )
+      })
+      .catch(() => {})
+    return () => {
+      cancelled = true
+    }
+  }, [isActive, hubPanel])
+
   const mergedRegistrarRows = useMemo(
     () =>
       registrarListRows.map((row) => {
@@ -10223,9 +10257,12 @@ export function DomainManagerSection({
   useEffect(() => {
     if (!openMenuDomain) return
     const handleClickOutside = (e: MouseEvent) => {
-      if (domainMenuRef.current && !domainMenuRef.current.contains(e.target as Node)) {
-        setOpenMenuDomain(null)
-      }
+      const target = e.target as HTMLElement
+      if (domainMenuRef.current && domainMenuRef.current.contains(target)) return
+      // Ignora cliques nos próprios botões "..." de cada linha — o próprio onClick
+      // deles já trata de alternar (abrir/fechar), senão fechava e reabria em sequência.
+      if (target.closest('[data-domain-menu-trigger]')) return
+      setOpenMenuDomain(null)
     }
     document.addEventListener('mousedown', handleClickOutside)
     return () => document.removeEventListener('mousedown', handleClickOutside)
@@ -10382,78 +10419,108 @@ export function DomainManagerSection({
       <button type="button" className={`${domainCardBtn} font-bold`} onClick={() => openManage(d)}>
         Gerir website
       </button>
-      <div
-        ref={openMenuDomain === d.domain ? domainMenuRef : undefined}
-        className="relative"
+      <button
+        type="button"
+        data-domain-menu-trigger
+        className={domainCardBtn}
+        onClick={() => setOpenMenuDomain((prev) => (prev === d.domain ? null : d.domain))}
+        aria-expanded={openMenuDomain === d.domain}
+        aria-haspopup="menu"
+        aria-label="Mais opções"
       >
-        <button
-          type="button"
-          className={domainCardBtn}
-          onClick={() => setOpenMenuDomain((prev) => (prev === d.domain ? null : d.domain))}
-          aria-expanded={openMenuDomain === d.domain}
-          aria-haspopup="menu"
-          aria-label="Mais opções"
-        >
-          <MoreVertical className="h-4 w-4" />
-        </button>
-        {openMenuDomain === d.domain && (
-          <div className="absolute right-0 top-1/2 z-50 min-w-[11rem] -translate-y-1/2 rounded border border-gray-200 bg-white py-1 shadow-lg dark:border-zinc-700 dark:bg-zinc-900">
-            <button type="button" className={domainCardMenuItem} onClick={() => { setOpenMenuDomain(null); onNavigate?.('cp-dns-nameserver', { domain: d.domain }) }}>
-              Nameservers
-            </button>
-            <button type="button" className={domainCardMenuItem} onClick={() => { setOpenMenuDomain(null); setEmailModal({ show: true, domain: d.domain }) }}>
-              Criar e-mail
-            </button>
-            <button type="button" className={domainCardMenuItem} onClick={() => { setOpenMenuDomain(null); onNavigate?.('dns-central', { domain: d.domain }) }}>
-              Editar Zona de DNS
-            </button>
-            <button type="button" className={domainCardMenuItem} onClick={() => void handleRenewDomain(d.domain)}>
-              Renovar domínio
-            </button>
-            <button type="button" className={domainCardMenuItem} onClick={() => openManage(d)}>
-              Redireccionamento
-            </button>
-            <button type="button" className={domainCardMenuItem} onClick={() => void handleSuspendDomain(d)}>
-              {domainHostingStateLabel(d) === 'Activo' ? 'Suspender domínio' : 'Activar domínio'}
-            </button>
-            <button
-              type="button"
-              className={domainCardMenuItem}
-              onClick={() => {
-                setOpenMenuDomain(null)
-                setTransferOwnerModal({ show: true, domain: d.domain, targetEmail: '', saving: false })
-              }}
-            >
-              Mover para outra conta
-            </button>
-            <button
-              type="button"
-              className={domainCardMenuItem}
-              onClick={() => {
-                setOpenMenuDomain(null)
-                setAttachHostingSteps([])
-                setAttachHostingModal({ show: true, domain: d.domain, daUsername: '', saving: false })
-              }}
-            >
-              Associar a hospedagem existente
-            </button>
-            <button type="button" className={domainCardMenuItem} onClick={() => void handleToggleAutoRenew(d.domain)}>
-              Desactivar renovação automática
-            </button>
-            <button
-              type="button"
-              className={domainCardMenuItem}
-              onClick={() => {
-                setOpenMenuDomain(null)
-                window.open(`https://${d.domain}`, '_blank', 'noopener,noreferrer')
-              }}
-            >
-              Visitar site
-            </button>
-          </div>
-        )}
-      </div>
+        <MoreVertical className="h-4 w-4" />
+      </button>
     </div>
+  )
+
+  const menuDomainRow = openMenuDomain
+    ? filteredDomains.find((row) => row.domain === openMenuDomain) || null
+    : null
+
+  // Barra lateral de acções rápidas por domínio — substitui o antigo dropdown
+  // posicionado por linha (`absolute ... top-1/2`), que ficava cortado atrás do
+  // cabeçalho fixo quando aberto numa linha perto do topo da lista. Largura igual
+  // à barra lateral esquerda do painel (242px), consistente com o painel "Gerenciar"
+  // da página de detalhe do domínio.
+  const domainQuickActionsPanel = menuDomainRow && (
+    <>
+      <div
+        className="fixed inset-0 z-40 bg-black/20"
+        onClick={() => setOpenMenuDomain(null)}
+        aria-hidden="true"
+      />
+      <div
+        ref={domainMenuRef}
+        role="menu"
+        className="fixed inset-y-0 right-0 z-50 w-[242px] overflow-y-auto border-l border-gray-200 bg-white shadow-xl dark:border-zinc-700 dark:bg-zinc-900"
+      >
+        <div className="flex items-center justify-between border-b border-gray-100 px-4 py-3 dark:border-zinc-800">
+          <p className="truncate text-xs font-bold uppercase text-gray-500 dark:text-zinc-500">{menuDomainRow.domain}</p>
+          <button
+            type="button"
+            onClick={() => setOpenMenuDomain(null)}
+            className="shrink-0 text-gray-400 hover:text-red-600 dark:text-zinc-500 dark:hover:text-red-400"
+            aria-label="Fechar"
+          >
+            ✕
+          </button>
+        </div>
+        <div className="divide-y divide-gray-100 dark:divide-zinc-800">
+          <button type="button" className={domainCardMenuItem} onClick={() => { setOpenMenuDomain(null); onNavigate?.('cp-dns-nameserver', { domain: menuDomainRow.domain }) }}>
+            Nameservers
+          </button>
+          <button type="button" className={domainCardMenuItem} onClick={() => { setOpenMenuDomain(null); setEmailModal({ show: true, domain: menuDomainRow.domain }) }}>
+            Criar e-mail
+          </button>
+          <button type="button" className={domainCardMenuItem} onClick={() => { setOpenMenuDomain(null); onNavigate?.('dns-central', { domain: menuDomainRow.domain }) }}>
+            Editar Zona de DNS
+          </button>
+          <button type="button" className={domainCardMenuItem} onClick={() => void handleRenewDomain(menuDomainRow.domain)}>
+            Renovar domínio
+          </button>
+          <button type="button" className={domainCardMenuItem} onClick={() => openManage(menuDomainRow)}>
+            Redireccionamento
+          </button>
+          <button type="button" className={domainCardMenuItem} onClick={() => void handleSuspendDomain(menuDomainRow)}>
+            {domainHostingStateLabel(menuDomainRow) === 'Activo' ? 'Suspender domínio' : 'Activar domínio'}
+          </button>
+          <button
+            type="button"
+            className={domainCardMenuItem}
+            onClick={() => {
+              setOpenMenuDomain(null)
+              setTransferOwnerModal({ show: true, domain: menuDomainRow.domain, targetEmail: '', saving: false })
+            }}
+          >
+            Mover para outra conta
+          </button>
+          <button
+            type="button"
+            className={domainCardMenuItem}
+            onClick={() => {
+              setOpenMenuDomain(null)
+              setAttachHostingSteps([])
+              setAttachHostingModal({ show: true, domain: menuDomainRow.domain, daUsername: '', saving: false })
+            }}
+          >
+            Associar a hospedagem existente
+          </button>
+          <button type="button" className={domainCardMenuItem} onClick={() => void handleToggleAutoRenew(menuDomainRow.domain)}>
+            Desactivar renovação automática
+          </button>
+          <button
+            type="button"
+            className={domainCardMenuItem}
+            onClick={() => {
+              setOpenMenuDomain(null)
+              window.open(`https://${menuDomainRow.domain}`, '_blank', 'noopener,noreferrer')
+            }}
+          >
+            Visitar site
+          </button>
+        </div>
+      </div>
+    </>
   )
 
   if (hubMode && hubPanel === 'add') {
@@ -10524,11 +10591,15 @@ export function DomainManagerSection({
             const tld = domainParts.length > 1 ? `.${domainParts.slice(1).join('.')}` : ''
             const baseName = domainParts[0]
             const hasSsl = siteHasSsl(site)
+            const ownExpiration = ownExpirationByDomain.get(d.domain.toLowerCase())
+            const redemption = ownExpiration ? getRedemptionInfo(getDaysRemaining(ownExpiration)) : null
 
             return (
               <article
                 key={d.domain}
-                className="flex flex-col gap-3 rounded-lg border border-gray-200 bg-white px-5 py-4 shadow-sm dark:border-zinc-700 dark:bg-zinc-900 lg:flex-row lg:items-center lg:justify-between"
+                className={`flex flex-col gap-3 rounded-lg border px-5 py-4 shadow-sm lg:flex-row lg:items-center lg:justify-between ${
+                  redemption ? 'border-orange-200 bg-orange-50 dark:border-orange-900/40 dark:bg-orange-950/20' : 'border-gray-200 bg-white dark:border-zinc-700 dark:bg-zinc-900'
+                }`}
               >
                 <div className="flex min-w-0 flex-1 items-start gap-3 md:items-center md:gap-4">
                   <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-zinc-200 bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-800">
@@ -10563,6 +10634,24 @@ export function DomainManagerSection({
                         </>
                       )}
                     </div>
+                    {redemption && (
+                      <div className="mt-2 flex flex-wrap items-center gap-2">
+                        <span className={`rounded px-2 py-0.5 text-[11px] font-bold ${redemption.className}`}>
+                          {redemption.label}
+                        </span>
+                        <a
+                          href={DYNADOT_ACCOUNT_URL}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-[11px] font-medium text-orange-700 hover:underline dark:text-orange-400"
+                        >
+                          Recuperar na Dynadot →
+                        </a>
+                      </div>
+                    )}
+                    {redemption && (
+                      <p className="mt-1 text-[11px] text-orange-700 dark:text-orange-400">{redemption.hint}</p>
+                    )}
                   </div>
                 </div>
 
@@ -10572,6 +10661,8 @@ export function DomainManagerSection({
           })}
         </div>
       )}
+
+      {domainQuickActionsPanel}
 
       {/* Modal de Criação de Email */}
       <EmailCreateModal

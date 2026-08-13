@@ -216,9 +216,13 @@ export function AdminSidebar({
     };
     fetchUnread();
     const interval = setInterval(fetchUnread, 30000);
+    // Actualiza logo que uma notificação é marcada como lida no painel
+    // "Notificações > Servidor", em vez de esperar até 30s pelo próximo poll.
+    window.addEventListener('notifications:server-updated', fetchUnread);
     return () => {
       cancelled = true;
       clearInterval(interval);
+      window.removeEventListener('notifications:server-updated', fetchUnread);
     };
   }, []);
 

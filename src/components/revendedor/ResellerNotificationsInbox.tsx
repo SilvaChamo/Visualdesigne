@@ -43,6 +43,7 @@ export function ResellerNotificationsInbox({
   const [items, setItems] = useState<NotificationItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [expandedId, setExpandedId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -147,11 +148,15 @@ export function ResellerNotificationsInbox({
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
           {items.map((n) => {
             const Icon = TYPE_ICON[n.type] || Info;
+            const expanded = expandedId === n.id;
             return (
               <button
                 key={n.id}
                 type="button"
-                onClick={() => !n.read && void markRead(n.id)}
+                onClick={() => {
+                  setExpandedId(expanded ? null : n.id);
+                  if (!n.read) void markRead(n.id);
+                }}
                 className={`text-left rounded border p-4 transition-colors w-full ${
                   n.read
                     ? 'border-gray-200 bg-white dark:border-zinc-800 dark:bg-zinc-950'
@@ -169,7 +174,9 @@ export function ResellerNotificationsInbox({
                         <span className="w-2 h-2 rounded-full bg-red-600 shrink-0" aria-hidden />
                       )}
                     </div>
-                    <p className="text-xs text-gray-600 dark:text-zinc-400 mt-1 line-clamp-3">{n.message}</p>
+                    {expanded && (
+                      <p className="text-xs text-gray-600 dark:text-zinc-400 mt-1">{n.message}</p>
+                    )}
                     <p className="text-[10px] text-gray-400 dark:text-zinc-500 mt-2">{formatDate(n.created_at)}</p>
                   </div>
                 </div>

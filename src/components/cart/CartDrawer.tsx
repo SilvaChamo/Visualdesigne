@@ -4,18 +4,28 @@ import React from 'react';
 import { useCart } from '@/contexts/CartContext';
 import { useCurrency } from '@/contexts/CurrencyContext';
 import { X, Trash2, ShoppingCart, ChevronRight, Shield, Server, Trash, Mail, Globe } from 'lucide-react';
-import { getHostingPlan } from '@/lib/hosting-plans';
+import { HOSTING_PLANS } from '@/lib/hosting-plans';
 import { EMAIL_BASICO_ID, EMAIL_BASICO_PRICE_MT } from '@/lib/package-catalog';
 import { DOMAIN_TLD_PRICES, domainRegistrationPriceMt } from '@/lib/domain-tld-prices';
 import { checkoutEntryPath, DOMAIN_STEP_PATH } from '@/lib/checkout-flow';
+import { useI18n } from '@/lib/i18n';
 
 const DOMAIN_REGISTRATION_YEARS = [1, 2, 3, 5, 10];
+
+// Espaço em disco de cada plano, na mesma ordem de /precos/hospedagem — só
+// para a descrição curta aqui no carrinho, não é usado no cálculo de preço.
+const HOSTING_PLAN_STORAGE_GB: Record<string, number> = {
+  'hosting-basico': 10,
+  'hosting-pro': 20,
+  'hosting-business': 30,
+  'hosting-enterprise': 40,
+};
 
 export function CartDrawer() {
   const { isCartOpen, setIsCartOpen, items, removeItem, updateItemPeriod, total, clearCart, addItem } = useCart();
   const { formatPrice } = useCurrency();
-  const hostingBasicoPrice = getHostingPlan('hosting-basico')!.basePrice;
-  const comTld = DOMAIN_TLD_PRICES.find((t) => t.value === '.com')!;
+  const { t } = useI18n();
+  const comTld = DOMAIN_TLD_PRICES.find((row) => row.value === '.com')!;
   const comPriceMt = domainRegistrationPriceMt(comTld, 1);
 
   if (!isCartOpen) return null;
@@ -101,28 +111,31 @@ export function CartDrawer() {
                   </div>
                 </div>
 
-                <div
-                  className="flex items-center justify-between p-3 bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-xl hover:border-red-300 hover:shadow-sm transition-all cursor-pointer group"
-                  onClick={() => {
-                    addItem({ id: 'hosting-basico', type: 'hosting', name: 'Alojamento Web Básico', price: hostingBasicoPrice, period: 1 });
-                    setIsCartOpen(false);
-                    window.location.href = DOMAIN_STEP_PATH;
-                  }}
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="w-9 h-9 rounded-lg bg-red-50 dark:bg-red-950/20 flex items-center justify-center flex-shrink-0">
-                      <Server className="w-4 h-4 text-red-600 dark:text-red-500" />
+                {HOSTING_PLANS.map((plan) => (
+                  <div
+                    key={plan.id}
+                    className="flex items-center justify-between p-3 bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-xl hover:border-red-300 hover:shadow-sm transition-all cursor-pointer group"
+                    onClick={() => {
+                      addItem({ id: plan.id, type: 'hosting', name: `Alojamento Web ${t(plan.nameKey)}`, price: plan.basePrice, period: 1 });
+                      setIsCartOpen(false);
+                      window.location.href = DOMAIN_STEP_PATH;
+                    }}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="w-9 h-9 rounded-lg bg-red-50 dark:bg-red-950/20 flex items-center justify-center flex-shrink-0">
+                        <Server className="w-4 h-4 text-red-600 dark:text-red-500" />
+                      </div>
+                      <div>
+                        <h4 className="font-bold text-slate-800 dark:text-zinc-200 text-sm group-hover:text-red-600 transition-colors">Alojamento Web {t(plan.nameKey)}</h4>
+                        <p className="text-[10px] text-slate-500 dark:text-zinc-400">{HOSTING_PLAN_STORAGE_GB[plan.id]}GB SSD · DirectAdmin</p>
+                      </div>
                     </div>
-                    <div>
-                      <h4 className="font-bold text-slate-800 dark:text-zinc-200 text-sm group-hover:text-red-600 transition-colors">Alojamento Web Básico</h4>
-                      <p className="text-[10px] text-slate-500 dark:text-zinc-400">10GB SSD · DirectAdmin</p>
+                    <div className="text-right flex-shrink-0">
+                      <div className="font-bold text-slate-800 dark:text-zinc-200 text-sm">{formatPrice(plan.basePrice)}<span className="text-[10px] text-slate-400 font-normal">/mês</span></div>
+                      <span className="text-[10px] text-red-600 dark:text-red-500 font-bold">+ Adicionar</span>
                     </div>
                   </div>
-                  <div className="text-right flex-shrink-0">
-                    <div className="font-bold text-slate-800 dark:text-zinc-200 text-sm">{formatPrice(hostingBasicoPrice)}<span className="text-[10px] text-slate-400 font-normal">/mês</span></div>
-                    <span className="text-[10px] text-red-600 dark:text-red-500 font-bold">+ Adicionar</span>
-                  </div>
-                </div>
+                ))}
 
                 <div
                   className="flex items-center justify-between p-3 bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-xl hover:border-blue-300 hover:shadow-sm transition-all cursor-pointer group"
@@ -236,11 +249,12 @@ export function CartDrawer() {
                     </div>
                   </div>
                 )}
-                {!items.find(i => i.id === 'hosting-basico') && (
+                {HOSTING_PLANS.filter((plan) => !items.find((i) => i.id === plan.id)).map((plan) => (
                   <div
+                    key={plan.id}
                     className="flex items-center justify-between p-3 bg-white rounded-xl border border-slate-200 hover:border-red-300 hover:shadow-sm transition-all cursor-pointer group"
                     onClick={() => {
-                      addItem({ id: 'hosting-basico', type: 'hosting', name: 'Alojamento Web Básico', price: hostingBasicoPrice, period: 1 });
+                      addItem({ id: plan.id, type: 'hosting', name: `Alojamento Web ${t(plan.nameKey)}`, price: plan.basePrice, period: 1 });
                       setIsCartOpen(false);
                       window.location.href = DOMAIN_STEP_PATH;
                     }}
@@ -250,16 +264,16 @@ export function CartDrawer() {
                         <Server className="w-4 h-4 text-red-600" />
                       </div>
                       <div>
-                        <h4 className="font-bold text-slate-800 text-sm group-hover:text-red-600 transition-colors">Alojamento Web Básico</h4>
-                        <p className="text-[10px] text-slate-500">10GB SSD · DirectAdmin</p>
+                        <h4 className="font-bold text-slate-800 text-sm group-hover:text-red-600 transition-colors">Alojamento Web {t(plan.nameKey)}</h4>
+                        <p className="text-[10px] text-slate-500">{HOSTING_PLAN_STORAGE_GB[plan.id]}GB SSD · DirectAdmin</p>
                       </div>
                     </div>
                     <div className="text-right flex-shrink-0">
-                      <div className="font-bold text-slate-800 text-sm">{formatPrice(hostingBasicoPrice)}<span className="text-[10px] text-slate-400 font-normal">/mês</span></div>
+                      <div className="font-bold text-slate-800 text-sm">{formatPrice(plan.basePrice)}<span className="text-[10px] text-slate-400 font-normal">/mês</span></div>
                       <span className="text-[10px] text-red-600 font-bold">+ Adicionar</span>
                     </div>
                   </div>
-                )}
+                ))}
                 {!items.find(i => i.id === 'email-basico') && (
                   <div
                     className="flex items-center justify-between p-3 bg-white rounded-xl border border-slate-200 hover:border-blue-300 hover:shadow-sm transition-all cursor-pointer group"

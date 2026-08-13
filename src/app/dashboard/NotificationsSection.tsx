@@ -66,6 +66,7 @@ export function NotificationsSection({
   const [loading, setLoading] = useState(false)
   const [sending, setSending] = useState(false)
   const [activeTab, setActiveTab] = useState<NotificationsTab>(defaultTab)
+  const [expandedId, setExpandedId] = useState<string | null>(null)
 
   const fetchNotifications = async () => {
     setLoading(true)
@@ -179,6 +180,10 @@ export function NotificationsSection({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id })
       })
+      // Avisa a sidebar (contador do sino) para actualizar já, em vez de
+      // esperar pelo próximo poll de 30s dela — sem isto o balão fica a
+      // mostrar notificações já lidas como se estivessem pendentes.
+      window.dispatchEvent(new Event('notifications:server-updated'))
     } catch (error) {
       console.error('Erro ao marcar como lida:', error)
     }
@@ -482,11 +487,21 @@ export function NotificationsSection({
               <p className="text-gray-500">Nenhuma notificação enviada ainda</p>
             </div>
           ) : (
-            <div className="space-y-3 max-h-96 overflow-y-auto">
-              {notifications.map((notification) => (
+            <div className="space-y-3">
+              {notifications.map((notification) => {
+                const expanded = expandedId === notification.id
+                return (
                 <div
                   key={notification.id}
-                  onClick={() => markAsRead(notification.id)}
+                  onClick={() => {
+                    // Se o clique terminou uma selecção de texto (utilizador a
+                    // tentar copiar a mensagem), não fechar/abrir o cartão —
+                    // isso apagava a selecção antes de dar para copiar.
+                    const selection = window.getSelection()
+                    if (selection && selection.toString().length > 0) return
+                    setExpandedId(expanded ? null : notification.id)
+                    markAsRead(notification.id)
+                  }}
                   className={`p-4 rounded-lg border cursor-pointer ${getTypeColor(notification.type)} ${
                     notification.read ? 'opacity-75' : ''
                   }`}
@@ -507,7 +522,9 @@ export function NotificationsSection({
                             <span className="w-2 h-2 rounded-full bg-red-600" title="Não lida" />
                           )}
                         </div>
-                        <p className={`text-sm mt-1 opacity-90 ${notification.read ? '' : 'font-semibold'}`}>{notification.message}</p>
+                        {expanded && (
+                          <p className={`text-sm mt-1 select-text ${notification.read ? '' : 'font-semibold'}`}>{notification.message}</p>
+                        )}
                         <p className="text-xs mt-2 opacity-70">
                           {new Date(notification.created_at).toLocaleString('pt-PT')}
                         </p>
@@ -522,7 +539,8 @@ export function NotificationsSection({
                     </button>
                   </div>
                 </div>
-              ))}
+                )
+              })}
             </div>
           )}
         </div>

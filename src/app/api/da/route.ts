@@ -3,7 +3,7 @@ import { requireAdminOrReseller } from '@/lib/panel-api-auth';
 import { requireDaAccessForDomain } from '@/lib/panel-domain-access';
 import { resolvePanelDaContext } from '@/lib/panel-api-context';
 import { scheduleDaSync } from '@/lib/da-sync-engine';
-import { mirrorAfterDaMutation, mutationSucceeded } from '@/lib/panel-mirror-write';
+import { mirrorAfterDaMutation, mutationSucceeded, deleteMirrorSite, patchMirrorSite } from '@/lib/panel-mirror-write';
 import {
   listMirrorDns,
   listMirrorDatabases,
@@ -15,6 +15,35 @@ import {
   listMirrorWebsites,
 } from '@/lib/panel-mirror-read';
 import { resolveMirrorOrLive } from '@/lib/panel-list-resolve';
+import { getProviderByUsername } from '@/lib/hosting-provider';
+import * as hestiaAdapter from '@/lib/hestia-adapter';
+import { getDaSyncAdmin } from '@/lib/da-sync-schema';
+
+// O Webmail lê sempre a password de email_contas (ver WebmailSection.tsx) —
+// sem isto, contas de email do Hestia criadas/alteradas aqui nunca ficavam
+// com a senha certa aí, e o Webmail deixava de reconhecer a password.
+async function syncEmailContasPassword(email: string, password: string): Promise<void> {
+  if (!email || !password) return;
+  const sb = getDaSyncAdmin();
+  if (!sb) return;
+  const { encryptStoredPassword } = await import('@/lib/panel-access-credentials');
+  await sb.from('email_contas').upsert(
+    {
+      email,
+      senha_servidor: encryptStoredPassword(password),
+      tipo_conta: 'webmail',
+      status: 'active',
+    },
+    { onConflict: 'email' },
+  );
+}
+
+async function deleteEmailContasRow(email: string): Promise<void> {
+  if (!email) return;
+  const sb = getDaSyncAdmin();
+  if (!sb) return;
+  await sb.from('email_contas').delete().eq('email', email);
+}
 
 const MUTATION_ACTIONS = new Set([
   'createUser', 'modifyUser', 'deleteUser',
@@ -76,6 +105,139 @@ async function resolveApi(action?: string, domain?: string) {
   return { daApi: ctx.daApi, user: auth.user, mirrorScope: ctx.mirrorScope } as const;
 }
 
+// Acções de email/FTP já implementadas para contas Hestia — despachadas aqui,
+// ANTES de tocar em `daApi`, porque a conta nem existe no DirectAdmin. Tudo o
+// resto (SSL, DNS, WordPress, backups, subdomínios, etc.) continua por
+// implementar para Hestia; nesses casos `handled` fica `false` e o pedido
+// segue o caminho DA normal (com o mesmo comportamento de sempre para essas
+// lacunas, já conhecido/documentado à parte).
+const HESTIA_SUPPORTED_ACTIONS = new Set([
+  'listEmails', 'createEmail', 'deleteEmail', 'suspendEmail', 'unsuspendEmail', 'changeEmailPassword',
+  'listFTPAccounts', 'createFTPAccount', 'deleteFTPAccount',
+  'deleteWebsite', 'suspendWebsite', 'unsuspendWebsite',
+]);
+
+async function tryHestiaAction(
+  action: string,
+  params: Record<string, unknown>,
+  mirrorScope: Parameters<typeof listMirrorWebsites>[0],
+): Promise<{ handled: false } | { handled: true; response: NextResponse }> {
+  if (!HESTIA_SUPPORTED_ACTIONS.has(action)) return { handled: false };
+
+  const domainParam = String(params.domain || '');
+  const emailParam = String(params.email || '');
+  const domain = domainParam || (emailParam.includes('@') ? emailParam.split('@')[1] : '');
+  if (!domain) return { handled: false };
+
+  const sites = await listMirrorWebsites(mirrorScope);
+  const site = sites.find((s) => s.domain?.toLowerCase() === domain.toLowerCase());
+  const owner = site?.owner?.toLowerCase();
+  if (!owner) return { handled: false };
+
+  const provider = await getProviderByUsername(owner);
+  if (provider !== 'hestia') return { handled: false };
+
+  let data: unknown;
+  try {
+    switch (action) {
+      case 'listEmails': {
+        const rows = await hestiaAdapter.listMailAccounts(owner, domain);
+        data = rows.map((r) => ({
+          id: `${r.account}@${domain}`,
+          email: `${r.account}@${domain}`,
+          domain,
+          quota_mb: r.quotaMb ?? undefined,
+          usage: String(r.diskUsedMb),
+          status: 'active' as const,
+        }));
+        break;
+      }
+      case 'createEmail': {
+        const userName = String(params.userName || params.user || '');
+        const password = String(params.password || '');
+        const quotaMb = params.quota ? Number(params.quota) : undefined;
+        if (!userName || !password) {
+          return {
+            handled: true,
+            response: NextResponse.json({ success: false, error: 'Utilizador e senha são obrigatórios.' }, { status: 400 }),
+          };
+        }
+        data = await hestiaAdapter.addMailAccount(owner, domain, userName, password, quotaMb);
+        await syncEmailContasPassword(`${userName}@${domain}`, password);
+        break;
+      }
+      case 'deleteEmail': {
+        const userName = String(params.userName || emailParam.split('@')[0] || '');
+        data = await hestiaAdapter.deleteMailAccount(owner, domain, userName);
+        await deleteEmailContasRow(`${userName}@${domain}`);
+        break;
+      }
+      case 'suspendEmail':
+      case 'unsuspendEmail': {
+        const userName = emailParam.split('@')[0] || '';
+        data =
+          action === 'suspendEmail'
+            ? await hestiaAdapter.suspendMailAccount(owner, domain, userName)
+            : await hestiaAdapter.unsuspendMailAccount(owner, domain, userName);
+        break;
+      }
+      case 'changeEmailPassword': {
+        const userName = emailParam.split('@')[0] || '';
+        const password = String(params.password || '');
+        data = await hestiaAdapter.changeMailAccountPassword(owner, domain, userName, password);
+        await syncEmailContasPassword(`${userName}@${domain}`, password);
+        break;
+      }
+      case 'listFTPAccounts': {
+        const rows = await hestiaAdapter.listFtpAccounts(owner, domain);
+        data = rows.map((r) => ({ username: r.ftpUser, userName: r.ftpUser, domain, path: r.path }));
+        break;
+      }
+      case 'createFTPAccount': {
+        const usernameSuffix = String(params.username || params.userName || '');
+        const password = String(params.password || '');
+        const path = params.path ? String(params.path) : undefined;
+        if (!usernameSuffix || !password) {
+          return {
+            handled: true,
+            response: NextResponse.json({ success: false, error: 'Utilizador e senha são obrigatórios.' }, { status: 400 }),
+          };
+        }
+        data = await hestiaAdapter.addFtpAccount(owner, domain, usernameSuffix, password, path);
+        break;
+      }
+      case 'deleteFTPAccount': {
+        const ftpUser = String(params.username || params.userName || '');
+        data = await hestiaAdapter.deleteFtpAccount(owner, domain, ftpUser);
+        break;
+      }
+      case 'deleteWebsite': {
+        const result = await hestiaAdapter.deleteWebDomain(owner, domain);
+        if (result.ok) await deleteMirrorSite(domain);
+        data = { success: result.ok, error: result.error };
+        break;
+      }
+      case 'suspendWebsite':
+      case 'unsuspendWebsite': {
+        const result =
+          action === 'suspendWebsite'
+            ? await hestiaAdapter.suspendWebDomain(owner, domain)
+            : await hestiaAdapter.unsuspendWebDomain(owner, domain);
+        if (result.ok) await patchMirrorSite(domain, { status: action === 'suspendWebsite' ? 'Suspended' : 'Active' });
+        data = { success: result.ok, error: result.error };
+        break;
+      }
+      default:
+        return { handled: false };
+    }
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Erro interno (Hestia)';
+    return { handled: true, response: NextResponse.json({ success: false, error: message }, { status: 500 }) };
+  }
+
+  return { handled: true, response: NextResponse.json({ success: true, data }) };
+}
+
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
@@ -89,6 +251,9 @@ export async function POST(req: NextRequest) {
     if ('error' in resolved) return resolved.error;
 
     const { daApi, user, mirrorScope } = resolved;
+
+    const hestiaResult = await tryHestiaAction(action, params, mirrorScope);
+    if (hestiaResult.handled) return hestiaResult.response;
 
     let data: unknown;
 

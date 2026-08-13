@@ -8,6 +8,8 @@ import { auth } from '@/lib/supabase-client'
 import { useI18n } from '@/lib/i18n'
 import { googleOAuthUserMessage } from '@/lib/auth-messages'
 import { PUBLIC_PANEL_ENTRY } from '@/lib/panel-origin'
+import { fetchPanelBootstrap, type PanelBootstrapScope } from '@/lib/panel-data-from-server'
+import type { UserRole } from '@/lib/user-roles'
 import { AuthPageShell, AuthLoadingShell } from '@/components/auth/AuthPageShell'
 import {
   authCardClass,
@@ -42,6 +44,31 @@ function LoginFormInner() {
     }
   }, [searchParams])
 
+  const bootstrapScopeForRole = (role: UserRole): PanelBootstrapScope | null => {
+    if (role === 'admin' || role === 'manager') return 'admin'
+    if (role === 'reseller') return 'reseller'
+    if (role === 'client') return 'client'
+    return null
+  }
+
+  /** Começa a carregar os dados do painel ainda no ecrã de login (assim que a
+   * password é confirmada), para a página abrir já pronta em vez de mostrar
+   * o círculo de carregamento outra vez depois do redireccionamento. Tempo
+   * limitado a 4s — se demorar mais, avança na mesma e o painel carrega
+   * normalmente ao abrir. */
+  const prefetchPanelData = async (role: UserRole) => {
+    const scope = bootstrapScopeForRole(role)
+    if (!scope) return
+    try {
+      await Promise.race([
+        fetchPanelBootstrap({ fresh: true, scope }),
+        new Promise((resolve) => setTimeout(resolve, 4000)),
+      ])
+    } catch {
+      /* falha ao pré-carregar — painel carrega normalmente ao abrir */
+    }
+  }
+
   const goToPanel = async (role: Awaited<ReturnType<typeof auth.getUserRole>>) => {
     const redirectTo = searchParams.get('redirect') || searchParams.get('next')
     if (redirectTo && typeof redirectTo === 'string' && redirectTo.startsWith('/')) {
@@ -61,6 +88,7 @@ function LoginFormInner() {
     setError('')
     try {
       const role = await signIn(email, password)
+      await prefetchPanelData(role)
       await goToPanel(role)
     } catch (err: unknown) {
       const msg = String((err as Error)?.message || '')

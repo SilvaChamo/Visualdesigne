@@ -482,6 +482,26 @@ export async function mirrorAfterDaMutation(
           quota: str(params, 'quota') || '500',
         });
       }
+      // Sem isto, uma conta de email criada aqui nunca ganhava senha em
+      // email_contas — o Webmail lê a password dali, por isso nunca
+      // reconhecia a conta acabada de criar.
+      const fullEmail = email || (emailUser && emailDomain ? `${emailUser}@${emailDomain}` : '');
+      const password = str(params, 'password');
+      if (fullEmail && password) {
+        const sb = getDaSyncAdmin();
+        if (sb) {
+          const { encryptStoredPassword } = await import('@/lib/panel-access-credentials');
+          await sb.from('email_contas').upsert(
+            {
+              email: fullEmail,
+              senha_servidor: encryptStoredPassword(password),
+              tipo_conta: 'webmail',
+              status: 'active',
+            },
+            { onConflict: 'email' },
+          );
+        }
+      }
       break;
     }
     case 'deleteEmail': {
@@ -489,6 +509,8 @@ export async function mirrorAfterDaMutation(
       if (email.includes('@')) {
         const [u, d] = email.split('@');
         await deleteMirrorEmail(d, u);
+        const sb = getDaSyncAdmin();
+        if (sb) await sb.from('email_contas').delete().eq('email', email);
       }
       break;
     }

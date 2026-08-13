@@ -1,10 +1,10 @@
 -- Pedidos de transferência de domínio (de outro registador para nós),
--- para mostrar ao cliente a trajectória: pending -> submitted -> waiting -> completed/rejected.
+-- para mostrar ao cliente a trajectória: pending -> submitted -> waiting -> (locked) -> completed/rejected/failed.
 create table if not exists domain_transfer_requests (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null,
   domain_name text not null,
-  status text not null default 'pending', -- pending | submitted | waiting | completed | rejected | failed
+  status text not null default 'pending', -- pending | submitted | waiting | locked | completed | rejected | failed
   dynadot_order_id text,
   error_message text,
   years integer not null default 1,

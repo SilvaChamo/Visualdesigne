@@ -133,6 +133,14 @@ export async function runHestiaFullSync(): Promise<HestiaSyncResult> {
   }
 
   // ── Sites (por conta) ──
+  // Detecta WordPress a sério (procura wp-config.php no servidor) em vez de
+  // confiar só na instalação feita pelo próprio painel — mesmo raciocínio
+  // aplicado ao lado DirectAdmin (ver da-sync-engine.ts).
+  const { listWpInstalls } = await import('@/lib/wp-cli-server');
+  const wpDomains = new Set(
+    (await listWpInstalls().catch(() => [])).map((w) => w.domain),
+  );
+
   const liveDomainsByOwner = new Map<string, Set<string>>();
   for (const username of liveUsernames) {
     try {
@@ -151,6 +159,7 @@ export async function runHestiaFullSync(): Promise<HestiaSyncResult> {
             bandwidth_usage: String(d.bandwidthUsedMb),
             ssl_status: d.sslEnabled ? 'Secure' : 'No SSL',
             ip: d.ip || null,
+            ...(wpDomains.has(d.domain) ? { site_type: 'wordpress' } : {}),
             synced_at: syncedAt,
             updated_at: syncedAt,
           },

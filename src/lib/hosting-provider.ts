@@ -56,6 +56,18 @@ export async function deleteHostingAccount(
   return { ok: r.ok, error: r.error };
 }
 
+/** Remove só um site (não a conta inteira) — usado para limpar encomendas de
+ * teste sem arriscar apagar a conta principal do servidor. Ainda não
+ * implementado para DirectAdmin de propósito (não confirmado no servidor). */
+export async function deleteHostingWebDomain(
+  provider: HostingProvider,
+  username: string,
+  domain: string,
+): Promise<{ ok: boolean; error?: string }> {
+  if (provider === 'hestia') return hestiaAdapter.deleteWebDomain(username, domain);
+  return { ok: false, error: 'Eliminação de site individual ainda não implementada para DirectAdmin.' };
+}
+
 export async function changeHostingAccountPassword(
   provider: HostingProvider,
   username: string,

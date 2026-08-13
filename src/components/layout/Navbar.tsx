@@ -30,7 +30,7 @@ export function Navbar() {
   // Itens de Acesso Rápido (sempre visíveis quando não há busca)
   const quickAccessItems = [
     { href: '/cliente/domains', icon: Globe, title: 'Gestor de Domínios', desc: 'Gerir os seus domínios', bg: 'bg-teal-50', text: 'text-teal-600', tags: 'domínios gerir', requiresLogin: false },
-    { href: '/servicos/hospedagem', icon: Server, title: 'Gestor de Alojamento', desc: 'Hospedagem CPanel', bg: 'bg-blue-50', text: 'text-blue-600', tags: 'hosting alojamento', requiresLogin: false },
+    { href: '/cliente', icon: Server, title: 'Gestor de Alojamento', desc: 'Hospedagem CPanel', bg: 'bg-blue-50', text: 'text-blue-600', tags: 'hosting alojamento', requiresLogin: false },
     { href: '/cliente/domains', icon: Shield, title: 'DNS Avançado', desc: 'Registos e Zonas', bg: 'bg-purple-50', text: 'text-purple-600', tags: 'dns registos zonas', requiresLogin: false },
     { href: '/notificacoes', icon: CreditCard, title: 'Facturas e Pagamentos', desc: 'Histórico e Pendentes', bg: 'bg-orange-50', text: 'text-orange-600', tags: 'facturas pagamentos', requiresLogin: false },
   ]
@@ -51,16 +51,16 @@ export function Navbar() {
     { href: '/web', icon: SearchIcon, title: 'SEO', desc: 'Otimização para motores de busca', bg: 'bg-green-50', text: 'text-green-600', tags: 'google ranking otimização pesquisa serviços', requiresLogin: false },
 
     // Serviços - Infraestrutura
-    { href: '/precos/dominios', icon: Globe, title: 'Domínios', desc: 'Registo e transferência de domínios', bg: 'bg-teal-50', text: 'text-teal-600', tags: 'domínio registar .com .mz dns serviços', requiresLogin: false },
+    { href: '/servicos/dominios', icon: Globe, title: 'Domínios', desc: 'Registo e transferência de domínios', bg: 'bg-teal-50', text: 'text-teal-600', tags: 'domínio registar .com .mz dns serviços', requiresLogin: false },
     { href: '/precos/hospedagem', icon: Server, title: 'Hospedagem', desc: 'Alojamento web CPanel e servidores', bg: 'bg-blue-50', text: 'text-blue-600', tags: 'hosting alojamento servidor cpanel vps serviços', requiresLogin: false },
     { href: '/precos/ssl', icon: Shield, title: 'Certificado SSL', desc: 'Segurança HTTPS para o seu site', bg: 'bg-emerald-50', text: 'text-emerald-600', tags: 'ssl https segurança certificado serviços', requiresLogin: false },
     { href: '/precos/email', icon: Mail, title: 'Email Profissional', desc: 'Email com o seu domínio personalizado', bg: 'bg-violet-50', text: 'text-violet-600', tags: 'email profissional correio caixa serviços', requiresLogin: false },
-    { href: '/servicos/suporte', icon: HelpCircle, title: 'Suporte Técnico', desc: 'Assistência técnica e manutenção', bg: 'bg-sky-50', text: 'text-sky-600', tags: 'suporte ajuda assistência manutenção técnico serviços', requiresLogin: false },
+    { href: '/precos/suporte', icon: HelpCircle, title: 'Suporte Técnico', desc: 'Assistência técnica e manutenção', bg: 'bg-sky-50', text: 'text-sky-600', tags: 'suporte ajuda assistência manutenção técnico serviços', requiresLogin: false },
     { href: '/eventos/feiras', icon: Rocket, title: 'Feiras e Eventos', desc: 'Stands, materiais e cobertura de eventos', bg: 'bg-amber-50', text: 'text-amber-600', tags: 'evento feira stand exposição conferência serviços', requiresLogin: false },
 
     // Preços
     { href: '/precos', icon: FileText, title: 'Preços', desc: 'Tabela de preços e planos disponíveis', bg: 'bg-yellow-50', text: 'text-yellow-600', tags: 'preço plano custo valor tabela', requiresLogin: false },
-    { href: '/precos/dominios', icon: Globe, title: 'Preços de Domínios', desc: 'Tabela de preços de registo de domínios', bg: 'bg-teal-50', text: 'text-teal-600', tags: 'preço domínio custo', requiresLogin: false },
+    { href: '/servicos/dominios', icon: Globe, title: 'Preços de Domínios', desc: 'Tabela de preços de registo de domínios', bg: 'bg-teal-50', text: 'text-teal-600', tags: 'preço domínio custo', requiresLogin: false },
     { href: '/precos/hospedagem', icon: Server, title: 'Preços de Hospedagem', desc: 'Planos de alojamento web', bg: 'bg-blue-50', text: 'text-blue-600', tags: 'preço hosting plano servidor', requiresLogin: false },
     { href: '/precos/email', icon: Mail, title: 'Preços de Email', desc: 'Planos de email profissional', bg: 'bg-violet-50', text: 'text-violet-600', tags: 'preço email plano correio', requiresLogin: false },
     { href: '/precos/ssl', icon: Shield, title: 'Preços de SSL', desc: 'Planos de certificados SSL', bg: 'bg-emerald-50', text: 'text-emerald-600', tags: 'preço ssl certificado', requiresLogin: false },

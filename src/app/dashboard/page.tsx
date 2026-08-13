@@ -36,7 +36,6 @@ const sectionLoadingFallback = (
   </div>
 )
 const WebmailSection = dynamic(() => import('@/components/dashboard/WebmailSection').then(m => m.WebmailSection), { ssr: false, loading: () => sectionLoadingFallback })
-const NativeHostingSection = dynamic(() => import('./NativeHostingSection').then(m => m.NativeHostingSection), { ssr: false, loading: () => sectionLoadingFallback })
 const DatabasesSection = dynamic(() => import('./HostingSections').then(m => m.DatabasesSection), { ssr: false, loading: () => sectionLoadingFallback })
 const FTPSection = dynamic(() => import('./HostingSections').then(m => m.FTPSection), { ssr: false, loading: () => sectionLoadingFallback })
 const EmailManagementSection = dynamic(() => import('./HostingSections').then(m => m.EmailManagementSection), { ssr: false, loading: () => sectionLoadingFallback })
@@ -1619,8 +1618,6 @@ function AdminPageContent() {
         )
       case 'git-deploy':
         return <GitDeploySection />
-      case 'native-hosting':
-        return <NativeHostingSection />
       case 'deploy':
         return <DeploySection sites={directAdminSites} />
       case 'packages-list':

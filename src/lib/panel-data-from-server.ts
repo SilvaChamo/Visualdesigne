@@ -10,7 +10,12 @@ import type { PanelCapabilities, ResellerTier } from '@/lib/panel-role-capabilit
 import { parseJsonResponse } from '@/lib/safe-fetch-json';
 
 const BOOTSTRAP_CACHE_KEY = 'vd_panel_bootstrap_v2';
-const BOOTSTRAP_CACHE_MS = 180_000;
+// 8h — dentro de um dia de trabalho normal, o dashboard mostra sempre a
+// última versão guardada na hora (instantâneo) e só actualiza em segundo
+// plano (fetchPanelBootstrapStaleWhileRevalidate), em vez de voltar a
+// mostrar o círculo de carregamento cada vez que passa algum tempo. Some
+// sozinho quando fechas a aba/navegador (é sessionStorage).
+const BOOTSTRAP_CACHE_MS = 8 * 60 * 60_000;
 
 export type PanelBootstrapScope = 'admin' | 'reseller' | 'client';
 

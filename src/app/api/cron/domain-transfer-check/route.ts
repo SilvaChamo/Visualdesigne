@@ -6,10 +6,11 @@ const CRON_SECRET = process.env.CRON_SECRET || 'default-secret-change-in-product
 
 /**
  * Verifica junto da Dynadot todos os pedidos de transferência ainda em
- * curso (submitted/waiting) e actualiza o estado + notificações. Sem isto,
- * uma transferência só avança quando alguém tem a página "Transferir
+ * curso (submitted/waiting/locked) e actualiza o estado + notificações. Sem
+ * isto, uma transferência só avança quando alguém tem a página "Transferir
  * Domínio" do dashboard aberta (polling só no browser) — este cron garante
- * que avança mesmo que ninguém esteja a olhar.
+ * que avança mesmo que ninguém esteja a olhar. Inclui "locked" para
+ * detectar quando o dono desbloqueia o domínio no registador antigo.
  */
 export async function GET(request: NextRequest) {
   const secret = request.nextUrl.searchParams.get('secret');
@@ -24,7 +25,7 @@ export async function GET(request: NextRequest) {
   const { data: pending, error } = await admin
     .from('domain_transfer_requests')
     .select('*')
-    .in('status', ['submitted', 'waiting']);
+    .in('status', ['submitted', 'waiting', 'locked']);
 
   if (error) {
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });

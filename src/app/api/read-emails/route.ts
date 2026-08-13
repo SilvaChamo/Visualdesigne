@@ -33,6 +33,13 @@ const determinarTipo = (path: string) => {
 }
 
 const STANDARD_FOLDERS = ['INBOX', 'Sent', 'Drafts', 'Trash', 'Junk', 'Archive']
+// INBOX/Junk: o número que interessa é o de não lidas (chama a atenção).
+// Sent/Drafts/Trash/Archive: mensagens aí já estão lidas por natureza — mostrar
+// "não lidas" dava sempre 0 mesmo com a pasta cheia; mostra-se antes o total.
+const UNREAD_COUNT_FOLDERS = new Set(['INBOX', 'Junk'])
+function pickFolderCount(standardKey: string, status: { unseen?: number; messages?: number }): number {
+  return UNREAD_COUNT_FOLDERS.has(standardKey) ? (status.unseen || 0) : (status.messages || 0)
+}
 
 type EmailRow = {
   id: number
@@ -292,8 +299,8 @@ export async function POST(req: NextRequest) {
           const realPath = resolveFolder(spf.toLowerCase(), folderList)
           if (realPath) {
             try {
-              const status = await client!.status(realPath, { unseen: true })
-              folderTotals[spf] = status.unseen || 0
+              const status = await client!.status(realPath, { unseen: true, messages: true })
+              folderTotals[spf] = pickFolderCount(spf, status)
             } catch {
               folderTotals[spf] = 0
             }
@@ -324,8 +331,8 @@ export async function POST(req: NextRequest) {
           if (includeTotals) {
             const standardKey = STANDARD_FOLDERS.find(sf => sf.toLowerCase() === fPath.toLowerCase()) || fPath
             try {
-              const status = await client!.status(realPath, { unseen: true })
-              folderTotals[standardKey] = status.unseen || 0
+              const status = await client!.status(realPath, { unseen: true, messages: true })
+              folderTotals[standardKey] = pickFolderCount(standardKey, status)
             } catch {
               folderTotals[standardKey] = 0
             }
@@ -344,8 +351,8 @@ export async function POST(req: NextRequest) {
           const realPath = resolveFolder(spf.toLowerCase(), folderList)
           if (realPath) {
             try {
-              const status = await client!.status(realPath, { unseen: true })
-              folderTotals[spf] = status.unseen || 0
+              const status = await client!.status(realPath, { unseen: true, messages: true })
+              folderTotals[spf] = pickFolderCount(spf, status)
             } catch {
               folderTotals[spf] = 0
             }

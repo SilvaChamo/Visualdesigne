@@ -80,9 +80,20 @@ jobs:
                 echo "${key}=${value}" >> .env.local
               fi
             }
-            # Sandbox aqui de propósito — instância de teste não deve registar
-            # domínios a sério nem cobrar dinheiro real.
-            set_env_var DYNADOT_ENV "sandbox"
+            # Activado a pedido do utilizador (2026-08-11) para ele próprio testar
+            # uma compra/transferência de domínio a sério a partir deste site de
+            # teste. Chaves de produção — partilha a mesma conta Dynadot da
+            # instância de produção (Hetzner), por isso um domínio comprado aqui
+            # é um domínio real, a sério, com custo real.
+            #
+            # REGRA DE SEGURANÇA: só o utilizador humano pode concluir uma compra
+            # real a partir daqui (clicar "comprar" no site). Nenhum agente/sessão
+            # Claude deve alguma vez chamar a API de registo de domínios
+            # directamente (script, curl, teste automatizado) enquanto este
+            # ambiente estiver em "production" — só leitura/consulta é permitida.
+            set_env_var DYNADOT_ENV "production"
+            set_env_var DYNADOT_API_KEY "${{ secrets.DYNADOT_API_KEY }}"
+            set_env_var DYNADOT_SECRET_KEY "${{ secrets.DYNADOT_SECRET_KEY }}"
             set_env_var DYNADOT_SANDBOX_API_KEY "${{ secrets.DYNADOT_SANDBOX_API_KEY }}"
             set_env_var DYNADOT_SANDBOX_SECRET_KEY "${{ secrets.DYNADOT_SANDBOX_SECRET_KEY }}"
             set_env_var CRON_SECRET "${{ secrets.CRON_SECRET }}"
@@ -146,8 +157,9 @@ jobs:
 
             # Reflecte o estado real do Hestia (contas/domínios/suspensões) de volta
             # para o espelho Supabase — sem isto, mudanças feitas directamente no
-            # painel Hestia nunca apareciam no painel VisualDesign. Idempotente:
-            # substitui só a linha marcada com a própria tag.
-            CRON_SECRET_VALUE=$(grep '^CRON_SECRET=' .env.local | cut -d= -f2-)
-            (crontab -l 2>/dev/null | grep -v '# visualdesign-hestia-sync'; \
-              echo "*/20 * * * * curl -fsS -H \"Authorization: Bearer ${CRON_SECRET_VALUE}\" http://127.0.0.1:3002/api/cron/hestia-sync >> /var/log/visualdesign-cron.log 2>&1 # visualdesign-hestia-sync") | crontab -
+            # painel Hestia nunca apareciam no painel VisualDesign. Script próprio
+            # (scripts/install-hestia-cron.sh) em vez de shell inline aqui: a versão
+            # inline anterior falhava silenciosamente dentro do ssh-action de forma
+            # não reproduzível por SSH directo (ver histórico do ficheiro) — mesmo
+            # depois de reescrita, voltou a falhar aqui dentro sem falhar à mão.
+            bash scripts/install-hestia-cron.sh

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient as createAdminClient } from '@supabase/supabase-js';
 import { daPostViaSshAsDaUser } from '@/lib/da-api-ssh';
+import * as hestiaAdapter from '@/lib/hestia-adapter';
 import { requireAdminOrReseller } from '@/lib/panel-api-auth';
 import { resolvePanelDaContext } from '@/lib/panel-api-context';
 import { resolveResellerPanelContext } from '@/lib/panel-reseller-context';
@@ -39,6 +40,18 @@ import type { PanelUser } from '@/lib/directadmin-hosting-api';
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
+
+/**
+ * Qual servidor de hospedagem recebe as contas novas — mesma flag que
+ * `checkout-fulfillment.ts` usa (`DEFAULT_HOSTING_PROVIDER`, só activa no
+ * deploy do Contabo). Repetido aqui em vez de importado porque a função lá
+ * não está exportada — mesma leitura, mesmo comportamento.
+ */
+function resolveNewAccountProvider(): 'directadmin' | 'hestia' {
+  return (process.env.DEFAULT_HOSTING_PROVIDER || '').trim().toLowerCase() === 'hestia'
+    ? 'hestia'
+    : 'directadmin';
+}
 
 function deriveUsername(domain: string, email: string): string {
   const fromDomain = domain.replace(/[^a-z0-9]/gi, '').slice(0, 10).toLowerCase();
@@ -176,6 +189,7 @@ export async function POST(req: NextRequest) {
     const adminEmail = String(body.adminEmail || email).trim();
     const userName = String(body.userName || '').trim() || deriveUsername(domain, email);
     const panelRole = accountType === 'reseller' ? 'reseller' : accountType === 'professional' ? 'manager' : 'client';
+    const hostingProvider = resolveNewAccountProvider();
 
     if (!isExistingUser && (!email.includes('@') || password.length < 8)) {
       return NextResponse.json(
@@ -249,6 +263,7 @@ export async function POST(req: NextRequest) {
         serverLinked: !simpleAccount,
         daUsername: simpleAccount ? null : userName,
         resellerTier: null,
+        provider: simpleAccount ? undefined : hostingProvider,
       });
     } else {
       const { data: created, error: createError } = await admin.auth.admin.createUser({
@@ -292,6 +307,7 @@ export async function POST(req: NextRequest) {
         serverLinked: !simpleAccount,
         daUsername: simpleAccount ? null : userName,
         resellerTier: null,
+        provider: simpleAccount ? undefined : hostingProvider,
       });
     }
 
@@ -331,7 +347,10 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // 3. Flow for Hosting Accounts (DirectAdmin sync)
+    // 3. Flow for Hosting Accounts — a conta a sério, num servidor real.
+    // Dois caminhos completamente separados a partir daqui: DirectAdmin ou
+    // Hestia. Cada um fala só com o seu próprio servidor, nenhum depende do
+    // outro. `hostingProvider` já decidiu qual dos dois é usado, antes disto.
     const resolvedAuth = resolved as Exclude<typeof resolved, { error: NextResponse }>;
     const quota = await assertResellerHostingQuota({
       userId: resolvedAuth.auth.user.id,
@@ -341,49 +360,98 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: false, error: quota.error }, { status: 403 });
     }
 
-    const result = await daPostViaSshAsDaUser(
-      ctx.daUsername,
-      'CMD_API_ACCOUNT_USER',
-      accountUserCreateFields({
-        userName,
-        email: adminEmail,
+    if (hostingProvider === 'hestia') {
+      const created = await hestiaAdapter.createAccount({
+        username: userName,
         password,
+        email: adminEmail,
         domain,
         packageName,
-      }),
-    );
+      });
+      if (!created.ok) {
+        return NextResponse.json(
+          { success: false, error: created.error || 'Falha ao criar conta no Hestia' },
+          { status: 400 },
+        );
+      }
 
-    if (!result.ok) {
-      return NextResponse.json(
-        { success: false, error: result.error || 'Falha ao criar conta no servidor' },
-        { status: 400 },
+      await saveProfileForAuthUser(admin, authUserId, {
+        da_username: userName,
+        da_domain: domain,
+        da_provisioned_at: new Date().toISOString(),
+      });
+
+      await upsertPanelAuthAccount(admin, {
+        userId: authUserId,
+        email: normalizedEmail,
+        role: panelRole,
+        name: displayName,
+        serverLinked: true,
+        daUsername: userName,
+        resellerTier: null,
+        provider: 'hestia',
+      });
+
+      // Regista a conta e o site nos mesmos sítios onde o painel já vai
+      // procurá-los (independente de ter sido criada na DA ou no Hestia).
+      await mirrorAfterDaMutation('createUser', {
+        userName,
+        email: adminEmail,
+        acl: 'user',
+        domain,
+        packageName,
+        parent_username: ctx.daUsername,
+      });
+
+      const sbHestia = getDaSyncAdmin();
+      if (sbHestia) {
+        await sbHestia.from('panel_users').update({ auth_user_id: authUserId }).eq('username', userName);
+      }
+    } else {
+      const result = await daPostViaSshAsDaUser(
+        ctx.daUsername,
+        'CMD_API_ACCOUNT_USER',
+        accountUserCreateFields({
+          userName,
+          email: adminEmail,
+          password,
+          domain,
+          packageName,
+        }),
       );
-    }
 
-    // Save server association to Auth Profile
-    await saveProfileForAuthUser(admin, authUserId, {
-      da_username: userName,
-      da_domain: domain,
-      da_provisioned_at: new Date().toISOString(),
-    });
+      if (!result.ok) {
+        return NextResponse.json(
+          { success: false, error: result.error || 'Falha ao criar conta no servidor' },
+          { status: 400 },
+        );
+      }
 
-    // Mirror mutation locally
-    await mirrorAfterDaMutation('createUser', {
-      userName,
-      email: adminEmail,
-      acl: 'user',
-      domain,
-      packageName,
-      parent_username: ctx.daUsername,
-    });
+      // Save server association to Auth Profile
+      await saveProfileForAuthUser(admin, authUserId, {
+        da_username: userName,
+        da_domain: domain,
+        da_provisioned_at: new Date().toISOString(),
+      });
 
-    // Update mirror auth link
-    const sb = getDaSyncAdmin();
-    if (sb) {
-      await sb
-        .from('panel_users')
-        .update({ auth_user_id: authUserId })
-        .eq('username', userName);
+      // Mirror mutation locally
+      await mirrorAfterDaMutation('createUser', {
+        userName,
+        email: adminEmail,
+        acl: 'user',
+        domain,
+        packageName,
+        parent_username: ctx.daUsername,
+      });
+
+      // Update mirror auth link
+      const sb = getDaSyncAdmin();
+      if (sb) {
+        await sb
+          .from('panel_users')
+          .update({ auth_user_id: authUserId })
+          .eq('username', userName);
+      }
     }
 
     scheduleDaSync(1500);

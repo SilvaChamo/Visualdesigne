@@ -133,29 +133,40 @@ export function enrichPanelAccounts(
     const acl = String(u.acl || u.type || '').toLowerCase();
     const primaryDomain = pickPrimaryDomain(u.userName, owned, acl);
     const packageName = u.packageName || pickAccountPackage(u.userName, owned, acl);
-    const pkgMeta = packageName
-      ? (() => {
-          const direct = packageMap.get(packageName);
-          if (direct) return direct;
-          const lower = packageName.toLowerCase();
-          for (const [key, pkg] of packageMap) {
-            if (key.toLowerCase() === lower) return pkg;
-          }
-          return undefined;
-        })()
-      : undefined;
+    // #hestia-nunca-pergunta-da: packageMap só é construído a partir do
+    // DirectAdmin (mirror + API ao vivo) — nunca tem pacotes do Hestia, e as
+    // duas plataformas são independentes, ambas ligadas directamente ao seu
+    // próprio servidor (nenhuma passa pela outra). Perguntar ao DA por uma
+    // conta Hestia só podia dar uma resposta errada ou vazia; por isso contas
+    // Hestia nunca olham para pkgMeta, só para o que o Hestia já sincronizou
+    // (u.quotaLimitMb, escrito por hestia-sync-engine.ts a partir do próprio
+    // servidor).
+    const isHestia = u.hostingProvider === 'hestia';
+    const pkgMeta =
+      !isHestia && packageName
+        ? (() => {
+            const direct = packageMap.get(packageName);
+            if (direct) return direct;
+            const lower = packageName.toLowerCase();
+            for (const [key, pkg] of packageMap) {
+              if (key.toLowerCase() === lower) return pkg;
+            }
+            return undefined;
+          })()
+        : undefined;
     const siteDiskSum = owned.reduce(
       (sum, s) => sum + (parseInt(String(s.diskUsage || '0'), 10) || 0),
       0,
     );
     const diskUsedMb =
       typeof u.diskUsedMb === 'number' && u.diskUsedMb > 0 ? u.diskUsedMb : siteDiskSum;
-    // Preferir sempre os dados ao vivo do pacote (pkgMeta, construído a partir
-    // do estado actual real) em vez da "fotografia" gravada em quotaLimitMb no
-    // momento em que a conta foi criada — essa nunca era actualizada depois,
-    // por isso divergia silenciosamente do pacote a sério quando este era
-    // editado mais tarde. quotaLimitMb só serve de recurso para contas órfãs
-    // sem pacote correspondente encontrado.
+    // DirectAdmin: preferir sempre os dados ao vivo do pacote (pkgMeta,
+    // construído a partir do estado actual real) em vez da "fotografia"
+    // gravada em quotaLimitMb no momento em que a conta foi criada — essa
+    // nunca era actualizada depois, por isso divergia silenciosamente do
+    // pacote a sério quando este era editado mais tarde. Hestia: quotaLimitMb
+    // É a fonte de verdade (sincronizada directamente do servidor Hestia,
+    // nunca do pacote local) — ver comentário acima.
     const quotaLabel = pkgMeta
       ? formatPackageSize(pkgMeta.diskSpace)
       : u.quotaLimitMb !== undefined

@@ -1156,6 +1156,7 @@ const ITEM_STATUS_META: Record<'pending' | 'paid' | 'failed' | 'expired', { labe
 function CheckoutItemsByType({ types }: { types: string[] }) {
   const [pedidos, setPedidos] = useState<CheckoutPedido[] | null>(null)
   const [updatingKey, setUpdatingKey] = useState<string | null>(null)
+  const [deletingKey, setDeletingKey] = useState<string | null>(null)
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null)
   const [expandedKey, setExpandedKey] = useState<string | null>(null)
   // #6: corrige/define o domínio de uma hospedagem mesmo aqui, antes de confirmar —
@@ -1197,6 +1198,31 @@ function CheckoutItemsByType({ types }: { types: string[] }) {
       window.alert(error.message || 'Falha ao comunicar com o servidor.')
     } finally {
       setUpdatingKey(null)
+    }
+  }
+
+  const deleteHostingItem = async (pedidoId: string, itemIndex: number, domain?: string) => {
+    const aviso = domain
+      ? `Apagar esta encomenda de hospedagem (${domain})? Isto remove o pedido, o registo de hospedagem, e o site real no servidor. Não pode ser desfeito.`
+      : 'Apagar esta encomenda de hospedagem? Isto remove o pedido e o registo de hospedagem. Não pode ser desfeito.'
+    if (!window.confirm(aviso)) return
+
+    const key = `${pedidoId}-${itemIndex}`
+    setDeletingKey(key)
+    try {
+      const res = await fetch(`/api/admin/checkout-pagamentos/${pedidoId}`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ itemIndex }),
+      })
+      const data = await res.json()
+      if (!data.success) throw new Error(data.error || 'Não foi possível apagar este item.')
+      if (data.warnings?.length) window.alert(data.warnings.join('\n'))
+      load()
+    } catch (error: any) {
+      window.alert(error.message || 'Falha ao comunicar com o servidor.')
+    } finally {
+      setDeletingKey(null)
     }
   }
 
@@ -1290,26 +1316,39 @@ function CheckoutItemsByType({ types }: { types: string[] }) {
                     )}
                   </td>
                   <td className="whitespace-nowrap px-4 py-2.5 text-left">
-                    {itemStatus === 'pending' && (
-                      <div className="flex items-center justify-start gap-2">
+                    <div className="flex items-center justify-start gap-2">
+                      {itemStatus === 'pending' && (
+                        <>
+                          <button
+                            type="button"
+                            disabled={updatingKey === key}
+                            onClick={() => respond(p.id, itemIndex, 'paid', domainDraft[key])}
+                            className="text-xs font-medium text-green-600 hover:underline disabled:opacity-50 dark:text-green-400"
+                          >
+                            Confirmar
+                          </button>
+                          <button
+                            type="button"
+                            disabled={updatingKey === key}
+                            onClick={() => respond(p.id, itemIndex, 'failed')}
+                            className="text-xs font-medium text-rose-600 hover:underline disabled:opacity-50 dark:text-rose-400"
+                          >
+                            Rejeitar
+                          </button>
+                        </>
+                      )}
+                      {item.type === 'hosting' && (
                         <button
                           type="button"
-                          disabled={updatingKey === key}
-                          onClick={() => respond(p.id, itemIndex, 'paid', domainDraft[key])}
-                          className="text-xs font-medium text-green-600 hover:underline disabled:opacity-50 dark:text-green-400"
+                          disabled={deletingKey === key}
+                          onClick={() => deleteHostingItem(p.id, itemIndex, item.hostingDomain)}
+                          className="text-xs font-medium text-gray-500 hover:underline disabled:opacity-50 dark:text-zinc-500"
+                          title="Apagar encomenda, registo de hospedagem e site real no servidor"
                         >
-                          Confirmar
+                          Apagar
                         </button>
-                        <button
-                          type="button"
-                          disabled={updatingKey === key}
-                          onClick={() => respond(p.id, itemIndex, 'failed')}
-                          className="text-xs font-medium text-rose-600 hover:underline disabled:opacity-50 dark:text-rose-400"
-                        >
-                          Rejeitar
-                        </button>
-                      </div>
-                    )}
+                      )}
+                    </div>
                   </td>
                 </tr>
                 {isExpanded && (

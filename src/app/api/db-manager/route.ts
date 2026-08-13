@@ -3,6 +3,8 @@ import { requireAdminResellerOrManager } from '@/lib/panel-api-auth';
 import { listMirrorWebsites } from '@/lib/panel-mirror-read';
 import { resolvePanelDaContext } from '@/lib/panel-api-context';
 import { mirrorAfterDaMutation } from '@/lib/panel-mirror-write';
+import { getProviderByUsername } from '@/lib/hosting-provider';
+import * as hestiaAdapter from '@/lib/hestia-adapter';
 import {
   daDbChangeHosts,
   daDbChangePassword,
@@ -118,6 +120,11 @@ export async function POST(req: NextRequest) {
 
   const database = String(body.database || '');
   const dbuser = String(body.dbuser || body.dbUser || '');
+
+  const provider = await getProviderByUsername(owner);
+  if (provider === 'hestia') {
+    return handleHestiaDatabaseAction(action, owner, database, body);
+  }
 
   try {
     switch (action) {
@@ -280,6 +287,87 @@ export async function POST(req: NextRequest) {
       }
       default:
         return NextResponse.json({ success: false, error: 'Acção desconhecida.' }, { status: 400 });
+    }
+  } catch (e: unknown) {
+    return NextResponse.json(
+      { success: false, error: e instanceof Error ? e.message : 'Erro interno.' },
+      { status: 500 },
+    );
+  }
+}
+
+/**
+ * Bases de dados para contas Hestia — o modelo do Hestia é mais simples que o
+ * da DirectAdmin (1 base de dados = sempre 1 utilizador dedicado, sem
+ * privilégios/hosts geríveis à parte), por isso só cobre o CRUD essencial
+ * (listar/criar/apagar/mudar password). Acções avançadas específicas da DA
+ * (utilizadores separados, privilégios, check/repair/optimize, phpMyAdmin SSO,
+ * import/export) devolvem um erro claro em vez de falharem silenciosamente
+ * contra um servidor DA que esta conta nem usa.
+ */
+async function handleHestiaDatabaseAction(
+  action: string,
+  owner: string,
+  database: string,
+  body: Record<string, unknown>,
+): Promise<NextResponse> {
+  try {
+    switch (action) {
+      case 'listDatabases': {
+        const rows = await hestiaAdapter.listDatabases(owner);
+        const data = rows.map((r) => ({
+          database: r.database,
+          dbuser: r.dbUser,
+          type: r.type,
+          charset: r.charset,
+          sizeBytes: r.diskUsedMb * 1024 * 1024,
+          suspended: r.suspended,
+        }));
+        const totalBytes = data.reduce((sum, r) => sum + r.sizeBytes, 0);
+        return NextResponse.json({ success: true, data: { rows: data, totalBytes } });
+      }
+      case 'createDatabase': {
+        const rawSuffix = String(body.name || body.dbName || '').trim();
+        if (!rawSuffix) return NextResponse.json({ success: false, error: 'Nome da base de dados em falta.' }, { status: 400 });
+        const dbNameSuffix = rawSuffix.startsWith(`${owner}_`) ? rawSuffix.slice(owner.length + 1) : rawSuffix;
+        const rawUserSuffix = String(body.dbuser || body.dbUser || rawSuffix).trim();
+        const dbUserSuffix = rawUserSuffix.startsWith(`${owner}_`) ? rawUserSuffix.slice(owner.length + 1) : rawUserSuffix;
+        const password = String(body.password || body.dbPassword || '');
+        if (!password) return NextResponse.json({ success: false, error: 'Senha em falta.' }, { status: 400 });
+        const result = await hestiaAdapter.createDatabase({ username: owner, dbNameSuffix, dbUserSuffix, password });
+        if (!result.ok) return NextResponse.json({ success: false, error: result.error }, { status: 502 });
+        return NextResponse.json({ success: true, data: { database: result.database, dbuser: result.dbUser } });
+      }
+      case 'deleteDatabase': {
+        if (!database) return NextResponse.json({ success: false, error: 'Base de dados em falta.' }, { status: 400 });
+        const result = await hestiaAdapter.deleteDatabase(owner, database);
+        if (!result.ok) return NextResponse.json({ success: false, error: result.error }, { status: 502 });
+        return NextResponse.json({ success: true });
+      }
+      case 'changePassword': {
+        const newPassword = String(body.newPassword || body.password || '');
+        const dbuser = String(body.dbuser || body.dbUser || '');
+        if ((!database && !dbuser) || !newPassword) {
+          return NextResponse.json({ success: false, error: 'Base de dados e senha são obrigatórios.' }, { status: 400 });
+        }
+        // No Hestia a password está ligada à base de dados, não a um utilizador
+        // separado (ao contrário da DA) — se só veio o `dbuser` (é o que a UI
+        // envia), encontra a base de dados correspondente primeiro.
+        let targetDatabase = database;
+        if (!targetDatabase) {
+          const rows = await hestiaAdapter.listDatabases(owner);
+          targetDatabase = rows.find((r) => r.dbUser === dbuser)?.database || '';
+        }
+        if (!targetDatabase) return NextResponse.json({ success: false, error: 'Base de dados não encontrada.' }, { status: 404 });
+        const result = await hestiaAdapter.changeDatabasePassword(owner, targetDatabase, newPassword);
+        if (!result.ok) return NextResponse.json({ success: false, error: result.error }, { status: 502 });
+        return NextResponse.json({ success: true });
+      }
+      default:
+        return NextResponse.json(
+          { success: false, error: `Acção "${action}" ainda não está disponível para contas Hestia.` },
+          { status: 400 },
+        );
     }
   } catch (e: unknown) {
     return NextResponse.json(
