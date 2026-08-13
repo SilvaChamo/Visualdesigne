@@ -249,7 +249,11 @@ export async function alertAdminOfTrackingFailure(context: string, message: stri
     }
     const { error: insertError } = await admin.from('notifications').insert({
       user_id: adminUserId,
-      title: 'Falha ao registar renovação',
+      // Título tem de reflectir o que falhou de facto — este alerta é
+      // reutilizado tanto para falhas em renovações como em compras novas
+      // (e noutros contextos), e "Falha ao registar renovação" era enganoso
+      // sempre que `context` não era mesmo uma renovação.
+      title: `Falha: ${context}`,
       message: `[checkout-fulfillment] ${context}: ${message}`,
       type: 'error',
       category: 'system',

@@ -3091,7 +3091,7 @@ function ListWebsitesSection({ sites, onRefresh, packages, setActiveSection, set
                   <EditableField domain={s.domain} field="state" value={parseState(s.state) || 'Active'} label="State" />
                   <div className="bg-gray-50 rounded-lg p-3 border border-gray-200">
                     <p className="text-xs font-bold text-gray-400 uppercase mb-1">Disk Usage</p>
-                    <p className="text-sm font-bold text-gray-900">{(s as any).diskUsed ? `${(s as any).diskUsed}MB` : '0MB'}</p>
+                    <p className="text-sm font-bold text-gray-900">{(s as any).diskUsage ? `${(s as any).diskUsage}MB` : '0MB'}</p>
                   </div>
                 </div>
 

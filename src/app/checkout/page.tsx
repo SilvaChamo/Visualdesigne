@@ -209,8 +209,30 @@ function CheckoutContent() {
   };
 
   // Flow State
-  const [status, setStatus] = useState<'idle' | 'registering' | 'redirecting' | 'error'>('idle');
+  const [status, setStatus] = useState<'idle' | 'registering' | 'redirecting' | 'awaiting-proof' | 'error'>('idle');
   const [errorMessage, setErrorMessage] = useState('');
+  const [pendingSession, setPendingSession] = useState<{ id: string; metodo: 'mpesa' | 'transferencia' } | null>(null);
+  const [comprovativoUploading, setComprovativoUploading] = useState(false);
+  const [comprovativoSent, setComprovativoSent] = useState(false);
+  const [comprovativoError, setComprovativoError] = useState('');
+
+  const handleUploadComprovativo = async (file: File) => {
+    if (!pendingSession) return;
+    setComprovativoUploading(true);
+    setComprovativoError('');
+    try {
+      const form = new FormData();
+      form.append('file', file);
+      const res = await fetch(`/api/checkout/${pendingSession.id}/comprovativo`, { method: 'POST', body: form });
+      const data = await res.json();
+      if (!res.ok || !data.success) throw new Error(data.error || 'Não foi possível enviar o comprovativo.');
+      setComprovativoSent(true);
+    } catch (err) {
+      setComprovativoError(err instanceof Error ? err.message : 'Falha ao enviar o comprovativo.');
+    } finally {
+      setComprovativoUploading(false);
+    }
+  };
 
   const handlePay = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -341,7 +363,13 @@ function CheckoutContent() {
       }
       clearCart();
       await supabase.auth.refreshSession();
-      router.push('/cliente');
+      // Não navega logo para /cliente — fica aqui mesmo para dar já a
+      // oportunidade de anexar o comprovativo (pode sempre fazê-lo mais
+      // tarde em "Pedidos Pendentes" no painel, mas sem isto o campo ficava
+      // escondido demais e ninguém o encontrava a seguir ao pagamento).
+      setPendingSession({ id: data.session.id, metodo: metodoPagamento as 'mpesa' | 'transferencia' });
+      setStatus('awaiting-proof');
+      setIsSubmitting(false);
       return;
     } catch (err: any) {
       setErrorMessage(err.message || 'Falha ao comunicar com o servidor de registo.');
@@ -533,6 +561,70 @@ function CheckoutContent() {
                         Completar Dados
                       </button>
                     )}
+                  </div>
+                </div>
+              )}
+
+              {/* AWAITING PROOF — pedido registado, dá já a oportunidade de anexar o comprovativo antes de sair desta página */}
+              {status === 'awaiting-proof' && pendingSession && (
+                <div className="bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-lg p-6 space-y-5 shadow-sm">
+                  <div className="flex items-start gap-3">
+                    <div className="p-2.5 rounded-md bg-amber-100 dark:bg-amber-900/30 flex-shrink-0">
+                      {pendingSession.metodo === 'mpesa' ? (
+                        <Smartphone className="w-5 h-5 text-amber-700 dark:text-amber-300" />
+                      ) : (
+                        <Landmark className="w-5 h-5 text-amber-700 dark:text-amber-300" />
+                      )}
+                    </div>
+                    <div>
+                      <h3 className="text-lg font-bold text-slate-800 dark:text-zinc-100 font-panel">Pedido registado — falta concluir o pagamento</h3>
+                      <p className="text-sm text-slate-500 dark:text-zinc-400 mt-1">
+                        A sua conta só é activada depois de a nossa equipa confirmar o comprovativo. Pode anexá-lo já aqui, ou mais tarde em "Pedidos Pendentes" no seu painel.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="bg-slate-50 dark:bg-zinc-950 border border-slate-200 dark:border-zinc-800 rounded-lg p-4 text-sm text-slate-700 dark:text-zinc-300 space-y-1">
+                    {pendingSession.metodo === 'mpesa' ? (
+                      <p>Envie o valor para <span className="font-mono font-bold">{MPESA_NUMBER}</span>.</p>
+                    ) : (
+                      <>
+                        <p>{BANK_NAME}</p>
+                        <p>Nº Conta: <span className="font-mono font-bold">{BANK_ACCOUNT}</span></p>
+                        <p>NIB: <span className="font-mono font-bold">{BANK_NIB}</span></p>
+                      </>
+                    )}
+                  </div>
+
+                  {comprovativoSent ? (
+                    <div className="flex items-center gap-2 text-sm text-green-700 dark:text-green-400 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800/60 rounded-md p-3">
+                      <ShieldCheck className="w-5 h-5 flex-shrink-0" /> Comprovativo enviado — a aguardar confirmação da equipa.
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      <label className="flex items-center justify-center gap-2 w-full px-4 py-3 border-2 border-dashed border-slate-300 dark:border-zinc-700 rounded-md text-sm font-bold text-slate-600 dark:text-zinc-300 hover:border-red-400 hover:text-red-600 cursor-pointer transition-colors">
+                        {comprovativoUploading ? <Spinner className="w-4 h-4" /> : <FileDown className="w-4 h-4" />}
+                        {comprovativoUploading ? 'A enviar...' : 'Anexar comprovativo de pagamento'}
+                        <input
+                          type="file"
+                          accept="image/*,.pdf"
+                          className="hidden"
+                          disabled={comprovativoUploading}
+                          onChange={(e) => { const f = e.target.files?.[0]; if (f) handleUploadComprovativo(f); }}
+                        />
+                      </label>
+                      {comprovativoError && <p className="text-xs text-rose-600">{comprovativoError}</p>}
+                    </div>
+                  )}
+
+                  <div className="flex justify-end pt-2 border-t border-dashed border-slate-200 dark:border-zinc-800">
+                    <button
+                      type="button"
+                      onClick={() => router.push('/cliente')}
+                      className="bg-red-600 hover:bg-red-700 text-white font-bold py-2.5 px-5 rounded-md transition-colors"
+                    >
+                      {comprovativoSent ? 'Ir para o meu painel' : 'Anexar mais tarde e ir para o meu painel'}
+                    </button>
                   </div>
                 </div>
               )}
