@@ -30,22 +30,24 @@ jobs:
             cd /opt/visualdesign-site-teste
             HOST=$(grep '^HESTIA_HOST=' .env.local | cut -d= -f2-)
             PORT=$(grep '^HESTIA_PORT=' .env.local | cut -d= -f2-)
+            PORT="${PORT:-8083}"
             USER=$(grep '^HESTIA_USER=' .env.local | cut -d= -f2-)
             PASS=$(grep '^HESTIA_PASSWORD=' .env.local | cut -d= -f2-)
+            echo "HOST=${HOST} PORT=${PORT} USER=${USER}"
             echo "=== IP público que este servidor usa para se ver a si próprio ==="
             curl -s https://api.ipify.org
             echo ""
             echo ""
             echo "=== chamada v-list-user-packages, a partir do próprio servidor ==="
-            OUT=$(curl -sk -D /tmp/hh.txt "https://${HOST}:${PORT}/api/" \
+            curl -sk -D /tmp/hh.txt "https://${HOST}:${PORT}/api/" \
               --data-urlencode "user=${USER}" \
               --data-urlencode "password=${PASS}" \
               --data-urlencode "cmd=v-list-user-packages" \
-              --data-urlencode "arg1=json")
+              --data-urlencode "arg1=json" -o /tmp/hh-out.txt
             echo "--- Hestia-Exit-Code ---"
             grep -i "hestia-exit-code" /tmp/hh.txt || echo "(cabeçalho não encontrado)"
-            echo "--- pacotes devolvidos ---"
-            echo "$OUT" | python3 -c "import json,sys; d=json.load(sys.stdin); print('\n'.join(k for k in d.keys() if k!='system'))" 2>&1 || echo "$OUT" | head -c 500
+            echo "--- resposta crua ---"
+            cat /tmp/hh-out.txt
 
   inspect-api-ip-restriction:
     if: ${{ inputs.stage == 'inspect-api-ip-restriction' }}
