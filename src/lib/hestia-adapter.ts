@@ -58,6 +58,19 @@ export async function deleteWebDomain(username: string, domain: string): Promise
   return { ok: result.ok, error: result.error };
 }
 
+/** Suspende só este site (não a conta) — equivalente ao `da suspend-domain`
+ * do DirectAdmin. Nunca testado ao vivo neste servidor; confirmar antes de
+ * confiar nisto para clientes reais. */
+export async function suspendWebDomain(username: string, domain: string): Promise<{ ok: boolean; error?: string }> {
+  const result = await hestiaCall('v-suspend-web-domain', [username, domain]);
+  return { ok: result.ok, error: result.error };
+}
+
+export async function unsuspendWebDomain(username: string, domain: string): Promise<{ ok: boolean; error?: string }> {
+  const result = await hestiaCall('v-unsuspend-web-domain', [username, domain]);
+  return { ok: result.ok, error: result.error };
+}
+
 export async function suspendAccount(username: string): Promise<{ ok: boolean; error?: string }> {
   const result = await hestiaCall('v-suspend-user', [username]);
   return { ok: result.ok, error: result.error };

@@ -3,7 +3,7 @@ import { requireAdminOrReseller } from '@/lib/panel-api-auth';
 import { requireDaAccessForDomain } from '@/lib/panel-domain-access';
 import { resolvePanelDaContext } from '@/lib/panel-api-context';
 import { scheduleDaSync } from '@/lib/da-sync-engine';
-import { mirrorAfterDaMutation, mutationSucceeded, deleteMirrorSite } from '@/lib/panel-mirror-write';
+import { mirrorAfterDaMutation, mutationSucceeded, deleteMirrorSite, patchMirrorSite } from '@/lib/panel-mirror-write';
 import {
   listMirrorDns,
   listMirrorDatabases,
@@ -114,7 +114,7 @@ async function resolveApi(action?: string, domain?: string) {
 const HESTIA_SUPPORTED_ACTIONS = new Set([
   'listEmails', 'createEmail', 'deleteEmail', 'suspendEmail', 'unsuspendEmail', 'changeEmailPassword',
   'listFTPAccounts', 'createFTPAccount', 'deleteFTPAccount',
-  'deleteWebsite',
+  'deleteWebsite', 'suspendWebsite', 'unsuspendWebsite',
 ]);
 
 async function tryHestiaAction(
@@ -214,6 +214,16 @@ async function tryHestiaAction(
       case 'deleteWebsite': {
         const result = await hestiaAdapter.deleteWebDomain(owner, domain);
         if (result.ok) await deleteMirrorSite(domain);
+        data = { success: result.ok, error: result.error };
+        break;
+      }
+      case 'suspendWebsite':
+      case 'unsuspendWebsite': {
+        const result =
+          action === 'suspendWebsite'
+            ? await hestiaAdapter.suspendWebDomain(owner, domain)
+            : await hestiaAdapter.unsuspendWebDomain(owner, domain);
+        if (result.ok) await patchMirrorSite(domain, { status: action === 'suspendWebsite' ? 'Suspended' : 'Active' });
         data = { success: result.ok, error: result.error };
         break;
       }
