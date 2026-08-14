@@ -1,0 +1,68 @@
+name: Ops — publicar basededadosagro.com no Hetzner
+
+# basededadosagro.com é uma app Next.js separada (repo público
+# SilvaChamo/basededadosagro), PM2 "basededadosagro-site", porta 3010,
+# /opt/basededadosagro-site no Hetzner, sem .git no servidor (deploy sempre
+# por rsync). Esse repo não tem CI própria (criar secrets novos lá é
+# bloqueado pelo classifier de segurança do Claude Code — ver
+# project_basededadosagro-audit-2026-08-10.md), por isso este workflow vive
+# aqui e reaproveita os secrets HETZNER_* já aprovados neste repo.
+#
+# Uso: workflow_dispatch manual. Faz checkout do HEAD actual de
+# SilvaChamo/basededadosagro, sincroniza para o servidor (preserva o
+# .env.local que já lá está) e reconstrói + reinicia o PM2.
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "Branch/commit do basededadosagro a publicar"
+        required: false
+        default: "main"
+
+jobs:
+  deploy:
+    name: Sincronizar, rebuild e reiniciar basededadosagro-site
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout basededadosagro
+        uses: actions/checkout@v4
+        with:
+          repository: SilvaChamo/basededadosagro
+          ref: ${{ inputs.ref }}
+          path: basededadosagro-checkout
+
+      - name: Setup SSH key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.HETZNER_SSH_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -p "${{ secrets.HETZNER_PORT }}" "${{ secrets.HETZNER_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
+
+      - name: Sync files to Hetzner
+        run: |
+          rsync -avz --delete \
+            -e "ssh -i ~/.ssh/deploy_key -p ${{ secrets.HETZNER_PORT }}" \
+            --exclude 'node_modules' --exclude '.next' --exclude '.git' --exclude '*.env*' --exclude '.DS_Store' --exclude '*.bak-*' \
+            basededadosagro-checkout/ "${{ secrets.HETZNER_USER }}@${{ secrets.HETZNER_HOST }}:/opt/basededadosagro-site/"
+
+      - name: Build and restart on Hetzner
+        uses: appleboy/ssh-action@v1.2.5
+        with:
+          host: ${{ secrets.HETZNER_HOST }}
+          port: ${{ secrets.HETZNER_PORT }}
+          username: ${{ secrets.HETZNER_USER }}
+          key: ${{ secrets.HETZNER_SSH_KEY }}
+          command_timeout: 20m
+          script: |
+            set -e
+            cd /opt/basededadosagro-site
+            npm ci
+            npm run build
+            pm2 restart basededadosagro-site || pm2 start npm --name "basededadosagro-site" -- start -- -p 3010
+            pm2 save
+
+      - name: Verificar ao vivo
+        run: |
+          sleep 5
+          code=$(curl -sk -o /dev/null -w "%{http_code}" --max-time 20 "https://basededadosagro.com/pt")
+          echo "GET /pt -> HTTP $code"
