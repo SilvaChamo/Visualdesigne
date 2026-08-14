@@ -58,18 +58,12 @@ export function CartProvider({ children }: { children: ReactNode }) {
   }, [items]);
 
   const addItem = (item: CartItem) => {
-    // 🔒 EM PAUSA (14 ago 2026) — venda de hospedagem desligada de propósito,
-    // ordem explícita do utilizador. Não é bug: a gestão de contas de
-    // hospedagem já existentes continua a funcionar normalmente, só a COMPRA
-    // de hospedagem nova fica bloqueada até se concluir e confirmar o
-    // fluxo de Domínios de ponta a ponta primeiro (ver plano combinado —
-    // Domínios → Hospedagem → E-mail, um de cada vez). Bloqueado aqui, num
-    // único sítio central, em vez de em cada botão espalhado pelo site, para
-    // garantir que nenhum caminho escapa. Não remover sem ordem explícita.
-    if (item.type === 'hosting') {
-      alert('A contratação de hospedagem está temporariamente indisponível — a equipa está a concluir esta funcionalidade.');
-      return;
-    }
+    // CORRIGIDO (14 ago 2026) — chegou a bloquear-se aqui por engano. Esta
+    // pasta é o Contabo/Hestia, que NÃO tem o limite de contas do
+    // DirectAdmin (Hetzner) — é exactamente por isso que a compra de
+    // hospedagem deve continuar activa aqui. Se algum dia se quiser
+    // pausar a venda de hospedagem, é no site em produção (Hetzner,
+    // pasta ../visualdesign) que isso faz sentido, nunca aqui.
     setItems((prev) => {
       // Prevent duplicates based on name/type
       if (prev.find(i => i.name === item.name && i.type === item.type)) {
