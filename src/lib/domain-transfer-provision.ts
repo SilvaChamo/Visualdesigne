@@ -6,6 +6,8 @@
 // acompanhar o estado, em vez de assumir sucesso logo aqui.
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { dynadotAPI } from '@/lib/dynadot-adapter';
+import { autoProvisionPurchasedDomain } from '@/lib/domain-purchase-provision';
+import { after } from 'next/server';
 
 const DYNADOT_STATUS_MAP: Record<string, string> = {
   waiting: 'waiting',
@@ -93,6 +95,67 @@ export async function refreshTransferStatus(
       type: 'success',
       category: 'system',
     });
+
+    // #lacuna 14 ago: uma transferência concluída só actualizava o estado
+    // interno — nunca criava a zona na Cloudflare nem apontava nameservers,
+    // ao contrário de um domínio registado directamente (autoProvisionPurchasedDomain).
+    // O cliente via "transferência concluída" mas o domínio podia ficar sem
+    // DNS nenhum configurado, igual ao bug já corrigido do lado da compra
+    // directa. Reaproveita a mesma automação — o passo 'registo' salta
+    // sozinho porque o domínio já está na nossa conta Dynadot depois de
+    // transferido (getDomainDetails já devolve sucesso), só a zona
+    // Cloudflare/nameservers/DNS de e-mail é que corre a sério.
+    const task = async () => {
+      try {
+        const { data: authUser } = await admin.auth.admin.getUserById(request_.user_id);
+        const email = authUser?.user?.email || '';
+        const displayName =
+          authUser?.user?.user_metadata?.nome || authUser?.user?.user_metadata?.full_name || email.split('@')[0];
+        const { data: profile } = await admin
+          .from('profiles')
+          .select('*')
+          .eq('user_id', request_.user_id)
+          .maybeSingle();
+
+        const result = await autoProvisionPurchasedDomain({
+          domain: request_.domain_name,
+          years: 1,
+          profile: profile || null,
+          userEmail: email,
+          displayName,
+        });
+
+        if (result.ok) {
+          await admin
+            .from('domain_renewals')
+            .update({ dns_status: 'ok' })
+            .eq('user_id', request_.user_id)
+            .eq('domain_name', request_.domain_name);
+        } else {
+          const failed = result.steps.filter((s) => !s.ok).map((s) => `${s.step}: ${s.error}`).join(' | ');
+          console.error('[domain-transfer-provision] configuração de DNS pós-transferência falhou:', request_.domain_name, failed);
+          await admin
+            .from('domain_renewals')
+            .update({ dns_status: 'pending', notes: `DNS por configurar após transferência: ${failed}` })
+            .eq('user_id', request_.user_id)
+            .eq('domain_name', request_.domain_name);
+          await admin.from('notifications').insert({
+            user_id: request_.user_id,
+            title: 'Domínio transferido: falta configurar o DNS',
+            message: `O domínio ${request_.domain_name} foi transferido com sucesso, mas houve um problema a configurar o DNS automaticamente. A nossa equipa já foi avisada.`,
+            type: 'warning',
+            category: 'system',
+          });
+        }
+      } catch (err) {
+        console.error('[domain-transfer-provision] auto-provisionamento pós-transferência:', err);
+      }
+    };
+    try {
+      after(task);
+    } catch {
+      void task();
+    }
   } else if (mapped === 'rejected' && request_.status !== 'rejected') {
     await admin.from('notifications').insert({
       user_id: request_.user_id,
