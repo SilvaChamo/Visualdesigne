@@ -99,6 +99,12 @@ jobs:
             set_env_var CRON_SECRET "${{ secrets.CRON_SECRET }}"
             set_env_var CLOUDFLARE_API_TOKEN_ACCOUNT "${{ secrets.CLOUDFLARE_API_TOKEN_ACCOUNT }}"
             set_env_var CLOUDFLARE_ACCOUNT_ID "${{ secrets.CLOUDFLARE_ACCOUNT_ID }}"
+            # Global API Key (14 ago 2026) — o token acima não conseguia criar
+            # zonas novas na Cloudflare (permissão não encontrada na interface).
+            # Usada em alternativa, confirmada ao vivo a funcionar; ver
+            # src/lib/cloudflare-dns.ts.
+            set_env_var CLOUDFLARE_EMAIL "${{ secrets.CLOUDFLARE_EMAIL }}"
+            set_env_var CLOUDFLARE_GLOBAL_API_KEY "${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}"
             set_env_var NEXT_PUBLIC_SUPABASE_URL "${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}"
             set_env_var NEXT_PUBLIC_SUPABASE_ANON_KEY "${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}"
             set_env_var SUPABASE_SERVICE_ROLE_KEY "${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}"
