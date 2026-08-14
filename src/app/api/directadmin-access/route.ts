@@ -30,10 +30,10 @@ function directAdminLoginPageUrl(): string {
 /**
  * O parâmetro `?as=` vem do cliente e NUNCA deve, por si só, conseguir dar acesso admin —
  * só um chamador cuja própria role já seja 'admin' pode obter target==='admin'. Caso
- * contrário (revendedor/manager) fica sempre forçado a 'reseller', mesmo que peçam
- * `?as=admin` ou omitam o parâmetro (o valor por omissão nunca pode ser 'admin').
+ * contrário (revendedor/manager/profissional) fica sempre forçado a 'reseller', mesmo que
+ * peçam `?as=admin` ou omitam o parâmetro (o valor por omissão nunca pode ser 'admin').
  */
-function parseAccessTarget(request: NextRequest, callerRole: 'admin' | 'reseller' | 'manager'): DirectAdminAccessTarget {
+function parseAccessTarget(request: NextRequest, callerRole: 'admin' | 'reseller' | 'manager' | 'profissional'): DirectAdminAccessTarget {
   if (callerRole !== 'admin') return 'reseller';
   return request.nextUrl.searchParams.get('as') === 'reseller' ? 'reseller' : 'admin';
 }

@@ -207,6 +207,17 @@ export const RESELLER_MAIN_MENU_DEFS: PanelMenuItemDef[] = [
 
 export const RESELLER_MENU_DEFS: PanelMenuItemDef[] = [...RESELLER_MAIN_MENU_DEFS];
 
+/**
+ * Menu do painel Profissional — o mesmo menu do revendedor, menos o grupo
+ * "Hospedagem" (Contas/Pacotes), que só faz sentido para quem gere contas de
+ * hospedagem de OUTROS clientes. Um profissional só tem o site dele próprio
+ * — nada de esconder isto por permissão, a peça simplesmente não existe
+ * aqui (ver plano "Painel Profissional para compradores self-service").
+ */
+export const PROFISSIONAL_MENU_DEFS: PanelMenuItemDef[] = RESELLER_MAIN_MENU_DEFS.filter(
+  (item) => item.id !== 'nov-hospedagem',
+);
+
 /** IDs que abrem o hub de domínios (com tab específica) */
 export const DOMAIN_HUB_ROUTE_IDS = new Set([
   'domain-manager',

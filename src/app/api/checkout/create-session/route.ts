@@ -4,7 +4,7 @@ import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { getStripe, isStripeConfigured, mznToUsdCents } from '@/lib/stripe';
 import { resolveCartItems, toValidatedCartItems, type CatalogCartItem } from '@/lib/package-catalog';
 import { isProfileWhoisComplete } from '@/lib/profile-db';
-import { promoteGuestToClient } from '@/lib/checkout-fulfillment';
+import { promoteGuestToProfissional } from '@/lib/checkout-fulfillment';
 
 export async function POST(request: NextRequest) {
   try {
@@ -91,13 +91,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Não foi possível iniciar o pagamento.' }, { status: 500 });
     }
 
-    // Promove já para 'client' — quando o Stripe devolver o cliente, ele
-    // entra logo em /cliente com a secção pendente visível, sem esperar
-    // pelo webhook para conseguir sequer ver o painel.
+    // Promove já para 'profissional' — quando o Stripe devolver o cliente,
+    // ele entra logo em /profissional com a secção pendente visível, sem
+    // esperar pelo webhook para conseguir sequer ver o painel.
     try {
-      await promoteGuestToClient(admin, user.id);
+      await promoteGuestToProfissional(admin, user.id);
     } catch (err) {
-      console.error('[checkout/create-session] promoteGuestToClient falhou:', err);
+      console.error('[checkout/create-session] promoteGuestToProfissional falhou:', err);
     }
 
     const origin = request.headers.get('origin') || process.env.NEXT_PUBLIC_SITE_URL || '';

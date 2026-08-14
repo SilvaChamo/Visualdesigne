@@ -99,7 +99,7 @@ export async function GET(req: NextRequest) {
     }
 
     const staffAuth = {
-      user: auth.user as { id: string; email?: string; role: 'admin' | 'reseller' },
+      user: auth.user as { id: string; email?: string; role: 'admin' | 'reseller' | 'profissional' },
     };
 
     // O painel /dashboard pede sempre scope=admin — se um admin estiver a impersonar
@@ -115,9 +115,14 @@ export async function GET(req: NextRequest) {
     const requestedScope = req.nextUrl.searchParams.get('scope');
     const bypassImpersonation = requestedScope === 'admin' && staffAuth.user.role === 'admin';
 
+    // 'profissional' (comprador self-service em /profissional) usa exactamente
+    // o mesmo contexto/scope de dados que um revendedor — só o menu/UI muda,
+    // nunca o que a API devolve (ver resolvePanelDaContext, que já trata
+    // 'reseller'/'manager'/'profissional' da mesma forma).
+    const isResellerShaped = staffAuth.user.role === 'reseller' || staffAuth.user.role === 'profissional';
     const { mirrorScope, effectiveRole } = await resolvePanelDaContext(
       {
-        user: staffAuth.user.role === 'reseller'
+        user: isResellerShaped
           ? staffAuth.user
           : { ...staffAuth.user, role: 'admin' },
       },

@@ -3,7 +3,7 @@ import {
   resolveRegistryPanelRole,
 } from '@/lib/panel-user-registry';
 
-export type UserRole = 'admin' | 'manager' | 'reseller' | 'client' | 'guest';
+export type UserRole = 'admin' | 'manager' | 'reseller' | 'profissional' | 'client' | 'guest';
 
 /** Emails com acesso bootstrap ao painel admin (não promovem papel na listagem). */
 export const ADMIN_EMAILS = ADMIN_BOOTSTRAP_EMAILS;
@@ -17,8 +17,8 @@ type RoleSource = {
   hasPaidProducts?: boolean;
   /** Tem uma checkout_sessions própria com status='pending' criada há pouco
    * (ver `RECENT_PENDING_SESSION_WINDOW_MS`) — cobre o cliente que acabou de
-   * pagar por M-Pesa/Transferência mas cuja promoção guest→client
-   * (`promoteGuestToClient`) ainda não ficou reflectida (atraso de
+   * pagar por M-Pesa/Transferência mas cuja promoção guest→profissional
+   * (`promoteGuestToProfissional`) ainda não ficou reflectida (atraso de
    * propagação, ou falhou em silêncio) no momento em que o papel é
    * recalculado a seguir ao pagamento. */
   hasRecentPendingSession?: boolean;
@@ -34,6 +34,7 @@ function readRole(value: unknown): UserRole | null {
     value === 'admin' ||
     value === 'manager' ||
     value === 'reseller' ||
+    value === 'profissional' ||
     value === 'client' ||
     value === 'guest'
   ) {
@@ -64,21 +65,26 @@ export function resolveUserRole(source: RoleSource): UserRole {
   if (registryRole) return registryRole;
 
   if (profileRole === 'reseller' || metaRole === 'reseller') return 'reseller';
+  if (profileRole === 'profissional' || metaRole === 'profissional') return 'profissional';
   if (profileRole === 'client' || metaRole === 'client') return 'client';
 
   // #7: tinha de vir antes do "if guest → guest" abaixo — senão uma conta
   // marcada guest com compras confirmadas (hasPaidProducts) nunca chegava a
   // ser avaliada, ficava sempre presa em guest. É precisamente o mecanismo
   // que o botão de sincronizar utilizadores usa para reparar essas contas.
-  if (source.hasPaidProducts) return 'client';
+  // Devolve 'profissional' (não 'client') — quem compra a si próprio no
+  // checkout vai para o painel Profissional (ver checkout-fulfillment.ts,
+  // promoteGuestToProfissional); '/cliente' fica reservado a contas geridas
+  // directamente pela VisualDesign.
+  if (source.hasPaidProducts) return 'profissional';
 
   // Mesma lógica do #7 acima, mas para uma encomenda ainda pendente muito
-  // recente — sem isto, uma conta cuja promoção guest→client ainda não
+  // recente — sem isto, uma conta cuja promoção guest→profissional ainda não
   // propagou (ou falhou em silêncio, ver checkout-fulfillment.ts) é mandada
   // para /guest logo depois de pagar, sem nenhum sítio para anexar o
   // comprovativo. A janela curta (RECENT_PENDING_SESSION_WINDOW_MS) evita
   // que isto sirva de acesso permanente — só cobre o momento do checkout.
-  if (source.hasRecentPendingSession) return 'client';
+  if (source.hasRecentPendingSession) return 'profissional';
 
   if (profileRole === 'guest' || metaRole === 'guest') return 'guest';
 
@@ -93,6 +99,8 @@ export function getRedirectPathForRole(role: UserRole): string {
       return '/dashboard';
     case 'reseller':
       return '/revendedor';
+    case 'profissional':
+      return '/profissional';
     case 'client':
       return '/cliente';
     case 'guest':
@@ -102,5 +110,11 @@ export function getRedirectPathForRole(role: UserRole): string {
 }
 
 export function isPanelRole(role: UserRole): boolean {
-  return role === 'admin' || role === 'manager' || role === 'reseller' || role === 'client';
+  return (
+    role === 'admin' ||
+    role === 'manager' ||
+    role === 'reseller' ||
+    role === 'profissional' ||
+    role === 'client'
+  );
 }

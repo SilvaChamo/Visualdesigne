@@ -655,7 +655,7 @@ export async function listAllBootstrapPanelAccounts(
     });
 
     if (authRow) {
-      const ROLE_RANK: Record<UserRole, number> = { guest: 0, client: 1, reseller: 2, manager: 3, admin: 4 };
+      const ROLE_RANK: Record<UserRole, number> = { guest: 0, client: 1, profissional: 2, reseller: 3, manager: 4, admin: 5 };
       const useProfileRole =
         profileBasedRole && ROLE_RANK[profileBasedRole.panelRole] > ROLE_RANK[authRow.role];
       const orphaned = Boolean(userId) && !authMetaById.has(userId);

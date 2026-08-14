@@ -46,10 +46,11 @@ export async function resolvePanelDaContext(
     };
   }
 
-  if (auth.user.role === 'reseller' || auth.user.role === 'manager') {
-    // "manager" (conta profissional) usa exactamente o mesmo mecanismo de credenciais
-    // escopadas que um revendedor — resolveDirectAdminCredentials() só distingue
-    // 'admin' de "qualquer outra coisa", por isso fica sempre limitado à sua própria
+  if (auth.user.role === 'reseller' || auth.user.role === 'manager' || auth.user.role === 'profissional') {
+    // "manager" (conta colaborador) e "profissional" (comprador self-service)
+    // usam exactamente o mesmo mecanismo de credenciais escopadas que um
+    // revendedor — resolveDirectAdminCredentials() só distingue 'admin' de
+    // "qualquer outra coisa", por isso ficam sempre limitados à sua própria
     // conta DA (loadResellerCredentialsByUserId por auth.user.id), nunca a admin real.
     const scopedAuth = { id: auth.user.id, email: auth.user.email, role: 'reseller' as const };
     const daUsername = await getResellerDaUsername(scopedAuth);

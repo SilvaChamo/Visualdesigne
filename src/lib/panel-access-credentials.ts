@@ -61,7 +61,10 @@ export async function upsertDownloadableCredentials(
   if (!email || !params.password) return;
 
   const tipo =
-    params.role === 'admin' || params.role === 'manager' || params.role === 'reseller'
+    params.role === 'admin' ||
+    params.role === 'manager' ||
+    params.role === 'reseller' ||
+    params.role === 'profissional'
       ? 'panel'
       : 'webmail';
 

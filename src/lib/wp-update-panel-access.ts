@@ -16,7 +16,7 @@ const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
 
 export async function resolvePanelWpScope(
   userId: string,
-  role: 'admin' | 'reseller' | 'manager',
+  role: 'admin' | 'reseller' | 'manager' | 'profissional',
   impersonatingDaUsername?: string | null,
 ): Promise<PanelWpScope> {
   // Admin a impersonar um revendedor: a sessão real continua 'admin', mas o
@@ -30,8 +30,9 @@ export async function resolvePanelWpScope(
     return { role: 'admin', userId, daUsername: 'admin' };
   }
 
-  // "manager" (conta profissional) usa o mesmo mecanismo escopado que um revendedor —
-  // fica sempre limitado ao seu próprio da_username, nunca a admin real.
+  // "manager" (conta colaborador) e "profissional" (comprador self-service)
+  // usam o mesmo mecanismo escopado que um revendedor — ficam sempre
+  // limitados ao seu próprio da_username, nunca a admin real.
   const admin = createServiceClient(supabaseUrl, supabaseKey);
   const profile = await getProfileForAuthUser(admin, userId);
   const daUsername = String(profile?.da_username || '').trim().toLowerCase();

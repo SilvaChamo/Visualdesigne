@@ -49,6 +49,13 @@ interface ResellerSidebarProps {
   displayName?: string | null;
   customLogo?: string;
   isMobile?: boolean;
+  /** Itens do menu principal — por omissão o menu completo do revendedor.
+   * O painel Profissional passa PROFISSIONAL_MENU_DEFS (o mesmo menu sem o
+   * grupo "Hospedagem"), reaproveitando este mesmo componente. */
+  menuDefs?: PanelMenuItemDef[];
+  /** Caminho-base das rotas do painel (logo, link do dashboard) — '/revendedor'
+   * por omissão; o painel Profissional passa '/profissional'. */
+  basePath?: string;
 }
 
 interface MenuItem extends PanelMenuItemDef {
@@ -91,13 +98,15 @@ export function ResellerSidebar({
   displayName,
   customLogo,
   isMobile = false,
+  menuDefs = RESELLER_MAIN_MENU_DEFS,
+  basePath = '/revendedor',
 }: ResellerSidebarProps) {
   const { privileges } = useResellerMenuPrivileges();
   const { unreadCount, refreshUnread } = useResellerNotificationBadge();
   const currentSidebarWidth = isCollapsed ? 64 : 242;
   const logoUrl = customLogo || '/assets/simbolo.png';
 
-  const mainMenuItems: MenuItem[] = filterMenuByPrivileges(RESELLER_MAIN_MENU_DEFS, privileges).map(
+  const mainMenuItems: MenuItem[] = filterMenuByPrivileges(menuDefs, privileges).map(
     (item) => ({
       ...item,
       icon: MAIN_MENU_ICONS[item.id] || Server,
@@ -307,7 +316,7 @@ export function ResellerSidebar({
               src={logoUrl}
               alt="Logo"
               className="h-11 w-11 cursor-pointer object-contain"
-              onClick={() => { window.location.href = '/revendedor'; }}
+              onClick={() => { window.location.href = basePath; }}
             />
             <button
               type="button"
@@ -324,7 +333,7 @@ export function ResellerSidebar({
               src={logoUrl}
               alt="Logo"
               className="h-11 max-w-[140px] w-auto cursor-pointer object-contain"
-              onClick={() => { window.location.href = '/revendedor'; }}
+              onClick={() => { window.location.href = basePath; }}
             />
             <div className="min-w-0 flex-1">
               <h1 className="truncate text-lg font-bold text-gray-900 dark:text-zinc-100">

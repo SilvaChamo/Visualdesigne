@@ -16,7 +16,7 @@ import { encryptStoredPassword } from '@/lib/panel-access-credentials';
  */
 
 async function canAccessDomain(
-  role: 'admin' | 'reseller' | 'manager',
+  role: 'admin' | 'reseller' | 'manager' | 'profissional',
   userId: string,
   domain: string,
   impersonatingDaUsername?: string | null,
@@ -32,8 +32,8 @@ async function canAccessDomain(
   return owner === creds.user;
 }
 
-/** daRequest só conhece 'admin'|'reseller' — "manager" usa sempre o caminho escopado 'reseller'. */
-function toDaRole(role: 'admin' | 'reseller' | 'manager'): 'admin' | 'reseller' {
+/** daRequest só conhece 'admin'|'reseller' — "manager"/"profissional" usam sempre o caminho escopado 'reseller'. */
+function toDaRole(role: 'admin' | 'reseller' | 'manager' | 'profissional'): 'admin' | 'reseller' {
   return role === 'admin' ? 'admin' : 'reseller';
 }
 

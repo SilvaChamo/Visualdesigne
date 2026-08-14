@@ -69,7 +69,7 @@ import { OSHER_DOMAIN } from '@/lib/email-domains'
 import { excludeResellerSelfPackages } from '@/lib/panel-contas-enrich'
 import { WordPressHubSection } from '../dashboard/WordPressHubSection'
 import { getPanelSectionMeta } from '@/lib/panel-section-meta'
-import { resolvePanelNavigation, resolveSectionId } from '@/lib/panel-admin-menu'
+import { resolvePanelNavigation, resolveSectionId, type PanelMenuItemDef } from '@/lib/panel-admin-menu'
 import { PanelSectionKeepAlive } from '@/components/panel/PanelSectionKeepAlive'
 import { PanelHeader } from '@/components/panel/PanelHeader'
 import { AdminSectionChromeProvider, useAdminSectionChrome } from '@/components/admin/AdminSectionChrome'
@@ -1269,15 +1269,29 @@ function ClientesSection() {
   )
 }
 
-export default function ResellerPage() {
+/** Reaproveitado tal e qual por /profissional (ver src/app/profissional/page.tsx)
+ * — mesmo painel, só com menuDefs e basePath diferentes. */
+export default function ResellerPage({
+  menuDefs,
+  basePath = '/revendedor',
+}: {
+  menuDefs?: PanelMenuItemDef[]
+  basePath?: string
+} = {}) {
   return (
     <AdminSectionChromeProvider>
-      <ResellerPageContent />
+      <ResellerPageContent menuDefs={menuDefs} basePath={basePath} />
     </AdminSectionChromeProvider>
   )
 }
 
-function ResellerPageContent() {
+function ResellerPageContent({
+  menuDefs,
+  basePath,
+}: {
+  menuDefs?: PanelMenuItemDef[]
+  basePath: string
+}) {
   const router = useRouter()
   const { chrome } = useAdminSectionChrome()
   const { t } = useI18n()
@@ -1334,7 +1348,7 @@ function ResellerPageContent() {
       if (searchParams.get('impersonate') === '1') {
         clearPanelBootstrapCache('reseller');
         justImpersonatedRef.current = true;
-        window.history.replaceState({}, '', '/revendedor');
+        window.history.replaceState({}, '', basePath);
       }
       setActiveSection('dashboard');
       return;
@@ -2082,6 +2096,8 @@ function ResellerPageContent() {
         displayName={resellerDisplayName}
         customLogo={logoUrl}
         isMobile={isMobile}
+        menuDefs={menuDefs}
+        basePath={basePath}
       />
       <div className="flex min-w-0 flex-1 flex-col overflow-hidden bg-white dark:bg-zinc-950">
         <PanelHeader

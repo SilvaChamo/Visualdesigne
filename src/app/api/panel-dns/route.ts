@@ -14,7 +14,7 @@ import { deleteMirrorDnsById, upsertMirrorDns } from '@/lib/panel-mirror-write';
 import { resolveDirectAdminCredentials, resolveDirectAdminCredentialsForDomainOwner } from '@/lib/directadmin-credentials';
 
 async function canAccessDomain(
-  role: 'admin' | 'reseller' | 'manager',
+  role: 'admin' | 'reseller' | 'manager' | 'profissional',
   userId: string,
   domain: string,
   impersonatingDaUsername?: string | null,
@@ -31,7 +31,7 @@ async function canAccessDomain(
 }
 
 async function resolveDaCreds(
-  role: 'admin' | 'reseller' | 'manager',
+  role: 'admin' | 'reseller' | 'manager' | 'profissional',
   userId: string,
   impersonatingDaUsername?: string | null,
 ) {

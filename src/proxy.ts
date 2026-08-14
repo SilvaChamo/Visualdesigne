@@ -221,8 +221,16 @@ export async function proxy(request: NextRequest) {
     return redirectWithSession(new URL(getRedirectPathForRole(role), request.url))
   }
 
+  if (pathname.startsWith('/profissional') && role !== 'profissional' && role !== 'admin') {
+    return redirectWithSession(new URL(getRedirectPathForRole(role), request.url))
+  }
+
   if (pathname.startsWith('/dashboard') && role === 'client') {
     return redirectWithSession(new URL('/cliente', request.url))
+  }
+
+  if (pathname.startsWith('/dashboard') && role === 'profissional') {
+    return redirectWithSession(new URL('/profissional', request.url))
   }
 
   return response
@@ -253,6 +261,7 @@ export const config = {
     '/cliente/:path*',
     '/guest/:path*',
     '/revendedor/:path*',
+    '/profissional/:path*',
     '/login',
     '/auth/:path*',
     '/autenticacao',

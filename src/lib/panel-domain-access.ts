@@ -1,9 +1,9 @@
 // Acesso a acções de domínio (SSL/DNS/PHP/transferência) escopado ao próprio
-// dono. Staff (admin/reseller/manager) continua a passar sempre — o que
-// muda é que agora um 'client' também pode chamar, mas só para um domínio
-// que ele realmente possui (confirmado contra o mesmo critério usado no
-// bootstrap do painel: username do panel_users ligado ao seu auth_user_id,
-// ou o admin_email do site a bater com o email da conta).
+// dono. Staff (admin/reseller/manager/profissional) continua a passar
+// sempre — o que muda é que agora um 'client' também pode chamar, mas só
+// para um domínio que ele realmente possui (confirmado contra o mesmo
+// critério usado no bootstrap do painel: username do panel_users ligado ao
+// seu auth_user_id, ou o admin_email do site a bater com o email da conta).
 import { NextResponse } from 'next/server';
 import { requirePanelBootstrapAccess, type PanelBootstrapAuthSuccess } from '@/lib/panel-api-auth';
 import { listMirrorWebsitesForClientUser } from '@/lib/panel-mirror-read';
@@ -19,7 +19,12 @@ export async function requireDaAccessForDomain(
   const auth = await requirePanelBootstrapAccess();
   if ('error' in auth) return auth;
 
-  if (auth.user.role === 'admin' || auth.user.role === 'reseller' || auth.user.role === 'manager') {
+  if (
+    auth.user.role === 'admin' ||
+    auth.user.role === 'reseller' ||
+    auth.user.role === 'manager' ||
+    auth.user.role === 'profissional'
+  ) {
     return auth;
   }
 

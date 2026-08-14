@@ -53,9 +53,9 @@ const PANEL_TABS: { id: PanelTab; label: string; description: string }[] = [
   },
   {
     id: 'manager',
-    label: 'Profissional',
+    label: 'Colaborador',
     description:
-      'Active ou desactive itens do menu lateral do painel profissional. O Dashboard de cada painel fica sempre disponível por defeito.',
+      'Active ou desactive itens do menu lateral do painel do colaborador. O Dashboard de cada painel fica sempre disponível por defeito.',
   },
 ];
 
@@ -293,7 +293,7 @@ export function ResellerMenuPermissionsConfig() {
                 <Shield className="h-5 w-5" />
               </div>
               <h2 className="text-lg font-bold text-gray-900 dark:text-zinc-100">
-                Painéis Revendedor e Profissional
+                Painéis Revendedor e Colaborador
               </h2>
             </div>
             <p className="max-w-2xl text-sm text-gray-600 dark:text-zinc-400">

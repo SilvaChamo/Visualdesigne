@@ -297,16 +297,20 @@ async function notifyClientOfDomainProvisionResult(
 }
 
 /**
- * Promove guest -> client (metadata do Auth + profiles.role), sem tocar nos
- * produtos em si. Extraído do fim de `fulfillCheckout` para poder correr logo
- * na SUBMISSÃO da encomenda (antes de qualquer confirmação de pagamento) —
- * é o que deixa o cliente entrar já no painel real (`/cliente`) com a secção
- * do produto comprado visível mas desactivada, em vez de ser mandado para o
- * `/guest` genérico até um humano (M-Pesa/transferência) ou o webhook
- * (Stripe/saldo) confirmar. Nunca despromove uma conta já elevada
- * (admin/manager/reseller) — mesma regra de sempre.
+ * Promove guest -> profissional (metadata do Auth + profiles.role), sem tocar
+ * nos produtos em si. Extraído do fim de `fulfillCheckout` para poder correr
+ * logo na SUBMISSÃO da encomenda (antes de qualquer confirmação de
+ * pagamento) — é o que deixa o comprador entrar já no painel real
+ * (`/profissional`) com a secção do produto comprado visível mas
+ * desactivada, em vez de ser mandado para o `/guest` genérico até um humano
+ * (M-Pesa/transferência) ou o webhook (Stripe/saldo) confirmar. Quem compra a
+ * si próprio vai para `/profissional` (painel do revendedor sem a gestão de
+ * contas de outros clientes) — `/cliente` fica reservado a contas geridas
+ * directamente pela VisualDesign. Nunca despromove uma conta já elevada
+ * (admin/manager/reseller) nem uma conta já gerida (client) — mesma regra de
+ * sempre.
  */
-export async function promoteGuestToClient(admin: SupabaseClient, userId: string): Promise<void> {
+export async function promoteGuestToProfissional(admin: SupabaseClient, userId: string): Promise<void> {
   const { data: authUser } = await admin.auth.admin.getUserById(userId);
   if (!authUser?.user) return;
   const currentMetadata = authUser.user.user_metadata || {};
@@ -315,21 +319,23 @@ export async function promoteGuestToClient(admin: SupabaseClient, userId: string
 
   const existingProfile = await getProfileForAuthUser(admin, userId, email);
 
-  // Só promove guest -> client. Nunca despromove uma conta já elevada (admin/manager/reseller)
-  // que, por exemplo, esteja apenas a testar uma compra.
-  const ELEVATED_ROLES = ['admin', 'manager', 'reseller'];
+  // Só promove guest -> profissional. Nunca despromove uma conta já elevada
+  // (admin/manager/reseller) que, por exemplo, esteja apenas a testar uma
+  // compra, nem uma conta 'client' (gerida directamente pela VisualDesign —
+  // essa continua em /cliente mesmo que compre algo a mais).
+  const ELEVATED_ROLES = ['admin', 'manager', 'reseller', 'client'];
   const isElevated =
     ELEVATED_ROLES.includes(existingProfile?.role || '') || ELEVATED_ROLES.includes(currentMetadata.role);
 
   if (!isElevated) {
     await admin.auth.admin.updateUserById(userId, {
-      user_metadata: { ...currentMetadata, role: 'client', nome: displayName },
+      user_metadata: { ...currentMetadata, role: 'profissional', nome: displayName },
     });
   }
 
   await saveProfileForAuthUser(admin, userId, {
     email,
-    role: isElevated ? undefined : 'client',
+    role: isElevated ? undefined : 'profissional',
     name: displayName,
   });
 }
@@ -645,17 +651,17 @@ export async function fulfillCheckout(
   });
 
   // #5: a password de login (Supabase Auth) do cliente nunca é tocada por
-  // promoteGuestToClient — era sobrescrita pela password gerada para a conta
-  // de hospedagem, o que trancava o cliente fora da própria conta depois de
-  // comprar. O botão "Direct Admin" não depende delas serem iguais: usa um
-  // one-time login-url por username (ver /api/client-directadmin-access), e
-  // a criação real da conta no servidor lê a password de
-  // profiles.da_password_encrypted (gravada acima, sharedHostingPassword),
-  // não a de login. Normalmente já é chamada de novo aqui (idempotente — ver
-  // §submissão da encomenda), mas mantém-se também aqui para o caso de
-  // `fulfillCheckout` ser invocada por um caminho que nunca passou por lá
-  // (ex.: script de correcção manual/admin).
-  if (admin) await promoteGuestToClient(admin, userId);
+  // promoteGuestToProfissional — era sobrescrita pela password gerada para a
+  // conta de hospedagem, o que trancava o cliente fora da própria conta
+  // depois de comprar. O botão "Direct Admin" não depende delas serem
+  // iguais: usa um one-time login-url por username (ver
+  // /api/client-directadmin-access), e a criação real da conta no servidor
+  // lê a password de profiles.da_password_encrypted (gravada acima,
+  // sharedHostingPassword), não a de login. Normalmente já é chamada de novo
+  // aqui (idempotente — ver §submissão da encomenda), mas mantém-se também
+  // aqui para o caso de `fulfillCheckout` ser invocada por um caminho que
+  // nunca passou por lá (ex.: script de correcção manual/admin).
+  if (admin) await promoteGuestToProfissional(admin, userId);
 
   return { created, total };
 }
