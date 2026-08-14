@@ -283,9 +283,26 @@ export async function runDaFullSync(): Promise<DaSyncResult> {
   const panelOnlyOwners = new Set(
     (panelLinkedUsers || []).map((r) => String(r.username || '')).filter(Boolean),
   );
+  // Sites cujo dono é uma conta Hestia nunca aparecem na lista ao vivo do
+  // DirectAdmin — sem este filtro, este sync (que só conhece o DirectAdmin)
+  // apagava-os por os achar "obsoletos" (mesma regra de isolamento por
+  // hosting_provider já aplicada do lado Hestia em hestia-sync-engine.ts).
+  const { data: hestiaUsers } = await admin
+    .from('panel_users')
+    .select('username')
+    .eq('hosting_provider', 'hestia');
+  const hestiaOwners = new Set(
+    (hestiaUsers || []).map((r) => String(r.username || '')).filter(Boolean),
+  );
   const staleDomains = (existingSites || [])
     .map((r) => ({ domain: r.domain as string, owner: String(r.owner || '') }))
-    .filter((r) => r.domain && !liveDomains.has(r.domain) && !panelOnlyOwners.has(r.owner))
+    .filter(
+      (r) =>
+        r.domain &&
+        !liveDomains.has(r.domain) &&
+        !panelOnlyOwners.has(r.owner) &&
+        !hestiaOwners.has(r.owner),
+    )
     .map((r) => r.domain);
   if (staleDomains.length) {
     await admin.from('panel_sites').delete().in('domain', staleDomains);
