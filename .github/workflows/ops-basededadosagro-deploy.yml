@@ -56,6 +56,53 @@ jobs:
           script: |
             set -e
             cd /opt/basededadosagro-site
+            touch .env.local
+            set_env_var() {
+              local key="$1" value="$2"
+              if grep -q "^${key}=" .env.local; then
+                sed -i "s|^${key}=.*|${key}=${value}|" .env.local
+              else
+                echo "${key}=${value}" >> .env.local
+              fi
+            }
+            # Segredo do robô de notícias (protege /api/cron/news-fetch) —
+            # mantido em sincronia a cada deploy.
+            set_env_var CRON_SECRET "${{ secrets.BASEDEDADOSAGRO_CRON_SECRET }}"
+
+            echo "--- garantir tabela articles_pending (robô de notícias) ---"
+            CONTAINER=$(docker ps --format '{{.Names}}' | grep -iE 'supabase.*db|supabase-db|postgres' | head -n1)
+            if [ -z "$CONTAINER" ]; then
+              echo "Não encontrei nenhum container de Postgres/Supabase a correr:" >&2
+              docker ps --format '{{.Names}}'
+              exit 1
+            fi
+            DB_USER=$(docker exec "$CONTAINER" printenv POSTGRES_USER 2>/dev/null || echo postgres)
+            DB_NAME=$(docker exec "$CONTAINER" printenv POSTGRES_DB 2>/dev/null || echo postgres)
+            cat <<'SQL' | docker exec -i "$CONTAINER" psql -U "$DB_USER" -d "$DB_NAME" -v ON_ERROR_STOP=1
+            CREATE TABLE IF NOT EXISTS basededados.articles_pending (
+                id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+                title text NOT NULL,
+                snippet text,
+                source text,
+                source_url text UNIQUE,
+                image_url text,
+                date date,
+                category text DEFAULT 'Notícia',
+                created_at timestamptz DEFAULT now()
+            );
+            ALTER TABLE basededados.articles_pending ENABLE ROW LEVEL SECURITY;
+            DO $$
+            BEGIN
+              IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE schemaname = 'basededados' AND tablename = 'articles_pending' AND policyname = 'authenticated_read') THEN
+                CREATE POLICY authenticated_read ON basededados.articles_pending FOR SELECT TO authenticated USING (true);
+              END IF;
+              IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE schemaname = 'basededados' AND tablename = 'articles_pending' AND policyname = 'authenticated_delete') THEN
+                CREATE POLICY authenticated_delete ON basededados.articles_pending FOR DELETE TO authenticated USING (true);
+              END IF;
+            END $$;
+            SQL
+            docker exec "$CONTAINER" psql -U "$DB_USER" -d "$DB_NAME" -c "NOTIFY pgrst, 'reload schema';"
+
             npm ci
             npm run build
             pm2 restart basededadosagro-site || pm2 start npm --name "basededadosagro-site" -- start -- -p 3010
