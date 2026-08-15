@@ -5,6 +5,7 @@
 // critério usado no bootstrap do painel: username do panel_users ligado ao
 // seu auth_user_id, ou o admin_email do site a bater com o email da conta).
 import { NextResponse } from 'next/server';
+import { createClient as createAdminClient } from '@supabase/supabase-js';
 import { requirePanelBootstrapAccess, type PanelBootstrapAuthSuccess } from '@/lib/panel-api-auth';
 import { listMirrorWebsitesForClientUser } from '@/lib/panel-mirror-read';
 
@@ -33,8 +34,25 @@ export async function requireDaAccessForDomain(
   if (!clean) return { error: ACCESS_DENIED() };
 
   const sites = await listMirrorWebsitesForClientUser(auth.user.id, auth.user.email);
-  const owns = sites.some((s) => (s.domain || '').toLowerCase() === clean);
-  if (!owns) return { error: ACCESS_DENIED() };
+  if (sites.some((s) => (s.domain || '').toLowerCase() === clean)) return auth;
 
-  return auth;
+  // CORRIGIDO (15 ago 2026): dono só via hospedagem (mirror DA/Hestia) deixava
+  // de fora um domínio comprado sozinho, sem hospedagem — uma conta 'client'
+  // gerida que compre um domínio extra por conta própria fica sempre 'client'
+  // (nunca promovida a 'profissional', ver ELEVATED_ROLES em
+  // checkout-fulfillment.ts), por isso tinha de ficar coberta aqui também.
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  if (serviceKey && supabaseUrl) {
+    const admin = createAdminClient(supabaseUrl, serviceKey);
+    const { data } = await admin
+      .from('domain_renewals')
+      .select('id')
+      .eq('user_id', auth.user.id)
+      .eq('domain_name', clean)
+      .maybeSingle();
+    if (data) return auth;
+  }
+
+  return { error: ACCESS_DENIED() };
 }
