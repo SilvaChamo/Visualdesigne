@@ -101,6 +101,23 @@ jobs:
               END IF;
             END $$;
             SQL
+
+            echo "--- garantir políticas de escrita em articles (publicar/editar notícias do painel) ---"
+            cat <<'SQL' | docker exec -i "$CONTAINER" psql -U "$DB_USER" -d "$DB_NAME" -v ON_ERROR_STOP=1
+            DO $$
+            BEGIN
+              IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE schemaname = 'basededados' AND tablename = 'articles' AND policyname = 'authenticated_insert') THEN
+                CREATE POLICY authenticated_insert ON basededados.articles FOR INSERT TO authenticated WITH CHECK (true);
+              END IF;
+              IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE schemaname = 'basededados' AND tablename = 'articles' AND policyname = 'authenticated_update') THEN
+                CREATE POLICY authenticated_update ON basededados.articles FOR UPDATE TO authenticated USING (true) WITH CHECK (true);
+              END IF;
+              IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE schemaname = 'basededados' AND tablename = 'articles' AND policyname = 'authenticated_delete') THEN
+                CREATE POLICY authenticated_delete ON basededados.articles FOR DELETE TO authenticated USING (true);
+              END IF;
+            END $$;
+            SQL
+
             docker exec "$CONTAINER" psql -U "$DB_USER" -d "$DB_NAME" -c "NOTIFY pgrst, 'reload schema';"
 
             npm ci
