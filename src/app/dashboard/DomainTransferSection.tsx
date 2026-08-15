@@ -632,11 +632,11 @@ export function DomainTransferSection() {
             <div className="lg:col-span-5 space-y-4">
               {/* Ilustração das esferas sobrepostas */}
               <div className="flex items-center gap-3">
-                <div className="h-14 w-14 rounded-full bg-gradient-to-tr from-teal-600 via-indigo-500 to-sky-400 shadow-md shadow-teal-500/20" />
+                <div className="h-14 w-14 rounded-full bg-gradient-to-tr from-black via-red-700 to-red-500 shadow-md shadow-red-500/20" />
                 <div className="flex h-6 w-6 items-center justify-center">
                   <ArrowRight className="h-4 w-4 text-gray-400 dark:text-zinc-400" />
                 </div>
-                <div className="h-14 w-14 rounded-full border-2 border-amber-500 bg-transparent" />
+                <div className="h-14 w-14 rounded-full border-2 border-red-600 bg-transparent" />
               </div>
 
               <h3 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-zinc-100 tracking-tight leading-snug">
