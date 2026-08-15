@@ -53,6 +53,17 @@ export async function createAccount(input: {
 /** Remove só este site da conta (`v-delete-web-domain`) — nunca a conta em
  * si, mesmo quando `username` é a conta principal (ex.: "admin"), que fica
  * intacta com os restantes sites que tiver. */
+/** Associa um domínio extra a uma conta Hestia já existente — equivalente ao
+ * `createWebsite({ createUserAccount: false })` do DirectAdmin, usado por
+ * `admin/domains/attach-hosting` para juntar um domínio a uma conta que já
+ * tem hospedagem. Idempotente: já-existe conta como sucesso. */
+export async function addWebDomain(username: string, domain: string): Promise<{ ok: boolean; error?: string }> {
+  const result = await hestiaCall('v-add-web-domain', [username, domain]);
+  if (!result.ok && !isAlreadyExistsError(result.error)) return { ok: false, error: result.error };
+  await hestiaCall('v-add-letsencrypt-domain', [username, domain]).catch(() => {});
+  return { ok: true };
+}
+
 export async function deleteWebDomain(username: string, domain: string): Promise<{ ok: boolean; error?: string }> {
   const result = await hestiaCall('v-delete-web-domain', [username, domain]);
   return { ok: result.ok, error: result.error };

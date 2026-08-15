@@ -464,6 +464,18 @@ export function DomainDetailSection({ domain, sites, onNavigate, onRefresh, setA
         >
           Status: {isHostingActive ? 'Activo' : 'Suspenso'}
         </span>
+        {!clientMode && (
+          <button
+            type="button"
+            onClick={() => void handleReprovision()}
+            disabled={reprovisionLoading}
+            title="Reprocessar Configuração DNS (Cloudflare/nameservers)"
+            className="flex items-center gap-1.5 rounded border border-red-300 bg-red-50 px-3 py-1 text-xs font-bold text-red-600 hover:bg-red-100 disabled:opacity-50 dark:border-red-800 dark:bg-red-950/30 dark:text-red-400"
+          >
+            {reprovisionLoading ? <Spinner className="h-3.5 w-3.5" /> : <RefreshCw className="h-3.5 w-3.5" />}
+            Reprocessar DNS
+          </button>
+        )}
       </div>
 
       <div className="grid w-full grid-cols-1 gap-4 lg:grid-cols-[1fr_242px]">

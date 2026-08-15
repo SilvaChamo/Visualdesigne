@@ -5407,17 +5407,6 @@ export function SSLSection({
             >
               Ver certificado
             </button>
-            {filterDomain && !isHostSecure(filterDomain) ? (
-              <button
-                type="button"
-                onClick={() => void handleIssueSSL(filterDomain)}
-                disabled={issuing === `issueSSL-${filterDomain}`}
-                className="bg-green-50 border border-green-300 text-green-600 hover:bg-green-100 px-4 py-2 rounded text-sm font-bold disabled:opacity-50 inline-flex items-center gap-2"
-              >
-                {issuing === `issueSSL-${filterDomain}` ? <Spinner className="w-4 h-4" /> : <Lock className="w-4 h-4" />}
-                Emitir SSL
-              </button>
-            ) : null}
           </div>
         </div>
 
