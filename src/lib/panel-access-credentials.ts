@@ -1,6 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import crypto from 'node:crypto';
-import { getRedirectPathForRole, type UserRole } from '@/lib/user-roles';
+import type { UserRole } from '@/lib/user-roles';
 
 const ALGO = 'aes-256-gcm';
 const SALT = 'visualdesign-panel-credentials-v1';
@@ -80,33 +80,3 @@ export async function upsertDownloadableCredentials(
   );
 }
 
-export function buildPanelAccessConfigText(params: {
-  email: string;
-  password: string;
-  panelRole: UserRole | string;
-  name?: string | null;
-  origin?: string;
-}): { plainText: string; outlookFile: string; shareText: string } {
-  const origin = params.origin || 'https://visualdesignmoz.com';
-  const panelPath = getRedirectPathForRole(
-    (params.panelRole as UserRole) || 'client',
-  );
-  const plainText = `
-ACESSO AO PAINEL
-================
-
-Nome: ${params.name || params.email.split('@')[0]}
-Email: ${params.email}
-Palavra-passe: ${params.password}
-Destino: ${panelPath}
-URL de entrada: ${origin}/auth/login
-
-Guarde estas credenciais em local seguro.
-`.trim();
-
-  return {
-    plainText,
-    outlookFile: plainText,
-    shareText: plainText,
-  };
-}
