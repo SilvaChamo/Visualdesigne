@@ -1,0 +1,39 @@
+name: Ops - Contabo (teste) - ver logs de erro 500 recentes
+
+# Workflow temporário, só-leitura, para diagnosticar erros "Internal Server
+# Error" frequentes reportados pelo utilizador no site teste
+# (visualdesign-site-teste, Contabo). Não altera nada no servidor — só lê
+# os últimos logs do pm2. Apagar depois de usado, como os outros
+# ops-*.yml de diagnóstico já removidos deste repo.
+
+on:
+  workflow_dispatch:
+
+jobs:
+  check-logs:
+    name: Lê últimas linhas dos logs pm2 (out + error)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Setup SSH key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.CONTABO_SSH_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan "${{ secrets.CONTABO_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
+
+      - name: Read pm2 logs on Contabo
+        uses: appleboy/ssh-action@v1.2.5
+        with:
+          host: ${{ secrets.CONTABO_HOST }}
+          username: root
+          key: ${{ secrets.CONTABO_SSH_KEY }}
+          command_timeout: 5m
+          script: |
+            echo "===== pm2 status ====="
+            pm2 list
+            echo ""
+            echo "===== últimas 400 linhas do error log ====="
+            tail -n 400 /root/.pm2/logs/visualdesign-site-teste-error.log 2>/dev/null || echo "(sem error log)"
+            echo ""
+            echo "===== últimas 200 linhas do out log ====="
+            tail -n 200 /root/.pm2/logs/visualdesign-site-teste-out.log 2>/dev/null || echo "(sem out log)"
