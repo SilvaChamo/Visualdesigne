@@ -1,0 +1,42 @@
+name: Ops - Contabo (teste) - diagnostico completo (so leitura)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  check:
+    name: Disco, memoria, pm2, logs recentes
+    runs-on: ubuntu-latest
+    steps:
+      - name: Setup SSH key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.CONTABO_SSH_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan "${{ secrets.CONTABO_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
+
+      - name: Diagnostico no Contabo
+        uses: appleboy/ssh-action@v1.2.5
+        with:
+          host: ${{ secrets.CONTABO_HOST }}
+          username: root
+          key: ${{ secrets.CONTABO_SSH_KEY }}
+          command_timeout: 5m
+          script: |
+            echo "===== disco ====="
+            df -h /
+            echo ""
+            echo "===== memoria ====="
+            free -h
+            echo ""
+            echo "===== pm2 status ====="
+            pm2 list
+            echo ""
+            echo "===== pm2 describe visualdesign-site-teste ====="
+            pm2 describe visualdesign-site-teste
+            echo ""
+            echo "===== uptime do processo / restarts ====="
+            pm2 jlist | grep -E "\"name\"|\"pm_uptime\"|\"restart_time\"|\"status\"|\"memory\"|\"cpu\""
+            echo ""
+            echo "===== ultimas 300 linhas do error log (mais recente) ====="
+            tail -n 300 /root/.pm2/logs/visualdesign-site-teste-error.log 2>/dev/null || echo "(sem error log)"
