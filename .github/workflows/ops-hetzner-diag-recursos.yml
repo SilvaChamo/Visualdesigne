@@ -1,0 +1,33 @@
+name: 'ops: diagnóstico só-leitura de disco/memória no Hetzner'
+
+on:
+  workflow_dispatch: {}
+
+jobs:
+  diag:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ver uso real de disco e memória no Hetzner
+        uses: appleboy/ssh-action@v1.2.5
+        with:
+          host: ${{ secrets.HETZNER_HOST }}
+          port: ${{ secrets.HETZNER_PORT }}
+          username: ${{ secrets.HETZNER_USER }}
+          key: ${{ secrets.HETZNER_SSH_KEY }}
+          script: |
+            echo "===== DISCO (df -h) ====="
+            df -h
+            echo ""
+            echo "===== MEMÓRIA (free -h) ====="
+            free -h
+            echo ""
+            echo "===== CPU (nproc + uptime/load) ====="
+            nproc
+            uptime
+            echo ""
+            echo "===== Maiores consumidores de disco em /home, /opt e /var (top 20) ====="
+            du -sh /home/* /opt/* /var/* 2>/dev/null | sort -rh | head -20
+            echo ""
+            echo "===== Backups/snapshots locais visíveis (se existirem) ====="
+            du -sh /backup /backups /var/backups 2>/dev/null
+            find / -maxdepth 3 -iname "*backup*" -type d 2>/dev/null
