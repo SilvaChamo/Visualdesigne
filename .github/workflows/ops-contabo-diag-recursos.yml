@@ -1,0 +1,28 @@
+name: 'ops: diagnóstico só-leitura de disco/memória no Contabo'
+
+on:
+  workflow_dispatch: {}
+
+jobs:
+  diag:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ver uso real de disco e memória no Contabo
+        uses: appleboy/ssh-action@v1.2.5
+        with:
+          host: ${{ secrets.CONTABO_HOST }}
+          username: root
+          key: ${{ secrets.CONTABO_SSH_KEY }}
+          script: |
+            echo "===== DISCO (df -h) ====="
+            df -h
+            echo ""
+            echo "===== MEMÓRIA (free -h) ====="
+            free -h
+            echo ""
+            echo "===== CPU (nproc + uptime/load) ====="
+            nproc
+            uptime
+            echo ""
+            echo "===== Maiores consumidores de disco em /home e /opt (top 15) ====="
+            du -sh /home/* /opt/* 2>/dev/null | sort -rh | head -15
