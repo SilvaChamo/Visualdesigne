@@ -338,7 +338,7 @@ samp {
   background-color: rgb(0 0 0 / 0.45) !important;
 }
 
-.dark .site-content :is(.bg-white, .bg-white\/95) {
+.dark .site-content :is(.bg-white, .bg-white\/95):not([class*="dark:bg-"]) {
   background-color: rgba(255, 255, 255, 0.1) !important;
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);

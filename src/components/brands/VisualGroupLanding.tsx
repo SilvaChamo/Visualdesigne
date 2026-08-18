@@ -34,7 +34,7 @@ function ExitArrow({ className }: { className?: string }) {
 
 export function VisualGroupHero({ onCtaClick }: { onCtaClick: () => void }) {
   return (
-    <NotchSection shape="start" bg="bg-black dark:bg-[#262626]" first className="z-30">
+    <NotchSection shape="start" bg="bg-[#141414]" first className="z-30">
       <Image
         src="/assets/IMG-VD/Design/design_grafico.jpg"
         alt="VisualDesign Grupo Corporativo"
@@ -129,7 +129,7 @@ export function VisualGroupBody({ onCtaClick }: { onCtaClick: () => void }) {
   return (
     <>
       {/* Brands List Section */}
-      <div className="-mt-[16px] relative z-20 bg-zinc-200 dark:bg-[#262626]">
+      <div className="-mt-[16px] relative z-20 bg-zinc-200 dark:bg-[#212121]">
         <div className="container mx-auto max-w-7xl px-4 sm:px-6 pt-[70px] pb-[70px]">
           <div className="text-center mb-10 sm:mb-12 flex flex-col items-center max-w-4xl mx-auto px-4 space-y-6">
             <span className="text-xs sm:text-sm font-bold uppercase tracking-wider flex items-center gap-1.5 text-red-600 dark:text-red-500">
@@ -173,7 +173,7 @@ export function VisualGroupBody({ onCtaClick }: { onCtaClick: () => void }) {
       </div>
 
       {/* Portfolio Showcase Carousel */}
-        <NotchSection shape="mid-alt" bg="bg-white dark:bg-zinc-900" className="pt-16 pb-16 sm:pt-24 sm:pb-24">
+        <NotchSection shape="mid-alt" bg="bg-white dark:!bg-[#141414]" className="pt-16 pb-16 sm:pt-24 sm:pb-24">
           <div className="container mx-auto max-w-7xl px-4 sm:px-6">
             <div className="text-center">
               <h2 className="text-2xl sm:text-3xl md:text-4xl font-extrabold text-black dark:text-white mb-8">
@@ -185,13 +185,13 @@ export function VisualGroupBody({ onCtaClick }: { onCtaClick: () => void }) {
         </NotchSection>
 
       {/* Secção Design Gráfico & Branding (com Sticky Scroll) */}
-      <div className="relative w-full z-10 bg-white dark:bg-zinc-900">
+      <div className="relative w-full z-10 bg-white dark:bg-[#141414]">
         <div id="design" />
         <div id="envelopamento" />
         
         {/* Serviço 1: Design Gráfico */}
         <div className="static lg:sticky lg:top-[125px] z-10 w-full -mt-[16px]">
-          <NotchSection shape="mid" bg="bg-zinc-200 dark:bg-[#262626]" first className="pt-12 pb-[30px] lg:pt-8 lg:pb-[30px] lg:min-h-[calc(75vh+45px)] flex items-center">
+          <NotchSection shape="mid" bg="bg-zinc-200 dark:bg-[#212121]" first className="pt-12 pb-[30px] lg:pt-8 lg:pb-[30px] lg:min-h-[calc(75vh+45px)] flex items-center">
             <div className="container mx-auto max-w-7xl px-4 sm:px-6 relative z-10">
               <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 items-center w-full mx-5">
                 {/* Imagem esquerda */}
@@ -249,7 +249,7 @@ export function VisualGroupBody({ onCtaClick }: { onCtaClick: () => void }) {
 
         {/* Serviço 2: Estratégia de Branding */}
         <div className="static lg:sticky lg:top-[140px] lg:-mt-[30px] z-20 w-full lg:drop-shadow-[0_-8px_15px_rgba(0,0,0,0.08)] dark:lg:drop-shadow-[0_-8px_15px_rgba(0,0,0,0.4)]">
-          <NotchSection shape="mid" bg="bg-zinc-200 dark:bg-[#262626]" first className="pt-12 pb-[30px] lg:pt-8 lg:pb-[30px] lg:min-h-[calc(75vh+30px)] flex items-center">
+          <NotchSection shape="mid" bg="bg-zinc-200 dark:bg-[#212121]" first className="pt-12 pb-[30px] lg:pt-8 lg:pb-[30px] lg:min-h-[calc(75vh+30px)] flex items-center">
             <div className="container mx-auto max-w-7xl px-4 sm:px-6 relative z-10">
               <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 items-center w-full mx-5">
                 {/* Imagem esquerda */}
@@ -307,7 +307,7 @@ export function VisualGroupBody({ onCtaClick }: { onCtaClick: () => void }) {
 
         {/* Serviço 3: Redes Sociais */}
         <div className="static lg:sticky lg:top-[155px] lg:-mt-[30px] z-30 w-full lg:drop-shadow-[0_-8px_15px_rgba(0,0,0,0.08)] dark:lg:drop-shadow-[0_-8px_15px_rgba(0,0,0,0.4)]">
-          <NotchSection shape="mid" bg="bg-zinc-200 dark:bg-[#262626]" first className="pt-12 pb-[30px] lg:pt-8 lg:pb-[30px] lg:min-h-[calc(75vh+15px)] flex items-center">
+          <NotchSection shape="mid" bg="bg-zinc-200 dark:bg-[#212121]" first className="pt-12 pb-[30px] lg:pt-8 lg:pb-[30px] lg:min-h-[calc(75vh+15px)] flex items-center">
             <div className="container mx-auto max-w-7xl px-4 sm:px-6 relative z-10">
               <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 items-center w-full mx-5">
                 {/* Imagem esquerda */}
@@ -365,7 +365,7 @@ export function VisualGroupBody({ onCtaClick }: { onCtaClick: () => void }) {
 
         {/* Serviço 4: Envelopamento */}
         <div className="static lg:sticky lg:top-[170px] lg:-mt-[30px] z-40 w-full lg:drop-shadow-[0_-8px_15px_rgba(0,0,0,0.08)] dark:lg:drop-shadow-[0_-8px_15px_rgba(0,0,0,0.4)]">
-          <NotchSection shape="mid" bg="bg-zinc-200 dark:bg-[#262626]" first className="pt-12 pb-[30px] lg:pt-8 lg:pb-[30px] lg:min-h-[75vh] flex items-center">
+          <NotchSection shape="mid" bg="bg-zinc-200 dark:bg-[#212121]" first className="pt-12 pb-[30px] lg:pt-8 lg:pb-[30px] lg:min-h-[75vh] flex items-center">
             <div className="container mx-auto max-w-7xl px-4 sm:px-6 relative z-10">
               <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 items-center w-full mx-5">
                 {/* Imagem esquerda */}
@@ -424,7 +424,7 @@ export function VisualGroupBody({ onCtaClick }: { onCtaClick: () => void }) {
       </div>
 
       {/* Secção A Nossa Metodologia / Processo de Trabalho */}
-      <NotchSection shape="mid-alt" bg="bg-white dark:bg-zinc-900" className="pt-16 pb-16 sm:pt-24 sm:pb-24">
+      <NotchSection shape="mid-alt" bg="bg-white dark:!bg-[#141414]" className="pt-16 pb-16 sm:pt-24 sm:pb-24">
         <div id="metodologia" className="container mx-auto max-w-7xl px-4 sm:px-6 relative z-10">
           <div className="text-center flex flex-col items-center max-w-4xl mx-auto space-y-6 mb-12">
             <span className="text-xs sm:text-sm font-bold uppercase tracking-wider flex items-center gap-1.5 text-red-600 dark:text-red-500">
@@ -457,7 +457,7 @@ export function VisualGroupBody({ onCtaClick }: { onCtaClick: () => void }) {
             ].map(({ step, title, desc }) => (
               <div 
                 key={step} 
-                className="flex items-start gap-4 p-6 bg-white dark:bg-[#262626] border border-zinc-200/80 dark:border-white/10 border-l-4 border-l-red-600 dark:border-l-red-500 rounded-lg shadow-sm"
+                className="flex items-start gap-4 p-6 bg-white dark:bg-[#212121] border border-zinc-200/80 dark:border-white/10 border-l-4 border-l-red-600 dark:border-l-red-500 rounded-lg shadow-sm"
               >
                 <span className="shrink-0 w-10 h-10 rounded-lg border flex items-center justify-center border-red-600/20 dark:border-red-500/20 bg-red-600/5 dark:bg-red-500/5 font-extrabold text-red-600 dark:text-red-500 text-lg">
                   {step}
@@ -473,7 +473,7 @@ export function VisualGroupBody({ onCtaClick }: { onCtaClick: () => void }) {
       </NotchSection>
 
       {/* Why Choose Us Section - Matching cards layout from web, restored original 2-column layout */}
-      <NotchSection shape="mid" bg="bg-zinc-200 dark:bg-[#262626]" className="pt-16 pb-16 sm:pt-24 sm:pb-24">
+      <NotchSection shape="mid" bg="bg-zinc-200 dark:bg-[#212121]" className="pt-16 pb-16 sm:pt-24 sm:pb-24">
         <div className="container mx-auto max-w-7xl px-4 sm:px-6 relative z-10">
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 mx-5">
             <div className="lg:col-span-5 text-left pt-2 space-y-6">
@@ -533,7 +533,7 @@ export function VisualGroupBody({ onCtaClick }: { onCtaClick: () => void }) {
       </NotchSection>
 
       {/* CTA Final */}
-      <NotchSection shape="mid-alt" bg="bg-white dark:bg-zinc-900" className="py-24 sm:py-32">
+      <NotchSection shape="mid-alt" bg="bg-white dark:!bg-[#141414]" className="py-24 sm:py-32">
         <div className="container mx-auto max-w-7xl px-4 sm:px-6 relative z-10">
           <div className="text-center flex flex-col items-center max-w-[832px] mx-auto space-y-6">
             <h2 className="text-2xl sm:text-3xl md:text-4xl font-extrabold text-black dark:text-white">
@@ -553,7 +553,7 @@ export function VisualGroupBody({ onCtaClick }: { onCtaClick: () => void }) {
       </NotchSection>
 
       {/* Newsletter */}
-      <NotchSection shape="mid" bg="bg-zinc-200 dark:bg-[#262626]" className="py-8 sm:py-10">
+      <NotchSection shape="mid" bg="bg-zinc-200 dark:bg-[#212121]" className="py-8 sm:py-10">
         <div className="container mx-auto max-w-7xl px-4 sm:px-6 relative z-10">
           <div className="mx-5 flex flex-col md:flex-row items-center justify-between gap-6 py-2">
             <div className="text-center md:text-left space-y-1.5">
