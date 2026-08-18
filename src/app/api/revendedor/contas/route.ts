@@ -21,7 +21,6 @@ import {
   excludeResellerSelfAccount,
   excludeResellerSelfPackages,
   isPanelAdminAccount,
-  PRIMARY_RESELLER_DA_USER,
 } from '@/lib/panel-contas-enrich';
 import {
   deleteMirrorUser,
@@ -662,5 +661,3 @@ export async function PATCH(req: NextRequest) {
     return NextResponse.json({ success: false, error: message }, { status: 500 });
   }
 }
-
-export { PRIMARY_RESELLER_DA_USER };

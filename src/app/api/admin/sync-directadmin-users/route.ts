@@ -3,7 +3,8 @@ import { createClient as createAdminClient } from '@supabase/supabase-js';
 import { directAdminHostingAPI as directAdminAPI } from '@/lib/directadmin-adapter';
 import type { DirectAdminWebsite } from '@/lib/directadmin-api';
 import { PANEL_SLUG, inferPanelSiteFromEmail } from '@/lib/panel-tenant';
-import { upsertDownloadableCredentials, decryptStoredPassword, buildPanelAccessConfigText } from '@/lib/panel-access-credentials';
+import { upsertDownloadableCredentials, decryptStoredPassword } from '@/lib/panel-access-credentials';
+import { buildPanelAccessConfigText } from '@/lib/panel-access-config-text';
 import { requireAdmin } from '@/lib/admin-api-auth';
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
