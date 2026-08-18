@@ -1,0 +1,19 @@
+name: 'ops: verificar estabilidade PM2 no Contabo após fix'
+
+on:
+  workflow_dispatch: {}
+
+jobs:
+  diag:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ver estado do PM2
+        uses: appleboy/ssh-action@v1.2.5
+        with:
+          host: ${{ secrets.CONTABO_HOST }}
+          username: root
+          key: ${{ secrets.CONTABO_SSH_KEY }}
+          script: |
+            pm2 describe visualdesign-site-teste | grep -iE "uptime|restart|created|status"
+            echo "--- erros novos desde o deploy (deve estar vazio ou quase) ---"
+            grep -c "client reference manifest" /root/.pm2/logs/visualdesign-site-teste-error.log 2>/dev/null || echo "0"
