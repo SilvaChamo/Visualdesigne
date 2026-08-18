@@ -114,7 +114,7 @@ export function VisualWebBody() {
       </NotchSection>
 
       {/* Hosting Features + Design Services (ordem trocada — fundos mantidos no mesmo sítio) */}
-      <NotchSection shape="end" bg="bg-zinc-200 dark:bg-[#141414]" className="pt-[70px] pb-[70px]">
+      <NotchSection shape="end" bg="bg-zinc-200 dark:bg-[#212121]" className="pt-[70px] pb-[70px]">
         <div className="container mx-auto max-w-7xl px-4 sm:px-6">
           <div className="text-center mb-10 sm:mb-12 flex flex-col items-center max-w-4xl mx-auto px-4 md:px-[100px]">
             <div className="flex flex-col items-center mb-3">
@@ -176,7 +176,7 @@ export function VisualWebBody() {
       </NotchSection>
 
       {/* Why Choose Us */}
-      <NotchSection shape="mid" bg="bg-zinc-200 dark:bg-[#141414]" className="pt-16 pb-16 sm:pt-24 sm:pb-24">
+      <NotchSection shape="mid" bg="bg-zinc-200 dark:bg-[#212121]" className="pt-16 pb-16 sm:pt-24 sm:pb-24">
         <div className="container mx-auto max-w-7xl px-4 sm:px-6 relative z-10">
           <div className="text-center flex flex-col items-center max-w-4xl mx-auto px-4 md:px-[100px] mb-0">
             <img src="/assets/IMG-VD/icon-custom-solutions-red.svg" alt="" className="w-16 h-16 mb-2" />
@@ -422,7 +422,7 @@ export function VisualWebBody() {
       </NotchSection>
 
       {/* Newsletter */}
-      <NotchSection shape="mid" bg="bg-zinc-200 dark:bg-[#141414]" className="py-8 sm:py-10">
+      <NotchSection shape="mid" bg="bg-zinc-200 dark:bg-[#212121]" className="py-8 sm:py-10">
         <div className="container mx-auto max-w-7xl px-4 sm:px-6 relative z-10">
           <div className="mx-5 flex flex-col md:flex-row items-center justify-between gap-6 py-2">
             <div className="text-center md:text-left">
