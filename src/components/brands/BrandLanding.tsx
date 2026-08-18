@@ -21,7 +21,7 @@ export function BrandHero({ data, breadcrumb }: { data: BrandLandingContent; bre
   }
 
   return (
-    <NotchSection shape="start" bg="bg-black" first className="z-30">
+    <NotchSection shape="start" bg="bg-[#141414]" first className="z-30">
       {data.hero.imageSrc && (
         // eslint-disable-next-line @next/next/no-img-element
         <img
@@ -84,7 +84,7 @@ export function BrandLandingBody({ data }: { data: BrandLandingContent }) {
   return (
     <>
       {/* Introdução + Serviços */}
-      <div className="-mt-[16px] relative z-20 bg-zinc-200 dark:bg-zinc-900">
+      <div className="-mt-[16px] relative z-20 bg-zinc-200 dark:bg-[#212121]">
         <div className="container mx-auto max-w-7xl px-4 sm:px-6 pt-0 pb-8">
           <div className="text-center pt-[30px] max-w-3xl mx-auto">
             <h2 className="text-2xl sm:text-3xl md:text-4xl font-extrabold text-black dark:text-white mb-4">
@@ -97,7 +97,7 @@ export function BrandLandingBody({ data }: { data: BrandLandingContent }) {
         </div>
       </div>
 
-      <NotchSection shape="end" bg="bg-white dark:bg-zinc-950" first className="pt-16 pb-16 sm:pt-24 sm:pb-24">
+      <NotchSection shape="end" bg="bg-white dark:bg-[#212121]" first className="pt-16 pb-16 sm:pt-24 sm:pb-24">
           <div className="container mx-auto max-w-7xl px-4 sm:px-6">
             <div className="text-center mb-10 sm:mb-12 flex flex-col items-center max-w-3xl mx-auto">
               <span className="text-xs sm:text-sm font-bold uppercase tracking-wider flex items-center gap-1.5 text-red-600 dark:text-red-500 mb-2">
@@ -146,7 +146,7 @@ export function BrandLandingBody({ data }: { data: BrandLandingContent }) {
         </NotchSection>
 
       {/* Como Trabalhamos */}
-      <NotchSection shape="mid" bg="bg-zinc-200 dark:bg-black" className="pt-16 pb-16 sm:pt-24 sm:pb-24">
+      <NotchSection shape="mid" bg="bg-zinc-200 dark:bg-[#141414]" className="pt-16 pb-16 sm:pt-24 sm:pb-24">
         <div className="container mx-auto max-w-7xl px-4 sm:px-6 relative z-10">
           <div className="text-center flex flex-col items-center max-w-3xl mx-auto mb-12">
             <span className="text-xs sm:text-sm font-bold uppercase tracking-wider flex items-center gap-1.5 text-red-600 dark:text-red-500 mb-2">
@@ -185,7 +185,7 @@ export function BrandLandingBody({ data }: { data: BrandLandingContent }) {
       </NotchSection>
 
       {/* Porquê nós */}
-      <NotchSection shape="mid-alt" bg="bg-white dark:bg-zinc-950" className="pt-16 pb-16 sm:pt-24 sm:pb-24">
+      <NotchSection shape="mid-alt" bg="bg-white dark:bg-[#212121]" className="pt-16 pb-16 sm:pt-24 sm:pb-24">
         <div className="container mx-auto max-w-7xl px-4 sm:px-6 relative z-10">
           <div className="text-center flex flex-col items-center max-w-3xl mx-auto mb-0">
             <span className="text-xs sm:text-sm font-bold uppercase tracking-wider flex items-center gap-1.5 text-red-600 dark:text-red-500 mb-2">
@@ -249,7 +249,7 @@ export function BrandLandingBody({ data }: { data: BrandLandingContent }) {
       </NotchSection>
 
       {/* CTA */}
-      <NotchSection shape="mid" bg="bg-zinc-200 dark:bg-black" className="py-16 sm:py-20">
+      <NotchSection shape="mid" bg="bg-zinc-200 dark:bg-[#141414]" className="py-16 sm:py-20">
         <div className="container mx-auto max-w-7xl px-4 sm:px-6 relative z-10">
           <div className="text-center flex flex-col items-center max-w-2xl mx-auto gap-4">
             <h2 className="text-2xl sm:text-3xl md:text-4xl font-extrabold text-black dark:text-white">
@@ -267,7 +267,7 @@ export function BrandLandingBody({ data }: { data: BrandLandingContent }) {
       </NotchSection>
 
       {/* Newsletter */}
-      <NotchSection shape="mid-alt" bg="bg-white dark:bg-zinc-950" className="py-8 sm:py-10">
+      <NotchSection shape="mid-alt" bg="bg-white dark:bg-[#212121]" className="py-8 sm:py-10">
         <div className="container mx-auto max-w-7xl px-4 sm:px-6 relative z-10">
           <div className="mx-5 flex flex-col md:flex-row items-center justify-between gap-6 py-2">
             <div className="text-center md:text-left">

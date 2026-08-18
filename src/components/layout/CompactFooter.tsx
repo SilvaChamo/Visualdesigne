@@ -8,7 +8,7 @@ import { CLIP_PATHS } from '@/components/home/NotchSection'
 export function CompactFooter() {
   return (
     <footer
-      className="bg-zinc-900 text-white border-t border-white/5 relative z-10 overflow-hidden"
+      className="bg-[#141414] text-white border-t border-white/5 relative z-10 overflow-hidden"
       style={
         {
           '--cl': 'max(24px, calc(50% - 616px))',
@@ -188,8 +188,8 @@ export function CompactFooter() {
       {/* 100% Width Divider Line */}
       <div className="w-full border-t border-white/5"></div>
 
-      {/* Copyright Bottom Bar (Solid Black) */}
-      <div className="w-full bg-black py-4">
+      {/* Copyright Bottom Bar */}
+      <div className="w-full py-4" style={{ backgroundColor: '#212121' }}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6">
           <div className="mx-5 flex flex-col md:flex-row items-center justify-between gap-4">
             {/* Left side: Menu */}
