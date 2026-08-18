@@ -157,6 +157,12 @@ jobs:
             set_env_var SERVER_SSH_USER "root"
             set_env_var SERVER_SSH_PORT "22"
             npm ci
+            # Build sempre limpo — publicações seguidas em cima da mesma pasta
+            # .next (nunca apagada pelo rsync, ver --exclude acima) já causaram
+            # "Invariant: client reference manifest ... does not exist" (bug
+            # conhecido do Next.js com builds incrementais sobre estado antigo).
+            # Apagar antes de reconstruir elimina essa classe de corrupção.
+            rm -rf .next
             npm run build
             pm2 restart visualdesign-site-teste || pm2 start npm --name "visualdesign-site-teste" -- start -- -p 3002
             pm2 save
