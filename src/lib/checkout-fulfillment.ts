@@ -139,10 +139,22 @@ export async function provisionHostingAccountOnPanel(params: {
       email,
       da_password_encrypted: encryptDaSecret(password),
     });
+    // Quem compra a si próprio (checkout self-service) deve ficar
+    // 'profissional' (ver promoteGuestToProfissional) — nunca 'client', que é
+    // reservado a contas geridas directamente pela VisualDesign. Antes disto
+    // ficava sempre hardcoded 'client', sobrepondo-se à promoção feita à
+    // submissão da encomenda e prendendo compradores self-service no painel
+    // errado. Preserva um papel já elevado (admin/manager/reseller/client) em
+    // vez de o rebaixar — mesma regra de promoteGuestToProfissional.
+    const existingProfile = await getProfileForAuthUser(admin, userId, email);
+    const ELEVATED_ROLES = ['admin', 'manager', 'reseller', 'client'];
+    const resolvedRole = ELEVATED_ROLES.includes(existingProfile?.role || '')
+      ? (existingProfile!.role as 'admin' | 'manager' | 'reseller' | 'client')
+      : 'profissional';
     await upsertPanelAuthAccount(admin, {
       userId,
       email,
-      role: 'client',
+      role: resolvedRole,
       name: displayName,
       serverLinked: false,
       daUsername: null,
