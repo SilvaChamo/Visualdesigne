@@ -319,13 +319,18 @@ function CheckoutContent() {
           } else {
             throw new Error(data.error || 'Erro ao criar a sua conta.');
           }
-        } else {
+        } else if (!data.sessionReady) {
+          // Salvaguarda rara: a sessão normalmente já vem pronta na resposta
+          // de /api/auth/register (autenticada no servidor). Só cai aqui se
+          // esse passo falhar por algum motivo — tenta uma vez a partir do browser.
           try {
             await supabase.auth.signInWithPassword({
               email: accountForm.email,
               password: accountForm.password,
             });
-          } catch (e) {}
+          } catch (e) {
+            throw new Error('Não foi possível iniciar sessão com a conta criada. Tente submeter novamente.');
+          }
         }
       }
 
