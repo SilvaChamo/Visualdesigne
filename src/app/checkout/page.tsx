@@ -333,6 +333,14 @@ function CheckoutContent() {
             throw new Error('Não foi possível iniciar sessão com a conta criada. Tente submeter novamente.');
           }
         }
+
+        // O registo (ou login em conta já existente) só deixou a sessão nos
+        // cookies — sincroniza aqui o estado do cliente para o resto deste
+        // fluxo (e para a página depois do router.replace mais abaixo) já
+        // reconhecer isAuthenticated correctamente, em vez de depender de um
+        // evento que pode não disparar a tempo (era isto que causava o falso
+        // "faça login" mesmo com a conta e a sessão já certas).
+        await supabase.auth.refreshSession();
       }
 
       if (metodoPagamento === 'saldo') {

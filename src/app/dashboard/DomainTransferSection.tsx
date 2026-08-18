@@ -198,7 +198,7 @@ function TransferCountdownCard({ request }: { request: { domain_name: string; cr
           {request.domain_name}
         </span>
         <span className="shrink-0 rounded border border-teal-400 px-2 py-0.5 font-mono text-xs font-bold text-teal-600 dark:border-teal-600 dark:text-teal-400">
-          &lt;ok&gt;
+          Em curso
         </span>
       </div>
 
