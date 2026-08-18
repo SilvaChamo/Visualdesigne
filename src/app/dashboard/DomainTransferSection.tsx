@@ -209,12 +209,18 @@ function TransferCountdownCard({ request }: { request: { domain_name: string; cr
         </span>
       </p>
 
-      {/* Contador de Tempo Restante */}
+      {/* Contador de Tempo Restante — este cartão só aparece para pedidos
+          ainda não confirmados como concluídos (ver filtro pendingRequests
+          mais abaixo); a contagem é só uma ESTIMATIVA nossa (7 dias), não o
+          estado real da Dynadot — por isso, mesmo que a estimativa chegue a
+          zero, não podemos afirmar "concluída" sem confirmação real: quem
+          confirma isso é a verificação automática à Dynadot (a cada ~30 min),
+          que só então tira este pedido desta lista. */}
       <div className="my-1 py-2.5 px-3 bg-white dark:bg-zinc-900 rounded border border-gray-200/80 dark:border-zinc-700/80 shadow-xs">
         <div className="text-[10px] uppercase font-bold text-gray-400 mb-1.5 tracking-wider text-center">Tempo Restante de Transferência</div>
         {done ? (
-          <div className="flex items-center justify-center gap-1.5 text-xs font-bold text-green-600">
-            <CheckCircle2 className="h-4 w-4" /> Transferência concluída
+          <div className="flex items-center justify-center gap-1.5 text-xs font-bold text-amber-600 dark:text-amber-400">
+            <Clock className="h-4 w-4" /> A demorar mais do que o previsto — ainda em curso
           </div>
         ) : (
           <div className="flex items-center justify-center gap-2">
