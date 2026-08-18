@@ -1,0 +1,28 @@
+name: 'ops: diagnóstico só-leitura de logs PM2 no Contabo'
+
+on:
+  workflow_dispatch: {}
+
+jobs:
+  diag:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ver frequência do erro de manifest nos logs do PM2
+        uses: appleboy/ssh-action@v1.2.5
+        with:
+          host: ${{ secrets.CONTABO_HOST }}
+          username: root
+          key: ${{ secrets.CONTABO_SSH_KEY }}
+          script: |
+            echo "===== Quando foi o último (re)arranque do processo ====="
+            pm2 describe visualdesign-site-teste | grep -iE "uptime|restart|created|status"
+            echo ""
+            echo "===== Contagem total de ocorrências do erro (logs guardados) ====="
+            grep -c "client reference manifest" /root/.pm2/logs/visualdesign-site-teste-error.log 2>/dev/null || echo "0"
+            echo ""
+            echo "===== Primeira e última ocorrência ====="
+            grep -n "client reference manifest for route" /root/.pm2/logs/visualdesign-site-teste-error.log 2>/dev/null | head -1
+            grep -n "client reference manifest for route" /root/.pm2/logs/visualdesign-site-teste-error.log 2>/dev/null | tail -1
+            echo ""
+            echo "===== Quais rotas afectadas (contagem por rota) ====="
+            grep -oE 'client reference manifest for route "[^"]*"' /root/.pm2/logs/visualdesign-site-teste-error.log 2>/dev/null | sort | uniq -c | sort -rn
