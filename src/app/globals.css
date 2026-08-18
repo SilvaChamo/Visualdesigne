@@ -318,11 +318,11 @@ samp {
 .dark .site-content :is(
   .bg-gray-100, .bg-gray-50, .bg-slate-50, .bg-slate-100,
   .min-h-screen.bg-white
-) {
+):not([class*="dark:bg-"]) {
   background-color: #000000 !important;
 }
 
-.dark .site-content :is(.bg-white.py-12, .bg-white.py-16, .bg-white.py-8) {
+.dark .site-content :is(.bg-white.py-12, .bg-white.py-16, .bg-white.py-8):not([class*="dark:bg-"]) {
   background-color: #000000 !important;
 }
 
