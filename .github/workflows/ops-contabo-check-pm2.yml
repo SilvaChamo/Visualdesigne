@@ -7,13 +7,13 @@ jobs:
   diag:
     runs-on: ubuntu-latest
     steps:
-      - name: Ver estado do PM2
+      - name: Ver logs desde o deploy mais recente
         uses: appleboy/ssh-action@v1.2.5
         with:
           host: ${{ secrets.CONTABO_HOST }}
           username: root
           key: ${{ secrets.CONTABO_SSH_KEY }}
           script: |
-            pm2 describe visualdesign-site-teste | grep -iE "uptime|restart|created|status"
-            echo "--- erros novos desde o deploy (deve estar vazio ou quase) ---"
-            grep -c "client reference manifest" /root/.pm2/logs/visualdesign-site-teste-error.log 2>/dev/null || echo "0"
+            echo "--- linhas do log de erro com timestamp de HOJE 23h ou depois ---"
+            grep "2026-08-18T2[3-9]:\|2026-08-19" /root/.pm2/logs/visualdesign-site-teste-error.log 2>/dev/null | grep -i "manifest\|error\|invariant" | tail -30
+            echo "--- se nada aparecer acima, está limpo desde o deploy ---"
