@@ -308,12 +308,14 @@ function CheckoutContent() {
 
         if (!res.ok) {
           if (data.error?.includes('Já existe uma conta') || data.error?.includes('already')) {
-             try {
-               await supabase.auth.signInWithPassword({
-                 email: accountForm.email,
-                 password: accountForm.password,
-               });
-             } catch (loginErr) {
+             // signInWithPassword nunca lança excepção mesmo com credenciais
+             // erradas — devolve sempre { error } no resultado. Um try/catch
+             // à volta não deteta a falha; é preciso verificar o campo error.
+             const { error: loginError } = await supabase.auth.signInWithPassword({
+               email: accountForm.email,
+               password: accountForm.password,
+             });
+             if (loginError) {
                throw new Error('Já existe uma conta com este email. Por favor, faça login para continuar.');
              }
           } else {
@@ -323,12 +325,11 @@ function CheckoutContent() {
           // Salvaguarda rara: a sessão normalmente já vem pronta na resposta
           // de /api/auth/register (autenticada no servidor). Só cai aqui se
           // esse passo falhar por algum motivo — tenta uma vez a partir do browser.
-          try {
-            await supabase.auth.signInWithPassword({
-              email: accountForm.email,
-              password: accountForm.password,
-            });
-          } catch (e) {
+          const { error: loginError } = await supabase.auth.signInWithPassword({
+            email: accountForm.email,
+            password: accountForm.password,
+          });
+          if (loginError) {
             throw new Error('Não foi possível iniciar sessão com a conta criada. Tente submeter novamente.');
           }
         }
