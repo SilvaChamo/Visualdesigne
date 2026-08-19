@@ -1,11 +1,11 @@
-name: Ops - Contabo (teste) - diagnostico completo (so leitura)
+name: Ops - Contabo (teste) - diagnostico Hestia (so leitura)
 
 on:
   workflow_dispatch:
 
 jobs:
   check:
-    name: Disco, memoria, pm2, logs recentes
+    name: Consulta real ao Hestia sobre a conta elimservicos
     runs-on: ubuntu-latest
     steps:
       - name: Setup SSH key
@@ -15,28 +15,29 @@ jobs:
           chmod 600 ~/.ssh/deploy_key
           ssh-keyscan "${{ secrets.CONTABO_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
 
-      - name: Diagnostico no Contabo
+      - name: Consulta ao Hestia a partir do proprio servidor
         uses: appleboy/ssh-action@v1.2.5
         with:
           host: ${{ secrets.CONTABO_HOST }}
           username: root
           key: ${{ secrets.CONTABO_SSH_KEY }}
-          command_timeout: 5m
+          envs: HESTIA_HOST,HESTIA_PORT,HESTIA_USER,HESTIA_PASSWORD
+          command_timeout: 3m
           script: |
-            echo "===== disco ====="
-            df -h /
+            cd /opt/visualdesign-site-teste
+            set -a
+            source .env.local
+            set +a
+            HOST="${HESTIA_HOST}"
+            PORT="${HESTIA_PORT:-8083}"
+            USERN="${HESTIA_USER:-vdadmin}"
+            echo "===== v-list-user elimservicos (json) ====="
+            curl -sk -w "\nHTTP_STATUS:%{http_code}\n" -X POST "https://${HOST}:${PORT}/api/" \
+              --data-urlencode "user=${USERN}" \
+              --data-urlencode "password=${HESTIA_PASSWORD}" \
+              --data-urlencode "cmd=v-list-user" \
+              --data-urlencode "arg1=elimservicos" \
+              --data-urlencode "arg2=json"
             echo ""
-            echo "===== memoria ====="
-            free -h
-            echo ""
-            echo "===== pm2 status ====="
-            pm2 list
-            echo ""
-            echo "===== pm2 describe visualdesign-site-teste ====="
-            pm2 describe visualdesign-site-teste
-            echo ""
-            echo "===== uptime do processo / restarts ====="
-            pm2 jlist | grep -E "\"name\"|\"pm_uptime\"|\"restart_time\"|\"status\"|\"memory\"|\"cpu\""
-            echo ""
-            echo "===== ultimas 300 linhas do error log (mais recente) ====="
-            tail -n 300 /root/.pm2/logs/visualdesign-site-teste-error.log 2>/dev/null || echo "(sem error log)"
+            echo "===== v-change-user-password elimservicos (mesma password actual, so para ver o erro exacto) ====="
+            echo "(NAO vamos correr isto sem autorizacao explicita - so leitura)"
