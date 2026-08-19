@@ -74,6 +74,12 @@ jobs:
             set_env_var CRON_SECRET "${{ secrets.CRON_SECRET }}"
             set_env_var CLOUDFLARE_API_TOKEN_ACCOUNT "${{ secrets.CLOUDFLARE_API_TOKEN_ACCOUNT }}"
             set_env_var CLOUDFLARE_ACCOUNT_ID "${{ secrets.CLOUDFLARE_ACCOUNT_ID }}"
+            # Sem isto, o passo de DNS de e-mail e o remetente Brevo de
+            # autoProvisionPurchasedDomain falham sempre em silêncio depois de
+            # uma compra/transferência de domínio (nunca tinha sido ligado ao
+            # deploy, só existia no .env.local local) — descoberto 19 ago via
+            # o caso real do aamihe.com.
+            set_env_var BREVO_API_KEY "${{ secrets.BREVO_API_KEY }}"
             # HESTIA_* só para o código compilar/carregar sem erro — DEFAULT_HOSTING_PROVIDER
             # fica de propósito por definir aqui, para as contas novas continuarem a ir
             # para o DirectAdmin como sempre (só o Contabo liga o Hestia).
