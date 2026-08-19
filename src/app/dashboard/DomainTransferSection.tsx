@@ -37,6 +37,16 @@ const ORDER_STATUS_META: Record<TransferOrder['status'], { label: string; classN
   failed:  { label: 'Pagamento rejeitado',   className: 'bg-red-100   text-red-700   dark:bg-red-900/40   dark:text-red-300',   dotColor: 'bg-red-500'   },
 };
 
+/** "Processando" (order.status) só descreve o pagamento — quando a
+ * transferência em si já foi confirmada concluída pela Dynadot
+ * (r.status === 'completed'), este badge sobrepõe-se para não ficar preso em
+ * "Processando" para sempre depois de já estar mesmo terminado. */
+const CONCLUDED_ORDER_META = {
+  label: 'Concluído',
+  className: 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300',
+  dotColor: 'bg-green-500',
+};
+
 /**
  * A ICANN dá ao registador anterior até 5-7 dias para responder a um pedido
  * de transferência (ver TRANSFER_STEPS abaixo) — se não fizer nada, conta
@@ -588,7 +598,7 @@ export function DomainTransferSection() {
                 <tbody className="divide-y divide-gray-100 dark:divide-zinc-800">
                   {orderedRequests.map((r) => {
                     const order = r.order as TransferOrder;
-                    const meta = ORDER_STATUS_META[order.status];
+                    const meta = r.status === 'completed' ? CONCLUDED_ORDER_META : ORDER_STATUS_META[order.status];
                     return (
                       <tr
                         key={r.id}

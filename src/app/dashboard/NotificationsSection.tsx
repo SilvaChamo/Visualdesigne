@@ -295,6 +295,19 @@ export function NotificationsSection({
     }
   }
 
+  /** Cor de fundo por tipo nas linhas da tabela (mesma paleta de getTypeColor,
+   * só que mais suave — a versão cheia era pensada para um cartão isolado,
+   * não para uma linha ao lado de outras). Lidas ficam esbatidas. */
+  const getRowTint = (type: string, read: boolean) => {
+    const opacity = read ? '/40' : ''
+    switch (type) {
+      case 'success': return `bg-green-50${opacity} dark:bg-green-900/10`
+      case 'warning': return `bg-yellow-50${opacity} dark:bg-yellow-900/10`
+      case 'error': return `bg-red-50${opacity} dark:bg-red-900/10`
+      default: return `bg-blue-50${opacity} dark:bg-blue-900/10`
+    }
+  }
+
   const previewPlainText = htmlToPlainText(messageHtml)
   const previewTitle = deriveTitle(previewPlainText)
   const previewClientName =
@@ -602,9 +615,7 @@ export function NotificationsSection({
                       <tr
                         key={notification.id}
                         onClick={() => openNotification(notification)}
-                        className={`border-b last:border-b-0 border-gray-100 dark:border-zinc-800 cursor-pointer hover:bg-gray-50 dark:hover:bg-zinc-800/40 ${
-                          notification.read ? '' : 'bg-blue-50/40 dark:bg-blue-900/10'
-                        }`}
+                        className={`border-b last:border-b-0 border-gray-100 dark:border-zinc-800 cursor-pointer hover:brightness-95 dark:hover:brightness-125 ${getRowTint(notification.type, notification.read)}`}
                       >
                         <td className="px-4 py-2.5" onClick={(e) => e.stopPropagation()}>
                           <input
@@ -616,6 +627,7 @@ export function NotificationsSection({
                         </td>
                         <td className="px-2 py-2.5">
                           <span className="inline-flex items-center gap-2">
+                            {getTypeIcon(notification.type)}
                             {!notification.read && <span className="w-1.5 h-1.5 rounded-full bg-red-600 shrink-0" title="Não lida" />}
                             <span className={`text-gray-800 dark:text-zinc-200 ${notification.read ? '' : 'font-semibold'}`}>
                               {notification.title}
