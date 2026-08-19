@@ -14,6 +14,11 @@ const DYNADOT_STATUS_MAP: Record<string, string> = {
   pending: 'waiting',
   completed: 'completed',
   success: 'completed',
+  // Valor real confirmado ao vivo (19 ago) para uma transferência já
+  // concluída — "transfer_status":"Transferred" — que não estava mapeado e
+  // por isso nunca disparava a conclusão: o pedido ficava preso em "waiting"
+  // para sempre, mesmo com order_completed_date já preenchida pela Dynadot.
+  transferred: 'completed',
   rejected: 'rejected',
   cancelled: 'rejected',
   failed: 'failed',
