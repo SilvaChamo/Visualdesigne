@@ -1,11 +1,11 @@
-name: Ops - verificacao urgente (so leitura) - username no DirectAdmin real
+name: Ops - verificacao real Dynadot (so leitura) - aamihe.com
 
 on:
   workflow_dispatch:
 
 jobs:
   check:
-    name: Confirma se 'elimservicos' ja existe no DirectAdmin de producao
+    name: Consulta bruta ao estado real da transferencia na Dynadot
     runs-on: ubuntu-latest
     steps:
       - name: Setup SSH key
@@ -15,7 +15,7 @@ jobs:
           chmod 600 ~/.ssh/deploy_key
           ssh-keyscan "${{ secrets.CONTABO_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
 
-      - name: Consulta ao DirectAdmin real (a partir do Contabo, so leitura)
+      - name: Consulta directa a Dynadot (raw, mesma assinatura HMAC da app)
         uses: appleboy/ssh-action@v1.2.5
         with:
           host: ${{ secrets.CONTABO_HOST }}
@@ -24,14 +24,38 @@ jobs:
           command_timeout: 2m
           script: |
             cd /opt/visualdesign-site-teste
-            set -a
-            source .env.local
-            set +a
-            HOST="${DIRECTADMIN_HOST}"
-            echo "===== CMD_API_SHOW_USERS (procura elimservicos) ====="
-            curl -sk -u "${DIRECTADMIN_USER}:${DIRECTADMIN_PASSWORD}" \
-              "https://${HOST}:2222/CMD_API_SHOW_USERS" | tr '&' '\n' | grep -i "elimservicos" || echo "NAO ENCONTRADO na lista de utilizadores"
-            echo ""
-            echo "===== CMD_API_SHOW_USER_CONFIG especifico ====="
-            curl -sk -w "\nHTTP_STATUS:%{http_code}\n" -u "${DIRECTADMIN_USER}:${DIRECTADMIN_PASSWORD}" \
-              "https://${HOST}:2222/CMD_API_SHOW_USER_CONFIG?user=elimservicos"
+            node -e "
+            const fs = require('fs');
+            const crypto = require('crypto');
+            const env = {};
+            fs.readFileSync('.env.local', 'utf8').split('\n').forEach(line => {
+              const m = line.match(/^([A-Z0-9_]+)=(.*)\$/);
+              if (m) env[m[1]] = m[2];
+            });
+            const apiKey = env.DYNADOT_API_KEY;
+            const secretKey = env.DYNADOT_SECRET_KEY;
+            async function check(domain) {
+              const path = '/restful/v1/domains/' + domain + '/transfer_status?transfer_type=transfer_in';
+              const requestId = crypto.randomUUID();
+              const bodyStr = '';
+              const stringToSign = apiKey + '\n' + path + '\n' + requestId + '\n' + bodyStr;
+              const signature = crypto.createHmac('sha256', secretKey).update(stringToSign).digest('hex');
+              const res = await fetch('https://api.dynadot.com' + path, {
+                method: 'GET',
+                headers: {
+                  Accept: 'application/json',
+                  Authorization: 'Bearer ' + apiKey,
+                  'X-Request-ID': requestId,
+                  'X-Signature': signature,
+                },
+              });
+              const text = await res.text();
+              console.log('=====', domain, '(HTTP', res.status, ') =====');
+              console.log(text);
+              console.log('');
+            }
+            (async () => {
+              await check('aamihe.com');
+              await check('elimservicos.com');
+            })();
+            "
