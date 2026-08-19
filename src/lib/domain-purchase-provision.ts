@@ -100,10 +100,16 @@ export async function autoProvisionPurchasedDomain(input: {
   // 4) DNS de e-mail — a mesma automação usada para domínios que os clientes
   //    já traziam de fora; agora encontra a zona que acabámos de criar.
   const emailDns = await provisionEmailAuthForDomain(domain);
+  const emailDnsOk = emailDns.brevoOk && emailDns.records.every((r) => r.ok);
   steps.push({
     step: 'dns-email',
-    ok: emailDns.brevoOk && emailDns.records.every((r) => r.ok),
+    ok: emailDnsOk,
     detail: `${emailDns.records.filter((r) => r.ok).length}/${emailDns.records.length} registos aplicados`,
+    error: emailDnsOk
+      ? undefined
+      : [emailDns.brevoError, ...emailDns.records.filter((r) => !r.ok).map((r) => `${r.name} (${r.type}): ${r.error}`)]
+          .filter(Boolean)
+          .join('; '),
   });
 
   // 5) Remetente principal no Brevo (geral@dominio)

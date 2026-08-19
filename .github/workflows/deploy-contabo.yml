@@ -105,6 +105,12 @@ jobs:
             # src/lib/cloudflare-dns.ts.
             set_env_var CLOUDFLARE_EMAIL "${{ secrets.CLOUDFLARE_EMAIL }}"
             set_env_var CLOUDFLARE_GLOBAL_API_KEY "${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}"
+            # Sem isto, o passo de DNS de e-mail e o remetente Brevo de
+            # autoProvisionPurchasedDomain falham sempre em silêncio depois de
+            # uma compra/transferência de domínio (nunca tinha sido ligado ao
+            # deploy, só existia no .env.local local) — descoberto 19 ago via
+            # o caso real do aamihe.com.
+            set_env_var BREVO_API_KEY "${{ secrets.BREVO_API_KEY }}"
             set_env_var NEXT_PUBLIC_SUPABASE_URL "${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}"
             set_env_var NEXT_PUBLIC_SUPABASE_ANON_KEY "${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}"
             set_env_var SUPABASE_SERVICE_ROLE_KEY "${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}"
