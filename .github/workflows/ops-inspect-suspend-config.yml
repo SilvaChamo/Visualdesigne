@@ -1,11 +1,11 @@
-name: Ops - Contabo (teste) - diagnostico Hestia (so leitura)
+name: Ops - verificacao urgente (so leitura) - username no DirectAdmin real
 
 on:
   workflow_dispatch:
 
 jobs:
   check:
-    name: Consulta real ao Hestia sobre a conta elimservicos
+    name: Confirma se 'elimservicos' ja existe no DirectAdmin de producao
     runs-on: ubuntu-latest
     steps:
       - name: Setup SSH key
@@ -15,29 +15,23 @@ jobs:
           chmod 600 ~/.ssh/deploy_key
           ssh-keyscan "${{ secrets.CONTABO_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
 
-      - name: Consulta ao Hestia a partir do proprio servidor
+      - name: Consulta ao DirectAdmin real (a partir do Contabo, so leitura)
         uses: appleboy/ssh-action@v1.2.5
         with:
           host: ${{ secrets.CONTABO_HOST }}
           username: root
           key: ${{ secrets.CONTABO_SSH_KEY }}
-          envs: HESTIA_HOST,HESTIA_PORT,HESTIA_USER,HESTIA_PASSWORD
-          command_timeout: 3m
+          command_timeout: 2m
           script: |
             cd /opt/visualdesign-site-teste
             set -a
             source .env.local
             set +a
-            HOST="${HESTIA_HOST}"
-            PORT="${HESTIA_PORT:-8083}"
-            USERN="${HESTIA_USER:-vdadmin}"
-            echo "===== v-list-user elimservicos (json) ====="
-            curl -sk -w "\nHTTP_STATUS:%{http_code}\n" -X POST "https://${HOST}:${PORT}/api/" \
-              --data-urlencode "user=${USERN}" \
-              --data-urlencode "password=${HESTIA_PASSWORD}" \
-              --data-urlencode "cmd=v-list-user" \
-              --data-urlencode "arg1=elimservicos" \
-              --data-urlencode "arg2=json"
+            HOST="${DIRECTADMIN_HOST}"
+            echo "===== CMD_API_SHOW_USERS (procura elimservicos) ====="
+            curl -sk -u "${DIRECTADMIN_USER}:${DIRECTADMIN_PASSWORD}" \
+              "https://${HOST}:2222/CMD_API_SHOW_USERS" | tr '&' '\n' | grep -i "elimservicos" || echo "NAO ENCONTRADO na lista de utilizadores"
             echo ""
-            echo "===== v-change-user-password elimservicos (mesma password actual, so para ver o erro exacto) ====="
-            echo "(NAO vamos correr isto sem autorizacao explicita - so leitura)"
+            echo "===== CMD_API_SHOW_USER_CONFIG especifico ====="
+            curl -sk -w "\nHTTP_STATUS:%{http_code}\n" -u "${DIRECTADMIN_USER}:${DIRECTADMIN_PASSWORD}" \
+              "https://${HOST}:2222/CMD_API_SHOW_USER_CONFIG?user=elimservicos"
