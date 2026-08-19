@@ -73,12 +73,13 @@ jobs:
             cd /opt/visualdesign-site-teste
             touch .env.local
             set_env_var() {
+              # grep -v + reescrever em vez de "sed -i s|...|...|" — um valor
+              # secreto que contenha "|" (ex.: aconteceu com BREVO_API_KEY)
+              # quebrava o delimitador do sed e fazia o deploy inteiro falhar.
               local key="$1" value="$2"
-              if grep -q "^${key}=" .env.local; then
-                sed -i "s|^${key}=.*|${key}=${value}|" .env.local
-              else
-                echo "${key}=${value}" >> .env.local
-              fi
+              grep -v "^${key}=" .env.local > .env.local.tmp || true
+              mv .env.local.tmp .env.local
+              echo "${key}=${value}" >> .env.local
             }
             # Activado a pedido do utilizador (2026-08-11) para ele próprio testar
             # uma compra/transferência de domínio a sério a partir deste site de
