@@ -1,0 +1,31 @@
+name: 'ops: verificar acesso à base de dados via SSH no Hetzner (só-leitura)'
+
+on:
+  workflow_dispatch: {}
+
+jobs:
+  diag:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Encontrar container e testar leitura
+        uses: appleboy/ssh-action@v1.2.5
+        with:
+          host: ${{ secrets.HETZNER_HOST }}
+          port: ${{ secrets.HETZNER_PORT }}
+          username: ${{ secrets.HETZNER_USER }}
+          key: ${{ secrets.HETZNER_SSH_KEY }}
+          script: |
+            echo "===== Containers Docker relacionados com Supabase/Postgres ====="
+            docker ps --format '{{.Names}}\t{{.Image}}\t{{.Status}}' | grep -iE 'supabase|postgres'
+            echo ""
+            echo "===== Tentativa de ligação de leitura ao container principal ====="
+            DBC=$(docker ps --format '{{.Names}}' | grep -iE 'supabase.*db|supabase-db' | head -n1)
+            echo "Container escolhido: $DBC"
+            if [ -n "$DBC" ]; then
+              docker exec "$DBC" psql -U postgres -d postgres -c "SELECT version();" 2>&1
+              echo ""
+              echo "===== Schemas existentes ====="
+              docker exec "$DBC" psql -U postgres -d postgres -c "\dn" 2>&1
+            else
+              echo "Nenhum container correspondente encontrado."
+            fi
