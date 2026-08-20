@@ -1,11 +1,11 @@
-name: Ops - verifica integridade do .env.local no Contabo
+name: Ops - Hestia firewall - ver bloqueios e regras de acesso
 
 on:
   workflow_dispatch:
 
 jobs:
   check:
-    name: Procura linhas corrompidas/concatenadas no .env.local
+    name: Lista banidos e regras de firewall do Hestia
     runs-on: ubuntu-latest
     steps:
       - name: Setup SSH key
@@ -15,26 +15,22 @@ jobs:
           chmod 600 ~/.ssh/deploy_key
           ssh-keyscan "${{ secrets.CONTABO_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
 
-      - name: Inspecciona .env.local
+      - name: Inspecciona firewall/bloqueios do Hestia
         uses: appleboy/ssh-action@v1.2.5
         with:
           host: ${{ secrets.CONTABO_HOST }}
           username: root
           key: ${{ secrets.CONTABO_SSH_KEY }}
-          command_timeout: 2m
+          command_timeout: 3m
           script: |
-            cd /opt/visualdesign-site-teste
-            echo "===== total de linhas ====="
-            wc -l .env.local
+            echo "===== v-list-firewall-bans (json) ====="
+            /usr/local/hestia/bin/v-list-firewall-bans json 2>&1 || echo "(comando nao existe ou vazio)"
             echo ""
-            echo "===== linhas com HESTIA (nomes de chave e comprimento do valor, sem mostrar o valor) ====="
-            grep -n "^HESTIA_" .env.local | sed -E 's/=(.*)$/=<\1_LEN:'"'"'&'"'"'>/' | awk -F= '{print $1, "len="length($2)}'
+            echo "===== v-list-firewall (regras gerais) ====="
+            /usr/local/hestia/bin/v-list-firewall json 2>&1 || echo "(comando nao existe ou vazio)"
             echo ""
-            echo "===== linhas suspeitas (mais que uma chave=valor na mesma linha, ou linha sem = logo a seguir a uma var) ====="
-            grep -nE "=[^=]*[A-Z_]{3,}=" .env.local | grep -v "^[0-9]*:#"
+            echo "===== fail2ban status (porta 8083, API) ====="
+            fail2ban-client status 2>&1 || echo "(fail2ban nao instalado/activo)"
             echo ""
-            echo "===== ultimos 3 bytes do ficheiro em hex (para ver se acaba em newline) ====="
-            tail -c 3 .env.local | xxd
-            echo ""
-            echo "===== conta quantas vezes cada chave HESTIA aparece (deve ser 1x cada) ====="
-            grep -oE "^[A-Z_]+=" .env.local | sort | uniq -c | sort -rn | grep -i hestia
+            echo "===== log de autenticacao recente do hestia (ultimas 40 linhas) ====="
+            tail -n 40 /var/log/hestia/auth.log 2>/dev/null || tail -n 40 /usr/local/hestia/log/auth.log 2>/dev/null || echo "(nao encontrado)"
