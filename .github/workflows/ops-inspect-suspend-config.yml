@@ -1,11 +1,11 @@
-name: Ops - ve logs do da-sync mais recente
+name: Ops - dispara da-sync e mostra resposta completa
 
 on:
   workflow_dispatch:
 
 jobs:
-  logs:
-    name: Ultimas linhas do log de erro e out
+  run:
+    name: Chama /api/cron/da-sync e mostra o JSON completo
     runs-on: ubuntu-latest
     steps:
       - name: Setup SSH key
@@ -15,16 +15,14 @@ jobs:
           chmod 600 ~/.ssh/deploy_key
           ssh-keyscan "${{ secrets.CONTABO_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
 
-      - name: Le os logs
+      - name: Dispara e mostra resposta
         uses: appleboy/ssh-action@v1.2.5
         with:
           host: ${{ secrets.CONTABO_HOST }}
           username: root
           key: ${{ secrets.CONTABO_SSH_KEY }}
-          command_timeout: 3m
+          command_timeout: 5m
           script: |
-            echo "===== error log (ultimas 100 linhas) ====="
-            tail -n 100 /root/.pm2/logs/visualdesign-site-teste-error.log
-            echo ""
-            echo "===== out log (ultimas 60 linhas) ====="
-            tail -n 60 /root/.pm2/logs/visualdesign-site-teste-out.log
+            cd /opt/visualdesign-site-teste
+            CRON_SECRET_VALUE=$(grep '^CRON_SECRET=' .env.local | cut -d= -f2-)
+            curl -sS -H "Host: teste.visualdesignmoz.com" -H "Authorization: Bearer ${CRON_SECRET_VALUE}" http://127.0.0.1:3002/api/cron/da-sync
