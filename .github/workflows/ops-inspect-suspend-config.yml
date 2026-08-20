@@ -1,11 +1,11 @@
-name: Ops - verifica caracteres especiais na HESTIA_PASSWORD
+name: Ops - confirma se HESTIA_USER e vdadmin
 
 on:
   workflow_dispatch:
 
 jobs:
   check:
-    name: Compara leitura via bash source vs leitura crua da linha
+    name: Compara HESTIA_USER com 'vdadmin' sem mostrar valores
     runs-on: ubuntu-latest
     steps:
       - name: Setup SSH key
@@ -15,7 +15,7 @@ jobs:
           chmod 600 ~/.ssh/deploy_key
           ssh-keyscan "${{ secrets.CONTABO_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
 
-      - name: Verifica a linha HESTIA_PASSWORD
+      - name: Compara
         uses: appleboy/ssh-action@v1.2.5
         with:
           host: ${{ secrets.CONTABO_HOST }}
@@ -24,22 +24,11 @@ jobs:
           command_timeout: 2m
           script: |
             cd /opt/visualdesign-site-teste
-            echo "===== linha crua (comprimento e presenca de caracteres especiais, sem mostrar o valor) ====="
-            RAW_LINE=$(grep "^HESTIA_PASSWORD=" .env.local)
-            RAW_VALUE="${RAW_LINE#HESTIA_PASSWORD=}"
-            echo "comprimento bruto: ${#RAW_VALUE}"
-            echo "contem \$ : $(echo "$RAW_VALUE" | grep -c '\$' || true)"
-            echo "contem backtick : $(echo "$RAW_VALUE" | grep -c '\`' || true)"
-            echo "contem aspas simples : $(echo "$RAW_VALUE" | grep -c "'" || true)"
-            echo "contem aspas duplas : $(echo "$RAW_VALUE" | grep -c '"' || true)"
-            echo "contem barra invertida : $(echo "$RAW_VALUE" | grep -c '\\\\' || true)"
-            echo "contem espaco : $(echo "$RAW_VALUE" | grep -c ' ' || true)"
-            echo ""
-            echo "===== apos 'source' (o que o bash realmente fica com) ====="
             set -a
             source .env.local
             set +a
-            echo "comprimento apos source: ${#HESTIA_PASSWORD}"
-            echo ""
-            echo "===== iguais? ====="
-            if [ "$RAW_VALUE" = "$HESTIA_PASSWORD" ]; then echo "SIM, identicos"; else echo "NAO, DIFERENTES!"; fi
+            if [ "$HESTIA_USER" = "vdadmin" ]; then
+              echo "RESULTADO: HESTIA_USER e exactamente 'vdadmin' (a mesma conta que o utilizador usa no painel real)"
+            else
+              echo "RESULTADO: HESTIA_USER e DIFERENTE de 'vdadmin' (comprimento: ${#HESTIA_USER})"
+            fi
