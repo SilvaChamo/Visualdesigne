@@ -1,11 +1,11 @@
-name: Ops - confirma se HESTIA_USER e vdadmin
+name: Ops - confirma ligacao real ao Hestia com a password nova
 
 on:
   workflow_dispatch:
 
 jobs:
-  check:
-    name: Compara HESTIA_USER com 'vdadmin' sem mostrar valores
+  test:
+    name: v-list-users via API + verifica ultimas linhas do log de auth
     runs-on: ubuntu-latest
     steps:
       - name: Setup SSH key
@@ -15,20 +15,32 @@ jobs:
           chmod 600 ~/.ssh/deploy_key
           ssh-keyscan "${{ secrets.CONTABO_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
 
-      - name: Compara
+      - name: Testa a API com a password nova e o cron real
         uses: appleboy/ssh-action@v1.2.5
         with:
           host: ${{ secrets.CONTABO_HOST }}
           username: root
           key: ${{ secrets.CONTABO_SSH_KEY }}
-          command_timeout: 2m
+          command_timeout: 3m
           script: |
             cd /opt/visualdesign-site-teste
             set -a
             source .env.local
             set +a
-            if [ "$HESTIA_USER" = "vdadmin" ]; then
-              echo "RESULTADO: HESTIA_USER e exactamente 'vdadmin' (a mesma conta que o utilizador usa no painel real)"
-            else
-              echo "RESULTADO: HESTIA_USER e DIFERENTE de 'vdadmin' (comprimento: ${#HESTIA_USER})"
-            fi
+            echo "===== comprimento da password agora (deve ser 25, sem caracteres especiais) ====="
+            echo "${#HESTIA_PASSWORD}"
+            echo ""
+            echo "===== chamada directa a API ====="
+            curl -sk -w "\nHTTP_STATUS:%{http_code}\n" -X POST "https://${HESTIA_HOST}:${HESTIA_PORT:-8083}/api/" \
+              --data-urlencode "user=${HESTIA_USER}" \
+              --data-urlencode "password=${HESTIA_PASSWORD}" \
+              --data-urlencode "cmd=v-list-users" \
+              --data-urlencode "arg1=json" | head -c 200
+            echo ""
+            echo ""
+            echo "===== chama o cron real da app (mesmo caminho usado a cada 20 min) ====="
+            CRON_SECRET_VALUE=$(grep '^CRON_SECRET=' .env.local | cut -d= -f2-)
+            curl -sS -w "\nHTTP_STATUS:%{http_code}\n" -H "Host: teste.visualdesignmoz.com" -H "Authorization: Bearer ${CRON_SECRET_VALUE}" http://127.0.0.1:3002/api/cron/hestia-sync
+            echo ""
+            echo "===== ultimas 6 linhas do log de auth do Hestia ====="
+            tail -n 6 /var/log/hestia/auth.log
