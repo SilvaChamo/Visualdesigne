@@ -1,11 +1,11 @@
-name: Ops - Hestia (Contabo) - testa chamada real v-list-user-packages
+name: Ops - verifica integridade do .env.local no Contabo
 
 on:
   workflow_dispatch:
 
 jobs:
-  test:
-    name: Confirma se a API do Hestia responde bem a partir do proprio servidor
+  check:
+    name: Procura linhas corrompidas/concatenadas no .env.local
     runs-on: ubuntu-latest
     steps:
       - name: Setup SSH key
@@ -15,7 +15,7 @@ jobs:
           chmod 600 ~/.ssh/deploy_key
           ssh-keyscan "${{ secrets.CONTABO_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
 
-      - name: Testa v-list-user-packages via API real do Hestia
+      - name: Inspecciona .env.local
         uses: appleboy/ssh-action@v1.2.5
         with:
           host: ${{ secrets.CONTABO_HOST }}
@@ -24,15 +24,17 @@ jobs:
           command_timeout: 2m
           script: |
             cd /opt/visualdesign-site-teste
-            set -a
-            source .env.local
-            set +a
-            HOST="${HESTIA_HOST}"
-            PORT="${HESTIA_PORT:-8083}"
-            USERN="${HESTIA_USER:-vdadmin}"
-            echo "===== v-list-user-packages (json) via API ====="
-            curl -sk -w "\nHTTP_STATUS:%{http_code}\n" -X POST "https://${HOST}:${PORT}/api/" \
-              --data-urlencode "user=${USERN}" \
-              --data-urlencode "password=${HESTIA_PASSWORD}" \
-              --data-urlencode "cmd=v-list-user-packages" \
-              --data-urlencode "arg1=json"
+            echo "===== total de linhas ====="
+            wc -l .env.local
+            echo ""
+            echo "===== linhas com HESTIA (nomes de chave e comprimento do valor, sem mostrar o valor) ====="
+            grep -n "^HESTIA_" .env.local | sed -E 's/=(.*)$/=<\1_LEN:'"'"'&'"'"'>/' | awk -F= '{print $1, "len="length($2)}'
+            echo ""
+            echo "===== linhas suspeitas (mais que uma chave=valor na mesma linha, ou linha sem = logo a seguir a uma var) ====="
+            grep -nE "=[^=]*[A-Z_]{3,}=" .env.local | grep -v "^[0-9]*:#"
+            echo ""
+            echo "===== ultimos 3 bytes do ficheiro em hex (para ver se acaba em newline) ====="
+            tail -c 3 .env.local | xxd
+            echo ""
+            echo "===== conta quantas vezes cada chave HESTIA aparece (deve ser 1x cada) ====="
+            grep -oE "^[A-Z_]+=" .env.local | sort | uniq -c | sort -rn | grep -i hestia
