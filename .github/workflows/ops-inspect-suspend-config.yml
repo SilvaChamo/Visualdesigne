@@ -1,0 +1,28 @@
+name: Ops - dispara conclusao de hospedagens pendentes (da-sync)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  run:
+    name: Chama /api/cron/da-sync (inclui provisionPendingPanelAccounts)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Setup SSH key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.CONTABO_SSH_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan "${{ secrets.CONTABO_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
+
+      - name: Dispara o da-sync a partir do proprio servidor
+        uses: appleboy/ssh-action@v1.2.5
+        with:
+          host: ${{ secrets.CONTABO_HOST }}
+          username: root
+          key: ${{ secrets.CONTABO_SSH_KEY }}
+          command_timeout: 5m
+          script: |
+            cd /opt/visualdesign-site-teste
+            CRON_SECRET_VALUE=$(grep '^CRON_SECRET=' .env.local | cut -d= -f2-)
+            curl -sS -w "\nHTTP_STATUS:%{http_code}\n" -H "Host: teste.visualdesignmoz.com" -H "Authorization: Bearer ${CRON_SECRET_VALUE}" http://127.0.0.1:3002/api/cron/da-sync
