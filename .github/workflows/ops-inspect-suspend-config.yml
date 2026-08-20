@@ -1,11 +1,11 @@
-name: Ops - reproduz chamadas repetidas ao Hestia (v-list-users)
+name: Ops - verifica caracteres especiais na HESTIA_PASSWORD
 
 on:
   workflow_dispatch:
 
 jobs:
-  test:
-    name: Chama v-list-users 6 vezes seguidas e regista cada resposta
+  check:
+    name: Compara leitura via bash source vs leitura crua da linha
     runs-on: ubuntu-latest
     steps:
       - name: Setup SSH key
@@ -15,30 +15,31 @@ jobs:
           chmod 600 ~/.ssh/deploy_key
           ssh-keyscan "${{ secrets.CONTABO_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
 
-      - name: Chama a API do Hestia repetidamente
+      - name: Verifica a linha HESTIA_PASSWORD
         uses: appleboy/ssh-action@v1.2.5
         with:
           host: ${{ secrets.CONTABO_HOST }}
           username: root
           key: ${{ secrets.CONTABO_SSH_KEY }}
-          command_timeout: 3m
+          command_timeout: 2m
           script: |
             cd /opt/visualdesign-site-teste
+            echo "===== linha crua (comprimento e presenca de caracteres especiais, sem mostrar o valor) ====="
+            RAW_LINE=$(grep "^HESTIA_PASSWORD=" .env.local)
+            RAW_VALUE="${RAW_LINE#HESTIA_PASSWORD=}"
+            echo "comprimento bruto: ${#RAW_VALUE}"
+            echo "contem \$ : $(echo "$RAW_VALUE" | grep -c '\$' || true)"
+            echo "contem backtick : $(echo "$RAW_VALUE" | grep -c '\`' || true)"
+            echo "contem aspas simples : $(echo "$RAW_VALUE" | grep -c "'" || true)"
+            echo "contem aspas duplas : $(echo "$RAW_VALUE" | grep -c '"' || true)"
+            echo "contem barra invertida : $(echo "$RAW_VALUE" | grep -c '\\\\' || true)"
+            echo "contem espaco : $(echo "$RAW_VALUE" | grep -c ' ' || true)"
+            echo ""
+            echo "===== apos 'source' (o que o bash realmente fica com) ====="
             set -a
             source .env.local
             set +a
-            HOST="${HESTIA_HOST}"
-            PORT="${HESTIA_PORT:-8083}"
-            USERN="${HESTIA_USER:-vdadmin}"
-            for i in 1 2 3 4 5 6; do
-              echo "===== tentativa $i ====="
-              curl -sk -w "\nHTTP_STATUS:%{http_code} TIME:%{time_total}s\n" -X POST "https://${HOST}:${PORT}/api/" \
-                --data-urlencode "user=${USERN}" \
-                --data-urlencode "password=${HESTIA_PASSWORD}" \
-                --data-urlencode "cmd=v-list-users" \
-                --data-urlencode "arg1=json" | head -c 300
-              echo ""
-            done
+            echo "comprimento apos source: ${#HESTIA_PASSWORD}"
             echo ""
-            echo "===== ultimas 10 linhas do log de auth apos o teste ====="
-            tail -n 10 /var/log/hestia/auth.log
+            echo "===== iguais? ====="
+            if [ "$RAW_VALUE" = "$HESTIA_PASSWORD" ]; then echo "SIM, identicos"; else echo "NAO, DIFERENTES!"; fi
