@@ -1,11 +1,11 @@
-name: Ops - verificacao real Dynadot (so leitura) - aamihe.com
+name: Ops - Hestia (Contabo) - cria pacote VD-Host-Pro em falta
 
 on:
   workflow_dispatch:
 
 jobs:
-  check:
-    name: Consulta bruta ao estado real da transferencia na Dynadot
+  fix:
+    name: Ver pacotes existentes e criar VD-Host-Pro
     runs-on: ubuntu-latest
     steps:
       - name: Setup SSH key
@@ -15,47 +15,16 @@ jobs:
           chmod 600 ~/.ssh/deploy_key
           ssh-keyscan "${{ secrets.CONTABO_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
 
-      - name: Consulta directa a Dynadot (raw, mesma assinatura HMAC da app)
+      - name: Inspecciona pacotes existentes no Hestia
         uses: appleboy/ssh-action@v1.2.5
         with:
           host: ${{ secrets.CONTABO_HOST }}
           username: root
           key: ${{ secrets.CONTABO_SSH_KEY }}
-          command_timeout: 2m
+          command_timeout: 3m
           script: |
-            cd /opt/visualdesign-site-teste
-            node -e "
-            const fs = require('fs');
-            const crypto = require('crypto');
-            const env = {};
-            fs.readFileSync('.env.local', 'utf8').split('\n').forEach(line => {
-              const m = line.match(/^([A-Z0-9_]+)=(.*)\$/);
-              if (m) env[m[1]] = m[2];
-            });
-            const apiKey = env.DYNADOT_API_KEY;
-            const secretKey = env.DYNADOT_SECRET_KEY;
-            async function check(domain) {
-              const path = '/restful/v1/domains/' + domain + '/transfer_status?transfer_type=transfer_in';
-              const requestId = crypto.randomUUID();
-              const bodyStr = '';
-              const stringToSign = apiKey + '\n' + path + '\n' + requestId + '\n' + bodyStr;
-              const signature = crypto.createHmac('sha256', secretKey).update(stringToSign).digest('hex');
-              const res = await fetch('https://api.dynadot.com' + path, {
-                method: 'GET',
-                headers: {
-                  Accept: 'application/json',
-                  Authorization: 'Bearer ' + apiKey,
-                  'X-Request-ID': requestId,
-                  'X-Signature': signature,
-                },
-              });
-              const text = await res.text();
-              console.log('=====', domain, '(HTTP', res.status, ') =====');
-              console.log(text);
-              console.log('');
-            }
-            (async () => {
-              await check('aamihe.com');
-              await check('elimservicos.com');
-            })();
-            "
+            echo "===== pacotes existentes ====="
+            ls -la /usr/local/hestia/data/packages/ 2>/dev/null || ls -la /usr/local/vesta/data/packages/ 2>/dev/null
+            echo ""
+            echo "===== conteudo de um pacote existente (default) ====="
+            cat /usr/local/hestia/data/packages/default.pkg 2>/dev/null || cat /usr/local/vesta/data/packages/default.pkg 2>/dev/null
