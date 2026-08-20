@@ -1,11 +1,11 @@
-name: Ops - Hestia firewall - ver bloqueios e regras de acesso
+name: Ops - Hestia - config de fail2ban/rate-limit da API
 
 on:
   workflow_dispatch:
 
 jobs:
   check:
-    name: Lista banidos e regras de firewall do Hestia
+    name: Ve a config do jail hestia-iptables e limite de pedidos
     runs-on: ubuntu-latest
     steps:
       - name: Setup SSH key
@@ -15,22 +15,24 @@ jobs:
           chmod 600 ~/.ssh/deploy_key
           ssh-keyscan "${{ secrets.CONTABO_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
 
-      - name: Inspecciona firewall/bloqueios do Hestia
+      - name: Inspecciona jail e crontab
         uses: appleboy/ssh-action@v1.2.5
         with:
           host: ${{ secrets.CONTABO_HOST }}
           username: root
           key: ${{ secrets.CONTABO_SSH_KEY }}
-          command_timeout: 3m
+          command_timeout: 2m
           script: |
-            echo "===== v-list-firewall-bans (json) ====="
-            /usr/local/hestia/bin/v-list-firewall-bans json 2>&1 || echo "(comando nao existe ou vazio)"
+            echo "===== jail.local / hestia jail config ====="
+            grep -A 10 "\[hestia-iptables\]" /etc/fail2ban/jail.local 2>/dev/null
+            grep -A 10 "\[hestia-iptables\]" /etc/fail2ban/jail.d/*.conf 2>/dev/null
             echo ""
-            echo "===== v-list-firewall (regras gerais) ====="
-            /usr/local/hestia/bin/v-list-firewall json 2>&1 || echo "(comando nao existe ou vazio)"
+            echo "===== fail2ban status do jail hestia-iptables ====="
+            fail2ban-client status hestia-iptables 2>&1
             echo ""
-            echo "===== fail2ban status (porta 8083, API) ====="
-            fail2ban-client status 2>&1 || echo "(fail2ban nao instalado/activo)"
+            echo "===== crontab actual (root) ====="
+            crontab -l 2>&1
             echo ""
-            echo "===== log de autenticacao recente do hestia (ultimas 40 linhas) ====="
-            tail -n 40 /var/log/hestia/auth.log 2>/dev/null || tail -n 40 /usr/local/hestia/log/auth.log 2>/dev/null || echo "(nao encontrado)"
+            echo "===== algum outro processo/cron a mexer no hestia? ====="
+            grep -rl "hestia\|8083" /etc/cron.d/ 2>/dev/null
+            ls -la /etc/cron.d/ 2>/dev/null
