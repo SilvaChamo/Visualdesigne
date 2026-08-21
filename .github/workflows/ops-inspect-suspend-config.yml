@@ -1,11 +1,11 @@
-name: Ops - dispara da-sync e mostra resposta completa
+name: Ops - consulta config real da conta oshercollective no DirectAdmin
 
 on:
   workflow_dispatch:
 
 jobs:
-  run:
-    name: Chama /api/cron/da-sync e mostra o JSON completo
+  check:
+    name: CMD_API_SHOW_USER_CONFIG (so leitura)
     runs-on: ubuntu-latest
     steps:
       - name: Setup SSH key
@@ -15,14 +15,22 @@ jobs:
           chmod 600 ~/.ssh/deploy_key
           ssh-keyscan "${{ secrets.CONTABO_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
 
-      - name: Dispara e mostra resposta
+      - name: Consulta directa ao DirectAdmin
         uses: appleboy/ssh-action@v1.2.5
         with:
           host: ${{ secrets.CONTABO_HOST }}
           username: root
           key: ${{ secrets.CONTABO_SSH_KEY }}
-          command_timeout: 5m
+          command_timeout: 2m
           script: |
             cd /opt/visualdesign-site-teste
-            CRON_SECRET_VALUE=$(grep '^CRON_SECRET=' .env.local | cut -d= -f2-)
-            curl -sS -H "Host: teste.visualdesignmoz.com" -H "Authorization: Bearer ${CRON_SECRET_VALUE}" http://127.0.0.1:3002/api/cron/da-sync
+            set -a
+            source .env.local
+            set +a
+            echo "===== user config oshercollective ====="
+            curl -sk -w "\nHTTP_STATUS:%{http_code}\n" --connect-timeout 15 -m 30 -u "${DIRECTADMIN_USER}:${DIRECTADMIN_PASSWORD}" \
+              "${DIRECTADMIN_PROTOCOL}://${DIRECTADMIN_HOST}:${DIRECTADMIN_PORT}/CMD_API_SHOW_USER_CONFIG?user=oshercollective"
+            echo ""
+            echo "===== package config Osher ====="
+            curl -sk -w "\nHTTP_STATUS:%{http_code}\n" --connect-timeout 15 -m 30 -u "${DIRECTADMIN_USER}:${DIRECTADMIN_PASSWORD}" \
+              "${DIRECTADMIN_PROTOCOL}://${DIRECTADMIN_HOST}:${DIRECTADMIN_PORT}/CMD_API_PACKAGES_USER?user=oshercollective"

@@ -16,17 +16,35 @@ export type HostingProvider = 'directadmin' | 'hestia';
 
 /** Servidor onde a conta com este username vive de facto. 'directadmin' por
  * omissão — mesmo default da coluna, e comportamento seguro se a conta não
- * for encontrada (nunca aponta silenciosamente para o servidor errado). */
+ * for encontrada (nunca aponta silenciosamente para o servidor errado).
+ *
+ * panel_auth_accounts.provider sozinho não é fiável: várias chamadas que
+ * criam/actualizam essa linha (ex.: markAccountServerLinked, o "editAccount"
+ * do admin/clientes) nunca passam `provider`, e a coluna cai para o default
+ * 'directadmin' mesmo em contas reais do Hestia — foi isto que fez a mudança
+ * de password da aamihe (conta real, confirmada no servidor) apontar para o
+ * DirectAdmin de produção por engano. panel_users.hosting_provider é gravado
+ * de forma mais consistente (upsertMirrorUser só o define explicitamente),
+ * por isso serve de segunda fonte: qualquer um dos dois a dizer 'hestia' já
+ * chega, porque um falso positivo para 'hestia' é inofensivo (Hestia diz
+ * "utilizador não existe" e pára) enquanto um falso positivo para
+ * 'directadmin' manda o comando para um servidor de produção partilhado. */
 export async function getProviderByUsername(username: string): Promise<HostingProvider> {
   const sb = getDaSyncAdmin();
   if (!sb || !username) return 'directadmin';
-  const { data } = await sb
-    .from('panel_auth_accounts')
-    .select('provider')
-    .eq('da_username', username)
-    .eq('panel_slug', PANEL_SLUG.toLowerCase())
-    .maybeSingle();
-  return data?.provider === 'hestia' ? 'hestia' : 'directadmin';
+  const [authAccount, mirrorUser] = await Promise.all([
+    sb
+      .from('panel_auth_accounts')
+      .select('provider')
+      .eq('da_username', username)
+      .eq('panel_slug', PANEL_SLUG.toLowerCase())
+      .maybeSingle(),
+    sb.from('panel_users').select('hosting_provider').eq('username', username).maybeSingle(),
+  ]);
+  if (authAccount.data?.provider === 'hestia' || mirrorUser.data?.hosting_provider === 'hestia') {
+    return 'hestia';
+  }
+  return 'directadmin';
 }
 
 export async function suspendHostingAccount(
