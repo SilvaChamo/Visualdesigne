@@ -97,11 +97,12 @@ export async function ensureBrevoDomainAuth(domain: string): Promise<BrevoDomain
       return { ok: true, domainName, dkim, brevoCode, alreadyExisted: false };
     }
 
-    // Se já existir (400 com mensagem de duplicado), vamos buscar a config existente
+    // Se já existir (mensagem de duplicado — a Brevo nem sempre usa 400 para
+    // isto, por isso não filtramos por status code), vamos buscar a config
+    // existente em vez de tratar como falha a sério.
     const errBody = await createRes.json().catch(() => ({}) as Record<string, unknown>);
     const msg = String((errBody as { message?: string }).message || '');
-    const looksDuplicate =
-      createRes.status === 400 && /already exist|duplicate|exists/i.test(msg);
+    const looksDuplicate = /already exist|duplicate|exists/i.test(msg);
 
     if (!looksDuplicate) {
       return {
