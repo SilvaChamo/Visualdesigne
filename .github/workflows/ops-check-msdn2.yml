@@ -1,0 +1,22 @@
+name: 'ops: descobrir dono DirectAdmin do msdn-moz.org (só-leitura)'
+
+on:
+  workflow_dispatch: {}
+
+jobs:
+  diag:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Descobrir dono na nossa BD
+        uses: appleboy/ssh-action@v1.2.5
+        with:
+          host: ${{ secrets.HETZNER_HOST }}
+          port: ${{ secrets.HETZNER_PORT }}
+          username: ${{ secrets.HETZNER_USER }}
+          key: ${{ secrets.HETZNER_SSH_KEY }}
+          script: |
+            docker exec supabase-db psql -U postgres -d postgres -c "
+              SELECT domain, owner, status, site_type
+              FROM public.panel_sites
+              WHERE domain ILIKE '%msdn-moz%';
+            " 2>&1
