@@ -10466,9 +10466,6 @@ export function DomainManagerSection({
           </button>
         </div>
         <div className="divide-y divide-gray-100 dark:divide-zinc-800">
-          <button type="button" className={domainCardMenuItem} onClick={() => { setOpenMenuDomain(null); onNavigate?.('cp-dns-nameserver', { domain: menuDomainRow.domain }) }}>
-            Nameservers
-          </button>
           <button type="button" className={domainCardMenuItem} onClick={() => { setOpenMenuDomain(null); setEmailModal({ show: true, domain: menuDomainRow.domain }) }}>
             Criar e-mail
           </button>
