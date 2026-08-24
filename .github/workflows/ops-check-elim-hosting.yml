@@ -1,0 +1,29 @@
+name: 'ops: verificar hospedagem associada ao elimservicos.com (so-leitura)'
+
+on:
+  workflow_dispatch: {}
+
+jobs:
+  diag:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Consultar panel_sites
+        uses: appleboy/ssh-action@v1.2.5
+        with:
+          host: ${{ secrets.HETZNER_HOST }}
+          port: ${{ secrets.HETZNER_PORT }}
+          username: ${{ secrets.HETZNER_USER }}
+          key: ${{ secrets.HETZNER_SSH_KEY }}
+          script: |
+            docker exec supabase-db psql -U postgres -d postgres -c "
+              SELECT domain, owner, provider, package, status
+              FROM public.panel_sites
+              WHERE domain = 'elimservicos.com';
+            " 2>&1
+            echo ""
+            echo "===== domain_renewals: quem é o dono ====="
+            docker exec supabase-db psql -U postgres -d postgres -c "
+              SELECT domain_name, user_id, status
+              FROM public.domain_renewals
+              WHERE domain_name = 'elimservicos.com';
+            " 2>&1
