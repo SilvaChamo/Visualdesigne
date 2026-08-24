@@ -76,6 +76,13 @@ jobs:
             set_env_var CRON_SECRET "${{ secrets.CRON_SECRET }}"
             set_env_var CLOUDFLARE_API_TOKEN_ACCOUNT "${{ secrets.CLOUDFLARE_API_TOKEN_ACCOUNT }}"
             set_env_var CLOUDFLARE_ACCOUNT_ID "${{ secrets.CLOUDFLARE_ACCOUNT_ID }}"
+            # Global API Key (14 ago 2026, ver deploy-contabo.yml) — o token
+            # acima não consegue criar zonas novas na Cloudflare nem escrever
+            # registos DNS (permissão em falta). Nunca tinha sido ligada aqui,
+            # por isso toda a escrita de DNS em produção falhava sempre com
+            # "Authentication error" — descoberto 24 ago via elimservicos.com.
+            set_env_var CLOUDFLARE_EMAIL "${{ secrets.CLOUDFLARE_EMAIL }}"
+            set_env_var CLOUDFLARE_GLOBAL_API_KEY "${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}"
             # Sem isto, o passo de DNS de e-mail e o remetente Brevo de
             # autoProvisionPurchasedDomain falham sempre em silêncio depois de
             # uma compra/transferência de domínio (nunca tinha sido ligado ao
