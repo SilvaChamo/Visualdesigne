@@ -589,14 +589,14 @@ export function DomainDetailSection({ domain, sites, onNavigate, onRefresh, setA
             )}
           </div>
 
-          {!clientMode && (
-            <div className="rounded border border-gray-200 bg-white p-5 dark:border-zinc-700 dark:bg-zinc-900">
-              <h3 className="mb-3 text-sm font-bold text-gray-900 dark:text-zinc-100">Nameservers</h3>
-              <NameserverManagementSection sites={sites} initialDomain={domain} />
-            </div>
-          )}
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+            {!clientMode && (
+              <div className="rounded border border-gray-200 bg-white p-5 dark:border-zinc-700 dark:bg-zinc-900">
+                <h3 className="mb-3 text-sm font-bold text-gray-900 dark:text-zinc-100">Nameservers</h3>
+                <NameserverManagementSection sites={sites} initialDomain={domain} />
+              </div>
+            )}
 
-          {registrar.isLocked !== null && (
             <div className="rounded border border-gray-200 bg-white p-5 dark:border-zinc-700 dark:bg-zinc-900">
               <p className="mb-4 text-xs text-gray-500 dark:text-zinc-500">Gestão de registo e transferência</p>
 
@@ -605,21 +605,37 @@ export function DomainDetailSection({ domain, sites, onNavigate, onRefresh, setA
                   <div>
                     <p className="text-sm font-medium text-gray-900 dark:text-zinc-100">Bloqueio de transferência</p>
                     <p className="text-xs text-gray-500 dark:text-zinc-500">
-                      {registrar.isLocked ? 'Bloqueado — desbloqueie antes de transferir' : 'Desbloqueado — pronto para transferência'}
+                      {registrar.isLocked === null
+                        ? registrarLoading
+                          ? 'A verificar…'
+                          : 'Não disponível — domínio não encontrado no registador.'
+                        : registrar.isLocked
+                          ? 'Bloqueado — desbloqueie antes de transferir'
+                          : 'Desbloqueado — pronto para transferência'}
                     </p>
                   </div>
                   <button
                     type="button"
                     onClick={() => void handleToggleLock()}
-                    disabled={registrarLoading}
+                    disabled={registrarLoading || registrar.isLocked === null}
                     className={`inline-flex items-center gap-2 rounded px-3 py-2 text-sm font-semibold transition-colors disabled:opacity-50 ${
-                      registrar.isLocked
-                        ? 'bg-green-50 text-green-700 hover:bg-green-100 dark:bg-green-950/30 dark:text-green-400 dark:hover:bg-green-950/50'
-                        : 'bg-red-50 text-red-700 hover:bg-red-100 dark:bg-red-950/30 dark:text-red-400 dark:hover:bg-red-950/50'
+                      registrar.isLocked === null
+                        ? 'bg-gray-100 text-gray-400 dark:bg-zinc-800 dark:text-zinc-500'
+                        : registrar.isLocked
+                          ? 'bg-green-50 text-green-700 hover:bg-green-100 dark:bg-green-950/30 dark:text-green-400 dark:hover:bg-green-950/50'
+                          : 'bg-red-50 text-red-700 hover:bg-red-100 dark:bg-red-950/30 dark:text-red-400 dark:hover:bg-red-950/50'
                     }`}
                   >
-                    {registrarLoading ? <Spinner className="h-4 w-4" /> : registrar.isLocked ? <Lock className="h-4 w-4" /> : <LockOpen className="h-4 w-4" />}
-                    {registrar.isLocked ? 'Desbloquear' : 'Bloquear'}
+                    {registrarLoading ? (
+                      <Spinner className="h-4 w-4" />
+                    ) : registrar.isLocked === null ? (
+                      <Lock className="h-4 w-4" />
+                    ) : registrar.isLocked ? (
+                      <Lock className="h-4 w-4" />
+                    ) : (
+                      <LockOpen className="h-4 w-4" />
+                    )}
+                    {registrar.isLocked === null ? '—' : registrar.isLocked ? 'Desbloquear' : 'Bloquear'}
                   </button>
                 </div>
               </div>
@@ -710,7 +726,7 @@ export function DomainDetailSection({ domain, sites, onNavigate, onRefresh, setA
                 )}
               </div>
             </div>
-          )}
+          </div>
 
           {site && !clientMode && (
             <div className="rounded border border-gray-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-900">
