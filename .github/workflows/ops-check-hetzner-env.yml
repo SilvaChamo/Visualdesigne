@@ -1,0 +1,19 @@
+name: 'ops: verificar .env.local real no Hetzner (so nomes, sem valores)'
+
+on:
+  workflow_dispatch: {}
+
+jobs:
+  diag:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ver nomes das variáveis presentes
+        uses: appleboy/ssh-action@v1.2.5
+        with:
+          host: ${{ secrets.HETZNER_HOST }}
+          port: ${{ secrets.HETZNER_PORT }}
+          username: ${{ secrets.HETZNER_USER }}
+          key: ${{ secrets.HETZNER_SSH_KEY }}
+          script: |
+            cd /opt/visualdesign-site
+            grep -oE "^[A-Z_]+" .env.local | sort -u
