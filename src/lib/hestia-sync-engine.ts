@@ -176,8 +176,22 @@ export async function runHestiaFullSync(): Promise<HestiaSyncResult> {
 
   // Limpeza de sites obsoletos, restrita aos donos que sabemos serem contas
   // Hestia (liveUsernames) — nunca mexe em sites de donos DirectAdmin.
+  //
+  // #achado 24 ago: associar um domínio a uma conta nova (attach-hosting)
+  // grava o novo "owner" no painel logo, mas propaga para o Hestia em
+  // segundo plano (best-effort, pode falhar ou ainda não ter corrido). Se
+  // este sync corresse nesse intervalo, via o domínio como "não existe no
+  // Hestia para este owner" e apagava tudo (site + email + BD + FTP + DNS
+  // do nosso espelho) — aconteceu a sério com elimservicos.com. Ignora
+  // sites actualizados há menos de 15 min para dar tempo à propagação.
+  const GRACE_PERIOD_MS = 15 * 60 * 1000;
+  const graceCutoff = new Date(Date.now() - GRACE_PERIOD_MS).toISOString();
   for (const [owner, liveDomains] of liveDomainsByOwner) {
-    const { data: existingSites } = await admin.from('panel_sites').select('domain').eq('owner', owner);
+    const { data: existingSites } = await admin
+      .from('panel_sites')
+      .select('domain, updated_at')
+      .eq('owner', owner)
+      .lt('updated_at', graceCutoff);
     const staleDomains = (existingSites || [])
       .map((r) => r.domain as string)
       .filter((d) => d && !liveDomains.has(d));
