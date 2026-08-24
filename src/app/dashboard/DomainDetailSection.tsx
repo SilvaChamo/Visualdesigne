@@ -454,16 +454,16 @@ export function DomainDetailSection({ domain, sites, onNavigate, onRefresh, setA
             <Globe className="w-5 h-5 text-green-600 dark:text-green-400" />
           </div>
           <h2 className="text-lg font-bold text-gray-900 dark:text-zinc-100">{domain}</h2>
+          <span
+            className={`px-3 py-1 rounded text-xs font-bold uppercase tracking-wider ${
+              isHostingActive
+                ? 'bg-green-100 text-green-700 dark:bg-green-950/50 dark:text-green-400'
+                : 'bg-red-100 text-red-700 dark:bg-red-950/50 dark:text-red-400'
+            }`}
+          >
+            Status: {isHostingActive ? 'Activo' : 'Suspenso'}
+          </span>
         </div>
-        <span
-          className={`px-3 py-1 rounded text-xs font-bold uppercase tracking-wider ${
-            isHostingActive
-              ? 'bg-green-100 text-green-700 dark:bg-green-950/50 dark:text-green-400'
-              : 'bg-red-100 text-red-700 dark:bg-red-950/50 dark:text-red-400'
-          }`}
-        >
-          Status: {isHostingActive ? 'Activo' : 'Suspenso'}
-        </span>
         {!clientMode && (
           <button
             type="button"
@@ -481,7 +481,7 @@ export function DomainDetailSection({ domain, sites, onNavigate, onRefresh, setA
       <div className="grid w-full grid-cols-1 gap-4 lg:grid-cols-[1fr_242px]">
         <div className="space-y-4">
           <div className="rounded border border-gray-200 bg-white p-5 dark:border-zinc-700 dark:bg-zinc-900">
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
               <div className="rounded border border-gray-100 bg-gray-50 p-3 dark:border-zinc-800 dark:bg-zinc-950">
                 <p className="text-xs text-gray-500 dark:text-zinc-400">Data de Registo</p>
                 <p className="mt-1 flex items-center gap-1.5 text-sm font-bold text-gray-900 dark:text-zinc-100">
@@ -499,12 +499,31 @@ export function DomainDetailSection({ domain, sites, onNavigate, onRefresh, setA
                   <p className="mt-0.5 text-xs text-red-500">{daysRemaining} dias restantes</p>
                 )}
               </div>
-              <div className="rounded border border-gray-100 bg-gray-50 p-3 dark:border-zinc-800 dark:bg-zinc-950">
-                <p className="text-xs text-gray-500 dark:text-zinc-400">Valor Reincidente</p>
-                <p className="mt-1 text-sm font-bold text-gray-900 dark:text-zinc-100">
-                  {renewal?.renewalPrice ? `${renewal.currency || 'MT'} ${renewal.renewalPrice.toFixed(2)}` : '—'}
-                </p>
-              </div>
+              {site && (
+                <div className="rounded border border-gray-100 bg-gray-50 p-3 dark:border-zinc-800 dark:bg-zinc-950">
+                  <p className="text-xs text-gray-500 dark:text-zinc-400">Pacote</p>
+                  <p className="mt-1 text-sm font-bold text-gray-900 dark:text-zinc-100">{site.package || '—'}</p>
+                </div>
+              )}
+              {site && (
+                <div className="rounded border border-gray-100 bg-gray-50 p-3 dark:border-zinc-800 dark:bg-zinc-950">
+                  <p className="text-xs text-gray-500 dark:text-zinc-400">Conta de Hospedagem</p>
+                  <p className="mt-1 truncate font-mono text-sm font-bold text-gray-900 dark:text-zinc-100" title={site.owner || undefined}>
+                    {site.owner || '—'}
+                  </p>
+                  {site.owner && !clientMode && (
+                    <button
+                      type="button"
+                      onClick={() => void handleDetachHosting()}
+                      disabled={detachingHosting}
+                      className="mt-1 text-xs font-semibold text-red-600 hover:underline disabled:opacity-50"
+                      title="Remove só a associação no painel — não apaga a conta nem o site no servidor."
+                    >
+                      {detachingHosting ? 'A remover…' : 'Remover associação'}
+                    </button>
+                  )}
+                </div>
+              )}
             </div>
           </div>
 
@@ -566,6 +585,7 @@ export function DomainDetailSection({ domain, sites, onNavigate, onRefresh, setA
             )}
           </div>
 
+          <div className={`grid grid-cols-1 gap-4 ${registrar.isLocked !== null && !clientMode ? 'lg:grid-cols-2' : ''}`}>
           {registrar.isLocked !== null && (
             <div className="rounded border border-gray-200 bg-white p-5 dark:border-zinc-700 dark:bg-zinc-900">
               <p className="mb-4 text-xs text-gray-500 dark:text-zinc-500">Gestão de registo e transferência</p>
@@ -578,8 +598,17 @@ export function DomainDetailSection({ domain, sites, onNavigate, onRefresh, setA
                       {registrar.isLocked ? 'Bloqueado — desbloqueie antes de transferir' : 'Desbloqueado — pronto para transferência'}
                     </p>
                   </div>
-                  <button type="button" onClick={() => void handleToggleLock()} disabled={registrarLoading} className={panelBtnPrimary}>
-                    {registrarLoading ? <Spinner className="h-4 w-4" /> : registrar.isLocked ? <LockOpen className="h-4 w-4" /> : <Lock className="h-4 w-4" />}
+                  <button
+                    type="button"
+                    onClick={() => void handleToggleLock()}
+                    disabled={registrarLoading}
+                    className={`inline-flex items-center gap-2 rounded px-3 py-2 text-sm font-semibold transition-colors disabled:opacity-50 ${
+                      registrar.isLocked
+                        ? 'bg-green-50 text-green-700 hover:bg-green-100 dark:bg-green-950/30 dark:text-green-400 dark:hover:bg-green-950/50'
+                        : 'bg-red-50 text-red-700 hover:bg-red-100 dark:bg-red-950/30 dark:text-red-400 dark:hover:bg-red-950/50'
+                    }`}
+                  >
+                    {registrarLoading ? <Spinner className="h-4 w-4" /> : registrar.isLocked ? <Lock className="h-4 w-4" /> : <LockOpen className="h-4 w-4" />}
                     {registrar.isLocked ? 'Desbloquear' : 'Bloquear'}
                   </button>
                 </div>
@@ -673,6 +702,78 @@ export function DomainDetailSection({ domain, sites, onNavigate, onRefresh, setA
             </div>
           )}
 
+          {!clientMode && (
+            <div className="rounded border border-gray-200 bg-white dark:border-zinc-700 dark:bg-zinc-900">
+              <button
+                type="button"
+                onClick={togglePointerPanel}
+                className="flex w-full items-center justify-between px-4 py-3 text-left"
+              >
+                <span className="flex items-center gap-2 text-xs font-bold uppercase text-gray-500 dark:text-zinc-500">
+                  <ArrowRightLeft className="h-4 w-4 shrink-0" />
+                  Redireccionar domínio
+                </span>
+                {pointerOpen ? <ChevronDown className="h-4 w-4 shrink-0 text-gray-400" /> : <ChevronRight className="h-4 w-4 shrink-0 text-gray-400" />}
+              </button>
+              {pointerOpen && (
+                <div className="border-t border-gray-100 p-4 dark:border-zinc-800">
+                  <p className="mb-3 text-xs text-gray-500 dark:text-zinc-400">
+                    Outro domínio que já possuis passa a redireccionar para <span className="font-mono">{domain}</span>.
+                  </p>
+
+                  {pointerLoading ? (
+                    <div className="flex items-center gap-2 py-2 text-sm text-gray-400 dark:text-zinc-500">
+                      <Spinner className="h-4 w-4" /> A carregar...
+                    </div>
+                  ) : pointers.length > 0 ? (
+                    <div className="mb-3 space-y-1.5">
+                      {pointers.map((from) => (
+                        <div
+                          key={from}
+                          className="flex items-center justify-between gap-2 rounded border border-gray-100 bg-gray-50 px-3 py-1.5 text-sm dark:border-zinc-800 dark:bg-zinc-800/50"
+                        >
+                          <span className="truncate font-mono text-xs text-gray-700 dark:text-zinc-300">
+                            {from} <span className="text-gray-400 dark:text-zinc-500">→ {domain}</span>
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => void handleDeletePointer(from)}
+                            className="shrink-0 text-gray-300 hover:text-red-600 dark:text-zinc-600 dark:hover:text-red-500"
+                            title="Remover redireccionamento"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="mb-3 text-sm text-gray-400 dark:text-zinc-500">Nenhum domínio a redireccionar para aqui ainda.</p>
+                  )}
+
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="text"
+                      placeholder="outro-dominio.co.mz"
+                      value={pointerFrom}
+                      onChange={(e) => setPointerFrom(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === 'Enter') void handleAddPointer() }}
+                      className={`${panelField} min-w-0 flex-1`}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => void handleAddPointer()}
+                      disabled={pointerSaving || !pointerFrom.trim()}
+                      className={`${panelBtnSecondary} shrink-0 disabled:opacity-50`}
+                    >
+                      {pointerSaving ? <Spinner className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+          </div>
+
           {site && !clientMode && (
             <div className="rounded border border-gray-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-900">
               <p className="mb-3 text-xs font-bold uppercase text-gray-500 dark:text-zinc-500">Zona perigosa</p>
@@ -711,31 +812,6 @@ export function DomainDetailSection({ domain, sites, onNavigate, onRefresh, setA
               </button>
               <button
                 type="button"
-                onClick={() => setNsOpen(true)}
-                disabled={registrar.isLocked === null}
-                className="flex w-full items-center justify-between px-4 py-3 text-left text-sm text-gray-700 hover:text-red-600 disabled:opacity-50 dark:text-zinc-300 dark:hover:text-red-400"
-              >
-                Servidores de Nome
-                <Server className="h-4 w-4 shrink-0" />
-              </button>
-              <button
-                type="button"
-                onClick={() => void handleToggleLock()}
-                disabled={registrarLoading || registrar.isLocked === null}
-                className="flex w-full items-center justify-between px-4 py-3 text-left text-sm text-gray-700 hover:text-red-600 disabled:opacity-50 dark:text-zinc-300 dark:hover:text-red-400"
-              >
-                <span>
-                  Trava de Registo
-                  {registrar.isLocked !== null && (
-                    <span className="mt-0.5 block text-xs text-gray-500 dark:text-zinc-500">
-                      {registrar.isLocked ? 'Bloqueado' : 'Desbloqueado'}
-                    </span>
-                  )}
-                </span>
-                {registrarLoading ? <Spinner className="h-4 w-4 shrink-0" /> : registrar.isLocked ? <Lock className="h-4 w-4 shrink-0" /> : <LockOpen className="h-4 w-4 shrink-0" />}
-              </button>
-              <button
-                type="button"
                 onClick={() => showMsg('Disponível em breve — a gestão de WHOIS ainda não está ligada ao registador.', 'error')}
                 className="flex w-full items-center justify-between px-4 py-3 text-left text-sm text-gray-400 dark:text-zinc-600"
               >
@@ -752,15 +828,6 @@ export function DomainDetailSection({ domain, sites, onNavigate, onRefresh, setA
               >
                 Gerenciar DNS
                 <Cloud className="h-4 w-4 shrink-0" />
-              </button>
-              <button
-                type="button"
-                onClick={() => void handleFetchAuthCode()}
-                disabled={registrarLoading}
-                className="flex w-full items-center justify-between px-4 py-3 text-left text-sm text-gray-700 hover:text-red-600 disabled:opacity-50 dark:text-zinc-300 dark:hover:text-red-400"
-              >
-                Obter código EPP
-                {registrarLoading ? <Spinner className="h-4 w-4 shrink-0" /> : <Key className="h-4 w-4 shrink-0" />}
               </button>
               <div className="flex w-full items-center justify-between px-4 py-3 text-sm text-gray-700 dark:text-zinc-300">
                 <span>
@@ -831,25 +898,6 @@ export function DomainDetailSection({ domain, sites, onNavigate, onRefresh, setA
                 Registrar Novo Domínio
                 <PlusCircle className="h-4 w-4 shrink-0" />
               </button>
-              <button
-                type="button"
-                onClick={() => onNavigate?.('transferir-dominio')}
-                className="flex w-full items-center justify-between px-4 py-3 text-left text-sm text-gray-700 hover:text-red-600 dark:text-zinc-300 dark:hover:text-red-400"
-              >
-                Transferir um Domínio
-                <ArrowRightLeft className="h-4 w-4 shrink-0" />
-              </button>
-              {!clientMode && (
-                <button
-                  type="button"
-                  onClick={() => void handleReprovision()}
-                  disabled={reprovisionLoading}
-                  className="flex w-full items-center justify-between px-4 py-3 text-left text-sm text-gray-700 hover:text-red-600 disabled:opacity-50 dark:text-zinc-300 dark:hover:text-red-400"
-                >
-                  Reprocessar Configuração DNS (Cloudflare/nameservers)
-                  {reprovisionLoading ? <Spinner className="h-4 w-4 shrink-0" /> : <RefreshCw className="h-4 w-4 shrink-0" />}
-                </button>
-              )}
             </div>
             {reprovisionSteps && (
               <div className="border-t border-gray-100 p-4 dark:border-zinc-800">
@@ -869,112 +917,6 @@ export function DomainDetailSection({ domain, sites, onNavigate, onRefresh, setA
             )}
           </div>
 
-          {!clientMode && (
-          <div className="rounded border border-gray-200 bg-white dark:border-zinc-700 dark:bg-zinc-900">
-            <button
-              type="button"
-              onClick={togglePointerPanel}
-              className="flex w-full items-center justify-between px-4 py-3 text-left"
-            >
-              <span className="flex items-center gap-2 text-xs font-bold uppercase text-gray-500 dark:text-zinc-500">
-                <ArrowRightLeft className="h-4 w-4 shrink-0" />
-                Redireccionar domínio
-              </span>
-              {pointerOpen ? <ChevronDown className="h-4 w-4 shrink-0 text-gray-400" /> : <ChevronRight className="h-4 w-4 shrink-0 text-gray-400" />}
-            </button>
-            {pointerOpen && (
-              <div className="border-t border-gray-100 p-4 dark:border-zinc-800">
-                <p className="mb-3 text-xs text-gray-500 dark:text-zinc-400">
-                  Outro domínio que já possuis passa a redireccionar para <span className="font-mono">{domain}</span>.
-                </p>
-
-                {pointerLoading ? (
-                  <div className="flex items-center gap-2 py-2 text-sm text-gray-400 dark:text-zinc-500">
-                    <Spinner className="h-4 w-4" /> A carregar...
-                  </div>
-                ) : pointers.length > 0 ? (
-                  <div className="mb-3 space-y-1.5">
-                    {pointers.map((from) => (
-                      <div
-                        key={from}
-                        className="flex items-center justify-between gap-2 rounded border border-gray-100 bg-gray-50 px-3 py-1.5 text-sm dark:border-zinc-800 dark:bg-zinc-800/50"
-                      >
-                        <span className="truncate font-mono text-xs text-gray-700 dark:text-zinc-300">
-                          {from} <span className="text-gray-400 dark:text-zinc-500">→ {domain}</span>
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() => void handleDeletePointer(from)}
-                          className="shrink-0 text-gray-300 hover:text-red-600 dark:text-zinc-600 dark:hover:text-red-500"
-                          title="Remover redireccionamento"
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="mb-3 text-sm text-gray-400 dark:text-zinc-500">Nenhum domínio a redireccionar para aqui ainda.</p>
-                )}
-
-                <div className="flex items-center gap-2">
-                  <input
-                    type="text"
-                    placeholder="outro-dominio.co.mz"
-                    value={pointerFrom}
-                    onChange={(e) => setPointerFrom(e.target.value)}
-                    onKeyDown={(e) => { if (e.key === 'Enter') void handleAddPointer() }}
-                    className={`${panelField} min-w-0 flex-1`}
-                  />
-                  <button
-                    type="button"
-                    onClick={() => void handleAddPointer()}
-                    disabled={pointerSaving || !pointerFrom.trim()}
-                    className={`${panelBtnSecondary} shrink-0 disabled:opacity-50`}
-                  >
-                    {pointerSaving ? <Spinner className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
-          )}
-
-          {site && (
-            <div className="rounded border border-gray-200 bg-white p-4 text-sm dark:border-zinc-700 dark:bg-zinc-900">
-              <div className="flex justify-between gap-2">
-                <span className="text-gray-500 dark:text-zinc-500">Document root</span>
-                <span className="font-mono text-xs text-gray-700 dark:text-zinc-300">/public_html/{domain}</span>
-              </div>
-              <div className="mt-2 flex justify-between gap-2">
-                <span className="text-gray-500 dark:text-zinc-500">Pacote</span>
-                <span className="text-gray-700 dark:text-zinc-300">{site.package || '—'}</span>
-              </div>
-              <div className="mt-2 flex justify-between gap-2">
-                <span className="text-gray-500 dark:text-zinc-500">Estado</span>
-                <span className="text-gray-700 dark:text-zinc-300">{site.state || site.status || 'Active'}</span>
-              </div>
-              {site.owner && (
-                <div className="mt-2 flex items-center justify-between gap-2">
-                  <span className="text-gray-500 dark:text-zinc-500">Conta de hospedagem (#20)</span>
-                  <span className="flex items-center gap-2">
-                    <span className="font-mono text-xs text-gray-700 dark:text-zinc-300">{site.owner}</span>
-                    {!clientMode && (
-                      <button
-                        type="button"
-                        onClick={() => void handleDetachHosting()}
-                        disabled={detachingHosting}
-                        className="text-xs font-semibold text-red-600 hover:underline disabled:opacity-50"
-                        title="Remove só a associação no painel — não apaga a conta nem o site no servidor."
-                      >
-                        {detachingHosting ? 'A remover…' : 'Remover associação'}
-                      </button>
-                    )}
-                  </span>
-                </div>
-              )}
-            </div>
-          )}
         </div>
       </div>
     </div>
