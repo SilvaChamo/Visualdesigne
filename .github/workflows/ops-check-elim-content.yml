@@ -1,4 +1,4 @@
-name: 'ops: verificar conteudo real do elimservicos.com no Hestia (so-leitura)'
+name: 'ops: verificar conteudo real do elimservicos.com no Hestia v2 (so-leitura)'
 
 on:
   workflow_dispatch: {}
@@ -7,21 +7,21 @@ jobs:
   diag:
     runs-on: ubuntu-latest
     steps:
-      - name: Verificar ficheiros e emails no Contabo (Hestia)
+      - name: Verificar com caminho completo do Hestia
         uses: appleboy/ssh-action@v1.2.5
         with:
           host: ${{ secrets.CONTABO_HOST }}
           username: root
           key: ${{ secrets.CONTABO_SSH_KEY }}
           script: |
-            echo "===== Conteudo do public_html (elimservicos.com) ====="
-            find /home/elimservicos/web/elimservicos.com/public_html -maxdepth 2 2>&1
+            echo "===== utilizadores existentes no Hestia ====="
+            /usr/local/hestia/bin/v-list-users 2>&1 | head -20
             echo ""
-            echo "===== Tamanho total ====="
-            du -sh /home/elimservicos/web/elimservicos.com 2>&1
+            echo "===== domínios do user elimservicos (se existir) ====="
+            /usr/local/hestia/bin/v-list-web-domains elimservicos 2>&1
             echo ""
-            echo "===== Contas de email reais no Hestia para este dominio ====="
-            v-list-mail-accounts elimservicos elimservicos.com 2>&1 || echo "(comando falhou ou sem contas)"
+            echo "===== procurar pasta home real ====="
+            find /home -maxdepth 1 2>&1
             echo ""
-            echo "===== Dominio listado no Hestia para o user elimservicos ====="
-            v-list-web-domains elimservicos 2>&1
+            echo "===== emails do dominio (se existir) ====="
+            /usr/local/hestia/bin/v-list-mail-accounts elimservicos elimservicos.com 2>&1
