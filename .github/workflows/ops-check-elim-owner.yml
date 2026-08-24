@@ -1,0 +1,22 @@
+name: 'ops: confirmar associacao do elimservicos.com a oshercollective (so-leitura)'
+
+on:
+  workflow_dispatch: {}
+
+jobs:
+  diag:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Consultar panel_sites e panel_users
+        uses: appleboy/ssh-action@v1.2.5
+        with:
+          host: ${{ secrets.HETZNER_HOST }}
+          port: ${{ secrets.HETZNER_PORT }}
+          username: ${{ secrets.HETZNER_USER }}
+          key: ${{ secrets.HETZNER_SSH_KEY }}
+          script: |
+            echo "===== panel_sites agora ====="
+            docker exec supabase-db psql -U postgres -d postgres -c "SELECT domain, owner, package, status, updated_at FROM public.panel_sites WHERE domain = 'elimservicos.com';" 2>&1
+            echo ""
+            echo "===== dono actual (owner) tem que relacao com oshercollective? ====="
+            docker exec supabase-db psql -U postgres -d postgres -c "SELECT username, parent_username FROM public.panel_users WHERE username IN ('elimservicos','oshercollective');" 2>&1
