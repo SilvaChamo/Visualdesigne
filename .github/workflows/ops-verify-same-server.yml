@@ -1,0 +1,33 @@
+name: 'ops: confirmar se Hetzner e Contabo sao o mesmo servidor (so-leitura)'
+
+on:
+  workflow_dispatch: {}
+
+jobs:
+  hetzner:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Assinatura única do servidor Hetzner
+        uses: appleboy/ssh-action@v1.2.5
+        with:
+          host: ${{ secrets.HETZNER_HOST }}
+          port: ${{ secrets.HETZNER_PORT }}
+          username: ${{ secrets.HETZNER_USER }}
+          key: ${{ secrets.HETZNER_SSH_KEY }}
+          script: |
+            echo "HETZNER hostname: $(hostname)"
+            echo "HETZNER machine-id: $(cat /etc/machine-id)"
+            echo "HETZNER uptime: $(uptime -s)"
+  contabo:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Assinatura única do servidor Contabo
+        uses: appleboy/ssh-action@v1.2.5
+        with:
+          host: ${{ secrets.CONTABO_HOST }}
+          username: root
+          key: ${{ secrets.CONTABO_SSH_KEY }}
+          script: |
+            echo "CONTABO hostname: $(hostname)"
+            echo "CONTABO machine-id: $(cat /etc/machine-id)"
+            echo "CONTABO uptime: $(uptime -s)"
