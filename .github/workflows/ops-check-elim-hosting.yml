@@ -15,15 +15,8 @@ jobs:
           username: ${{ secrets.HETZNER_USER }}
           key: ${{ secrets.HETZNER_SSH_KEY }}
           script: |
-            docker exec supabase-db psql -U postgres -d postgres -c "
-              SELECT domain, owner, provider, package, status
-              FROM public.panel_sites
-              WHERE domain = 'elimservicos.com';
-            " 2>&1
+            echo "===== colunas de panel_sites ====="
+            docker exec supabase-db psql -U postgres -d postgres -c "\d public.panel_sites" 2>&1
             echo ""
-            echo "===== domain_renewals: quem é o dono ====="
-            docker exec supabase-db psql -U postgres -d postgres -c "
-              SELECT domain_name, user_id, status
-              FROM public.domain_renewals
-              WHERE domain_name = 'elimservicos.com';
-            " 2>&1
+            echo "===== linha para elimservicos.com ====="
+            docker exec supabase-db psql -U postgres -d postgres -c "SELECT * FROM public.panel_sites WHERE domain = 'elimservicos.com';" 2>&1
