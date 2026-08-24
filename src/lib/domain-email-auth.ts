@@ -143,12 +143,12 @@ export async function provisionEmailAuthForDomain(domain: string): Promise<DnsAu
     brevoError = brevoAuth.error;
 
     if (brevoAuth.ok) {
-      if (brevoAuth.dkim) {
+      for (const dkimRecord of brevoAuth.dkim) {
         results.push(
           await applyRecordAnyProvider(cleanDomain, cfZoneId, creds, {
-            name: brevoAuth.dkim.hostName || '@',
-            type: 'TXT',
-            value: brevoAuth.dkim.value,
+            name: dkimRecord.hostName || '@',
+            type: dkimRecord.type,
+            value: dkimRecord.value,
             ttl: 3600,
           }),
         );

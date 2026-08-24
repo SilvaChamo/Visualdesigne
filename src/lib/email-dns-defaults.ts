@@ -16,7 +16,7 @@ export function buildEmailSpfRecord(serverIp?: string): string {
 
 export type EmailDnsRecord = {
   name: string;
-  type: 'MX' | 'TXT' | 'A';
+  type: 'MX' | 'TXT' | 'A' | 'CNAME';
   value: string;
   ttl: number;
   priority?: number;

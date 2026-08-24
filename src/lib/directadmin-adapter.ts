@@ -927,18 +927,29 @@ export function createDirectAdminAPI(credentials: DirectAdminCredentials) {
       // o registo TXT real no DirectAdmin (antes disto escrevia só um
       // placeholder de texto, nunca uma chave DKIM válida).
       const auth = await ensureBrevoDomainAuth(domain);
-      if (!auth.ok || !auth.dkim) {
+      if (!auth.ok || auth.dkim.length === 0) {
         return { success: false, message: auth.error || 'Brevo não devolveu registo DKIM' };
       }
-      const result = await daPost(credentials, 'CMD_API_DNS_CONTROL', {
-        action: 'add',
-        domain,
-        type: 'TXT',
-        name: `${auth.dkim.hostName || 'mail._domainkey'}.${domain}`,
-        value: auth.dkim.value,
-        ttl: '3600',
-      });
-      return { success: result.ok, message: result.ok ? 'DKIM activado (chave real da Brevo)' : result.error };
+      // A Brevo pode devolver 1 registo (esquema antigo, TXT) ou 2 (esquema
+      // actual, dois CNAME) — aplica todos, senão a verificação na Brevo
+      // nunca fica completa com só metade dos registos.
+      const results = await Promise.all(
+        auth.dkim.map((record) =>
+          daPost(credentials, 'CMD_API_DNS_CONTROL', {
+            action: 'add',
+            domain,
+            type: record.type,
+            name: `${record.hostName || 'mail._domainkey'}.${domain}`,
+            value: record.value,
+            ttl: '3600',
+          }),
+        ),
+      );
+      const allOk = results.every((r) => r.ok);
+      return {
+        success: allOk,
+        message: allOk ? 'DKIM activado (chave real da Brevo)' : results.find((r) => !r.ok)?.error,
+      };
     },
 
     getDKIMStatus: async (domain: string): Promise<HostingCommandResult> => {
