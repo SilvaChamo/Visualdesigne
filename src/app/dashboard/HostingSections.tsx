@@ -6291,9 +6291,13 @@ export function DNSNameserverSection({ sites }: { sites: DirectAdminWebsite[] })
 export function NameserverManagementSection({
   sites,
   initialDomain,
+  lockDomain,
 }: {
   sites: DirectAdminWebsite[]
   initialDomain?: string
+  /** Embutido na página de um domínio específico — esconde o selector de
+   * domínio (não faz sentido escolher outro ali) e fixa sempre initialDomain. */
+  lockDomain?: boolean
 }) {
   const [mode, setMode] = useState<'default' | 'custom'>('default')
   const [selectedDomain, setSelectedDomain] = useState(initialDomain || '')
@@ -6395,21 +6399,27 @@ export function NameserverManagementSection({
 
         {mode === 'custom' && (
           <div className="mb-6 space-y-4 border-t border-gray-100 pt-4 dark:border-zinc-800">
-            <div>
-              <label className="mb-1.5 block text-xs font-bold uppercase text-gray-500 dark:text-zinc-500">Domínio</label>
-              <select
-                value={selectedDomain}
-                onChange={(e) => setSelectedDomain(e.target.value)}
-                className={`${panelField} w-full max-w-md`}
-              >
-                <option value="">Seleccione...</option>
-                {sites.map((s) => (
-                  <option key={s.domain} value={s.domain}>
-                    {s.domain}
-                  </option>
-                ))}
-              </select>
-            </div>
+            {lockDomain ? (
+              <p className="text-xs text-gray-500 dark:text-zinc-500">
+                Domínio: <span className="font-mono font-semibold text-gray-700 dark:text-zinc-300">{selectedDomain}</span>
+              </p>
+            ) : (
+              <div>
+                <label className="mb-1.5 block text-xs font-bold uppercase text-gray-500 dark:text-zinc-500">Domínio</label>
+                <select
+                  value={selectedDomain}
+                  onChange={(e) => setSelectedDomain(e.target.value)}
+                  className={`${panelField} w-full max-w-md`}
+                >
+                  <option value="">Seleccione...</option>
+                  {sites.map((s) => (
+                    <option key={s.domain} value={s.domain}>
+                      {s.domain}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
               <div>
                 <label className="mb-1.5 block text-xs font-bold uppercase text-gray-500 dark:text-zinc-500">NS1</label>
@@ -9982,6 +9992,7 @@ export function DomainManagerSection({
   const listSearch = hubMode && listSearchProp !== undefined ? listSearchProp : listSearchInternal
   const setListSearch = hubMode && onListSearchChange ? onListSearchChange : setListSearchInternal
   const [openMenuDomain, setOpenMenuDomain] = useState<string | null>(null)
+  const [menuAnchorRect, setMenuAnchorRect] = useState<{ top: number; left: number; right: number; bottom: number } | null>(null)
   const domainMenuRef = useRef<HTMLDivElement>(null)
   const [msg, setMsg] = useState('')
   const [msgType, setMsgType] = useState<'success' | 'error'>('success')
@@ -10232,8 +10243,16 @@ export function DomainManagerSection({
       if (target.closest('[data-domain-menu-trigger]')) return
       setOpenMenuDomain(null)
     }
+    // O popup é `fixed` (ancorado às coordenadas do botão no momento do clique) —
+    // não acompanha o scroll da lista, por isso fecha-se em vez de ficar "solto"
+    // no ecrã longe do botão que o abriu.
+    const handleScroll = () => setOpenMenuDomain(null)
     document.addEventListener('mousedown', handleClickOutside)
-    return () => document.removeEventListener('mousedown', handleClickOutside)
+    window.addEventListener('scroll', handleScroll, true)
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+      window.removeEventListener('scroll', handleScroll, true)
+    }
   }, [openMenuDomain])
 
   useEffect(() => {
@@ -10381,7 +10400,15 @@ export function DomainManagerSection({
         type="button"
         data-domain-menu-trigger
         className={domainCardBtn}
-        onClick={() => setOpenMenuDomain((prev) => (prev === d.domain ? null : d.domain))}
+        onClick={(e) => {
+          if (openMenuDomain === d.domain) {
+            setOpenMenuDomain(null)
+            return
+          }
+          const rect = e.currentTarget.getBoundingClientRect()
+          setMenuAnchorRect({ top: rect.top, left: rect.left, right: rect.right, bottom: rect.bottom })
+          setOpenMenuDomain(d.domain)
+        }}
         aria-expanded={openMenuDomain === d.domain}
         aria-haspopup="menu"
         aria-label="Mais opções"
@@ -10395,65 +10422,49 @@ export function DomainManagerSection({
     ? filteredDomains.find((row) => row.domain === openMenuDomain) || null
     : null
 
-  // Barra lateral de acções rápidas por domínio — substitui o antigo dropdown
-  // posicionado por linha (`absolute ... top-1/2`), que ficava cortado atrás do
-  // cabeçalho fixo quando aberto numa linha perto do topo da lista. Largura igual
-  // à barra lateral esquerda do painel (242px), consistente com o painel "Gerenciar"
-  // da página de detalhe do domínio.
-  const domainQuickActionsPanel = menuDomainRow && (
-    <>
-      <div
-        className="fixed inset-0 z-40 bg-black/20"
-        onClick={() => setOpenMenuDomain(null)}
-        aria-hidden="true"
-      />
+  // Popup flutuante ancorado ao botão "..." que o abriu (coordenadas capturadas
+  // no clique) — usa position:fixed em vez de absolute dentro da linha, para não
+  // voltar ao bug antigo de ficar cortado atrás do cabeçalho fixo quando a linha
+  // está perto do topo da lista.
+  const domainQuickActionsPanel = menuDomainRow && menuAnchorRect && (
       <div
         ref={domainMenuRef}
         role="menu"
-        className="fixed inset-y-0 right-0 z-50 w-[242px] overflow-y-auto border-l border-gray-200 bg-white shadow-xl dark:border-zinc-700 dark:bg-zinc-900"
+        style={{
+          position: 'fixed',
+          top: Math.min(menuAnchorRect.bottom + 4, window.innerHeight - 220),
+          right: Math.max(window.innerWidth - menuAnchorRect.right, 8),
+        }}
+        className="z-50 min-w-[11rem] overflow-hidden rounded border border-gray-200 bg-white py-1 shadow-lg dark:border-zinc-700 dark:bg-zinc-900"
       >
-        <div className="flex items-center justify-between border-b border-gray-100 px-4 py-3 dark:border-zinc-800">
-          <p className="truncate text-xs font-bold uppercase text-gray-500 dark:text-zinc-500">{menuDomainRow.domain}</p>
-          <button
-            type="button"
-            onClick={() => setOpenMenuDomain(null)}
-            className="shrink-0 text-gray-400 hover:text-red-600 dark:text-zinc-500 dark:hover:text-red-400"
-            aria-label="Fechar"
-          >
-            ✕
-          </button>
-        </div>
-        <div className="divide-y divide-gray-100 dark:divide-zinc-800">
-          <button
-            type="button"
-            className={domainCardMenuItem}
-            onClick={() => {
-              setOpenMenuDomain(null)
-              setAttachHostingSteps([])
-              setAttachHostingModal({ show: true, domain: menuDomainRow.domain, daUsername: '', saving: false })
-            }}
-          >
-            Associar
-          </button>
-          <button
-            type="button"
-            className={domainCardMenuItem}
-            onClick={() => {
-              setOpenMenuDomain(null)
-              setTransferOwnerModal({ show: true, domain: menuDomainRow.domain, targetEmail: '', saving: false })
-            }}
-          >
-            Mover
-          </button>
-          <button type="button" className={domainCardMenuItem} onClick={() => { setOpenMenuDomain(null); onNavigate?.('dns-central', { domain: menuDomainRow.domain }) }}>
-            Editar DNS
-          </button>
-          <button type="button" className={domainCardMenuItem} onClick={() => void handleSuspendDomain(menuDomainRow)}>
-            {domainHostingStateLabel(menuDomainRow) === 'Activo' ? 'Suspender' : 'Activar'}
-          </button>
-        </div>
+        <button
+          type="button"
+          className={domainCardMenuItem}
+          onClick={() => {
+            setOpenMenuDomain(null)
+            setAttachHostingSteps([])
+            setAttachHostingModal({ show: true, domain: menuDomainRow.domain, daUsername: '', saving: false })
+          }}
+        >
+          Associar
+        </button>
+        <button
+          type="button"
+          className={domainCardMenuItem}
+          onClick={() => {
+            setOpenMenuDomain(null)
+            setTransferOwnerModal({ show: true, domain: menuDomainRow.domain, targetEmail: '', saving: false })
+          }}
+        >
+          Mover
+        </button>
+        <button type="button" className={domainCardMenuItem} onClick={() => { setOpenMenuDomain(null); onNavigate?.('dns-central', { domain: menuDomainRow.domain }) }}>
+          Editar DNS
+        </button>
+        <button type="button" className={domainCardMenuItem} onClick={() => void handleSuspendDomain(menuDomainRow)}>
+          {domainHostingStateLabel(menuDomainRow) === 'Activo' ? 'Suspender' : 'Activar'}
+        </button>
       </div>
-    </>
   )
 
   if (hubMode && hubPanel === 'add') {

@@ -589,16 +589,15 @@ export function DomainDetailSection({ domain, sites, onNavigate, onRefresh, setA
             )}
           </div>
 
-          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-            {!clientMode && (
-              <div className="rounded border border-gray-200 bg-white p-5 dark:border-zinc-700 dark:bg-zinc-900">
-                <h3 className="mb-3 text-sm font-bold text-gray-900 dark:text-zinc-100">Nameservers</h3>
-                <NameserverManagementSection sites={sites} initialDomain={domain} />
-              </div>
-            )}
-
+          {!clientMode && (
             <div className="rounded border border-gray-200 bg-white p-5 dark:border-zinc-700 dark:bg-zinc-900">
-              <p className="mb-4 text-xs text-gray-500 dark:text-zinc-500">Gestão de registo e transferência</p>
+              <h3 className="mb-3 text-sm font-bold text-gray-900 dark:text-zinc-100">Nameservers</h3>
+              <NameserverManagementSection sites={sites} initialDomain={domain} lockDomain />
+            </div>
+          )}
+
+          <div className="rounded border border-gray-200 bg-white p-5 dark:border-zinc-700 dark:bg-zinc-900">
+            <p className="mb-4 text-xs text-gray-500 dark:text-zinc-500">Gestão de registo e transferência</p>
 
               <div className="rounded border border-gray-100 p-4 dark:border-zinc-800">
                 <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
@@ -726,7 +725,6 @@ export function DomainDetailSection({ domain, sites, onNavigate, onRefresh, setA
                 )}
               </div>
             </div>
-          </div>
 
           {site && !clientMode && (
             <div className="rounded border border-gray-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-900">
