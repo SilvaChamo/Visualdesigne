@@ -1,0 +1,35 @@
+name: 'ops: testar se o Contabo consegue falar com a API do DirectAdmin (so-leitura)'
+
+on:
+  workflow_dispatch: {}
+
+jobs:
+  from-contabo:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Testar chamada de leitura à API do DA a partir do Contabo
+        uses: appleboy/ssh-action@v1.2.5
+        with:
+          host: ${{ secrets.CONTABO_HOST }}
+          username: root
+          key: ${{ secrets.CONTABO_SSH_KEY }}
+          script: |
+            cd /opt/visualdesign-site-teste
+            USER=$(grep "^DIRECTADMIN_USER=" .env.local | cut -d= -f2-)
+            KEY=$(grep "^DIRECTADMIN_LOGIN_KEY=" .env.local | cut -d= -f2-)
+            curl -s -u "${USER}:${KEY}" "https://host.visualdesignmoz.com:2026/CMD_API_SHOW_USER_CONFIG?user=oshercollective&json=yes" -w "\nHTTP:%{http_code}\n"
+  from-hetzner:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Testar a mesma chamada a partir do Hetzner
+        uses: appleboy/ssh-action@v1.2.5
+        with:
+          host: ${{ secrets.HETZNER_HOST }}
+          port: ${{ secrets.HETZNER_PORT }}
+          username: ${{ secrets.HETZNER_USER }}
+          key: ${{ secrets.HETZNER_SSH_KEY }}
+          script: |
+            cd /opt/visualdesign-site
+            USER=$(grep "^DIRECTADMIN_USER=" .env.local | cut -d= -f2-)
+            KEY=$(grep "^DIRECTADMIN_LOGIN_KEY=" .env.local | cut -d= -f2-)
+            curl -s -u "${USER}:${KEY}" "https://host.visualdesignmoz.com:2026/CMD_API_SHOW_USER_CONFIG?user=oshercollective&json=yes" -w "\nHTTP:%{http_code}\n"
