@@ -9,11 +9,13 @@ import {
 import { Spinner } from '@/components/ui/spinner'
 import { panelBtnPrimary, panelBtnSecondary, panelField } from '@/lib/panel-ui'
 import type { DirectAdminWebsite } from '@/lib/directadmin-api'
+import { NameserverManagementSection } from './HostingSections'
 
 type RegistrarInfo = {
   isLocked: boolean | null
   autoRenew: boolean | null
   expireDate: string
+  registrationDate: string
   status: string
   nameservers: string[]
   privacyEnabled: boolean | null
@@ -69,7 +71,7 @@ export function DomainDetailSection({ domain, sites, onNavigate, onRefresh, setA
   }
 
   const [registrarLoading, setRegistrarLoading] = useState(false)
-  const [registrar, setRegistrar] = useState<RegistrarInfo>({ isLocked: null, autoRenew: null, expireDate: '', status: '', nameservers: [], privacyEnabled: null, dnssecEnabled: null })
+  const [registrar, setRegistrar] = useState<RegistrarInfo>({ isLocked: null, autoRenew: null, expireDate: '', registrationDate: '', status: '', nameservers: [], privacyEnabled: null, dnssecEnabled: null })
   const [authCode, setAuthCode] = useState('')
   const [authCodeExpires, setAuthCodeExpires] = useState('')
 
@@ -134,6 +136,7 @@ export function DomainDetailSection({ domain, sites, onNavigate, onRefresh, setA
           isLocked: typeof data.isLocked === 'boolean' ? data.isLocked : null,
           autoRenew: typeof data.autoRenew === 'boolean' ? data.autoRenew : null,
           expireDate: data.expireDate || '',
+          registrationDate: data.registrationDate || '',
           status: data.status || '',
           nameservers: ns,
           privacyEnabled: typeof data.privacyEnabled === 'boolean' ? data.privacyEnabled : null,
@@ -192,7 +195,7 @@ export function DomainDetailSection({ domain, sites, onNavigate, onRefresh, setA
   }
 
   useEffect(() => {
-    setRegistrar({ isLocked: null, autoRenew: null, expireDate: '', status: '', nameservers: [], privacyEnabled: null, dnssecEnabled: null })
+    setRegistrar({ isLocked: null, autoRenew: null, expireDate: '', registrationDate: '', status: '', nameservers: [], privacyEnabled: null, dnssecEnabled: null })
     setAuthCode('')
     setAuthCodeExpires('')
     setHealth(null)
@@ -430,6 +433,7 @@ export function DomainDetailSection({ domain, sites, onNavigate, onRefresh, setA
     )
   }
 
+  const registrationDate = registrar.registrationDate || renewal?.registrationDate || ''
   const expireDate = registrar.expireDate || renewal?.expirationDate || ''
   const daysRemaining = expireDate ? getDaysUntilExpiration(expireDate) : null
   const allHealthy = health ? health.dns.ok && health.server.ok && health.ssl.ok : false
@@ -486,7 +490,7 @@ export function DomainDetailSection({ domain, sites, onNavigate, onRefresh, setA
                 <p className="text-xs text-gray-500 dark:text-zinc-400">Data de Registo</p>
                 <p className="mt-1 flex items-center gap-1.5 text-sm font-bold text-gray-900 dark:text-zinc-100">
                   <Calendar className="h-4 w-4 text-gray-400" />
-                  {formatDateLabel(renewal?.registrationDate)}
+                  {formatDateLabel(registrationDate)}
                 </p>
               </div>
               <div className="rounded border border-gray-100 bg-gray-50 p-3 dark:border-zinc-800 dark:bg-zinc-950">
@@ -585,7 +589,13 @@ export function DomainDetailSection({ domain, sites, onNavigate, onRefresh, setA
             )}
           </div>
 
-          <div className={`grid grid-cols-1 gap-4 ${registrar.isLocked !== null && !clientMode ? 'lg:grid-cols-2' : ''}`}>
+          {!clientMode && (
+            <div className="rounded border border-gray-200 bg-white p-5 dark:border-zinc-700 dark:bg-zinc-900">
+              <h3 className="mb-3 text-sm font-bold text-gray-900 dark:text-zinc-100">Nameservers</h3>
+              <NameserverManagementSection sites={sites} initialDomain={domain} />
+            </div>
+          )}
+
           {registrar.isLocked !== null && (
             <div className="rounded border border-gray-200 bg-white p-5 dark:border-zinc-700 dark:bg-zinc-900">
               <p className="mb-4 text-xs text-gray-500 dark:text-zinc-500">Gestão de registo e transferência</p>
@@ -702,6 +712,182 @@ export function DomainDetailSection({ domain, sites, onNavigate, onRefresh, setA
             </div>
           )}
 
+          {site && !clientMode && (
+            <div className="rounded border border-gray-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-900">
+              <p className="mb-3 text-xs font-bold uppercase text-gray-500 dark:text-zinc-500">Zona perigosa</p>
+              <button
+                type="button"
+                onClick={() => void handleRemoveHosting()}
+                className={`${panelBtnSecondary} border-red-300 text-red-600 hover:text-red-600 dark:border-red-800 dark:text-red-400`}
+              >
+                <Trash2 className="h-4 w-4" /> Eliminar domínio de hospedagem
+              </button>
+            </div>
+          )}
+        </div>
+
+        <div className="space-y-4">
+          <div className="rounded border border-gray-200 bg-white dark:border-zinc-700 dark:bg-zinc-900">
+            <div className="border-b border-gray-100 px-4 py-3 dark:border-zinc-800">
+              <h3 className="text-xs font-bold uppercase text-gray-500 dark:text-zinc-500">Gerenciar</h3>
+            </div>
+            <div className="divide-y divide-gray-100 dark:divide-zinc-800">
+              {registrar.isLocked !== null && (
+                <div
+                  className="flex w-full items-center gap-3 px-4 py-3 text-sm text-gray-700 dark:text-zinc-300"
+                  title={registrar.isLocked ? 'Bloqueado para transferência' : 'Desbloqueado — pode ser transferido'}
+                >
+                  {registrar.isLocked ? (
+                    <Lock className="h-4 w-4 shrink-0 text-green-600" />
+                  ) : (
+                    <LockOpen className="h-4 w-4 shrink-0 text-amber-500" />
+                  )}
+                  <span className="flex-1">
+                    Bloqueio de transferência
+                    <span className="mt-0.5 block text-xs text-gray-500 dark:text-zinc-500">
+                      {registrar.isLocked ? 'Bloqueado' : 'Desbloqueado'}
+                    </span>
+                  </span>
+                </div>
+              )}
+              <div className="flex w-full items-center gap-3 px-4 py-3 text-sm text-gray-700 dark:text-zinc-300">
+                <RefreshCw className="h-4 w-4 shrink-0 text-gray-400" />
+                <span className="flex-1">
+                  Renovação Automática
+                  {registrar.autoRenew !== null && (
+                    <span className="mt-0.5 block text-xs text-gray-500 dark:text-zinc-500">
+                      {registrar.autoRenew ? 'Activa' : 'Inactiva'}
+                    </span>
+                  )}
+                </span>
+                {registrarLoading ? (
+                  <Spinner className="h-4 w-4 shrink-0" />
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => void handleToggleAutoRenew()}
+                    disabled={registrar.autoRenew === null}
+                    aria-pressed={registrar.autoRenew === true}
+                    aria-label="Alternar renovação automática"
+                    className={`relative h-6 w-12 shrink-0 rounded-full transition-colors disabled:opacity-50 ${
+                      registrar.autoRenew ? 'bg-green-500' : 'bg-gray-300 dark:bg-zinc-700'
+                    }`}
+                  >
+                    <span
+                      className={`absolute left-1 top-1 h-4 w-4 rounded-full bg-white shadow transition-transform ${
+                        registrar.autoRenew ? 'translate-x-6' : ''
+                      }`}
+                    />
+                  </button>
+                )}
+              </div>
+              <button
+                type="button"
+                onClick={() => showMsg('Disponível em breve — a gestão de WHOIS ainda não está ligada ao registador.', 'error')}
+                className="flex w-full items-center gap-3 px-4 py-3 text-left text-sm text-gray-400 dark:text-zinc-600"
+              >
+                <ShieldCheck className="h-4 w-4 shrink-0" />
+                <span className="flex-1">
+                  Informações de Contacto
+                  <span className="mt-0.5 block text-xs text-gray-400 dark:text-zinc-600">Em breve</span>
+                </span>
+              </button>
+              <button
+                type="button"
+                onClick={() => onNavigate?.('dns-central', { domain })}
+                className="flex w-full items-center gap-3 px-4 py-3 text-left text-sm text-gray-700 hover:text-red-600 dark:text-zinc-300 dark:hover:text-red-400"
+              >
+                <Cloud className="h-4 w-4 shrink-0" />
+                Gerenciar DNS
+              </button>
+              <div className="flex w-full items-center gap-3 px-4 py-3 text-sm text-gray-700 dark:text-zinc-300">
+                <ShieldCheck className={`h-4 w-4 shrink-0 ${registrar.privacyEnabled ? 'text-green-600' : 'text-gray-400'}`} />
+                <span className="flex-1">
+                  Protecção de Privacidade
+                  <span className="mt-0.5 block text-xs text-gray-500 dark:text-zinc-500">
+                    {registrar.privacyEnabled === null ? '—' : registrar.privacyEnabled ? 'Activa (dados WHOIS ocultos)' : 'Inactiva'}
+                  </span>
+                </span>
+              </div>
+              <div className="flex w-full items-center gap-3 px-4 py-3 text-sm text-gray-700 dark:text-zinc-300">
+                <ShieldAlert className={`h-4 w-4 shrink-0 ${registrar.dnssecEnabled ? 'text-green-600' : 'text-gray-400'}`} />
+                <span className="flex-1">
+                  DNSSEC
+                  <span className="mt-0.5 block text-xs text-gray-500 dark:text-zinc-500">
+                    {registrar.dnssecEnabled === null ? '—' : registrar.dnssecEnabled ? 'Configurado' : 'Não configurado'}
+                  </span>
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => showMsg('O registador não disponibiliza redireccionamento de URL por API. Use "Redireccionar domínio" mais abaixo, que funciona através da hospedagem.', 'error')}
+                className="flex w-full items-center gap-3 px-4 py-3 text-left text-sm text-gray-400 dark:text-zinc-600"
+              >
+                <ArrowRightLeft className="h-4 w-4 shrink-0" />
+                <span className="flex-1">
+                  Encaminhamento de URL
+                  <span className="mt-0.5 block text-xs text-gray-400 dark:text-zinc-600">Não suportado pelo registador</span>
+                </span>
+              </button>
+              <button
+                type="button"
+                onClick={() => onNavigate?.('cp-email-mgmt', { domain })}
+                className="flex w-full items-center gap-3 px-4 py-3 text-left text-sm text-gray-700 hover:text-red-600 dark:text-zinc-300 dark:hover:text-red-400"
+              >
+                <Mail className="h-4 w-4 shrink-0" />
+                Criar e-mail
+              </button>
+              <button
+                type="button"
+                onClick={() => window.open(`https://${domain}`, '_blank', 'noopener,noreferrer')}
+                className="flex w-full items-center gap-3 px-4 py-3 text-left text-sm text-gray-700 hover:text-red-600 dark:text-zinc-300 dark:hover:text-red-400"
+              >
+                <ExternalLink className="h-4 w-4 shrink-0" />
+                Abrir site
+              </button>
+            </div>
+          </div>
+
+          <div className="rounded border border-gray-200 bg-white dark:border-zinc-700 dark:bg-zinc-900">
+            <div className="border-b border-gray-100 px-4 py-3 dark:border-zinc-800">
+              <h3 className="text-xs font-bold uppercase text-gray-500 dark:text-zinc-500">Acções</h3>
+            </div>
+            <div className="divide-y divide-gray-100 dark:divide-zinc-800">
+              <button
+                type="button"
+                onClick={() => onNavigate?.('cadastrar-renovacao', { domain })}
+                className="flex w-full items-center gap-3 px-4 py-3 text-left text-sm text-gray-700 hover:text-red-600 dark:text-zinc-300 dark:hover:text-red-400"
+              >
+                <RefreshCw className="h-4 w-4 shrink-0" />
+                Renovar Domínio
+              </button>
+              <button
+                type="button"
+                onClick={() => window.open('/servicos/dominios', '_blank', 'noopener,noreferrer')}
+                className="flex w-full items-center gap-3 px-4 py-3 text-left text-sm text-gray-700 hover:text-red-600 dark:text-zinc-300 dark:hover:text-red-400"
+              >
+                <PlusCircle className="h-4 w-4 shrink-0" />
+                Registrar Novo Domínio
+              </button>
+            </div>
+            {reprovisionSteps && (
+              <div className="border-t border-gray-100 p-4 dark:border-zinc-800">
+                <div className="space-y-1.5">
+                  {reprovisionSteps.map((s) => (
+                    <div key={s.step} className="flex items-center justify-between gap-2 text-xs">
+                      <span className="text-gray-600 dark:text-zinc-400">{s.step}</span>
+                      {s.ok ? (
+                        <span className="flex items-center gap-1 text-green-600 dark:text-green-400"><CheckCircle className="h-3.5 w-3.5" /> OK</span>
+                      ) : (
+                        <span className="flex items-center gap-1 text-red-600 dark:text-red-400" title={s.error}><XCircle className="h-3.5 w-3.5" /> {s.error || 'falhou'}</span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
           {!clientMode && (
             <div className="rounded border border-gray-200 bg-white dark:border-zinc-700 dark:bg-zinc-900">
               <button
@@ -772,151 +958,6 @@ export function DomainDetailSection({ domain, sites, onNavigate, onRefresh, setA
               )}
             </div>
           )}
-          </div>
-
-          {site && !clientMode && (
-            <div className="rounded border border-gray-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-900">
-              <p className="mb-3 text-xs font-bold uppercase text-gray-500 dark:text-zinc-500">Zona perigosa</p>
-              <button
-                type="button"
-                onClick={() => void handleRemoveHosting()}
-                className={`${panelBtnSecondary} border-red-300 text-red-600 hover:text-red-600 dark:border-red-800 dark:text-red-400`}
-              >
-                <Trash2 className="h-4 w-4" /> Eliminar domínio de hospedagem
-              </button>
-            </div>
-          )}
-        </div>
-
-        <div className="space-y-4">
-          <div className="rounded border border-gray-200 bg-white dark:border-zinc-700 dark:bg-zinc-900">
-            <div className="border-b border-gray-100 px-4 py-3 dark:border-zinc-800">
-              <h3 className="text-xs font-bold uppercase text-gray-500 dark:text-zinc-500">Gerenciar</h3>
-            </div>
-            <div className="divide-y divide-gray-100 dark:divide-zinc-800">
-              <button
-                type="button"
-                onClick={() => void handleToggleAutoRenew()}
-                disabled={registrarLoading || registrar.autoRenew === null}
-                className="flex w-full items-center justify-between px-4 py-3 text-left text-sm text-gray-700 hover:text-red-600 disabled:opacity-50 dark:text-zinc-300 dark:hover:text-red-400"
-              >
-                <span>
-                  Renovação Automática
-                  {registrar.autoRenew !== null && (
-                    <span className="mt-0.5 block text-xs text-gray-500 dark:text-zinc-500">
-                      {registrar.autoRenew ? 'Activa' : 'Inactiva'}
-                    </span>
-                  )}
-                </span>
-                {registrarLoading ? <Spinner className="h-4 w-4 shrink-0" /> : <RefreshCw className="h-4 w-4 shrink-0" />}
-              </button>
-              <button
-                type="button"
-                onClick={() => showMsg('Disponível em breve — a gestão de WHOIS ainda não está ligada ao registador.', 'error')}
-                className="flex w-full items-center justify-between px-4 py-3 text-left text-sm text-gray-400 dark:text-zinc-600"
-              >
-                <span>
-                  Informações de Contacto
-                  <span className="mt-0.5 block text-xs text-gray-400 dark:text-zinc-600">Em breve</span>
-                </span>
-                <ShieldCheck className="h-4 w-4 shrink-0" />
-              </button>
-              <button
-                type="button"
-                onClick={() => onNavigate?.('dns-central', { domain })}
-                className="flex w-full items-center justify-between px-4 py-3 text-left text-sm text-gray-700 hover:text-red-600 dark:text-zinc-300 dark:hover:text-red-400"
-              >
-                Gerenciar DNS
-                <Cloud className="h-4 w-4 shrink-0" />
-              </button>
-              <div className="flex w-full items-center justify-between px-4 py-3 text-sm text-gray-700 dark:text-zinc-300">
-                <span>
-                  Protecção de Privacidade
-                  <span className="mt-0.5 block text-xs text-gray-500 dark:text-zinc-500">
-                    {registrar.privacyEnabled === null ? '—' : registrar.privacyEnabled ? 'Activa (dados WHOIS ocultos)' : 'Inactiva'}
-                  </span>
-                </span>
-                <ShieldCheck className={`h-4 w-4 shrink-0 ${registrar.privacyEnabled ? 'text-green-600' : 'text-gray-400'}`} />
-              </div>
-              <div className="flex w-full items-center justify-between px-4 py-3 text-sm text-gray-700 dark:text-zinc-300">
-                <span>
-                  DNSSEC
-                  <span className="mt-0.5 block text-xs text-gray-500 dark:text-zinc-500">
-                    {registrar.dnssecEnabled === null ? '—' : registrar.dnssecEnabled ? 'Configurado' : 'Não configurado'}
-                  </span>
-                </span>
-                <ShieldAlert className={`h-4 w-4 shrink-0 ${registrar.dnssecEnabled ? 'text-green-600' : 'text-gray-400'}`} />
-              </div>
-              <button
-                type="button"
-                onClick={() => showMsg('O registador não disponibiliza redireccionamento de URL por API. Use "Redireccionar domínio" mais abaixo, que funciona através da hospedagem.', 'error')}
-                className="flex w-full items-center justify-between px-4 py-3 text-left text-sm text-gray-400 dark:text-zinc-600"
-              >
-                <span>
-                  Encaminhamento de URL
-                  <span className="mt-0.5 block text-xs text-gray-400 dark:text-zinc-600">Não suportado pelo registador</span>
-                </span>
-                <ArrowRightLeft className="h-4 w-4 shrink-0" />
-              </button>
-              <button
-                type="button"
-                onClick={() => onNavigate?.('cp-email-mgmt', { domain })}
-                className="flex w-full items-center justify-between px-4 py-3 text-left text-sm text-gray-700 hover:text-red-600 dark:text-zinc-300 dark:hover:text-red-400"
-              >
-                Criar e-mail
-                <Mail className="h-4 w-4 shrink-0" />
-              </button>
-              <button
-                type="button"
-                onClick={() => window.open(`https://${domain}`, '_blank', 'noopener,noreferrer')}
-                className="flex w-full items-center justify-between px-4 py-3 text-left text-sm text-gray-700 hover:text-red-600 dark:text-zinc-300 dark:hover:text-red-400"
-              >
-                Abrir site
-                <ExternalLink className="h-4 w-4 shrink-0" />
-              </button>
-            </div>
-          </div>
-
-          <div className="rounded border border-gray-200 bg-white dark:border-zinc-700 dark:bg-zinc-900">
-            <div className="border-b border-gray-100 px-4 py-3 dark:border-zinc-800">
-              <h3 className="text-xs font-bold uppercase text-gray-500 dark:text-zinc-500">Ações</h3>
-            </div>
-            <div className="divide-y divide-gray-100 dark:divide-zinc-800">
-              <button
-                type="button"
-                onClick={() => onNavigate?.('cadastrar-renovacao', { domain })}
-                className="flex w-full items-center justify-between px-4 py-3 text-left text-sm text-gray-700 hover:text-red-600 dark:text-zinc-300 dark:hover:text-red-400"
-              >
-                Renovar Domínio
-                <RefreshCw className="h-4 w-4 shrink-0" />
-              </button>
-              <button
-                type="button"
-                onClick={() => window.open('/servicos/dominios', '_blank', 'noopener,noreferrer')}
-                className="flex w-full items-center justify-between px-4 py-3 text-left text-sm text-gray-700 hover:text-red-600 dark:text-zinc-300 dark:hover:text-red-400"
-              >
-                Registrar Novo Domínio
-                <PlusCircle className="h-4 w-4 shrink-0" />
-              </button>
-            </div>
-            {reprovisionSteps && (
-              <div className="border-t border-gray-100 p-4 dark:border-zinc-800">
-                <div className="space-y-1.5">
-                  {reprovisionSteps.map((s) => (
-                    <div key={s.step} className="flex items-center justify-between gap-2 text-xs">
-                      <span className="text-gray-600 dark:text-zinc-400">{s.step}</span>
-                      {s.ok ? (
-                        <span className="flex items-center gap-1 text-green-600 dark:text-green-400"><CheckCircle className="h-3.5 w-3.5" /> OK</span>
-                      ) : (
-                        <span className="flex items-center gap-1 text-red-600 dark:text-red-400" title={s.error}><XCircle className="h-3.5 w-3.5" /> {s.error || 'falhou'}</span>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-
         </div>
       </div>
     </div>

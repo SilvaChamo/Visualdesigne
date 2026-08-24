@@ -10215,27 +10215,6 @@ export function DomainManagerSection({
     }
   }
 
-  const handleToggleAutoRenew = async (domain: string) => {
-    setOpenMenuDomain(null)
-    if (!confirm(`Desactivar a renovação automática de "${domain}"? O domínio deixa de renovar sozinho quando expirar.`)) return
-    try {
-      const res = await fetch('/api/admin/domains/auto-renew', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ domain, autoRenew: false }),
-      })
-      const data = await res.json().catch(() => ({}))
-      if (res.ok && data.success) {
-        showMsg(data.message || 'Renovação automática desactivada.')
-      } else {
-        showMsg(data.error || 'Erro ao desactivar renovação automática', 'error')
-      }
-    } catch (e: unknown) {
-      showMsg(e instanceof Error ? e.message : 'Erro de ligação', 'error')
-    }
-  }
-
   const panelBtnRow = domainCardBtn
 
   useEffect(() => {
@@ -10257,27 +10236,6 @@ export function DomainManagerSection({
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [openMenuDomain])
 
-  const handleRenewDomain = async (domain: string) => {
-    setOpenMenuDomain(null)
-    try {
-      const res = await fetch('/api/renewals?type=domain', { credentials: 'include' })
-      const data = await res.json()
-      if (res.ok && data.success) {
-        const renewal = (data.domains || []).find(
-          (r: { domain_name?: string }) => r.domain_name?.toLowerCase() === domain.toLowerCase(),
-        )
-        if (renewal?.id) {
-          window.location.href = `/renovacao/iniciar/domain/${renewal.id}`
-          return
-        }
-      }
-    } catch {
-      /* fallback abaixo */
-    }
-    onNavigate?.('facturas')
-    showMsg('Renovação não encontrada para este domínio. Verifique em Facturas.', 'error')
-  }
-
   useEffect(() => {
     if (newDomain) setDocRoot(newDomain)
   }, [newDomain])
@@ -10292,18 +10250,29 @@ export function DomainManagerSection({
     setOpenMenuDomain(null)
     const isActive = domainHostingStateLabel(d) === 'Activo'
     const verb = isActive ? 'suspender' : 'activar'
+    if (!d.owner) {
+      showMsg('Não foi possível identificar a conta de hospedagem deste domínio.', 'error')
+      return
+    }
     if (!confirm(`Deseja ${verb} o domínio "${d.domain}"?`)) return
     setLoading(true)
     try {
-      const ok = isActive
-        ? await directAdminAPI.suspendWebsite(d.domain)
-        : await directAdminAPI.unsuspendWebsite(d.domain)
-      if (ok) {
-        await syncWebsiteToSupabase({ domain: d.domain, status: isActive ? 'Suspended' : 'Active' })
+      // PATCH /api/admin/clientes resolve o servidor certo (DirectAdmin ou
+      // Hestia) por conta antes de agir — chamar directAdminAPI directamente
+      // aqui falhava sempre para contas Hestia (ex.: elimservicos, aamihe),
+      // que vivem noutro servidor.
+      const res = await fetch('/api/admin/clientes', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ action: isActive ? 'suspend' : 'unsuspend', userName: d.owner }),
+      })
+      const resJson = await res.json().catch(() => ({}))
+      if (res.ok && resJson.success) {
         showMsg(`Domínio ${isActive ? 'suspenso' : 'activado'} com sucesso.`)
         await onRefresh?.()
       } else {
-        showMsg(`Erro ao ${verb} o domínio.`, 'error')
+        showMsg(resJson.data?.error || resJson.error || `Erro ao ${verb} o domínio.`, 'error')
       }
     } catch (e: unknown) {
       showMsg(e instanceof Error ? e.message : `Erro ao ${verb} o domínio.`, 'error')
@@ -10455,31 +10424,6 @@ export function DomainManagerSection({
           </button>
         </div>
         <div className="divide-y divide-gray-100 dark:divide-zinc-800">
-          <button type="button" className={domainCardMenuItem} onClick={() => { setOpenMenuDomain(null); setEmailModal({ show: true, domain: menuDomainRow.domain }) }}>
-            Criar e-mail
-          </button>
-          <button type="button" className={domainCardMenuItem} onClick={() => { setOpenMenuDomain(null); onNavigate?.('dns-central', { domain: menuDomainRow.domain }) }}>
-            Editar Zona de DNS
-          </button>
-          <button type="button" className={domainCardMenuItem} onClick={() => void handleRenewDomain(menuDomainRow.domain)}>
-            Renovar domínio
-          </button>
-          <button type="button" className={domainCardMenuItem} onClick={() => openManage(menuDomainRow)}>
-            Redireccionamento
-          </button>
-          <button type="button" className={domainCardMenuItem} onClick={() => void handleSuspendDomain(menuDomainRow)}>
-            {domainHostingStateLabel(menuDomainRow) === 'Activo' ? 'Suspender domínio' : 'Activar domínio'}
-          </button>
-          <button
-            type="button"
-            className={domainCardMenuItem}
-            onClick={() => {
-              setOpenMenuDomain(null)
-              setTransferOwnerModal({ show: true, domain: menuDomainRow.domain, targetEmail: '', saving: false })
-            }}
-          >
-            Mover para outra conta
-          </button>
           <button
             type="button"
             className={domainCardMenuItem}
@@ -10489,20 +10433,23 @@ export function DomainManagerSection({
               setAttachHostingModal({ show: true, domain: menuDomainRow.domain, daUsername: '', saving: false })
             }}
           >
-            Associar a hospedagem existente
-          </button>
-          <button type="button" className={domainCardMenuItem} onClick={() => void handleToggleAutoRenew(menuDomainRow.domain)}>
-            Desactivar renovação automática
+            Associar
           </button>
           <button
             type="button"
             className={domainCardMenuItem}
             onClick={() => {
               setOpenMenuDomain(null)
-              window.open(`https://${menuDomainRow.domain}`, '_blank', 'noopener,noreferrer')
+              setTransferOwnerModal({ show: true, domain: menuDomainRow.domain, targetEmail: '', saving: false })
             }}
           >
-            Visitar site
+            Mover
+          </button>
+          <button type="button" className={domainCardMenuItem} onClick={() => { setOpenMenuDomain(null); onNavigate?.('dns-central', { domain: menuDomainRow.domain }) }}>
+            Editar DNS
+          </button>
+          <button type="button" className={domainCardMenuItem} onClick={() => void handleSuspendDomain(menuDomainRow)}>
+            {domainHostingStateLabel(menuDomainRow) === 'Activo' ? 'Suspender' : 'Activar'}
           </button>
         </div>
       </div>
@@ -10593,8 +10540,15 @@ export function DomainManagerSection({
                   </div>
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center justify-start gap-2">
-                      <span className="text-base font-bold text-gray-900 dark:text-zinc-100">{baseName}</span>
-                      {tld && <span className="text-sm font-medium text-gray-400 dark:text-zinc-500">{tld}</span>}
+                      <a
+                        href={`https://${d.domain}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-base font-bold text-gray-900 hover:text-red-600 hover:underline dark:text-zinc-100 dark:hover:text-red-400"
+                      >
+                        {baseName}
+                        {tld}
+                      </a>
                       {hasSsl ? (
                         <span className="flex items-center gap-1 rounded border border-green-200 bg-green-50 px-1.5 py-0.5 text-[10px] font-bold text-green-700 dark:border-green-900/40 dark:bg-green-950/30 dark:text-green-400">
                           <Lock className="h-3 w-3" /> SSL

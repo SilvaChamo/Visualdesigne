@@ -1331,7 +1331,7 @@ function AdminPageContent() {
             }}
             onNavigate={(section, opts) => {
               if (opts?.domain) setSelectedDNSDomain(opts.domain)
-              handleNavigate(section)
+              handleNavigate(section, opts)
             }}
             onHubPanelClose={() => setDomainHubTab('meus')}
           />
@@ -1392,7 +1392,7 @@ function AdminPageContent() {
             }}
             onNavigate={(section, opts) => {
               if (opts?.domain) setSelectedDNSDomain(opts.domain)
-              handleNavigate(section)
+              handleNavigate(section, opts)
             }}
             onHubPanelClose={() => setDomainHubTab('meus')}
           />
@@ -1773,7 +1773,7 @@ function AdminPageContent() {
   }
 
   // Função para navegar com domínio padrão para emails
-  const handleNavigate = (section: string, opts?: { accountType?: 'client' | 'reseller' | 'admin' }) => {
+  const handleNavigate = (section: string, opts?: { accountType?: 'client' | 'reseller' | 'admin'; domain?: string }) => {
     const externalPath = PANEL_EXTERNAL_PATHS[section]
     if (externalPath) {
       router.push(externalPath)
@@ -1820,6 +1820,12 @@ function AdminPageContent() {
     if (nav.domainHubTab) setDomainHubTab(nav.domainHubTab)
     if (nav.openPackagesCreate) setPackagesOpenCreate(true)
     else if (nav.section !== 'packages-list') setPackagesOpenCreate(false)
+    // Definir o domínio na mesma passagem que activeSection — se ficasse só
+    // para o efeito que lê window.__selectedManageDomain, a primeira
+    // renderização de "domain-detail" usava primaryDomain (errado) durante
+    // um ciclo, antes do efeito corrigir; os cartões de pacote/conta ficavam
+    // a faltar ou trocados até algo forçar outra renderização.
+    if (nav.section === 'domain-detail' && opts?.domain) setSelectedManageDomain(opts.domain)
     setActiveSection(nav.section)
   }
 

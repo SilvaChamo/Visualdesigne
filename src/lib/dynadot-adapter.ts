@@ -239,6 +239,7 @@ export const dynadotAPI = {
         isLocked?: boolean;
         autoRenew?: boolean;
         expireDate?: string;
+        registrationDate?: string;
         status?: string;
         nameservers?: string[];
         privacyEnabled?: boolean;
@@ -258,6 +259,7 @@ export const dynadotAPI = {
       isLocked: info.locked === 'Yes',
       autoRenew: info.renew_option === 'auto-renew',
       expireDate: info.expiration ? new Date(info.expiration).toISOString().slice(0, 10) : undefined,
+      registrationDate: info.registration ? new Date(info.registration).toISOString().slice(0, 10) : undefined,
       status: info.status,
       nameservers: (info.glueInfo?.name_server_settings?.name_servers || [])
         .map((n) => n.server_name)
