@@ -7,7 +7,7 @@
 import { getBrevoApiKey } from '@/lib/brevo-mail';
 
 export type BrevoDnsRecord = {
-  type: 'TXT';
+  type: 'TXT' | 'CNAME';
   hostName: string; // relativo ao domínio, ex: 'mail._domainkey' ou '' (raiz)
   value: string;
   status: boolean; // já verificado pela Brevo?
@@ -16,19 +16,29 @@ export type BrevoDnsRecord = {
 export type BrevoDomainAuthResult = {
   ok: boolean;
   domainName: string;
-  dkim?: BrevoDnsRecord;
+  /** 1 ou 2 registos, consoante a Brevo devolva o DKIM antigo (TXT único)
+   * ou o novo esquema de dois CNAME (dkim1Record/dkim2Record). */
+  dkim: BrevoDnsRecord[];
   brevoCode?: BrevoDnsRecord;
   alreadyExisted: boolean;
   error?: string;
 };
+
+type BrevoDnsRecordRaw = { type: string; value: string; host_name: string; status: boolean };
 
 type BrevoCreateDomainResponse = {
   id?: string;
   domain_name?: string;
   message?: string;
   dns_records?: {
-    dkim_record?: { type: string; value: string; host_name: string; status: boolean };
-    brevo_code?: { type: string; value: string; host_name: string; status: boolean };
+    // Esquema antigo (domínios mais antigos) — um único TXT.
+    dkim_record?: BrevoDnsRecordRaw;
+    // Esquema actual (visto pela primeira vez 24 ago, domínios novos) —
+    // dois CNAME. A Brevo devolve os dois campos sempre, mas dkim_record
+    // vem a null quando está neste esquema novo.
+    dkim1Record?: BrevoDnsRecordRaw;
+    dkim2Record?: BrevoDnsRecordRaw;
+    brevo_code?: BrevoDnsRecordRaw;
   };
 };
 
@@ -47,23 +57,25 @@ function brevoHeaders(apiKey: string) {
   };
 }
 
+function toRecord(raw?: BrevoDnsRecordRaw): BrevoDnsRecord | undefined {
+  if (!raw) return undefined;
+  return {
+    type: raw.type === 'CNAME' ? 'CNAME' : 'TXT',
+    hostName: (raw.host_name || '').replace(/\.$/, ''),
+    value: raw.value,
+    status: Boolean(raw.status),
+  };
+}
+
 function parseRecords(dns?: BrevoCreateDomainResponse['dns_records']) {
-  const dkim = dns?.dkim_record
-    ? {
-        type: 'TXT' as const,
-        hostName: (dns.dkim_record.host_name || '').replace(/\.$/, ''),
-        value: dns.dkim_record.value,
-        status: Boolean(dns.dkim_record.status),
-      }
-    : undefined;
-  const brevoCode = dns?.brevo_code
-    ? {
-        type: 'TXT' as const,
-        hostName: (dns.brevo_code.host_name || '').replace(/\.$/, ''),
-        value: dns.brevo_code.value,
-        status: Boolean(dns.brevo_code.status),
-      }
-    : undefined;
+  // Esquema novo (dois CNAME) tem prioridade — é o que a Brevo devolve
+  // para domínios criados agora. Só cai para o esquema antigo (um TXT)
+  // se nenhum dos dois novos vier preenchido.
+  const dual = [toRecord(dns?.dkim1Record), toRecord(dns?.dkim2Record)].filter(
+    (r): r is BrevoDnsRecord => Boolean(r),
+  );
+  const dkim = dual.length > 0 ? dual : [toRecord(dns?.dkim_record)].filter((r): r is BrevoDnsRecord => Boolean(r));
+  const brevoCode = toRecord(dns?.brevo_code);
   return { dkim, brevoCode };
 }
 
@@ -78,10 +90,10 @@ export async function ensureBrevoDomainAuth(domain: string): Promise<BrevoDomain
   const domainName = domain.trim().toLowerCase();
 
   if (!apiKey) {
-    return { ok: false, domainName, alreadyExisted: false, error: 'BREVO_API_KEY não configurada' };
+    return { ok: false, domainName, dkim: [], alreadyExisted: false, error: 'BREVO_API_KEY não configurada' };
   }
   if (!domainName) {
-    return { ok: false, domainName, alreadyExisted: false, error: 'Domínio vazio' };
+    return { ok: false, domainName, dkim: [], alreadyExisted: false, error: 'Domínio vazio' };
   }
 
   try {
@@ -108,6 +120,7 @@ export async function ensureBrevoDomainAuth(domain: string): Promise<BrevoDomain
       return {
         ok: false,
         domainName,
+        dkim: [],
         alreadyExisted: false,
         error: msg || `Brevo respondeu ${createRes.status} ao criar domínio`,
       };
@@ -121,6 +134,7 @@ export async function ensureBrevoDomainAuth(domain: string): Promise<BrevoDomain
       return {
         ok: false,
         domainName,
+        dkim: [],
         alreadyExisted: true,
         error: `Domínio já existe na Brevo mas não foi possível ler config (HTTP ${getRes.status})`,
       };
@@ -132,6 +146,7 @@ export async function ensureBrevoDomainAuth(domain: string): Promise<BrevoDomain
     return {
       ok: false,
       domainName,
+      dkim: [],
       alreadyExisted: false,
       error: error instanceof Error ? error.message : 'Erro desconhecido ao contactar Brevo',
     };
