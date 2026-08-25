@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useMemo, useState } from 'react';
-import { Globe, Plus, Search as SearchIcon, ShoppingCart, Users } from 'lucide-react';
+import { Globe, Plus, RefreshCw, Search as SearchIcon, ShoppingCart, Users } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { panelField, panelBtnSecondary, panelTabList, panelTabBtn } from '@/lib/panel-ui';
 import { DomainManagerSection } from '@/app/dashboard/HostingSections';
@@ -151,6 +151,15 @@ export function DomainsHubSection({
               />
             </div>
 
+            <button
+              type="button"
+              onClick={() => void onRefresh?.()}
+              title="Actualizar — vai buscar os dados mais recentes ao servidor"
+              className={cn(panelBtnSecondary, 'shrink-0')}
+            >
+              <RefreshCw className="h-4 w-4" />
+            </button>
+
             {activeTab === 'meus' || activeTab === 'clientes' ? (
               <button
                 type="button"
@@ -184,6 +193,15 @@ export function DomainsHubSection({
               )}
             />
           </div>
+
+          <button
+            type="button"
+            onClick={() => void onRefresh?.()}
+            title="Actualizar — vai buscar os dados mais recentes ao servidor"
+            className={cn(panelBtnSecondary, 'shrink-0')}
+          >
+            <RefreshCw className="h-4 w-4" />
+          </button>
 
           {activeTab === 'meus' ? (
             <button
