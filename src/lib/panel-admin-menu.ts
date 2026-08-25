@@ -1,4 +1,4 @@
-export type DomainHubTab = 'meus' | 'adicionar' | 'registados' | 'registar';
+export type DomainHubTab = 'meus' | 'clientes' | 'adicionar' | 'registados' | 'registar';
 
 export interface PanelMenuSubItem {
   id: string;

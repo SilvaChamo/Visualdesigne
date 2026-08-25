@@ -1,7 +1,7 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
-import { Globe, Plus, Search as SearchIcon, ShoppingCart } from 'lucide-react';
+import React, { useEffect, useMemo, useState } from 'react';
+import { Globe, Plus, Search as SearchIcon, ShoppingCart, Users } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { panelField, panelBtnSecondary, panelTabList, panelTabBtn } from '@/lib/panel-ui';
 import { DomainManagerSection } from '@/app/dashboard/HostingSections';
@@ -24,8 +24,17 @@ type TabDef = {
 
 const ADMIN_TABS: TabDef[] = [
   { id: 'meus', label: 'Meus domínios', icon: Globe },
+  { id: 'clientes', label: 'Domínios de Clientes', icon: Users },
   { id: 'registar', label: 'Registar domínio', icon: ShoppingCart },
 ];
+
+/** Contas "da casa" — visualdesign/admin. Qualquer outro dono é um cliente
+ * gerido directamente (não revendedor, esses já ficam de fora antes de
+ * chegar aqui) e por isso pertence ao tab "Domínios de Clientes". */
+function isVisualDesignOwnSite(site: Pick<DirectAdminWebsite, 'owner'>): boolean {
+  const owner = (site.owner || 'admin').trim().toLowerCase();
+  return owner === 'admin' || owner === 'visualdesign';
+}
 
 type DomainsHubSectionProps = {
   variant: 'admin' | 'reseller';
@@ -54,8 +63,19 @@ export function DomainsHubSection({
   const [listSearch, setListSearch] = useState('');
   const [filteredCount, setFilteredCount] = useState(0);
   const { setChrome } = useAdminSectionChrome();
-  const tabs = ADMIN_TABS;
   const hideTabs = variant === 'reseller';
+  // Um revendedor não tem noção de "domínios da VisualDesign vs. de clientes"
+  // (para ele, os domínios geridos SÃO todos de clientes) — só o admin separa.
+  const tabs = variant === 'admin' ? ADMIN_TABS : ADMIN_TABS.filter((t) => t.id !== 'clientes');
+
+  const ownSites = useMemo(
+    () => (variant === 'admin' ? sites.filter(isVisualDesignOwnSite) : sites),
+    [variant, sites],
+  );
+  const clientSites = useMemo(
+    () => (variant === 'admin' ? sites.filter((s) => !isVisualDesignOwnSite(s)) : []),
+    [variant, sites],
+  );
 
   const closeHubPanel = () => {
     setActiveTab('meus');
@@ -73,7 +93,7 @@ export function DomainsHubSection({
     };
   }, [variant, isActive, setChrome]);
 
-  const showListToolbar = activeTab === 'meus' || activeTab === 'registados';
+  const showListToolbar = activeTab === 'meus' || activeTab === 'clientes' || activeTab === 'registados';
 
   return (
     <div className="w-full space-y-5">
@@ -131,7 +151,7 @@ export function DomainsHubSection({
               />
             </div>
 
-            {activeTab === 'meus' ? (
+            {activeTab === 'meus' || activeTab === 'clientes' ? (
               <button
                 type="button"
                 onClick={() => setActiveTab('adicionar')}
@@ -180,7 +200,7 @@ export function DomainsHubSection({
 
       {activeTab === 'meus' ? (
         <DomainManagerSection
-          sites={sites}
+          sites={ownSites}
           packages={packages}
           onRefresh={onRefresh}
           onCreateEmail={onCreateEmail}
@@ -191,6 +211,23 @@ export function DomainsHubSection({
           // sozinhos (registrar-only, ex: compra directa no carrinho sem hosting)
           // ficavam invisíveis mesmo para o admin. 'all' junta as duas listas.
           domainListMode="all"
+          isActive={isActive}
+          listSearch={listSearch}
+          onListSearchChange={setListSearch}
+          onFilteredCountChange={setFilteredCount}
+        />
+      ) : null}
+
+      {activeTab === 'clientes' ? (
+        <DomainManagerSection
+          sites={clientSites}
+          packages={packages}
+          onRefresh={onRefresh}
+          onCreateEmail={onCreateEmail}
+          onNavigate={onNavigate}
+          hubMode
+          hubPanel="list"
+          domainListMode="hosting"
           isActive={isActive}
           listSearch={listSearch}
           onListSearchChange={setListSearch}
