@@ -1,11 +1,11 @@
-name: Ops - diagnostico Dynadot para elimservicos.com
+name: Ops - verifica pacote real da elimservicos no Hestia
 
 on:
   workflow_dispatch:
 
 jobs:
   check:
-    name: Testa chamada real à Dynadot (sandbox vs producao) e le .env.local
+    name: v-list-user-package e v-list-user real (so leitura)
     runs-on: ubuntu-latest
     steps:
       - name: Setup SSH key
@@ -15,7 +15,7 @@ jobs:
           chmod 600 ~/.ssh/deploy_key
           ssh-keyscan "${{ secrets.CONTABO_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
 
-      - name: Diagnostico Dynadot
+      - name: Diagnostico Hestia
         uses: appleboy/ssh-action@v1.2.5
         with:
           host: ${{ secrets.CONTABO_HOST }}
@@ -28,34 +28,22 @@ jobs:
             source .env.local
             set +a
 
-            echo "===== DYNADOT_ENV configurado ====="
-            echo "DYNADOT_ENV='${DYNADOT_ENV}' (vazio = usa sandbox por defeito no código)"
+            HESTIA_PORT="${HESTIA_PORT:-8083}"
+            HESTIA_USER="${HESTIA_USER:-vdadmin}"
 
-            call_dynadot() {
-              local BASE_URL="$1" API_KEY="$2" SECRET_KEY="$3" LABEL="$4"
-              if [ -z "$API_KEY" ] || [ -z "$SECRET_KEY" ]; then
-                echo "----- ${LABEL}: chaves nao configuradas -----"
-                return
-              fi
-              local PATH_V="/restful/v1/domains/elimservicos.com"
-              local REQUEST_ID
-              REQUEST_ID=$(cat /proc/sys/kernel/random/uuid)
-              local STRING_TO_SIGN
-              STRING_TO_SIGN=$(printf '%s\n%s\n%s\n%s' "$API_KEY" "$PATH_V" "$REQUEST_ID" "")
-              local SIGNATURE
-              SIGNATURE=$(printf '%s' "$STRING_TO_SIGN" | openssl dgst -sha256 -hmac "$SECRET_KEY" | sed 's/^.* //')
-              echo "----- ${LABEL} (${BASE_URL}) -----"
-              curl -s -w "\nHTTP_STATUS:%{http_code}\n" --connect-timeout 15 -m 30 \
-                -H "Accept: application/json" \
-                -H "Authorization: Bearer ${API_KEY}" \
-                -H "X-Request-ID: ${REQUEST_ID}" \
-                -H "X-Signature: ${SIGNATURE}" \
-                "${BASE_URL}${PATH_V}"
-              echo ""
-            }
+            echo "===== Dados reais do utilizador elimservicos no Hestia ====="
+            curl -sk -X POST "https://${HESTIA_HOST}:${HESTIA_PORT}/api/" \
+              -d "user=${HESTIA_USER}" -d "password=${HESTIA_PASSWORD}" \
+              -d "cmd=v-list-user" -d "arg1=elimservicos" -d "arg2=json"
+            echo ""
 
-            call_dynadot "https://api-sandbox.dynadot.com" "$DYNADOT_SANDBOX_API_KEY" "$DYNADOT_SANDBOX_SECRET_KEY" "SANDBOX"
-            call_dynadot "https://api.dynadot.com" "$DYNADOT_API_KEY" "$DYNADOT_SECRET_KEY" "PRODUCAO"
+            echo "===== Pacote VD-Host-Pro existe no servidor? ====="
+            curl -sk -X POST "https://${HESTIA_HOST}:${HESTIA_PORT}/api/" \
+              -d "user=${HESTIA_USER}" -d "password=${HESTIA_PASSWORD}" \
+              -d "cmd=v-list-user-package" -d "arg1=VD-Host-Pro" -d "arg2=json"
+            echo ""
 
-            echo "===== Ultimos erros do PM2 mencionando registrar/dynadot (5 min) ====="
-            pm2 logs --nostream --lines 300 2>/dev/null | grep -i "registrar\|dynadot" | tail -60 || echo "(sem linhas relevantes)"
+            echo "===== Lista todos os pacotes existentes no servidor ====="
+            curl -sk -X POST "https://${HESTIA_HOST}:${HESTIA_PORT}/api/" \
+              -d "user=${HESTIA_USER}" -d "password=${HESTIA_PASSWORD}" \
+              -d "cmd=v-list-user-packages" -d "arg1=json"
