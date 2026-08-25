@@ -1,11 +1,11 @@
-name: Ops - verifica pacote real da elimservicos no Hestia
+name: Ops - verifica conta real elimservicos no DirectAdmin
 
 on:
   workflow_dispatch:
 
 jobs:
   check:
-    name: v-list-user-package e v-list-user real (so leitura)
+    name: CMD_API_SHOW_USER_CONFIG (leitura)
     runs-on: ubuntu-latest
     steps:
       - name: Setup SSH key
@@ -15,7 +15,7 @@ jobs:
           chmod 600 ~/.ssh/deploy_key
           ssh-keyscan "${{ secrets.CONTABO_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
 
-      - name: Diagnostico Hestia
+      - name: Consulta directa ao DirectAdmin
         uses: appleboy/ssh-action@v1.2.5
         with:
           host: ${{ secrets.CONTABO_HOST }}
@@ -27,23 +27,12 @@ jobs:
             set -a
             source .env.local
             set +a
-
-            HESTIA_PORT="${HESTIA_PORT:-8083}"
-            HESTIA_USER="${HESTIA_USER:-vdadmin}"
-
-            echo "===== Dados reais do utilizador elimservicos no Hestia ====="
-            curl -sk -X POST "https://${HESTIA_HOST}:${HESTIA_PORT}/api/" \
-              -d "user=${HESTIA_USER}" -d "password=${HESTIA_PASSWORD}" \
-              -d "cmd=v-list-user" -d "arg1=elimservicos" -d "arg2=json"
+            AUTH_USER="admin"
+            AUTH_PASS="${DIRECTADMIN_LOGIN_KEY:-$DIRECTADMIN_PASSWORD}"
+            echo "===== user config elimservicos ====="
+            curl -sk -w "\nHTTP_STATUS:%{http_code}\n" --connect-timeout 15 -m 30 -u "${AUTH_USER}:${AUTH_PASS}" \
+              "${DIRECTADMIN_PROTOCOL}://${DIRECTADMIN_HOST}:${DIRECTADMIN_PORT}/CMD_API_SHOW_USER_CONFIG?user=elimservicos"
             echo ""
-
-            echo "===== Pacote VD-Host-Pro existe no servidor? ====="
-            curl -sk -X POST "https://${HESTIA_HOST}:${HESTIA_PORT}/api/" \
-              -d "user=${HESTIA_USER}" -d "password=${HESTIA_PASSWORD}" \
-              -d "cmd=v-list-user-package" -d "arg1=VD-Host-Pro" -d "arg2=json"
-            echo ""
-
-            echo "===== Lista todos os pacotes existentes no servidor ====="
-            curl -sk -X POST "https://${HESTIA_HOST}:${HESTIA_PORT}/api/" \
-              -d "user=${HESTIA_USER}" -d "password=${HESTIA_PASSWORD}" \
-              -d "cmd=v-list-user-packages" -d "arg1=json"
+            echo "===== domain owner elimservicos.com ====="
+            curl -sk -w "\nHTTP_STATUS:%{http_code}\n" --connect-timeout 15 -m 30 -u "${AUTH_USER}:${AUTH_PASS}" \
+              "${DIRECTADMIN_PROTOCOL}://${DIRECTADMIN_HOST}:${DIRECTADMIN_PORT}/CMD_API_SHOW_USER_DOMAINS?user=elimservicos"
