@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import {
-  Globe, Server, Cloud, Lock, LockOpen, RefreshCw, Key, Copy, Calendar,
+  Globe, Cloud, Lock, LockOpen, RefreshCw, Key, Copy, Calendar,
   Mail, ExternalLink, Trash2, CheckCircle, XCircle, ShieldCheck, ShieldAlert,
   ChevronDown, ChevronRight, ArrowRightLeft, Plus, PlusCircle,
 } from 'lucide-react'
@@ -75,10 +75,6 @@ export function DomainDetailSection({ domain, sites, onNavigate, onRefresh, setA
   const [authCode, setAuthCode] = useState('')
   const [authCodeExpires, setAuthCodeExpires] = useState('')
 
-  const [nsOpen, setNsOpen] = useState(false)
-  const [nsDraft, setNsDraft] = useState<string[]>([])
-  const [nsSaving, setNsSaving] = useState(false)
-
   const [healthLoading, setHealthLoading] = useState(false)
   const [health, setHealth] = useState<HealthResult>(null)
 
@@ -142,7 +138,6 @@ export function DomainDetailSection({ domain, sites, onNavigate, onRefresh, setA
           privacyEnabled: typeof data.privacyEnabled === 'boolean' ? data.privacyEnabled : null,
           dnssecEnabled: typeof data.dnssecEnabled === 'boolean' ? data.dnssecEnabled : null,
         })
-        setNsDraft(ns.length > 0 ? ns : ['', ''])
       }
     } catch {
       /* domínio pode ser só de hospedagem, sem registo neste registador */
@@ -200,8 +195,6 @@ export function DomainDetailSection({ domain, sites, onNavigate, onRefresh, setA
     setAuthCodeExpires('')
     setHealth(null)
     setRenewal(null)
-    setNsOpen(false)
-    setNsDraft(['', ''])
     void loadRegistrarInfo()
     void loadHealth()
     void loadRenewalInfo()
@@ -279,34 +272,6 @@ export function DomainDetailSection({ domain, sites, onNavigate, onRefresh, setA
       showMsg(e instanceof Error ? e.message : 'Erro de ligação', 'error')
     } finally {
       setRegistrarLoading(false)
-    }
-  }
-
-  const handleSaveNameservers = async () => {
-    const clean = nsDraft.map((n) => n.trim()).filter(Boolean)
-    if (clean.length < 2) {
-      showMsg('Indique pelo menos 2 nameservers.', 'error')
-      return
-    }
-    setNsSaving(true)
-    try {
-      const res = await fetch('/api/registrar/domain/manage', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ domain, action: 'set-nameservers', nameservers: clean }),
-      })
-      const data = await res.json()
-      if (data.success) {
-        setRegistrar((prev) => ({ ...prev, nameservers: data.nameservers || clean }))
-        showMsg(data.message || 'Nameservers actualizados.')
-      } else {
-        showMsg(data.error || 'Erro ao actualizar nameservers', 'error')
-      }
-    } catch (e: unknown) {
-      showMsg(e instanceof Error ? e.message : 'Erro de ligação', 'error')
-    } finally {
-      setNsSaving(false)
     }
   }
 
@@ -592,54 +557,57 @@ export function DomainDetailSection({ domain, sites, onNavigate, onRefresh, setA
           {!clientMode && (
             <div className="rounded border border-gray-200 bg-white p-5 dark:border-zinc-700 dark:bg-zinc-900">
               <h3 className="mb-3 text-sm font-bold text-gray-900 dark:text-zinc-100">Nameservers</h3>
-              <NameserverManagementSection sites={sites} initialDomain={domain} lockDomain />
+              <NameserverManagementSection
+                sites={sites}
+                initialDomain={domain}
+                lockDomain
+                currentNameservers={registrar.nameservers}
+                onChanged={() => void loadRegistrarInfo()}
+              />
             </div>
           )}
 
           <div className="rounded border border-gray-200 bg-white p-5 dark:border-zinc-700 dark:bg-zinc-900">
             <p className="mb-4 text-xs text-gray-500 dark:text-zinc-500">Gestão de registo e transferência</p>
 
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
               <div className="rounded border border-gray-100 p-4 dark:border-zinc-800">
-                <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-                  <div>
-                    <p className="text-sm font-medium text-gray-900 dark:text-zinc-100">Bloqueio de transferência</p>
-                    <p className="text-xs text-gray-500 dark:text-zinc-500">
-                      {registrar.isLocked === null
-                        ? registrarLoading
-                          ? 'A verificar…'
-                          : 'Não disponível — domínio não encontrado no registador.'
-                        : registrar.isLocked
-                          ? 'Bloqueado — desbloqueie antes de transferir'
-                          : 'Desbloqueado — pronto para transferência'}
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => void handleToggleLock()}
-                    disabled={registrarLoading || registrar.isLocked === null}
-                    className={`inline-flex items-center gap-2 rounded px-3 py-2 text-sm font-semibold transition-colors disabled:opacity-50 ${
-                      registrar.isLocked === null
-                        ? 'bg-gray-100 text-gray-400 dark:bg-zinc-800 dark:text-zinc-500'
-                        : registrar.isLocked
-                          ? 'bg-green-50 text-green-700 hover:bg-green-100 dark:bg-green-950/30 dark:text-green-400 dark:hover:bg-green-950/50'
-                          : 'bg-red-50 text-red-700 hover:bg-red-100 dark:bg-red-950/30 dark:text-red-400 dark:hover:bg-red-950/50'
-                    }`}
-                  >
-                    {registrarLoading ? (
-                      <Spinner className="h-4 w-4" />
-                    ) : registrar.isLocked === null ? (
-                      <Lock className="h-4 w-4" />
-                    ) : registrar.isLocked ? (
-                      <Lock className="h-4 w-4" />
-                    ) : (
-                      <LockOpen className="h-4 w-4" />
-                    )}
-                    {registrar.isLocked === null ? '—' : registrar.isLocked ? 'Desbloquear' : 'Bloquear'}
-                  </button>
-                </div>
+                <p className="text-sm font-medium text-gray-900 dark:text-zinc-100">Bloqueio de transferência</p>
+                <p className="mb-3 text-xs text-gray-500 dark:text-zinc-500">
+                  {registrar.isLocked === null
+                    ? registrarLoading
+                      ? 'A verificar…'
+                      : 'Não disponível — domínio não encontrado no registador.'
+                    : registrar.isLocked
+                      ? 'Bloqueado — desbloqueie antes de transferir'
+                      : 'Desbloqueado — pronto para transferência'}
+                </p>
+                <button
+                  type="button"
+                  onClick={() => void handleToggleLock()}
+                  disabled={registrarLoading || registrar.isLocked === null}
+                  className={`inline-flex items-center gap-2 rounded px-3 py-2 text-sm font-semibold transition-colors disabled:opacity-50 ${
+                    registrar.isLocked === null
+                      ? 'bg-gray-100 text-gray-400 dark:bg-zinc-800 dark:text-zinc-500'
+                      : registrar.isLocked
+                        ? 'bg-green-50 text-green-700 hover:bg-green-100 dark:bg-green-950/30 dark:text-green-400 dark:hover:bg-green-950/50'
+                        : 'bg-red-50 text-red-700 hover:bg-red-100 dark:bg-red-950/30 dark:text-red-400 dark:hover:bg-red-950/50'
+                  }`}
+                >
+                  {registrarLoading ? (
+                    <Spinner className="h-4 w-4" />
+                  ) : registrar.isLocked === null ? (
+                    <Lock className="h-4 w-4" />
+                  ) : registrar.isLocked ? (
+                    <Lock className="h-4 w-4" />
+                  ) : (
+                    <LockOpen className="h-4 w-4" />
+                  )}
+                  {registrar.isLocked === null ? '—' : registrar.isLocked ? 'Desbloquear' : 'Bloquear'}
+                </button>
               </div>
 
-              <div className="mt-4 rounded border border-gray-100 p-4 dark:border-zinc-800">
+              <div className="rounded border border-gray-100 p-4 dark:border-zinc-800">
                 <p className="mb-2 text-sm font-medium text-gray-900 dark:text-zinc-100">Código de transferência (EPP)</p>
                 <p className="mb-3 text-xs text-gray-500 dark:text-zinc-500">
                   Obtenha o código sem sair desta página e use-o no novo registador.
@@ -673,58 +641,8 @@ export function DomainDetailSection({ domain, sites, onNavigate, onRefresh, setA
                   </div>
                 )}
               </div>
-
-              <div className="mt-4 rounded border border-gray-100 p-4 dark:border-zinc-800">
-                <button
-                  type="button"
-                  onClick={() => setNsOpen((v) => !v)}
-                  className="flex w-full items-center justify-between text-left"
-                >
-                  <span>
-                    <span className="block text-sm font-medium text-gray-900 dark:text-zinc-100">Nameservers do domínio</span>
-                    <span className="mt-0.5 block text-xs text-gray-500 dark:text-zinc-500">
-                      {registrar.nameservers.length > 0 ? registrar.nameservers.join(', ') : 'A usar os nameservers por defeito'}
-                    </span>
-                  </span>
-                  {nsOpen ? <ChevronDown className="h-4 w-4 shrink-0 text-gray-400" /> : <ChevronRight className="h-4 w-4 shrink-0 text-gray-400" />}
-                </button>
-                {nsOpen && (
-                  <div className="mt-3 space-y-2">
-                    <p className="text-xs text-gray-500 dark:text-zinc-500">
-                      Cuidado: alterar os nameservers muda para onde o domínio aponta (DNS, site, e-mail). Só altere se souber o que está a fazer.
-                    </p>
-                    {nsDraft.map((ns, idx) => (
-                      <div key={idx} className="flex items-center gap-2">
-                        <input
-                          value={ns}
-                          onChange={(e) => setNsDraft((prev) => prev.map((v, i) => (i === idx ? e.target.value : v)))}
-                          placeholder={`ns${idx + 1}.exemplo.com`}
-                          className={`${panelField} min-w-0 flex-1 font-mono`}
-                        />
-                        {nsDraft.length > 2 && (
-                          <button
-                            type="button"
-                            onClick={() => setNsDraft((prev) => prev.filter((_, i) => i !== idx))}
-                            className="shrink-0 text-gray-300 hover:text-red-600 dark:text-zinc-600 dark:hover:text-red-500"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </button>
-                        )}
-                      </div>
-                    ))}
-                    <div className="flex flex-wrap items-center gap-2 pt-1">
-                      <button type="button" onClick={() => setNsDraft((prev) => [...prev, ''])} className={panelBtnSecondary}>
-                        <Plus className="h-4 w-4" /> Adicionar
-                      </button>
-                      <button type="button" onClick={() => void handleSaveNameservers()} disabled={nsSaving} className={panelBtnPrimary}>
-                        {nsSaving ? <Spinner className="h-4 w-4" /> : <Server className="h-4 w-4" />}
-                        Guardar nameservers
-                      </button>
-                    </div>
-                  </div>
-                )}
-              </div>
             </div>
+          </div>
 
           {site && !clientMode && (
             <div className="rounded border border-gray-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-900">

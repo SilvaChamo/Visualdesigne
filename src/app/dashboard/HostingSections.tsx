@@ -6292,12 +6292,24 @@ export function NameserverManagementSection({
   sites,
   initialDomain,
   lockDomain,
+  currentNameservers,
+  onChanged,
 }: {
   sites: DirectAdminWebsite[]
   initialDomain?: string
   /** Embutido na página de um domínio específico — esconde o selector de
-   * domínio (não faz sentido escolher outro ali) e fixa sempre initialDomain. */
+   * domínio (não faz sentido escolher outro ali) e fixa sempre initialDomain.
+   * Também troca a acção de "Nameservers personalizados": em vez de criar
+   * glue records (child nameservers do DirectAdmin, que pedem IP e nunca
+   * reflectiam o que o domínio já usava de facto), aponta o domínio para os
+   * nameservers indicados através do registador — o mesmo mecanismo real
+   * que já mostrava os nameservers verdadeiros (ex.: Cloudflare). */
   lockDomain?: boolean
+  /** Nameservers reais e actuais do domínio (vindos do registador) — usados
+   * em lockDomain para pré-seleccionar o modo certo e mostrar os valores
+   * verdadeiros em vez de assumir sempre "DNS predefinido Visual Design". */
+  currentNameservers?: string[]
+  onChanged?: () => void
 }) {
   const [mode, setMode] = useState<'default' | 'custom'>('default')
   const [selectedDomain, setSelectedDomain] = useState(initialDomain || '')
@@ -6315,6 +6327,7 @@ export function NameserverManagementSection({
   }, [initialDomain])
 
   useEffect(() => {
+    if (lockDomain) return // sincronizado a partir de currentNameservers, ver efeito abaixo
     if (mode === 'default') {
       setNs1(VISUALDESIGN_DEFAULT_NS.ns1)
       setNs2(VISUALDESIGN_DEFAULT_NS.ns2)
@@ -6322,7 +6335,22 @@ export function NameserverManagementSection({
       setNs1(`ns1.${selectedDomain}`)
       setNs2(`ns2.${selectedDomain}`)
     }
-  }, [mode, selectedDomain])
+  }, [mode, selectedDomain, lockDomain])
+
+  useEffect(() => {
+    if (!lockDomain || !currentNameservers || currentNameservers.length === 0) return
+    const isDefault =
+      currentNameservers.length === 2 &&
+      currentNameservers.some((n) => n.toLowerCase() === VISUALDESIGN_DEFAULT_NS.ns1.toLowerCase()) &&
+      currentNameservers.some((n) => n.toLowerCase() === VISUALDESIGN_DEFAULT_NS.ns2.toLowerCase())
+    if (isDefault) {
+      setMode('default')
+    } else {
+      setMode('custom')
+      setNs1(currentNameservers[0] || '')
+      setNs2(currentNameservers[1] || '')
+    }
+  }, [lockDomain, currentNameservers])
 
   const handleSaveDefault = async () => {
     setSaving(true)
@@ -6342,6 +6370,31 @@ export function NameserverManagementSection({
     const ok = await directAdminAPI.createNameserver({ domain: selectedDomain, ns1, ns1IP, ns2, ns2IP })
     setMsg(ok ? 'Nameservers personalizados criados.' : 'Erro ao criar nameservers.')
     setSaving(false)
+  }
+
+  const handleApplyDomainNameservers = async (nameservers: string[]) => {
+    if (!initialDomain) return
+    setSaving(true)
+    setMsg('')
+    try {
+      const res = await fetch('/api/registrar/domain/manage', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ domain: initialDomain, action: 'set-nameservers', nameservers }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (res.ok && data.success) {
+        setMsg(data.message || 'Nameservers actualizados.')
+        onChanged?.()
+      } else {
+        setMsg(data.error || 'Erro ao actualizar nameservers.')
+      }
+    } catch (e: unknown) {
+      setMsg(e instanceof Error ? e.message : 'Erro de ligação')
+    } finally {
+      setSaving(false)
+    }
   }
 
   return (
@@ -6391,7 +6444,9 @@ export function NameserverManagementSection({
             <div className="min-w-0 flex-1">
               <p className="text-sm font-semibold text-gray-900 dark:text-zinc-100">Nameservers personalizados</p>
               <p className="mt-1 text-xs text-gray-600 dark:text-zinc-400">
-                Criar child nameservers (glue records) para um domínio específico.
+                {lockDomain
+                  ? 'Aponta este domínio para os nameservers indicados (ex.: Cloudflare, outro fornecedor).'
+                  : 'Criar child nameservers (glue records) para um domínio específico.'}
               </p>
             </div>
           </label>
@@ -6400,54 +6455,63 @@ export function NameserverManagementSection({
         {mode === 'custom' && (
           <div className="mb-6 space-y-4 border-t border-gray-100 pt-4 dark:border-zinc-800">
             {lockDomain ? (
-              <p className="text-xs text-gray-500 dark:text-zinc-500">
-                Domínio: <span className="font-mono font-semibold text-gray-700 dark:text-zinc-300">{selectedDomain}</span>
-              </p>
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                <div>
+                  <label className="mb-1.5 block text-xs font-bold uppercase text-gray-500 dark:text-zinc-500">NS1</label>
+                  <input value={ns1} onChange={(e) => setNs1(e.target.value)} className={`${panelField} w-full font-mono`} />
+                </div>
+                <div>
+                  <label className="mb-1.5 block text-xs font-bold uppercase text-gray-500 dark:text-zinc-500">NS2</label>
+                  <input value={ns2} onChange={(e) => setNs2(e.target.value)} className={`${panelField} w-full font-mono`} />
+                </div>
+              </div>
             ) : (
-              <div>
-                <label className="mb-1.5 block text-xs font-bold uppercase text-gray-500 dark:text-zinc-500">Domínio</label>
-                <select
-                  value={selectedDomain}
-                  onChange={(e) => setSelectedDomain(e.target.value)}
-                  className={`${panelField} w-full max-w-md`}
-                >
-                  <option value="">Seleccione...</option>
-                  {sites.map((s) => (
-                    <option key={s.domain} value={s.domain}>
-                      {s.domain}
-                    </option>
-                  ))}
-                </select>
-              </div>
+              <>
+                <div>
+                  <label className="mb-1.5 block text-xs font-bold uppercase text-gray-500 dark:text-zinc-500">Domínio</label>
+                  <select
+                    value={selectedDomain}
+                    onChange={(e) => setSelectedDomain(e.target.value)}
+                    className={`${panelField} w-full max-w-md`}
+                  >
+                    <option value="">Seleccione...</option>
+                    {sites.map((s) => (
+                      <option key={s.domain} value={s.domain}>
+                        {s.domain}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                  <div>
+                    <label className="mb-1.5 block text-xs font-bold uppercase text-gray-500 dark:text-zinc-500">NS1</label>
+                    <input value={ns1} onChange={(e) => setNs1(e.target.value)} className={`${panelField} w-full font-mono`} />
+                  </div>
+                  <div>
+                    <label className="mb-1.5 block text-xs font-bold uppercase text-gray-500 dark:text-zinc-500">NS1 IP</label>
+                    <input
+                      value={ns1IP}
+                      onChange={(e) => setNs1IP(e.target.value)}
+                      placeholder={getServerHost()}
+                      className={`${panelField} w-full font-mono`}
+                    />
+                  </div>
+                  <div>
+                    <label className="mb-1.5 block text-xs font-bold uppercase text-gray-500 dark:text-zinc-500">NS2</label>
+                    <input value={ns2} onChange={(e) => setNs2(e.target.value)} className={`${panelField} w-full font-mono`} />
+                  </div>
+                  <div>
+                    <label className="mb-1.5 block text-xs font-bold uppercase text-gray-500 dark:text-zinc-500">NS2 IP</label>
+                    <input
+                      value={ns2IP}
+                      onChange={(e) => setNs2IP(e.target.value)}
+                      placeholder={getServerHost()}
+                      className={`${panelField} w-full font-mono`}
+                    />
+                  </div>
+                </div>
+              </>
             )}
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-              <div>
-                <label className="mb-1.5 block text-xs font-bold uppercase text-gray-500 dark:text-zinc-500">NS1</label>
-                <input value={ns1} onChange={(e) => setNs1(e.target.value)} className={`${panelField} w-full font-mono`} />
-              </div>
-              <div>
-                <label className="mb-1.5 block text-xs font-bold uppercase text-gray-500 dark:text-zinc-500">NS1 IP</label>
-                <input
-                  value={ns1IP}
-                  onChange={(e) => setNs1IP(e.target.value)}
-                  placeholder={getServerHost()}
-                  className={`${panelField} w-full font-mono`}
-                />
-              </div>
-              <div>
-                <label className="mb-1.5 block text-xs font-bold uppercase text-gray-500 dark:text-zinc-500">NS2</label>
-                <input value={ns2} onChange={(e) => setNs2(e.target.value)} className={`${panelField} w-full font-mono`} />
-              </div>
-              <div>
-                <label className="mb-1.5 block text-xs font-bold uppercase text-gray-500 dark:text-zinc-500">NS2 IP</label>
-                <input
-                  value={ns2IP}
-                  onChange={(e) => setNs2IP(e.target.value)}
-                  placeholder={getServerHost()}
-                  className={`${panelField} w-full font-mono`}
-                />
-              </div>
-            </div>
           </div>
         )}
 
@@ -6464,12 +6528,26 @@ export function NameserverManagementSection({
 
         <button
           type="button"
-          onClick={() => (mode === 'default' ? void handleSaveDefault() : void handleCreateCustom())}
-          disabled={saving || (mode === 'custom' && (!selectedDomain || !ns1IP || !ns2IP))}
+          onClick={() => {
+            if (lockDomain) {
+              const nameservers =
+                mode === 'default'
+                  ? [VISUALDESIGN_DEFAULT_NS.ns1, VISUALDESIGN_DEFAULT_NS.ns2]
+                  : [ns1.trim(), ns2.trim()].filter(Boolean)
+              void handleApplyDomainNameservers(nameservers)
+              return
+            }
+            void (mode === 'default' ? handleSaveDefault() : handleCreateCustom())
+          }}
+          disabled={
+            saving ||
+            (mode === 'custom' &&
+              (lockDomain ? !ns1.trim() || !ns2.trim() : !selectedDomain || !ns1IP || !ns2IP))
+          }
           className={panelBtnPrimary}
         >
           {saving ? <Spinner className="h-4 w-4" /> : <Settings className="h-4 w-4" />}
-          {mode === 'default' ? 'Activar DNS Visual Design' : 'Criar nameservers'}
+          {mode === 'default' ? 'Activar DNS Visual Design' : lockDomain ? 'Guardar nameservers' : 'Criar nameservers'}
         </button>
       </div>
     </div>
