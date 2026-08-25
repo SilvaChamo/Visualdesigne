@@ -28,16 +28,16 @@ const ADMIN_TABS: TabDef[] = [
   { id: 'registar', label: 'Registar domínio', icon: ShoppingCart },
 ];
 
-/** Lista fixa, confirmada manualmente — o campo "owner" do servidor não
- * chega para distinguir "é da VisualDesign" de "é de cliente mas foi criado
- * directamente sob a conta admin" (vários sites de clientes reais —
- * mltmark.com, aamihe.com, provisualcorporate.co.mz — têm owner=admin e o
- * mesmo email do admin, exactamente como os domínios próprios). Um novo
- * domínio próprio só entra aqui se for adicionado a esta lista à mão. */
-const VISUALDESIGN_OWN_DOMAINS = new Set(['visualdesignmoz.com', 'files.visualdesignmoz.com', 'basededadosagro.com']);
-
-function isVisualDesignOwnSite(site: Pick<DirectAdminWebsite, 'domain'>): boolean {
-  return VISUALDESIGN_OWN_DOMAINS.has(site.domain.trim().toLowerCase());
+/** Separação automática por email — não pelo "owner" do servidor, que não
+ * distingue "é da VisualDesign" de "é de cliente mas foi criado directamente
+ * sob a conta admin" (site próprio de um domínio de cliente pode ficar sem
+ * conta dedicada). Um domínio cujo email de contacto é o do próprio admin
+ * fica em "Meus domínios"; qualquer outro email (o do cliente) fica em
+ * "Domínios de Clientes" — não precisa de manutenção manual, actualiza-se
+ * sozinho conforme o email associado a cada conta/domínio for corrigido. */
+function isVisualDesignOwnSite(site: Pick<DirectAdminWebsite, 'adminEmail'>, adminEmail: string): boolean {
+  if (!adminEmail) return false;
+  return (site.adminEmail || '').trim().toLowerCase() === adminEmail.trim().toLowerCase();
 }
 
 type DomainsHubSectionProps = {
@@ -46,6 +46,9 @@ type DomainsHubSectionProps = {
   initialTab: DomainHubTab;
   sites: DirectAdminWebsite[];
   packages?: DirectAdminPackage[];
+  /** Email de quem está autenticado — usado para separar "Meus domínios" de
+   * "Domínios de Clientes" (ver isVisualDesignOwnSite). */
+  adminEmail?: string | null;
   onRefresh?: () => void | Promise<void>;
   onCreateEmail?: (domain: string) => void;
   onNavigate?: (section: string, opts?: { domain?: string }) => void;
@@ -58,6 +61,7 @@ export function DomainsHubSection({
   initialTab,
   sites,
   packages = [],
+  adminEmail,
   onRefresh,
   onCreateEmail,
   onNavigate,
@@ -73,12 +77,12 @@ export function DomainsHubSection({
   const tabs = variant === 'admin' ? ADMIN_TABS : ADMIN_TABS.filter((t) => t.id !== 'clientes');
 
   const ownSites = useMemo(
-    () => (variant === 'admin' ? sites.filter(isVisualDesignOwnSite) : sites),
-    [variant, sites],
+    () => (variant === 'admin' ? sites.filter((s) => isVisualDesignOwnSite(s, adminEmail || '')) : sites),
+    [variant, sites, adminEmail],
   );
   const clientSites = useMemo(
-    () => (variant === 'admin' ? sites.filter((s) => !isVisualDesignOwnSite(s)) : []),
-    [variant, sites],
+    () => (variant === 'admin' ? sites.filter((s) => !isVisualDesignOwnSite(s, adminEmail || '')) : []),
+    [variant, sites, adminEmail],
   );
 
   const closeHubPanel = () => {

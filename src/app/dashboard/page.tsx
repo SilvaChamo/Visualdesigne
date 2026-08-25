@@ -1324,6 +1324,7 @@ function AdminPageContent() {
             initialTab="meus"
             sites={domainHubSites}
             packages={directAdminPackages}
+            adminEmail={sessionUser}
             onRefresh={() => void loadDirectAdminData(true)}
             onCreateEmail={(domain) => {
               setPreSelectedEmailDomain(domain)
@@ -1385,6 +1386,7 @@ function AdminPageContent() {
             initialTab={domainHubTab}
             sites={domainHubSites}
             packages={directAdminPackages}
+            adminEmail={sessionUser}
             onRefresh={() => void loadDirectAdminData(true)}
             onCreateEmail={(domain) => {
               setPreSelectedEmailDomain(domain)
