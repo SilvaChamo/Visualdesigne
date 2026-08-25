@@ -28,12 +28,16 @@ const ADMIN_TABS: TabDef[] = [
   { id: 'registar', label: 'Registar domínio', icon: ShoppingCart },
 ];
 
-/** Contas "da casa" — visualdesign/admin. Qualquer outro dono é um cliente
- * gerido directamente (não revendedor, esses já ficam de fora antes de
- * chegar aqui) e por isso pertence ao tab "Domínios de Clientes". */
-function isVisualDesignOwnSite(site: Pick<DirectAdminWebsite, 'owner'>): boolean {
-  const owner = (site.owner || 'admin').trim().toLowerCase();
-  return owner === 'admin' || owner === 'visualdesign';
+/** Lista fixa, confirmada manualmente — o campo "owner" do servidor não
+ * chega para distinguir "é da VisualDesign" de "é de cliente mas foi criado
+ * directamente sob a conta admin" (vários sites de clientes reais —
+ * mltmark.com, aamihe.com, provisualcorporate.co.mz — têm owner=admin e o
+ * mesmo email do admin, exactamente como os domínios próprios). Um novo
+ * domínio próprio só entra aqui se for adicionado a esta lista à mão. */
+const VISUALDESIGN_OWN_DOMAINS = new Set(['visualdesignmoz.com', 'files.visualdesignmoz.com', 'basededadosagro.com']);
+
+function isVisualDesignOwnSite(site: Pick<DirectAdminWebsite, 'domain'>): boolean {
+  return VISUALDESIGN_OWN_DOMAINS.has(site.domain.trim().toLowerCase());
 }
 
 type DomainsHubSectionProps = {
