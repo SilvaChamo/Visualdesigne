@@ -372,18 +372,22 @@ export function DomainDetailSection({ domain, sites, onNavigate, onRefresh, setA
   const handleRemoveHosting = async () => {
     if (!confirm(`Eliminar "${domain}"? Esta acção é irreversível!`)) return
     try {
-      const res = await fetch('/api/server-exec', {
+      // Provider-aware (DirectAdmin/Hestia) — /api/server-exec só sabia falar
+      // com o DirectAdmin, o que falhava sempre em silêncio para contas
+      // Hestia (o domínio nem existe do lado do DirectAdmin).
+      const res = await fetch('/api/admin/domains/delete-website', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'deleteWebsite', params: { domain } }),
+        credentials: 'include',
+        body: JSON.stringify({ domain }),
       })
-      const data = await res.json()
-      if (data.success) {
-        showMsg(`Domínio "${domain}" eliminado.`)
+      const data = await res.json().catch(() => ({}))
+      if (res.ok && data.success) {
+        showMsg(data.message || `Domínio "${domain}" eliminado.`)
         await onRefresh?.()
         setActiveSection?.('domain-manager')
       } else {
-        showMsg('Erro: ' + (data.error || data.data?.error || 'Falha ao eliminar'), 'error')
+        showMsg('Erro: ' + (data.error || 'Falha ao eliminar'), 'error')
       }
     } catch (e: unknown) {
       showMsg(e instanceof Error ? e.message : 'Erro de ligação', 'error')
