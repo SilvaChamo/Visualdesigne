@@ -1,0 +1,42 @@
+name: 'ops: migrar emails — passo 1 (criar contas no Hestia)'
+
+on:
+  workflow_dispatch: {}
+
+jobs:
+  criar-contas:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: appleboy/ssh-action@v1.2.5
+        with:
+          host: ${{ secrets.CONTABO_HOST }}
+          username: root
+          key: ${{ secrets.CONTABO_SSH_KEY }}
+          script: |
+            H=/usr/local/hestia/bin
+            mkdir -p /root/.osher-migration
+            OUT=/root/.osher-migration/email-passwords.txt
+            : > "$OUT"
+            chmod 600 "$OUT"
+
+            declare -A DOMAINS
+            DOMAINS["msdn-moz.org"]="secretary"
+            DOMAINS["lirandzojewelry.com"]="admin eventos orders sales academic osher vendas registo hello"
+            DOMAINS["oshercollective.com"]="admin eventos register orders bookclub ambassador secretary payments store prtiner affiliead testes academic info osher hello"
+
+            for DOMAIN in "${!DOMAINS[@]}"; do
+              echo "===== $DOMAIN ====="
+              $H/v-add-mail-domain oshercollective "$DOMAIN" && echo "mail-domain criado" || echo "(já existia)"
+              for BOX in ${DOMAINS[$DOMAIN]}; do
+                PASS=$(openssl rand -base64 24 | tr -dc 'A-Za-z0-9' | cut -c1-16)
+                if $H/v-add-mail-account oshercollective "$DOMAIN" "$BOX" "$PASS"; then
+                  echo "  + $BOX@$DOMAIN criado"
+                  echo "$BOX@$DOMAIN=$PASS" >> "$OUT"
+                else
+                  echo "  ! $BOX@$DOMAIN falhou ou já existia"
+                fi
+              done
+            done
+
+            echo "----- caminho real do Maildir (para o próximo passo) -----"
+            find /home/oshercollective/mail -maxdepth 2 2>/dev/null
