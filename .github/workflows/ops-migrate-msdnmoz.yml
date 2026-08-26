@@ -1,24 +1,22 @@
-name: 'ops: diagnosticar teste local msdn-moz.org no Contabo (so-leitura)'
+name: 'ops: testar msdn-moz.org no Contabo via IP real (sem DNS)'
 
 on:
   workflow_dispatch: {}
 
 jobs:
-  diag:
+  teste:
     runs-on: ubuntu-latest
     steps:
-      - uses: appleboy/ssh-action@v1.2.5
-        with:
-          host: ${{ secrets.CONTABO_HOST }}
-          username: root
-          key: ${{ secrets.CONTABO_SSH_KEY }}
-          script: |
-            echo "----- portas a escutar -----"
-            ss -tlnp | grep -E ":80|:443|nginx|apache" || ss -tlnp
-            echo "----- vhost nginx do domínio -----"
-            find /home/oshercollective/conf -iname "*msdn-moz*" 2>/dev/null
-            find /etc/nginx -iname "*msdn-moz*" 2>/dev/null
-            echo "----- teste https local -----"
-            curl -sk -o /tmp/r2.html -w "HTTPS status: %{http_code}\n" -H "Host: msdn-moz.org" https://127.0.0.1/ || echo "curl https falhou: $?"
-            echo "----- teste http verbose -----"
-            curl -v -o /tmp/r1.html -H "Host: msdn-moz.org" http://127.0.0.1/ 2>&1 | tail -20
+      - name: Testar via --resolve directo ao IP do Contabo
+        run: |
+          echo "----- HTTP -----"
+          curl -sk --resolve msdn-moz.org:80:${{ secrets.CONTABO_HOST }} \
+            -o /tmp/r1.html -w "HTTP status: %{http_code}\n" http://msdn-moz.org/
+          echo "----- HTTPS (sem certificado válido ainda, é esperado) -----"
+          curl -sk --resolve msdn-moz.org:443:${{ secrets.CONTABO_HOST }} \
+            -o /tmp/r2.html -w "HTTPS status: %{http_code}\n" https://msdn-moz.org/
+          echo "----- primeiras linhas da resposta HTTP -----"
+          head -c 600 /tmp/r1.html
+          echo ""
+          echo "----- título da página (se WordPress carregou) -----"
+          grep -io "<title>.*</title>" /tmp/r1.html || echo "sem <title> encontrado"
