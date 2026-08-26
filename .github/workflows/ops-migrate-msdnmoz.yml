@@ -1,0 +1,31 @@
+name: 'ops: migrar msdn-moz.org — passo 1 (criar conta + domínio no Hestia)'
+
+on:
+  workflow_dispatch: {}
+
+jobs:
+  criar-conta:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: appleboy/ssh-action@v1.2.5
+        with:
+          host: ${{ secrets.CONTABO_HOST }}
+          username: root
+          key: ${{ secrets.CONTABO_SSH_KEY }}
+          script: |
+            H=/usr/local/hestia/bin
+            USERPASS=$(openssl rand -base64 24 | tr -dc 'A-Za-z0-9' | cut -c1-20)
+            mkdir -p /root/.osher-migration
+            echo "$USERPASS" > /root/.osher-migration/conta-password.txt
+            chmod 600 /root/.osher-migration/conta-password.txt
+
+            $H/v-add-user oshercollective "$USERPASS" oshercollective@visualdesignmoz.com VD-Host-Business \
+              && echo "conta oshercollective criada" \
+              || echo "(conta já existia, a continuar)"
+
+            $H/v-add-web-domain oshercollective msdn-moz.org \
+              && echo "domínio msdn-moz.org criado" \
+              || echo "(domínio já existia, a continuar)"
+
+            echo "----- confirmação -----"
+            $H/v-list-web-domain oshercollective msdn-moz.org plain
