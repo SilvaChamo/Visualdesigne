@@ -1,0 +1,42 @@
+name: 'ops: verificar shalomdeco.com no Hetzner + conta oshercollective no Hestia (so-leitura)'
+
+on:
+  workflow_dispatch: {}
+
+jobs:
+  hetzner:
+    name: Hetzner - localizar site e BD
+    runs-on: ubuntu-latest
+    steps:
+      - uses: appleboy/ssh-action@v1.2.5
+        with:
+          host: ${{ secrets.HETZNER_HOST }}
+          port: ${{ secrets.HETZNER_PORT }}
+          username: ${{ secrets.HETZNER_USER }}
+          key: ${{ secrets.HETZNER_SSH_KEY }}
+          script: |
+            echo "----- pasta do site -----"
+            find /home/oshercollective/domains/shalomdeco.com -maxdepth 2 2>/dev/null
+            echo "----- wp-config.php (só nomes de variáveis DB, sem valores) -----"
+            WPC=$(find /home/oshercollective/domains/shalomdeco.com -maxdepth 3 -iname "wp-config.php" 2>/dev/null | head -1)
+            echo "encontrado: $WPC"
+            [ -n "$WPC" ] && grep -E "DB_NAME|DB_USER|DB_HOST" "$WPC" | sed -E "s/'([^']*)'\s*\)\s*;/'***');/2"
+            echo "----- tamanho -----"
+            [ -n "$WPC" ] && du -sh "$(dirname "$WPC")"
+
+  contabo:
+    name: Contabo - estado Hestia
+    runs-on: ubuntu-latest
+    steps:
+      - uses: appleboy/ssh-action@v1.2.5
+        with:
+          host: ${{ secrets.CONTABO_HOST }}
+          username: root
+          key: ${{ secrets.CONTABO_SSH_KEY }}
+          script: |
+            echo "----- utilizadores Hestia -----"
+            /usr/local/hestia/bin/v-list-users plain 2>/dev/null
+            echo "----- domínios de oshercollective no Hestia (se existir) -----"
+            /usr/local/hestia/bin/v-list-web-domains oshercollective plain 2>/dev/null
+            echo "----- pacotes disponíveis -----"
+            /usr/local/hestia/bin/v-list-user-packages plain 2>/dev/null
