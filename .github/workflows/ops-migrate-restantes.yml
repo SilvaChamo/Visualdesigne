@@ -1,35 +1,76 @@
-name: 'ops: migrar restantes — passo 2 (copiar ficheiros + BD Hetzner->Contabo)'
+name: 'ops: migrar restantes — passo 3 (restaurar + testar, sem tocar em DNS)'
 
 on:
   workflow_dispatch: {}
 
 jobs:
-  copiar:
+  restaurar-lirandzojewelry:
     runs-on: ubuntu-latest
     steps:
-      - name: Preparar chaves SSH
-        run: |
-          mkdir -p ~/.ssh
-          echo "${{ secrets.HETZNER_SSH_KEY }}" > ~/.ssh/hetzner_key
-          echo "${{ secrets.CONTABO_SSH_KEY }}" > ~/.ssh/contabo_key
-          chmod 600 ~/.ssh/hetzner_key ~/.ssh/contabo_key
-          ssh-keyscan -p "${{ secrets.HETZNER_PORT }}" "${{ secrets.HETZNER_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
-          ssh-keyscan "${{ secrets.CONTABO_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
+      - uses: appleboy/ssh-action@v1.2.5
+        with:
+          host: ${{ secrets.CONTABO_HOST }}
+          username: root
+          key: ${{ secrets.CONTABO_SSH_KEY }}
+          script: |
+            DBPASS=$(cat /root/.osher-migration/lirandzojewelry-db-password.txt)
+            BASE="/home/oshercollective/web/lirandzojewelry.com"
+            WPC="$BASE/public_html/lirandro/wp-config.php"
 
-      - name: Extrair do Hetzner (só-leitura)
-        run: |
-          ssh -i ~/.ssh/hetzner_key -p "${{ secrets.HETZNER_PORT }}" "${{ secrets.HETZNER_USER }}@${{ secrets.HETZNER_HOST }}" \
-            "mysqldump 'oshercollective_wp_lirandro_lirandzojewelry_com' --single-transaction | gzip" > /tmp/lirandzo_db.sql.gz
-          ssh -i ~/.ssh/hetzner_key -p "${{ secrets.HETZNER_PORT }}" "${{ secrets.HETZNER_USER }}@${{ secrets.HETZNER_HOST }}" \
-            "tar czf - -C /home/oshercollective/domains/lirandzojewelry.com public_html" > /tmp/lirandzo_site.tar.gz
-          ssh -i ~/.ssh/hetzner_key -p "${{ secrets.HETZNER_PORT }}" "${{ secrets.HETZNER_USER }}@${{ secrets.HETZNER_HOST }}" \
-            "mysqldump 'oshercollective_wp_oshercollective_com' --single-transaction | gzip" > /tmp/osherweb_db.sql.gz
-          ssh -i ~/.ssh/hetzner_key -p "${{ secrets.HETZNER_PORT }}" "${{ secrets.HETZNER_USER }}@${{ secrets.HETZNER_HOST }}" \
-            "tar czf - -C /home/oshercollective/domains/oshercollective.com public_html" > /tmp/osherweb_site.tar.gz
-          ls -la /tmp/lirandzo_* /tmp/osherweb_*
+            rm -rf "$BASE/public_html"
+            mkdir -p "$BASE"
+            tar xzf /tmp/lirandzo_site.tar.gz -C "$BASE"
 
-      - name: Copiar para /tmp no Contabo
+            gunzip -c /tmp/lirandzo_db.sql.gz | mysql -u oshercollective_lirandzo -p"$DBPASS" oshercollective_lirandzo
+
+            sed -i "s/define( *'DB_NAME'.*/define( 'DB_NAME', 'oshercollective_lirandzo' );/" "$WPC"
+            sed -i "s/define( *'DB_USER'.*/define( 'DB_USER', 'oshercollective_lirandzo' );/" "$WPC"
+            sed -i "s/define( *'DB_PASSWORD'.*/define( 'DB_PASSWORD', '$DBPASS' );/" "$WPC"
+            sed -i "s/define( *'DB_HOST'.*/define( 'DB_HOST', 'localhost' );/" "$WPC"
+
+            chown -R oshercollective:oshercollective "$BASE"
+            rm -f /tmp/lirandzo_db.sql.gz /tmp/lirandzo_site.tar.gz
+            echo "OK: lirandzojewelry.com restaurado"
+
+  restaurar-oshercollective:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: appleboy/ssh-action@v1.2.5
+        with:
+          host: ${{ secrets.CONTABO_HOST }}
+          username: root
+          key: ${{ secrets.CONTABO_SSH_KEY }}
+          script: |
+            DBPASS=$(cat /root/.osher-migration/oshercollective-db-password.txt)
+            BASE="/home/oshercollective/web/oshercollective.com"
+            WPC="$BASE/public_html/wp-config.php"
+
+            rm -rf "$BASE/public_html"
+            mkdir -p "$BASE"
+            tar xzf /tmp/osherweb_site.tar.gz -C "$BASE"
+
+            gunzip -c /tmp/osherweb_db.sql.gz | mysql -u oshercollective_osherweb -p"$DBPASS" oshercollective_osherweb
+
+            sed -i "s/define( *'DB_NAME'.*/define( 'DB_NAME', 'oshercollective_osherweb' );/" "$WPC"
+            sed -i "s/define( *'DB_USER'.*/define( 'DB_USER', 'oshercollective_osherweb' );/" "$WPC"
+            sed -i "s/define( *'DB_PASSWORD'.*/define( 'DB_PASSWORD', '$DBPASS' );/" "$WPC"
+            sed -i "s/define( *'DB_HOST'.*/define( 'DB_HOST', 'localhost' );/" "$WPC"
+
+            chown -R oshercollective:oshercollective "$BASE"
+            rm -f /tmp/osherweb_db.sql.gz /tmp/osherweb_site.tar.gz
+            echo "OK: oshercollective.com restaurado"
+
+  testar:
+    needs: [restaurar-lirandzojewelry, restaurar-oshercollective]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Testar os dois sites via IP real (sem DNS)
         run: |
-          scp -i ~/.ssh/contabo_key /tmp/lirandzo_db.sql.gz /tmp/lirandzo_site.tar.gz /tmp/osherweb_db.sql.gz /tmp/osherweb_site.tar.gz \
-            root@${{ secrets.CONTABO_HOST }}:/tmp/
-          ssh -i ~/.ssh/contabo_key root@${{ secrets.CONTABO_HOST }} "ls -la /tmp/lirandzo_* /tmp/osherweb_*"
+          echo "----- lirandzojewelry.com -----"
+          curl -sk --resolve lirandzojewelry.com:80:${{ secrets.CONTABO_HOST }} \
+            -o /tmp/r1.html -w "HTTP status: %{http_code}\n" http://lirandzojewelry.com/lirandro/
+          grep -io "<title>.*</title>" /tmp/r1.html || echo "sem <title>"
+          echo "----- oshercollective.com -----"
+          curl -sk --resolve oshercollective.com:80:${{ secrets.CONTABO_HOST }} \
+            -o /tmp/r2.html -w "HTTP status: %{http_code}\n" http://oshercollective.com/
+          grep -io "<title>.*</title>" /tmp/r2.html || echo "sem <title>"
