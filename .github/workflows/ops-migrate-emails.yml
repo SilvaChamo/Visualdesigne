@@ -1,4 +1,4 @@
-name: 'ops: migrar emails — ver estrutura Hestia recem-criada (so-leitura)'
+name: 'ops: migrar emails — ver mail_location do dovecot no Hestia (so-leitura)'
 
 on:
   workflow_dispatch: {}
@@ -13,6 +13,4 @@ jobs:
           username: root
           key: ${{ secrets.CONTABO_SSH_KEY }}
           script: |
-            find /home/oshercollective/mail/msdn-moz.org/secretary -maxdepth 3
-            echo "----- dono -----"
-            ls -la /home/oshercollective/mail/msdn-moz.org/secretary/
+            grep -r "mail_location" /etc/dovecot/ 2>/dev/null
