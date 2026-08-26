@@ -1,27 +1,30 @@
-name: 'ops: migrar msdn-moz.org — passo 2 (criar base de dados no Hestia)'
+name: 'ops: migrar msdn-moz.org — passo 3 (copiar ficheiros + BD do Hetzner para o Contabo)'
 
 on:
   workflow_dispatch: {}
 
 jobs:
-  criar-bd:
+  copiar:
     runs-on: ubuntu-latest
     steps:
-      - uses: appleboy/ssh-action@v1.2.5
-        with:
-          host: ${{ secrets.CONTABO_HOST }}
-          username: root
-          key: ${{ secrets.CONTABO_SSH_KEY }}
-          script: |
-            H=/usr/local/hestia/bin
-            DBPASS=$(openssl rand -base64 24 | tr -dc 'A-Za-z0-9' | cut -c1-20)
-            mkdir -p /root/.osher-migration
-            echo "$DBPASS" > /root/.osher-migration/msdnmoz-db-password.txt
-            chmod 600 /root/.osher-migration/msdnmoz-db-password.txt
+      - name: Preparar chaves SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.HETZNER_SSH_KEY }}" > ~/.ssh/hetzner_key
+          echo "${{ secrets.CONTABO_SSH_KEY }}" > ~/.ssh/contabo_key
+          chmod 600 ~/.ssh/hetzner_key ~/.ssh/contabo_key
+          ssh-keyscan -p "${{ secrets.HETZNER_PORT }}" "${{ secrets.HETZNER_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
+          ssh-keyscan "${{ secrets.CONTABO_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
 
-            $H/v-add-database oshercollective msdnmoz msdnmoz "$DBPASS" \
-              && echo "BD criada" \
-              || echo "(BD já existia, a continuar — senha guardada pode não corresponder à antiga)"
+      - name: Extrair do Hetzner (só-leitura)
+        run: |
+          ssh -i ~/.ssh/hetzner_key -p "${{ secrets.HETZNER_PORT }}" "${{ secrets.HETZNER_USER }}@${{ secrets.HETZNER_HOST }}" \
+            "mysqldump 'oshercollective_wp_msdn-moz_org' --single-transaction | gzip" > /tmp/msdnmoz_db.sql.gz
+          ssh -i ~/.ssh/hetzner_key -p "${{ secrets.HETZNER_PORT }}" "${{ secrets.HETZNER_USER }}@${{ secrets.HETZNER_HOST }}" \
+            "tar czf - -C /home/oshercollective/domains/msdn-moz.org public_html" > /tmp/msdnmoz_site.tar.gz
+          ls -la /tmp/msdnmoz_db.sql.gz /tmp/msdnmoz_site.tar.gz
 
-            echo "----- confirmação (sem mostrar password) -----"
-            $H/v-list-databases oshercollective plain | awk '{print $1, $2, $3}'
+      - name: Copiar para /tmp no Contabo
+        run: |
+          scp -i ~/.ssh/contabo_key /tmp/msdnmoz_db.sql.gz /tmp/msdnmoz_site.tar.gz root@${{ secrets.CONTABO_HOST }}:/tmp/
+          ssh -i ~/.ssh/contabo_key root@${{ secrets.CONTABO_HOST }} "ls -la /tmp/msdnmoz_*"
