@@ -61,7 +61,8 @@ import {
   UserCircle,
   Wallet,
   CheckCircle2,
-  Paperclip
+  Paperclip,
+  Trash2
 } from 'lucide-react';
 import { Spinner } from '@/components/ui/spinner';
 
@@ -88,7 +89,7 @@ function redirectPathForSession(
 }
 
 function CheckoutContent() {
-  const { items, total, clearCart, updateItemPeriod } = useCart();
+  const { items, total, clearCart, updateItemPeriod, removeItem } = useCart();
   const router = useRouter();
   const { user: authUser, loading: authLoading } = useAuth();
   const isAuthenticated = authLoading ? null : !!authUser;
@@ -797,8 +798,16 @@ function CheckoutContent() {
                             )}
                           </div>
 
-                          <div className="pl-[42px] sm:pl-0 text-left sm:text-right flex-shrink-0">
+                          <div className="pl-[42px] sm:pl-0 flex items-center justify-end gap-2 flex-shrink-0">
                             <span className="font-bold text-base text-slate-800 dark:text-zinc-100">{formatPrice(item.price)}</span>
+                            <button
+                              type="button"
+                              onClick={() => removeItem(item.id)}
+                              title="Remover item da encomenda"
+                              className="w-6 h-6 flex items-center justify-center text-slate-400 hover:text-red-500 transition-colors flex-shrink-0"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
                           </div>
                         </div>
                       ))}
@@ -807,7 +816,10 @@ function CheckoutContent() {
                     <div className="pt-3 mt-1 border-t border-dashed border-slate-300 dark:border-zinc-700 space-y-1.5">
                       <div className="flex justify-between items-center">
                         <span className="font-black text-slate-800 dark:text-zinc-100 text-sm uppercase">Total</span>
-                        <span className="font-black text-xl text-red-600 dark:text-red-400">{formatPrice(total)}</span>
+                        <div className="flex items-center justify-end gap-2">
+                          <span className="font-black text-xl text-red-600 dark:text-red-400">{formatPrice(total)}</span>
+                          <span className="w-6 h-6 flex-shrink-0" aria-hidden="true" />
+                        </div>
                       </div>
                       <p className="text-[11px] text-slate-400 dark:text-zinc-500 text-right">
                         Preço final — já inclui IVA (16%): base {formatPrice(total / 1.16)} + IVA {formatPrice(total - total / 1.16)}
