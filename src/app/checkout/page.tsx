@@ -821,7 +821,7 @@ function CheckoutContent() {
                           <span className="w-6 h-6 flex-shrink-0" aria-hidden="true" />
                         </div>
                       </div>
-                      <p className="text-[11px] text-slate-400 dark:text-zinc-500 text-right">
+                      <p className="text-[11px] text-slate-400 dark:text-zinc-500 text-right pr-8">
                         Preço final — já inclui IVA (16%): base {formatPrice(total / 1.16)} + IVA {formatPrice(total - total / 1.16)}
                       </p>
                     </div>
