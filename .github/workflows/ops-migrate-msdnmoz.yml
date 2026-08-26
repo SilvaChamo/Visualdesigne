@@ -1,30 +1,38 @@
-name: 'ops: migrar msdn-moz.org — passo 3 (copiar ficheiros + BD do Hetzner para o Contabo)'
+name: 'ops: migrar msdn-moz.org — passo 4 (restaurar ficheiros + BD e testar, sem tocar em DNS)'
 
 on:
   workflow_dispatch: {}
 
 jobs:
-  copiar:
+  restaurar:
     runs-on: ubuntu-latest
     steps:
-      - name: Preparar chaves SSH
-        run: |
-          mkdir -p ~/.ssh
-          echo "${{ secrets.HETZNER_SSH_KEY }}" > ~/.ssh/hetzner_key
-          echo "${{ secrets.CONTABO_SSH_KEY }}" > ~/.ssh/contabo_key
-          chmod 600 ~/.ssh/hetzner_key ~/.ssh/contabo_key
-          ssh-keyscan -p "${{ secrets.HETZNER_PORT }}" "${{ secrets.HETZNER_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
-          ssh-keyscan "${{ secrets.CONTABO_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
+      - uses: appleboy/ssh-action@v1.2.5
+        with:
+          host: ${{ secrets.CONTABO_HOST }}
+          username: root
+          key: ${{ secrets.CONTABO_SSH_KEY }}
+          script: |
+            DBPASS=$(cat /root/.osher-migration/msdnmoz-db-password.txt)
+            WEBDIR="/home/oshercollective/web/msdn-moz.org/public_html"
 
-      - name: Extrair do Hetzner (só-leitura)
-        run: |
-          ssh -i ~/.ssh/hetzner_key -p "${{ secrets.HETZNER_PORT }}" "${{ secrets.HETZNER_USER }}@${{ secrets.HETZNER_HOST }}" \
-            "mysqldump 'oshercollective_wp_msdn-moz_org' --single-transaction | gzip" > /tmp/msdnmoz_db.sql.gz
-          ssh -i ~/.ssh/hetzner_key -p "${{ secrets.HETZNER_PORT }}" "${{ secrets.HETZNER_USER }}@${{ secrets.HETZNER_HOST }}" \
-            "tar czf - -C /home/oshercollective/domains/msdn-moz.org public_html" > /tmp/msdnmoz_site.tar.gz
-          ls -la /tmp/msdnmoz_db.sql.gz /tmp/msdnmoz_site.tar.gz
+            rm -rf "$WEBDIR"
+            mkdir -p "$(dirname "$WEBDIR")"
+            tar xzf /tmp/msdnmoz_site.tar.gz -C "$(dirname "$WEBDIR")"
 
-      - name: Copiar para /tmp no Contabo
-        run: |
-          scp -i ~/.ssh/contabo_key /tmp/msdnmoz_db.sql.gz /tmp/msdnmoz_site.tar.gz root@${{ secrets.CONTABO_HOST }}:/tmp/
-          ssh -i ~/.ssh/contabo_key root@${{ secrets.CONTABO_HOST }} "ls -la /tmp/msdnmoz_*"
+            gunzip -c /tmp/msdnmoz_db.sql.gz | mysql -u oshercollective_msdnmoz -p"$DBPASS" oshercollective_msdnmoz
+
+            sed -i "s/define( *'DB_NAME'.*/define( 'DB_NAME', 'oshercollective_msdnmoz' );/" "$WEBDIR/wp-config.php"
+            sed -i "s/define( *'DB_USER'.*/define( 'DB_USER', 'oshercollective_msdnmoz' );/" "$WEBDIR/wp-config.php"
+            sed -i "s/define( *'DB_PASSWORD'.*/define( 'DB_PASSWORD', '$DBPASS' );/" "$WEBDIR/wp-config.php"
+            sed -i "s/define( *'DB_HOST'.*/define( 'DB_HOST', 'localhost' );/" "$WEBDIR/wp-config.php"
+
+            chown -R oshercollective:oshercollective /home/oshercollective/web/msdn-moz.org
+            rm -f /tmp/msdnmoz_db.sql.gz /tmp/msdnmoz_site.tar.gz
+
+            echo "----- teste local (sem DNS, via Host header directo) -----"
+            CODE=$(curl -sk -o /tmp/resposta.html -w "%{http_code}" -H "Host: msdn-moz.org" http://127.0.0.1/)
+            echo "HTTP status: $CODE"
+            head -c 400 /tmp/resposta.html
+            echo ""
+            echo "OK: msdn-moz.org restaurado e testado no Contabo"
