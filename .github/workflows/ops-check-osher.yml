@@ -1,0 +1,33 @@
+name: 'ops: verificar hospedagem real de oshercollective (espelho Supabase, so-leitura)'
+
+on:
+  workflow_dispatch: {}
+
+jobs:
+  diag:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Consultar espelho Supabase (panel_sites/panel_emails/panel_databases)
+        uses: appleboy/ssh-action@v1.2.5
+        with:
+          host: ${{ secrets.HETZNER_HOST }}
+          port: ${{ secrets.HETZNER_PORT }}
+          username: ${{ secrets.HETZNER_USER }}
+          key: ${{ secrets.HETZNER_SSH_KEY }}
+          script: |
+            echo "----- sites de oshercollective -----"
+            docker exec supabase-db psql -U postgres -d postgres -c "
+              SELECT domain, owner, status, package, disk_usage, ssl_status, synced_at FROM public.panel_sites WHERE owner = 'oshercollective';
+            "
+            echo "----- contas de email nesses domínios -----"
+            docker exec supabase-db psql -U postgres -d postgres -c "
+              SELECT domain, email, quota_mb FROM public.panel_emails WHERE domain IN (SELECT domain FROM public.panel_sites WHERE owner = 'oshercollective');
+            "
+            echo "----- bases de dados nesses domínios -----"
+            docker exec supabase-db psql -U postgres -d postgres -c "
+              SELECT domain, db_name FROM public.panel_databases WHERE domain IN (SELECT domain FROM public.panel_sites WHERE owner = 'oshercollective');
+            "
+            echo "----- conta oshercollective em panel_users -----"
+            docker exec supabase-db psql -U postgres -d postgres -c "
+              SELECT username, hosting_provider, package_name, disk_used_mb, quota_limit_mb, status FROM public.panel_users WHERE username = 'oshercollective';
+            "
