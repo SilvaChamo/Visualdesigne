@@ -1,0 +1,43 @@
+name: 'ops: migrar restantes — passo 1 (criar domínios + BDs no Hestia)'
+
+on:
+  workflow_dispatch: {}
+
+jobs:
+  criar-lirandzojewelry:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: appleboy/ssh-action@v1.2.5
+        with:
+          host: ${{ secrets.CONTABO_HOST }}
+          username: root
+          key: ${{ secrets.CONTABO_SSH_KEY }}
+          script: |
+            H=/usr/local/hestia/bin
+            DBPASS=$(openssl rand -base64 24 | tr -dc 'A-Za-z0-9' | cut -c1-20)
+            mkdir -p /root/.osher-migration
+            echo "$DBPASS" > /root/.osher-migration/lirandzojewelry-db-password.txt
+            chmod 600 /root/.osher-migration/lirandzojewelry-db-password.txt
+            $H/v-add-web-domain oshercollective lirandzojewelry.com \
+              && echo "domínio criado" || echo "(já existia)"
+            $H/v-add-database oshercollective lirandzo lirandzo "$DBPASS" \
+              && echo "BD criada" || echo "(BD já existia)"
+
+  criar-oshercollective:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: appleboy/ssh-action@v1.2.5
+        with:
+          host: ${{ secrets.CONTABO_HOST }}
+          username: root
+          key: ${{ secrets.CONTABO_SSH_KEY }}
+          script: |
+            H=/usr/local/hestia/bin
+            DBPASS=$(openssl rand -base64 24 | tr -dc 'A-Za-z0-9' | cut -c1-20)
+            mkdir -p /root/.osher-migration
+            echo "$DBPASS" > /root/.osher-migration/oshercollective-db-password.txt
+            chmod 600 /root/.osher-migration/oshercollective-db-password.txt
+            $H/v-add-web-domain oshercollective oshercollective.com \
+              && echo "domínio criado" || echo "(já existia)"
+            $H/v-add-database oshercollective osherweb osherweb "$DBPASS" \
+              && echo "BD criada" || echo "(BD já existia)"
