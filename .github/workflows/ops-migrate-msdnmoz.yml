@@ -1,10 +1,10 @@
-name: 'ops: migrar msdn-moz.org — passo 4 (restaurar ficheiros + BD e testar, sem tocar em DNS)'
+name: 'ops: diagnosticar teste local msdn-moz.org no Contabo (so-leitura)'
 
 on:
   workflow_dispatch: {}
 
 jobs:
-  restaurar:
+  diag:
     runs-on: ubuntu-latest
     steps:
       - uses: appleboy/ssh-action@v1.2.5
@@ -13,26 +13,12 @@ jobs:
           username: root
           key: ${{ secrets.CONTABO_SSH_KEY }}
           script: |
-            DBPASS=$(cat /root/.osher-migration/msdnmoz-db-password.txt)
-            WEBDIR="/home/oshercollective/web/msdn-moz.org/public_html"
-
-            rm -rf "$WEBDIR"
-            mkdir -p "$(dirname "$WEBDIR")"
-            tar xzf /tmp/msdnmoz_site.tar.gz -C "$(dirname "$WEBDIR")"
-
-            gunzip -c /tmp/msdnmoz_db.sql.gz | mysql -u oshercollective_msdnmoz -p"$DBPASS" oshercollective_msdnmoz
-
-            sed -i "s/define( *'DB_NAME'.*/define( 'DB_NAME', 'oshercollective_msdnmoz' );/" "$WEBDIR/wp-config.php"
-            sed -i "s/define( *'DB_USER'.*/define( 'DB_USER', 'oshercollective_msdnmoz' );/" "$WEBDIR/wp-config.php"
-            sed -i "s/define( *'DB_PASSWORD'.*/define( 'DB_PASSWORD', '$DBPASS' );/" "$WEBDIR/wp-config.php"
-            sed -i "s/define( *'DB_HOST'.*/define( 'DB_HOST', 'localhost' );/" "$WEBDIR/wp-config.php"
-
-            chown -R oshercollective:oshercollective /home/oshercollective/web/msdn-moz.org
-            rm -f /tmp/msdnmoz_db.sql.gz /tmp/msdnmoz_site.tar.gz
-
-            echo "----- teste local (sem DNS, via Host header directo) -----"
-            CODE=$(curl -sk -o /tmp/resposta.html -w "%{http_code}" -H "Host: msdn-moz.org" http://127.0.0.1/)
-            echo "HTTP status: $CODE"
-            head -c 400 /tmp/resposta.html
-            echo ""
-            echo "OK: msdn-moz.org restaurado e testado no Contabo"
+            echo "----- portas a escutar -----"
+            ss -tlnp | grep -E ":80|:443|nginx|apache" || ss -tlnp
+            echo "----- vhost nginx do domínio -----"
+            find /home/oshercollective/conf -iname "*msdn-moz*" 2>/dev/null
+            find /etc/nginx -iname "*msdn-moz*" 2>/dev/null
+            echo "----- teste https local -----"
+            curl -sk -o /tmp/r2.html -w "HTTPS status: %{http_code}\n" -H "Host: msdn-moz.org" https://127.0.0.1/ || echo "curl https falhou: $?"
+            echo "----- teste http verbose -----"
+            curl -v -o /tmp/r1.html -H "Host: msdn-moz.org" http://127.0.0.1/ 2>&1 | tail -20
