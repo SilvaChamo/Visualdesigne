@@ -31,6 +31,10 @@ jobs:
             [ -n "$SRC2" ] && du -sh "$SRC2" 2>/dev/null
             echo "----- total docker dir -----"
             du -sh /var/lib/docker 2>/dev/null
+            echo "----- home dir (sites/emails DirectAdmin) -----"
+            du -sh /home 2>/dev/null
+            echo "----- top level du -----"
+            du -sh /* 2>/dev/null | sort -rh | head -15
 
   contabo:
     name: Contabo disk usage
