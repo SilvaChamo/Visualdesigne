@@ -1,4 +1,4 @@
-name: 'ops: migrar emails — inspeccionar estrutura Maildir antes de copiar (so-leitura)'
+name: 'ops: migrar emails — ver estrutura Hestia recem-criada (so-leitura)'
 
 on:
   workflow_dispatch: {}
@@ -9,12 +9,10 @@ jobs:
     steps:
       - uses: appleboy/ssh-action@v1.2.5
         with:
-          host: ${{ secrets.HETZNER_HOST }}
-          port: ${{ secrets.HETZNER_PORT }}
-          username: ${{ secrets.HETZNER_USER }}
-          key: ${{ secrets.HETZNER_SSH_KEY }}
+          host: ${{ secrets.CONTABO_HOST }}
+          username: root
+          key: ${{ secrets.CONTABO_SSH_KEY }}
           script: |
-            echo "----- estrutura de uma caixa (Hetzner) -----"
-            find /home/oshercollective/imap/msdn-moz.org/secretary -maxdepth 2
-            echo "----- dono/permissões -----"
-            ls -la /home/oshercollective/imap/msdn-moz.org/
+            find /home/oshercollective/mail/msdn-moz.org/secretary -maxdepth 3
+            echo "----- dono -----"
+            ls -la /home/oshercollective/mail/msdn-moz.org/secretary/
