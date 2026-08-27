@@ -1,11 +1,11 @@
-name: Ops - verifica elimservicos.com dentro da conta oshercollective
+name: Ops - verifica se oshercollective ja existe no Hestia (leitura)
 
 on:
   workflow_dispatch:
 
 jobs:
   check:
-    name: CMD_API_SHOW_USER_DOMAINS / CONFIG (leitura)
+    name: v-list-users / v-list-user (so leitura)
     runs-on: ubuntu-latest
     steps:
       - name: Setup SSH key
@@ -15,7 +15,7 @@ jobs:
           chmod 600 ~/.ssh/deploy_key
           ssh-keyscan "${{ secrets.CONTABO_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
 
-      - name: Consulta directa ao DirectAdmin
+      - name: Diagnostico Hestia
         uses: appleboy/ssh-action@v1.2.5
         with:
           host: ${{ secrets.CONTABO_HOST }}
@@ -27,20 +27,16 @@ jobs:
             set -a
             source .env.local
             set +a
-            AUTH_USER="admin"
-            AUTH_PASS="${DIRECTADMIN_LOGIN_KEY:-$DIRECTADMIN_PASSWORD}"
-            BASE="${DIRECTADMIN_PROTOCOL}://${DIRECTADMIN_HOST}:${DIRECTADMIN_PORT}"
+            HESTIA_PORT="${HESTIA_PORT:-8083}"
+            HESTIA_USER="${HESTIA_USER:-vdadmin}"
 
-            echo "===== config da conta oshercollective ====="
-            curl -sk -w "\nHTTP_STATUS:%{http_code}\n" --connect-timeout 15 -m 30 -u "${AUTH_USER}:${AUTH_PASS}" \
-              "${BASE}/CMD_API_SHOW_USER_CONFIG?user=oshercollective"
+            echo "===== Todos os utilizadores reais no Hestia ====="
+            curl -sk -X POST "https://${HESTIA_HOST}:${HESTIA_PORT}/api/" \
+              -d "user=${HESTIA_USER}" -d "password=${HESTIA_PASSWORD}" \
+              -d "cmd=v-list-users" -d "arg1=json"
             echo ""
 
-            echo "===== dominios da conta oshercollective ====="
-            curl -sk -w "\nHTTP_STATUS:%{http_code}\n" --connect-timeout 15 -m 30 -u "${AUTH_USER}:${AUTH_PASS}" \
-              "${BASE}/CMD_API_SHOW_USER_DOMAINS?user=oshercollective"
-            echo ""
-
-            echo "===== contas de email em elimservicos.com ====="
-            curl -sk -w "\nHTTP_STATUS:%{http_code}\n" --connect-timeout 15 -m 30 -u "${AUTH_USER}:${AUTH_PASS}" \
-              "${BASE}/CMD_API_POP?action=list&domain=elimservicos.com&user=oshercollective"
+            echo "===== oshercollective existe? ====="
+            curl -sk -X POST "https://${HESTIA_HOST}:${HESTIA_PORT}/api/" \
+              -d "user=${HESTIA_USER}" -d "password=${HESTIA_PASSWORD}" \
+              -d "cmd=v-list-user" -d "arg1=oshercollective" -d "arg2=json"
