@@ -1,0 +1,38 @@
+name: 'ops: migrar restantes - passo 1 (criar dominios web + mail elimservicos)'
+
+on:
+  workflow_dispatch: {}
+
+jobs:
+  criar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: appleboy/ssh-action@v1.2.5
+        with:
+          host: ${{ secrets.CONTABO_HOST }}
+          username: root
+          key: ${{ secrets.CONTABO_SSH_KEY }}
+          script: |
+            H=/usr/local/hestia/bin
+
+            echo "----- dominios web -----"
+            $H/v-add-web-domain oshercollective elimservicos.com && echo "web elimservicos.com criado" || echo "(ja existia)"
+            $H/v-add-web-domain oshercollective shalomdeco.com && echo "web shalomdeco.com criado" || echo "(ja existia)"
+
+            echo "----- mail domain + contas elimservicos.com -----"
+            $H/v-add-mail-domain oshercollective elimservicos.com && echo "mail-domain criado" || echo "(ja existia)"
+
+            mkdir -p /root/.osher-migration
+            OUT=/root/.osher-migration/elimservicos-email-passwords.txt
+            : > "$OUT"
+            chmod 600 "$OUT"
+
+            for BOX in admin tatiana.mata projectos elimservico operations media; do
+              PASS=$(openssl rand -base64 24 | tr -dc 'A-Za-z0-9' | cut -c1-16)
+              if $H/v-add-mail-account oshercollective elimservicos.com "$BOX" "$PASS"; then
+                echo "  + $BOX@elimservicos.com criado"
+                echo "$BOX@elimservicos.com=$PASS" >> "$OUT"
+              else
+                echo "  ! $BOX@elimservicos.com falhou ou ja existia"
+              fi
+            done
