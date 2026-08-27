@@ -119,13 +119,40 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       touchPanelActivity()
     }
 
+    // mousemove dispara dezenas de vezes por segundo — sem limitar, cada
+    // movimento escrevia no sessionStorage; um intervalo mínimo entre
+    // escritas mantém a detecção sem sobrecarregar.
+    let lastMouseTouch = 0
+    const onMouseMove = () => {
+      const now = Date.now()
+      if (now - lastMouseTouch < 5_000) return
+      lastMouseTouch = now
+      touchPanelActivity()
+    }
+
     const activityEvents = ['mousedown', 'keydown', 'scroll', 'touchstart', 'click'] as const
 
     activityEvents.forEach((event) => {
       window.addEventListener(event, onActivity, { passive: true })
     })
+    window.addEventListener('mousemove', onMouseMove, { passive: true })
+
+    // Páginas como o webmail (Roundcube) e outros ecrãs embutidos em
+    // <iframe> não deixam os eventos acima chegarem à janela principal —
+    // um utilizador a trabalhar lá dentro durante 30 min parecia "parado"
+    // e era desligado a meio do uso real. Enquanto o separador do painel
+    // continuar em foco, considera-se utilização activa (só conta como
+    // inactividade quando o separador deixa de estar em foco, ex.: minimizado
+    // ou noutro separador) — fecha a lacuna sem depender do conteúdo do
+    // iframe, que muitas vezes é de origem diferente e inacessível por JS.
+    const onFocusActivity = () => {
+      if (document.hasFocus()) touchPanelActivity()
+    }
+    document.addEventListener('visibilitychange', onFocusActivity)
+    window.addEventListener('focus', onFocusActivity)
 
     const checkInterval = window.setInterval(() => {
+      if (document.hasFocus()) touchPanelActivity()
       if (isIdleBeyond(limitMs)) {
         void handleAutomaticSignOut()
       }
@@ -143,6 +170,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       activityEvents.forEach((event) => {
         window.removeEventListener(event, onActivity)
       })
+      window.removeEventListener('mousemove', onMouseMove)
+      document.removeEventListener('visibilitychange', onFocusActivity)
+      window.removeEventListener('focus', onFocusActivity)
     }
   }, [user, pathname])
 
