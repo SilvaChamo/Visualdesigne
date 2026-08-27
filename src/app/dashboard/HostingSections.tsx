@@ -1533,6 +1533,12 @@ export function EmailManagementSection({
 }) {
   const [selectedDomain, setSelectedDomain] = useState(preSelectedDomain || '__ALL__')
   const [emails, setEmails] = useState<DirectAdminEmail[]>([])
+  // Guarda qual foi o último pedido disparado — se o utilizador trocar de
+  // domínio antes de um pedido anterior (mais lento) responder, essa
+  // resposta chega depois mas já não corresponde ao domínio seleccionado.
+  // Sem esta verificação, a resposta tardia sobrescrevia a lista certa com
+  // a de outro domínio (viam-se emails misturados ou trocados no ecrã).
+  const latestEmailRequestRef = useRef<string>('')
   const [loading, setLoading] = useState(false)
   const [msg, setMsg] = useState('')
   const [msgType, setMsgType] = useState<'success' | 'error'>('success')
@@ -1631,21 +1637,31 @@ export function EmailManagementSection({
 
   const loadEmails = async (domain: string) => {
     if (!domain) return
+    latestEmailRequestRef.current = domain
     const ls = cpGetEmails(domain)
     if (ls.length > 0) {
       const cachedRows = ls
         .map((e: any) => ({ email: e.email || `${e.user}@${domain}`, user: e.user, domain, quota_mb: e.quota_mb || 500, usage: e.usage || '0', status: 'active' as const }))
         .sort((a, b) => a.email.localeCompare(b.email))
       setEmails(cachedRows)
-    } else setLoading(true)
+    } else {
+      // Sem cache para este domínio — mostrar vazio em vez de deixar a
+      // lista do domínio anterior visível até o pedido real responder
+      // (era isto que dava a impressão de "email da conta errada").
+      setEmails([])
+      setLoading(true)
+    }
 
     try {
       // 1. Carregar do DirectAdmin
       const daEmails = await directAdminAPI.listEmails(domain).catch(() => [])
+      // Resposta tardia de um domínio já trocado — ignorar.
+      if (latestEmailRequestRef.current !== domain) return
       const cpEmails = daEmails.length > 0 ? daEmails : cpGetEmails(domain)
 
       // 2. Carregar metadados do Supabase
       const { data: sbData } = await supabase.from('email_contas').select('*').eq('domain', domain)
+      if (latestEmailRequestRef.current !== domain) return
 
       // 3. Cruzar dados
       const merged: DirectAdminEmail[] = cpEmails.map((cpE: any) => {
@@ -1668,6 +1684,7 @@ export function EmailManagementSection({
       // sensação de contas a "disputar o lugar" na tabela.
       merged.sort((a, b) => a.email.localeCompare(b.email))
 
+      if (latestEmailRequestRef.current !== domain) return
       setEmails(merged)
       merged.forEach((e: any) => cpSaveEmail(domain, e.user, { quota_mb: e.quota_mb }))
 
@@ -1686,12 +1703,13 @@ export function EmailManagementSection({
     } catch (err) {
       console.error('Erro na sincronização:', err)
     }
-    setLoading(false)
+    if (latestEmailRequestRef.current === domain) setLoading(false)
   }
 
   // Carregar todos os emails de todos os sites
   const loadAllEmails = async () => {
     if (sites.length === 0) return
+    latestEmailRequestRef.current = '__ALL__'
     setLoading(true)
     setEmails([])
 
@@ -1699,6 +1717,11 @@ export function EmailManagementSection({
       let allEmails: any[] = []
 
       for (const site of sites) {
+        // O utilizador trocou para um domínio específico a meio deste
+        // ciclo (que percorre todos os sites um a um, pode demorar) —
+        // parar aqui evita continuar a acumular emails de outros sites
+        // só para depois serem descartados de qualquer forma.
+        if (latestEmailRequestRef.current !== '__ALL__') return
         try {
           const daEmails = await directAdminAPI.listEmails(site.domain).catch(() => [])
           if (daEmails.length > 0) {
@@ -1717,12 +1740,13 @@ export function EmailManagementSection({
         }
       }
 
+      if (latestEmailRequestRef.current !== '__ALL__') return
       setEmails(allEmails)
       prefetchEmailConfigs(allEmails.map((e) => e.email).filter(Boolean))
     } catch (err) {
       console.error('Erro ao carregar todos os emails:', err)
     }
-    setLoading(false)
+    if (latestEmailRequestRef.current === '__ALL__') setLoading(false)
   }
 
   useEffect(() => {
