@@ -1,11 +1,11 @@
-name: Ops - verifica se ha Supabase real a correr no Contabo
+name: Ops - inventario para separar Supabase (Contabo vs Hetzner)
 
 on:
   workflow_dispatch:
 
 jobs:
-  check:
-    name: Docker/Postgres no Contabo
+  contabo:
+    name: Recursos e estado do Contabo
     runs-on: ubuntu-latest
     steps:
       - name: Setup SSH key
@@ -15,7 +15,7 @@ jobs:
           chmod 600 ~/.ssh/deploy_key
           ssh-keyscan "${{ secrets.CONTABO_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
 
-      - name: Verifica containers Docker e dados reais
+      - name: Inspeciona Contabo
         uses: appleboy/ssh-action@v1.2.5
         with:
           host: ${{ secrets.CONTABO_HOST }}
@@ -23,27 +23,82 @@ jobs:
           key: ${{ secrets.CONTABO_SSH_KEY }}
           command_timeout: 2m
           script: |
-            echo "===== Containers Docker a correr no Contabo ====="
-            docker ps -a 2>&1 || echo "docker nao instalado ou sem permissao"
+            echo "===== SO ====="
+            cat /etc/os-release | grep -E "^NAME|^VERSION="
 
             echo ""
-            echo "===== Procura por qualquer coisa 'supabase' no sistema ====="
-            find / -maxdepth 4 -iname "*supabase*" -type d 2>/dev/null
+            echo "===== RAM ====="
+            free -h
 
             echo ""
-            echo "===== Portas a escutar (3000, 5432, 8000, 8443, 54321 tipicas do Supabase) ====="
-            ss -tlnp 2>&1 | grep -E ':3000|:5432|:8000|:8443|:54321' || echo "nenhuma dessas portas em escuta"
+            echo "===== Disco ====="
+            df -h /
 
             echo ""
-            echo "===== Se houver postgres local, lista bases de dados ====="
-            docker exec -i $(docker ps --filter "name=postgres" --format "{{.Names}}" | head -1) psql -U postgres -c '\l' 2>&1 || echo "sem container postgres para consultar"
+            echo "===== CPU ====="
+            nproc
 
             echo ""
-            echo "===== Confirma se supabase.visualdesignmoz.com aponta para este servidor (curl local) ====="
-            curl -s -o /dev/null -w "HTTP %{http_code}\n" http://localhost:3000 2>&1 || echo "porta 3000 nao responde localmente"
-            curl -s -o /dev/null -w "HTTP %{http_code}\n" http://localhost:8000 2>&1 || echo "porta 8000 nao responde localmente"
+            echo "===== Portas ja em uso (todas) ====="
+            ss -tlnp 2>&1
 
             echo ""
-            echo "===== IP publico deste servidor Contabo ====="
-            curl -s https://api.ipify.org 2>&1
+            echo "===== Docker instalado? ====="
+            which docker || echo "sem docker"
+            which docker-compose || echo "sem docker-compose standalone"
+
             echo ""
+            echo "===== Postgres instalado nativamente? ====="
+            which psql || echo "sem psql"
+            which postgres || echo "sem postgres nativo"
+            systemctl list-units --type=service 2>/dev/null | grep -i postgres || echo "sem servico postgres"
+
+  hetzner:
+    name: Stack Supabase real no Hetzner
+    runs-on: ubuntu-latest
+    steps:
+      - name: Setup SSH key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.HETZNER_SSH_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -p "${{ secrets.HETZNER_PORT }}" "${{ secrets.HETZNER_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
+
+      - name: Inspeciona Hetzner
+        uses: appleboy/ssh-action@v1.2.5
+        with:
+          host: ${{ secrets.HETZNER_HOST }}
+          port: ${{ secrets.HETZNER_PORT }}
+          username: ${{ secrets.HETZNER_USER }}
+          key: ${{ secrets.HETZNER_SSH_KEY }}
+          command_timeout: 2m
+          script: |
+            echo "===== Containers Docker (Supabase) ====="
+            docker ps -a --format "table {{.Names}}\t{{.Image}}\t{{.Status}}" 2>&1 || echo "sem acesso docker (sudo?)"
+            sudo docker ps -a --format "table {{.Names}}\t{{.Image}}\t{{.Status}}" 2>&1 || true
+
+            echo ""
+            echo "===== Pasta do projecto Supabase (docker-compose) ====="
+            find / -maxdepth 5 -iname "docker-compose*.yml" 2>/dev/null | grep -i supabase
+            find / -maxdepth 5 -iname "docker-compose*.yml" 2>/dev/null
+
+            echo ""
+            echo "===== Versao do Postgres real (container) ====="
+            docker exec -i $(docker ps --filter "name=db" --format "{{.Names}}" | head -1) psql -U postgres -c "SELECT version();" 2>&1 || sudo docker exec -i $(sudo docker ps --filter "name=db" --format "{{.Names}}" | head -1) psql -U postgres -c "SELECT version();" 2>&1 || echo "nao consegui"
+
+            echo ""
+            echo "===== Tamanho da base de dados real ====="
+            docker exec -i $(docker ps --filter "name=db" --format "{{.Names}}" | head -1) psql -U postgres -c "SELECT datname, pg_size_pretty(pg_database_size(datname)) FROM pg_database ORDER BY pg_database_size(datname) DESC;" 2>&1 || sudo docker exec -i $(sudo docker ps --filter "name=db" --format "{{.Names}}" | head -1) psql -U postgres -c "SELECT datname, pg_size_pretty(pg_database_size(datname)) FROM pg_database ORDER BY pg_database_size(datname) DESC;" 2>&1 || echo "nao consegui"
+
+            echo ""
+            echo "===== Extensoes instaladas na BD principal ====="
+            docker exec -i $(docker ps --filter "name=db" --format "{{.Names}}" | head -1) psql -U postgres -d postgres -c "\dx" 2>&1 || sudo docker exec -i $(sudo docker ps --filter "name=db" --format "{{.Names}}" | head -1) psql -U postgres -d postgres -c "\dx" 2>&1 || echo "nao consegui"
+
+            echo ""
+            echo "===== Buckets de storage existentes ====="
+            docker exec -i $(docker ps --filter "name=db" --format "{{.Names}}" | head -1) psql -U postgres -d postgres -c "SELECT id, name, public FROM storage.buckets;" 2>&1 || sudo docker exec -i $(sudo docker ps --filter "name=db" --format "{{.Names}}" | head -1) psql -U postgres -d postgres -c "SELECT id, name, public FROM storage.buckets;" 2>&1 || echo "nao consegui"
+
+            echo ""
+            echo "===== Tamanho da pasta de storage (ficheiros) ====="
+            find / -maxdepth 6 -type d -iname "storage" 2>/dev/null | grep -i supabase
+            du -sh /var/lib/docker/volumes/*storage* 2>/dev/null || true
