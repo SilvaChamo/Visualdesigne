@@ -1,0 +1,25 @@
+name: 'ops: verificar falha de login silva.chamo@elimservicos.com (so-leitura)'
+
+on:
+  workflow_dispatch: {}
+
+jobs:
+  verificar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: appleboy/ssh-action@v1.2.5
+        with:
+          host: ${{ secrets.HETZNER_HOST }}
+          port: ${{ secrets.HETZNER_PORT }}
+          username: ${{ secrets.HETZNER_USER }}
+          key: ${{ secrets.HETZNER_SSH_KEY }}
+          script: |
+            echo "----- conta existe no DA? -----"
+            find /home/oshercollective/imap/elimservicos.com -maxdepth 1 -iname "silva*"
+            echo "----- logs dovecot (tentativas recentes) -----"
+            tail -n 200 /var/log/exim4/mainlog 2>/dev/null | grep -i "silva.chamo\|dovecot.*auth" | tail -20
+            journalctl -u dovecot --since "-2 hours" 2>/dev/null | grep -i "silva.chamo" | tail -20
+            echo "----- shadow/passwd do dovecot (só nomes, não valores) -----"
+            doveadm user silva.chamo@elimservicos.com 2>&1 | head -10
+            echo "----- teste de auth directo -----"
+            doveadm auth test silva.chamo@elimservicos.com 2>&1 | head -5
