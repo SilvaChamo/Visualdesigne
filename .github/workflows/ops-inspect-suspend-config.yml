@@ -1,11 +1,11 @@
-name: Ops - inventario real do Hestia via SSH (leitura, sem API)
+name: Ops - verifica se ha Supabase real a correr no Contabo
 
 on:
   workflow_dispatch:
 
 jobs:
   check:
-    name: v-list-users / v-list-user-packages directo por SSH
+    name: Docker/Postgres no Contabo
     runs-on: ubuntu-latest
     steps:
       - name: Setup SSH key
@@ -15,7 +15,7 @@ jobs:
           chmod 600 ~/.ssh/deploy_key
           ssh-keyscan "${{ secrets.CONTABO_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
 
-      - name: Inventario Hestia (comandos v-* directos no servidor, sem HTTP API)
+      - name: Verifica containers Docker e dados reais
         uses: appleboy/ssh-action@v1.2.5
         with:
           host: ${{ secrets.CONTABO_HOST }}
@@ -23,28 +23,27 @@ jobs:
           key: ${{ secrets.CONTABO_SSH_KEY }}
           command_timeout: 2m
           script: |
-            echo "===== Todos os utilizadores Hestia reais no servidor ====="
-            /usr/local/hestia/bin/v-list-users json
+            echo "===== Containers Docker a correr no Contabo ====="
+            docker ps -a 2>&1 || echo "docker nao instalado ou sem permissao"
 
             echo ""
-            echo "===== oshercollective existe como utilizador? ====="
-            /usr/local/hestia/bin/v-list-user oshercollective json || echo "NAO EXISTE: oshercollective"
+            echo "===== Procura por qualquer coisa 'supabase' no sistema ====="
+            find / -maxdepth 4 -iname "*supabase*" -type d 2>/dev/null
 
             echo ""
-            echo "===== Sites/dominios dentro da conta oshercollective (se existir) ====="
-            /usr/local/hestia/bin/v-list-web-domains oshercollective json || echo "SEM DOMINIOS OU CONTA NAO EXISTE"
+            echo "===== Portas a escutar (3000, 5432, 8000, 8443, 54321 tipicas do Supabase) ====="
+            ss -tlnp 2>&1 | grep -E ':3000|:5432|:8000|:8443|:54321' || echo "nenhuma dessas portas em escuta"
 
             echo ""
-            echo "===== Dominios de cada um dos 5 dominios da oshercollective, individualmente ====="
-            for u in msdn-moz elimservicos lirandzojewelry shalomdeco; do
-              echo "--- utilizador $u ---"
-              /usr/local/hestia/bin/v-list-user "$u" json || echo "NAO EXISTE: $u"
-            done
+            echo "===== Se houver postgres local, lista bases de dados ====="
+            docker exec -i $(docker ps --filter "name=postgres" --format "{{.Names}}" | head -1) psql -U postgres -c '\l' 2>&1 || echo "sem container postgres para consultar"
 
             echo ""
-            echo "===== Todos os pacotes reais configurados no servidor ====="
-            /usr/local/hestia/bin/v-list-user-packages json
+            echo "===== Confirma se supabase.visualdesignmoz.com aponta para este servidor (curl local) ====="
+            curl -s -o /dev/null -w "HTTP %{http_code}\n" http://localhost:3000 2>&1 || echo "porta 3000 nao responde localmente"
+            curl -s -o /dev/null -w "HTTP %{http_code}\n" http://localhost:8000 2>&1 || echo "porta 8000 nao responde localmente"
 
             echo ""
-            echo "===== Ficheiros de definicao dos pacotes (nomes) ====="
-            ls -la /usr/local/hestia/data/packages/
+            echo "===== IP publico deste servidor Contabo ====="
+            curl -s https://api.ipify.org 2>&1
+            echo ""
