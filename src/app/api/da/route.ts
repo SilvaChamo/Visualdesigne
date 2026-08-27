@@ -112,7 +112,7 @@ async function resolveApi(action?: string, domain?: string) {
 // segue o caminho DA normal (com o mesmo comportamento de sempre para essas
 // lacunas, já conhecido/documentado à parte).
 const HESTIA_SUPPORTED_ACTIONS = new Set([
-  'listEmails', 'createEmail', 'deleteEmail', 'suspendEmail', 'unsuspendEmail', 'changeEmailPassword',
+  'listEmails', 'createEmail', 'deleteEmail', 'suspendEmail', 'unsuspendEmail', 'changeEmailPassword', 'setEmailLimits',
   'listFTPAccounts', 'createFTPAccount', 'deleteFTPAccount',
   'deleteWebsite', 'suspendWebsite', 'unsuspendWebsite',
 ]);
@@ -186,6 +186,18 @@ async function tryHestiaAction(
         const password = String(params.password || '');
         data = await hestiaAdapter.changeMailAccountPassword(owner, domain, userName, password);
         await syncEmailContasPassword(`${userName}@${domain}`, password);
+        break;
+      }
+      case 'setEmailLimits': {
+        const userName = emailParam.split('@')[0] || '';
+        const quotaMb = Number(params.limit ?? params.quota ?? 0);
+        if (!userName || !quotaMb) {
+          return {
+            handled: true,
+            response: NextResponse.json({ success: false, error: 'Quota inválida.' }, { status: 400 }),
+          };
+        }
+        data = await hestiaAdapter.changeMailAccountQuota(owner, domain, userName, quotaMb);
         break;
       }
       case 'listFTPAccounts': {

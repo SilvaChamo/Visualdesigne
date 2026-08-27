@@ -320,6 +320,18 @@ export async function changeMailAccountPassword(
   return { ok: result.ok, error: result.error };
 }
 
+/** Confirmado no servidor (bin/v-change-mail-account-quota, 2026-08-27):
+ * `v-change-mail-account-quota USER DOMAIN ACCOUNT QUOTA`. */
+export async function changeMailAccountQuota(
+  username: string,
+  domain: string,
+  account: string,
+  quotaMb: number,
+): Promise<{ ok: boolean; error?: string }> {
+  const result = await hestiaCall('v-change-mail-account-quota', [username, domain, account, String(quotaMb)]);
+  return { ok: result.ok, error: result.error };
+}
+
 export async function suspendMailAccount(
   username: string,
   domain: string,

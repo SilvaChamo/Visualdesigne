@@ -918,7 +918,23 @@ export function createDirectAdminAPI(credentials: DirectAdminCredentials) {
     addPatternForwarding: async (_p: Record<string, unknown>) => ({ success: true }),
     getPlusAddressing: async (_domain: string) => false,
     togglePlusAddressing: async (_p: Record<string, unknown>) => ({ success: true }),
-    setEmailLimits: async (_p: Record<string, unknown>) => ({ success: true }),
+
+    // Antes era um stub que sempre devolvia sucesso sem mexer em nada — a
+    // quota ficava assim praticamente imutável depois da conta criada,
+    // apesar do botão "editar quota" existir na UI. CMD_API_POP action=modify
+    // aceita 'quota' tal como action=create já aceitava.
+    setEmailLimits: async (p: Record<string, unknown>) => {
+      cacheService.clear();
+      const email = String(p.email || '');
+      const [user, domain] = email.split('@');
+      const result = await daPost(credentials, 'CMD_API_POP', {
+        action: 'modify',
+        domain: String(p.domain || domain),
+        user: String(p.userName || user),
+        quota: String(p.limit ?? p.quota ?? '250'),
+      });
+      return { success: result.ok, error: result.error };
+    },
 
     enableDKIM: async (domain: string) => {
       // O envio real de email é feito via Brevo (ver brevo-mail.ts), por

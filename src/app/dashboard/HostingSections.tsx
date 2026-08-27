@@ -1884,6 +1884,20 @@ export function EmailManagementSection({
             await directAdminAPI.unsuspendEmail(originalEmail);
           }
         }
+
+        // Idem para a quota — o campo existia no state do modal mas nunca
+        // era enviado ao servidor ao gravar (só na criação). Setar sempre
+        // que houver um valor válido evita chamadas vazias na maioria das
+        // edições onde a quota não foi tocada, mas também não é caro
+        // repetir se coincidir com a actual.
+        const currentQuota = emails.find((e) => e.email === originalEmail)?.quota_mb
+        const newQuota = data.quota_mb === '' || data.quota_mb == null ? undefined : Number(data.quota_mb)
+        if (newQuota && newQuota !== currentQuota) {
+          const limitRes = await directAdminAPI.setEmailLimits({ domain: originalDomain, email: originalEmail, limit: newQuota });
+          if (limitRes?.success === false) {
+            throw new Error(limitRes.error || 'Falha ao actualizar a quota no servidor.');
+          }
+        }
       }
 
       // 4. Salvar/Actualizar no Supabase — só quando houve mesmo alteração de
@@ -2352,6 +2366,17 @@ export function EmailManagementSection({
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                   <div className="space-y-1.5"><label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Palavra-passe</label><div className="relative"><input type={showEmailPass ? 'text' : 'password'} value={emailModal.data.password} onChange={e => setEmailModal({ ...emailModal, data: { ...emailModal.data, password: e.target.value } })} placeholder={emailModal.mode === 'edit' ? 'Manter actual' : '••••••••'} className="w-full bg-gray-50 dark:bg-zinc-900 dark:text-zinc-100 border border-gray-200 dark:border-zinc-800 rounded px-4 py-2.5 text-sm focus:ring-2 focus:ring-red-500/20 focus:border-red-500 outline-none transition-all pr-12" /><button type="button" onClick={() => setShowEmailPass(!showEmailPass)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">{showEmailPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}</button></div><button type="button" onClick={() => { const p = generatePassword(); setEmailModal({ ...emailModal, data: { ...emailModal.data, password: p, confirmPassword: p } }) }} className="text-xs font-semibold text-red-600 hover:text-red-700 mt-1 self-start">Gerar palavra-passe</button></div>
                   <div className="space-y-1.5"><label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Confirmar palavra-passe</label><div className="relative"><input type={showEmailPass ? 'text' : 'password'} value={emailModal.data.confirmPassword || ''} onChange={e => setEmailModal({ ...emailModal, data: { ...emailModal.data, confirmPassword: e.target.value } })} placeholder="Confirmar palavra-passe" className="w-full bg-gray-50 dark:bg-zinc-900 dark:text-zinc-100 border border-gray-200 dark:border-zinc-800 rounded px-4 py-2.5 text-sm focus:ring-2 focus:ring-red-500/20 focus:border-red-500 outline-none transition-all pr-12" /><button type="button" onClick={() => setShowEmailPass(!showEmailPass)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">{showEmailPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}</button></div></div>
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Quota de E-mail (MB)</label>
+                  <input
+                    type="number"
+                    min={1}
+                    value={emailModal.data.quota_mb ?? 500}
+                    onChange={e => setEmailModal({ ...emailModal, data: { ...emailModal.data, quota_mb: e.target.value === '' ? '' : Number(e.target.value) } })}
+                    placeholder="500"
+                    className="w-full bg-gray-50 dark:bg-zinc-900 dark:text-zinc-100 border border-gray-200 dark:border-zinc-800 rounded px-4 py-2.5 text-sm focus:ring-2 focus:ring-red-500/20 focus:border-red-500 outline-none transition-all"
+                  />
                 </div>
                 {emailModal.mode === 'edit' && (
                   <div className="mt-4 flex items-center justify-between p-4 bg-gray-50 dark:bg-zinc-900 rounded border border-gray-100 dark:border-zinc-800">
