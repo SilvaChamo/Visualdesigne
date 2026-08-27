@@ -1,0 +1,20 @@
+name: 'ops: confirmar contas novas nos dominios certos (so-leitura)'
+
+on:
+  workflow_dispatch: {}
+
+jobs:
+  verificar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: appleboy/ssh-action@v1.2.5
+        with:
+          host: ${{ secrets.HETZNER_HOST }}
+          port: ${{ secrets.HETZNER_PORT }}
+          username: ${{ secrets.HETZNER_USER }}
+          key: ${{ secrets.HETZNER_SSH_KEY }}
+          script: |
+            echo "----- contas em elimservicos.com (ordenadas por data) -----"
+            ls -la /home/oshercollective/imap/elimservicos.com/ 2>&1
+            echo "----- contas em oshercollective.com (ordenadas por data) -----"
+            ls -la /home/oshercollective/imap/oshercollective.com/ 2>&1
