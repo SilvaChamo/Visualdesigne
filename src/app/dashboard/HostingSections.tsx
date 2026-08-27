@@ -2160,13 +2160,15 @@ export function EmailManagementSection({
       <div className="mb-4 flex flex-col gap-3 sm:flex-row">
         <select
           value={selectedDomain}
+          disabled={creating || loading}
+          title={(creating || loading) ? 'Aguarde a operação em curso terminar antes de trocar de domínio' : undefined}
           onChange={e => {
             const domain = e.target.value
             setSelectedDomain(domain)
             if (domain === '__ALL__') loadAllEmails()
             else loadEmails(domain)
           }}
-          className="min-w-[18rem] shrink-0 rounded border border-gray-300 bg-white px-4 py-2 text-sm text-gray-900 focus:border-red-500 focus:outline-none dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100 sm:min-w-[22rem]"
+          className="min-w-[18rem] shrink-0 rounded border border-gray-300 bg-white px-4 py-2 text-sm text-gray-900 focus:border-red-500 focus:outline-none dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100 sm:min-w-[22rem] disabled:opacity-50 disabled:cursor-not-allowed"
         >
           <option value="__ALL__">Todos os domínios</option>
           {sites.length > 0
@@ -2184,12 +2186,14 @@ export function EmailManagementSection({
         </div>
         <div className="flex gap-2">
           <button
+            disabled={creating || loading}
+            title={(creating || loading) ? 'Aguarde a operação em curso terminar' : undefined}
             onClick={() => setEmailModal({
               show: true,
               mode: 'create',
               data: { user: '', password: '', quota_mb: 500, status: 'active', cliente_id: '' }
             })}
-            className="flex items-center gap-2 px-4 py-2 bg-red-50 border border-red-300 text-red-600  rounded text-sm font-bold hover:bg-red-100 hover:text-red-700 transition-all "
+            className="flex items-center gap-2 px-4 py-2 bg-red-50 border border-red-300 text-red-600  rounded text-sm font-bold hover:bg-red-100 hover:text-red-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <Plus className="w-4 h-4" /> Criar E-mail
           </button>
@@ -2345,14 +2349,26 @@ export function EmailManagementSection({
       {/* Modal de E-mail (Unified) */}
       {emailModal.show && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/60" onClick={() => setEmailModal({ ...emailModal, show: false })} />
+          {/* Fechar a meio de uma criação/edição em curso deixava o pedido a
+              acabar sozinho em segundo plano — o utilizador via o modal
+              desaparecer, mudava de domínio ou tentava de novo, e quando o
+              pedido antigo finalmente respondia, a conta aparecia no
+              domínio errado (o que estava seleccionado quando o pedido
+              arrancou, já não o actual). Bloquear o fecho enquanto
+              creating/loading resolve isto na origem. */}
+          <div className="absolute inset-0 bg-black/60" onClick={() => { if (!creating && !loading) setEmailModal({ ...emailModal, show: false }) }} />
           <div className="relative bg-white dark:bg-zinc-950 border border-gray-200 dark:border-zinc-800 rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200">
             <div className="flex items-center justify-between px-8 py-6 border-b border-gray-100 dark:border-zinc-800 bg-gray-50/50 dark:bg-zinc-900/50">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 bg-red-50 border border-red-300 text-red-600 rounded flex items-center justify-center "><Mail className="w-5 h-5 " /></div>
                 <div><h2 className="text-sm font-bold text-gray-900 dark:text-white block">{emailModal.mode === 'create' ? 'Novo E-mail' : 'Editar E-mail'}</h2><span className="text-[11px] text-gray-500 dark:text-zinc-400 font-mono">{emailModal.mode === 'create' ? `No domínio: ${selectedDomain}` : `Gerir: ${emailModal.data.email}`}</span></div>
               </div>
-              <button onClick={() => setEmailModal({ ...emailModal, show: false })} className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-200 transition-colors text-gray-400"><X className="w-4 h-4" /></button>
+              <button
+                disabled={creating || loading}
+                title={(creating || loading) ? 'Aguarde a operação terminar' : undefined}
+                onClick={() => setEmailModal({ ...emailModal, show: false })}
+                className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-200 transition-colors text-gray-400 disabled:opacity-30 disabled:cursor-not-allowed"
+              ><X className="w-4 h-4" /></button>
             </div>
             {loadingClientes ? (
               <EmailFormSkeleton />
@@ -2364,8 +2380,9 @@ export function EmailManagementSection({
                       <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Website / Domínio</label>
                       <select
                         value={selectedDomain}
+                        disabled={creating || loading}
                         onChange={e => setSelectedDomain(e.target.value)}
-                        className="w-full bg-gray-50 dark:bg-zinc-900 dark:text-zinc-100 border border-gray-200 dark:border-zinc-800 rounded px-4 py-2.5 text-sm focus:ring-2 focus:ring-red-500/20 focus:border-red-500 outline-none transition-all"
+                        className="w-full bg-gray-50 dark:bg-zinc-900 dark:text-zinc-100 border border-gray-200 dark:border-zinc-800 rounded px-4 py-2.5 text-sm focus:ring-2 focus:ring-red-500/20 focus:border-red-500 outline-none transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         <option value="">Selecione um website</option>
                         {sites.map(site => (
@@ -2411,7 +2428,7 @@ export function EmailManagementSection({
               </div>
             )}
             <div className="px-6 py-4 bg-gray-50 dark:bg-zinc-900/50 border-t border-gray-100 dark:border-zinc-800 flex items-center justify-end gap-3">
-              <button onClick={() => setEmailModal({ ...emailModal, show: false })} className="px-4 py-2 bg-transparent border border-gray-300 dark:border-zinc-750 hover:bg-gray-150 dark:hover:bg-zinc-800 text-gray-500 dark:text-zinc-400 rounded text-xs font-bold transition-all">Cancelar</button>
+              <button disabled={creating || loading} onClick={() => setEmailModal({ ...emailModal, show: false })} className="px-4 py-2 bg-transparent border border-gray-300 dark:border-zinc-750 hover:bg-gray-150 dark:hover:bg-zinc-800 text-gray-500 dark:text-zinc-400 rounded text-xs font-bold transition-all disabled:opacity-30 disabled:cursor-not-allowed">Cancelar</button>
               <button onClick={() => { if (emailModal.mode === 'create') handleCreateEmail(emailModal.data); else handleUpdateEmail(emailModal.data) }} disabled={loading || creating} className="px-6 py-2 bg-transparent border border-red-500 hover:bg-red-500/10 text-red-500 rounded text-xs font-bold transition-all flex items-center gap-2">{(loading || creating) ? <Spinner className="w-3.5 h-3.5" /> : <Check className="w-3.5 h-3.5" />} {emailModal.mode === 'create' ? 'Criar E-mail' : 'Guardar Alterações'}</button>
             </div>
           </div>
