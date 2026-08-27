@@ -345,7 +345,7 @@ export async function POST(req: NextRequest) {
         });
       }
 
-      const { daApi: api } = await resolvePanelDaContext(auth);
+      const { daApi: api, mirrorScope } = await resolvePanelDaContext(auth);
       let data = await DA_MUTATION_PROXY[action](api, params as Record<string, unknown>);
       const ok = mutationSucceeded(data);
       const errMsg =
@@ -354,7 +354,17 @@ export async function POST(req: NextRequest) {
           : String((data as { error?: string; output?: string }).error || (data as { output?: string }).output || '');
 
       if (ok) {
-        await mirrorAfterDaMutation(action, params as Record<string, unknown>);
+        // DomainCreateModal (e outros formulários antigos deste route) nunca
+        // enviam 'owner'/'userName' — sem isto, o espelho gravava sempre
+        // owner:'admin' (fallback literal em mirrorAfterDaMutation), mesmo
+        // quando o pedido real ao DirectAdmin já corria correctamente na
+        // conta certa (via mirrorScope, resolvido no servidor). O domínio
+        // ficava então invisível na lista do revendedor/cliente dono real.
+        const contextOwner = mirrorScope.role === 'reseller' ? mirrorScope.daUsername : undefined;
+        const paramsWithOwner = contextOwner
+          ? { ...(params as Record<string, unknown>), owner: (params as Record<string, unknown>).owner || contextOwner }
+          : (params as Record<string, unknown>);
+        await mirrorAfterDaMutation(action, paramsWithOwner);
       }
       scheduleDaSync(400);
 
