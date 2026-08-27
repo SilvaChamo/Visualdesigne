@@ -1,0 +1,23 @@
+name: 'ops: verificar contas de email visiveis no Hestia (so-leitura)'
+
+on:
+  workflow_dispatch: {}
+
+jobs:
+  verificar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: appleboy/ssh-action@v1.2.5
+        with:
+          host: ${{ secrets.CONTABO_HOST }}
+          username: root
+          key: ${{ secrets.CONTABO_SSH_KEY }}
+          script: |
+            H=/usr/local/hestia/bin
+            for D in msdn-moz.org lirandzojewelry.com oshercollective.com elimservicos.com; do
+              echo "===== $D ====="
+              $H/v-list-mail-accounts oshercollective "$D" plain 2>&1
+              echo ""
+            done
+            echo "----- mail domains -----"
+            $H/v-list-mail-domains oshercollective plain 2>&1
