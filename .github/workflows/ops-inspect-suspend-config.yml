@@ -1,11 +1,11 @@
-name: Ops - verifica se oshercollective ja existe no Hestia (leitura)
+name: Ops - inventario real do Hestia via SSH (leitura, sem API)
 
 on:
   workflow_dispatch:
 
 jobs:
   check:
-    name: v-list-users / v-list-user (so leitura)
+    name: v-list-users / v-list-user-packages directo por SSH
     runs-on: ubuntu-latest
     steps:
       - name: Setup SSH key
@@ -15,7 +15,7 @@ jobs:
           chmod 600 ~/.ssh/deploy_key
           ssh-keyscan "${{ secrets.CONTABO_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
 
-      - name: Diagnostico Hestia
+      - name: Inventario Hestia (comandos v-* directos no servidor, sem HTTP API)
         uses: appleboy/ssh-action@v1.2.5
         with:
           host: ${{ secrets.CONTABO_HOST }}
@@ -23,20 +23,28 @@ jobs:
           key: ${{ secrets.CONTABO_SSH_KEY }}
           command_timeout: 2m
           script: |
-            cd /opt/visualdesign-site-teste
-            set -a
-            source .env.local
-            set +a
-            HESTIA_PORT="${HESTIA_PORT:-8083}"
-            HESTIA_USER="${HESTIA_USER:-vdadmin}"
+            echo "===== Todos os utilizadores Hestia reais no servidor ====="
+            /usr/local/hestia/bin/v-list-users json
 
-            echo "===== Todos os utilizadores reais no Hestia ====="
-            curl -sk -X POST "https://${HESTIA_HOST}:${HESTIA_PORT}/api/" \
-              -d "user=${HESTIA_USER}" -d "password=${HESTIA_PASSWORD}" \
-              -d "cmd=v-list-users" -d "arg1=json"
             echo ""
+            echo "===== oshercollective existe como utilizador? ====="
+            /usr/local/hestia/bin/v-list-user oshercollective json || echo "NAO EXISTE: oshercollective"
 
-            echo "===== oshercollective existe? ====="
-            curl -sk -X POST "https://${HESTIA_HOST}:${HESTIA_PORT}/api/" \
-              -d "user=${HESTIA_USER}" -d "password=${HESTIA_PASSWORD}" \
-              -d "cmd=v-list-user" -d "arg1=oshercollective" -d "arg2=json"
+            echo ""
+            echo "===== Sites/dominios dentro da conta oshercollective (se existir) ====="
+            /usr/local/hestia/bin/v-list-web-domains oshercollective json || echo "SEM DOMINIOS OU CONTA NAO EXISTE"
+
+            echo ""
+            echo "===== Dominios de cada um dos 5 dominios da oshercollective, individualmente ====="
+            for u in msdn-moz elimservicos lirandzojewelry shalomdeco; do
+              echo "--- utilizador $u ---"
+              /usr/local/hestia/bin/v-list-user "$u" json || echo "NAO EXISTE: $u"
+            done
+
+            echo ""
+            echo "===== Todos os pacotes reais configurados no servidor ====="
+            /usr/local/hestia/bin/v-list-user-packages json
+
+            echo ""
+            echo "===== Ficheiros de definicao dos pacotes (nomes) ====="
+            ls -la /usr/local/hestia/data/packages/
