@@ -44,6 +44,17 @@ jobs:
             echo "===== Derruba tudo e apaga o volume (sem dados reais ainda, seguro) ====="
             docker compose down -v
 
+            echo "===== Espera as portas ficarem mesmo livres antes de continuar ====="
+            for i in 1 2 3 4 5 6 7 8 9 10; do
+              if ss -tln | grep -qE ':8000 |:5432 |:6543 '; then
+                echo "ainda ocupado, a espera... ($i)"
+                sleep 3
+              else
+                echo "portas livres"
+                break
+              fi
+            done
+
             set_env_var() {
               local key="$1" value="$2"
               grep -v "^${key}=" .env > .env.tmp || true
