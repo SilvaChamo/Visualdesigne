@@ -1,11 +1,11 @@
-name: Ops - Fase 1d. Corrige exposicao de portas (so localhost)
+name: "Ops - Fase 1e. Retry: recria api-gw isolado (race condition anterior)"
 
 on:
   workflow_dispatch:
 
 jobs:
-  fix-ports:
-    name: Aplica o override de portas e recria os containers afectados
+  retry:
+    name: Para, espera, sobe api-gw de novo
     runs-on: ubuntu-latest
     steps:
       - name: Setup SSH key
@@ -15,7 +15,7 @@ jobs:
           chmod 600 ~/.ssh/deploy_key
           ssh-keyscan "${{ secrets.CONTABO_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
 
-      - name: Corrige COMPOSE_FILE e recria api-gw + supavisor
+      - name: Retry
         uses: appleboy/ssh-action@v1.2.5
         with:
           host: ${{ secrets.CONTABO_HOST }}
@@ -26,20 +26,23 @@ jobs:
             set -e
             cd /opt/supabase-contabo/docker
 
-            echo "===== COMPOSE_FILE actual (motivo do override nao ter sido aplicado) ====="
+            echo "===== Estado actual das portas ====="
+            ss -tlnp | grep -E ':8000|:5432|:6543' || echo "nenhuma das 3 em escuta"
+
+            echo ""
+            echo "===== COMPOSE_FILE ====="
             grep "^COMPOSE_FILE=" .env
 
-            grep -v "^COMPOSE_FILE=" .env > .env.tmp
-            mv .env.tmp .env
-            echo "COMPOSE_FILE=docker-compose.yml:docker-compose.override.yml" >> .env
-
             echo ""
-            echo "===== Recria so os 2 containers afectados com o novo binding ====="
-            docker compose up -d --force-recreate api-gw supavisor
-
+            echo "===== Para api-gw, confirma que a porta 8000 fica livre, sobe de novo ====="
+            docker compose stop api-gw
+            sleep 5
+            ss -tlnp | grep ':8000' || echo "porta 8000 livre agora"
+            docker compose up -d api-gw
             sleep 8
+
             echo ""
-            echo "===== Confirma portas agora (deve mostrar 127.0.0.1, nao 0.0.0.0) ====="
+            echo "===== Estado final ====="
             docker compose ps
             echo ""
             ss -tlnp | grep -E ':8000|:5432|:6543'
