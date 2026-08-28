@@ -1,11 +1,11 @@
-name: Ops - Fase 1c. Configura .env e sobe a stack Supabase no Contabo
+name: Ops - Fase 1d. Corrige exposicao de portas (so localhost)
 
 on:
   workflow_dispatch:
 
 jobs:
-  bring-up:
-    name: Escreve .env (via secrets) e docker compose up
+  fix-ports:
+    name: Aplica o override de portas e recria os containers afectados
     runs-on: ubuntu-latest
     steps:
       - name: Setup SSH key
@@ -15,82 +15,31 @@ jobs:
           chmod 600 ~/.ssh/deploy_key
           ssh-keyscan "${{ secrets.CONTABO_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
 
-      - name: Escreve .env e sobe os containers
+      - name: Corrige COMPOSE_FILE e recria api-gw + supavisor
         uses: appleboy/ssh-action@v1.2.5
-        env:
-          JWT_SECRET: ${{ secrets.SUPABASE_CONTABO_JWT_SECRET }}
-          POSTGRES_PASSWORD: ${{ secrets.SUPABASE_CONTABO_POSTGRES_PASSWORD }}
-          DASHBOARD_PASSWORD: ${{ secrets.SUPABASE_CONTABO_DASHBOARD_PASSWORD }}
-          SECRET_KEY_BASE: ${{ secrets.SUPABASE_CONTABO_SECRET_KEY_BASE }}
-          VAULT_ENC_KEY: ${{ secrets.SUPABASE_CONTABO_VAULT_ENC_KEY }}
-          ANON_KEY: ${{ secrets.SUPABASE_CONTABO_ANON_KEY }}
-          SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_CONTABO_SERVICE_ROLE_KEY }}
-          REALTIME_DB_ENC_KEY: ${{ secrets.SUPABASE_CONTABO_REALTIME_DB_ENC_KEY }}
-          PG_META_CRYPTO_KEY: ${{ secrets.SUPABASE_CONTABO_PG_META_CRYPTO_KEY }}
-          LOGFLARE_PUBLIC_ACCESS_TOKEN: ${{ secrets.SUPABASE_CONTABO_LOGFLARE_PUBLIC_ACCESS_TOKEN }}
-          LOGFLARE_PRIVATE_ACCESS_TOKEN: ${{ secrets.SUPABASE_CONTABO_LOGFLARE_PRIVATE_ACCESS_TOKEN }}
-          S3_ACCESS_KEY_ID: ${{ secrets.SUPABASE_CONTABO_S3_ACCESS_KEY_ID }}
-          S3_ACCESS_KEY_SECRET: ${{ secrets.SUPABASE_CONTABO_S3_ACCESS_KEY_SECRET }}
         with:
           host: ${{ secrets.CONTABO_HOST }}
           username: root
           key: ${{ secrets.CONTABO_SSH_KEY }}
-          command_timeout: 15m
-          envs: JWT_SECRET,POSTGRES_PASSWORD,DASHBOARD_PASSWORD,SECRET_KEY_BASE,VAULT_ENC_KEY,ANON_KEY,SERVICE_ROLE_KEY,REALTIME_DB_ENC_KEY,PG_META_CRYPTO_KEY,LOGFLARE_PUBLIC_ACCESS_TOKEN,LOGFLARE_PRIVATE_ACCESS_TOKEN,S3_ACCESS_KEY_ID,S3_ACCESS_KEY_SECRET
+          command_timeout: 5m
           script: |
             set -e
             cd /opt/supabase-contabo/docker
-            [ -f .env ] || cp .env.example .env
 
-            set_env_var() {
-              local key="$1" value="$2"
-              grep -v "^${key}=" .env > .env.tmp || true
-              mv .env.tmp .env
-              echo "${key}=${value}" >> .env
-            }
+            echo "===== COMPOSE_FILE actual (motivo do override nao ter sido aplicado) ====="
+            grep "^COMPOSE_FILE=" .env
 
-            set_env_var POSTGRES_PASSWORD "$POSTGRES_PASSWORD"
-            set_env_var JWT_SECRET "$JWT_SECRET"
-            set_env_var ANON_KEY "$ANON_KEY"
-            set_env_var SERVICE_ROLE_KEY "$SERVICE_ROLE_KEY"
-            set_env_var DASHBOARD_USERNAME "admin"
-            set_env_var DASHBOARD_PASSWORD "$DASHBOARD_PASSWORD"
-            set_env_var SECRET_KEY_BASE "$SECRET_KEY_BASE"
-            set_env_var REALTIME_DB_ENC_KEY "$REALTIME_DB_ENC_KEY"
-            set_env_var VAULT_ENC_KEY "$VAULT_ENC_KEY"
-            set_env_var PG_META_CRYPTO_KEY "$PG_META_CRYPTO_KEY"
-            set_env_var LOGFLARE_PUBLIC_ACCESS_TOKEN "$LOGFLARE_PUBLIC_ACCESS_TOKEN"
-            set_env_var LOGFLARE_PRIVATE_ACCESS_TOKEN "$LOGFLARE_PRIVATE_ACCESS_TOKEN"
-            set_env_var S3_PROTOCOL_ACCESS_KEY_ID "$S3_ACCESS_KEY_ID"
-            set_env_var S3_PROTOCOL_ACCESS_KEY_SECRET "$S3_ACCESS_KEY_SECRET"
-            set_env_var SUPABASE_PUBLIC_URL "https://supabase-contabo.visualdesignmoz.com"
-            set_env_var API_EXTERNAL_URL "https://supabase-contabo.visualdesignmoz.com/auth/v1"
-            set_env_var SITE_URL "https://teste.visualdesignmoz.com"
-            set_env_var STUDIO_DEFAULT_ORGANIZATION "Visual Design"
-            set_env_var STUDIO_DEFAULT_PROJECT "visualdesign-teste"
-
-            echo "===== .env escrito (so nomes de campo, nunca valores) ====="
-            cut -d= -f1 .env | sort
+            grep -v "^COMPOSE_FILE=" .env > .env.tmp
+            mv .env.tmp .env
+            echo "COMPOSE_FILE=docker-compose.yml:docker-compose.override.yml" >> .env
 
             echo ""
-            echo "===== Override de portas: so localhost, nada exposto directamente ====="
-            cat > docker-compose.override.yml <<'EOF'
-            services:
-              api-gw:
-                ports:
-                  - "127.0.0.1:${API_GW_HTTP_PORT:-8000}:8000/tcp"
-              supavisor:
-                ports:
-                  - "127.0.0.1:${POSTGRES_PORT}:5432"
-                  - "127.0.0.1:${POOLER_PROXY_PORT_TRANSACTION}:6543"
-            EOF
-            cat docker-compose.override.yml
+            echo "===== Recria so os 2 containers afectados com o novo binding ====="
+            docker compose up -d --force-recreate api-gw supavisor
 
+            sleep 8
             echo ""
-            echo "===== docker compose up -d ====="
-            docker compose up -d
-
-            echo ""
-            echo "===== A espera 45s para os healthchecks estabilizarem ====="
-            sleep 45
+            echo "===== Confirma portas agora (deve mostrar 127.0.0.1, nao 0.0.0.0) ====="
             docker compose ps
+            echo ""
+            ss -tlnp | grep -E ':8000|:5432|:6543'
