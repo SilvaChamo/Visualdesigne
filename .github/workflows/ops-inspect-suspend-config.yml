@@ -1,11 +1,11 @@
-name: "Ops - Fase 1f. Diagnostico: onde foi o supavisor/pooler"
+name: "Ops - Fase 1g. Roda credenciais comprometidas e recria stack do zero"
 
 on:
   workflow_dispatch:
 
 jobs:
-  diag:
-    name: Estado real de todos os containers
+  rebuild:
+    name: down -v, novo .env, up limpo
     runs-on: ubuntu-latest
     steps:
       - name: Setup SSH key
@@ -15,35 +15,70 @@ jobs:
           chmod 600 ~/.ssh/deploy_key
           ssh-keyscan "${{ secrets.CONTABO_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
 
-      - name: Diagnostico
+      - name: Recria stack com credenciais novas
         uses: appleboy/ssh-action@v1.2.5
+        env:
+          JWT_SECRET: ${{ secrets.SUPABASE_CONTABO_JWT_SECRET }}
+          POSTGRES_PASSWORD: ${{ secrets.SUPABASE_CONTABO_POSTGRES_PASSWORD }}
+          DASHBOARD_PASSWORD: ${{ secrets.SUPABASE_CONTABO_DASHBOARD_PASSWORD }}
+          SECRET_KEY_BASE: ${{ secrets.SUPABASE_CONTABO_SECRET_KEY_BASE }}
+          VAULT_ENC_KEY: ${{ secrets.SUPABASE_CONTABO_VAULT_ENC_KEY }}
+          ANON_KEY: ${{ secrets.SUPABASE_CONTABO_ANON_KEY }}
+          SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_CONTABO_SERVICE_ROLE_KEY }}
+          REALTIME_DB_ENC_KEY: ${{ secrets.SUPABASE_CONTABO_REALTIME_DB_ENC_KEY }}
+          PG_META_CRYPTO_KEY: ${{ secrets.SUPABASE_CONTABO_PG_META_CRYPTO_KEY }}
+          LOGFLARE_PUBLIC_ACCESS_TOKEN: ${{ secrets.SUPABASE_CONTABO_LOGFLARE_PUBLIC_ACCESS_TOKEN }}
+          LOGFLARE_PRIVATE_ACCESS_TOKEN: ${{ secrets.SUPABASE_CONTABO_LOGFLARE_PRIVATE_ACCESS_TOKEN }}
+          S3_ACCESS_KEY_ID: ${{ secrets.SUPABASE_CONTABO_S3_ACCESS_KEY_ID }}
+          S3_ACCESS_KEY_SECRET: ${{ secrets.SUPABASE_CONTABO_S3_ACCESS_KEY_SECRET }}
         with:
           host: ${{ secrets.CONTABO_HOST }}
           username: root
           key: ${{ secrets.CONTABO_SSH_KEY }}
-          command_timeout: 3m
+          command_timeout: 10m
+          envs: JWT_SECRET,POSTGRES_PASSWORD,DASHBOARD_PASSWORD,SECRET_KEY_BASE,VAULT_ENC_KEY,ANON_KEY,SERVICE_ROLE_KEY,REALTIME_DB_ENC_KEY,PG_META_CRYPTO_KEY,LOGFLARE_PUBLIC_ACCESS_TOKEN,LOGFLARE_PRIVATE_ACCESS_TOKEN,S3_ACCESS_KEY_ID,S3_ACCESS_KEY_SECRET
           script: |
+            set -e
             cd /opt/supabase-contabo/docker
 
-            echo "===== TODOS os containers docker (qualquer estado, qualquer projecto) ====="
-            docker ps -a --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
+            echo "===== Derruba tudo e apaga o volume (sem dados reais ainda, seguro) ====="
+            docker compose down -v
+
+            set_env_var() {
+              local key="$1" value="$2"
+              grep -v "^${key}=" .env > .env.tmp || true
+              mv .env.tmp .env
+              echo "${key}=${value}" >> .env
+            }
+
+            set_env_var POSTGRES_PASSWORD "$POSTGRES_PASSWORD"
+            set_env_var JWT_SECRET "$JWT_SECRET"
+            set_env_var ANON_KEY "$ANON_KEY"
+            set_env_var SERVICE_ROLE_KEY "$SERVICE_ROLE_KEY"
+            set_env_var DASHBOARD_USERNAME "admin"
+            set_env_var DASHBOARD_PASSWORD "$DASHBOARD_PASSWORD"
+            set_env_var SECRET_KEY_BASE "$SECRET_KEY_BASE"
+            set_env_var REALTIME_DB_ENC_KEY "$REALTIME_DB_ENC_KEY"
+            set_env_var VAULT_ENC_KEY "$VAULT_ENC_KEY"
+            set_env_var PG_META_CRYPTO_KEY "$PG_META_CRYPTO_KEY"
+            set_env_var LOGFLARE_PUBLIC_ACCESS_TOKEN "$LOGFLARE_PUBLIC_ACCESS_TOKEN"
+            set_env_var LOGFLARE_PRIVATE_ACCESS_TOKEN "$LOGFLARE_PRIVATE_ACCESS_TOKEN"
+            set_env_var S3_PROTOCOL_ACCESS_KEY_ID "$S3_ACCESS_KEY_ID"
+            set_env_var S3_PROTOCOL_ACCESS_KEY_SECRET "$S3_ACCESS_KEY_SECRET"
+            set_env_var COMPOSE_FILE "docker-compose.yml:docker-compose.override.yml"
+
+            echo "===== .env escrito (so nomes, nunca valores) ====="
+            cut -d= -f1 .env | sort
 
             echo ""
-            echo "===== docker compose ps -a (dentro do projecto) ====="
-            docker compose ps -a
+            echo "===== docker compose up -d (do zero, com override ja activo) ====="
+            docker compose up -d
 
             echo ""
-            echo "===== Ultimas linhas do log do pooler, se existir ====="
-            docker logs supabase-pooler --tail 40 2>&1 || echo "container supabase-pooler nao existe"
+            echo "===== A espera 50s ====="
+            sleep 50
+            docker compose ps
 
             echo ""
-            echo "===== Portas em escuta agora ====="
-            ss -tlnp | grep -E ':8000|:5432|:6543' || echo "nenhuma das 3 em escuta"
-
-            echo ""
-            echo "===== Conteudo actual do override ====="
-            cat docker-compose.override.yml
-
-            echo ""
-            echo "===== docker compose config (portas resolvidas, so grep) ====="
-            docker compose config 2>&1 | grep -B3 "published\|8000\|5432\|6543" | head -60
+            echo "===== Portas publicas (devem mostrar so 127.0.0.1, nunca 0.0.0.0) ====="
+            ss -tlnp | grep -E ':8000|:5432|:6543' || echo "nenhuma das 3 em escuta ainda"
