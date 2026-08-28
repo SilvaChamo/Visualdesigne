@@ -1,11 +1,11 @@
-name: Ops - Fase 1a. Instala Docker e clona Supabase no Contabo
+name: Ops - Fase 1b. Nomes dos servicos no docker-compose (so leitura)
 
 on:
   workflow_dispatch:
 
 jobs:
-  provision:
-    name: Docker + clone supabase/docker no Contabo
+  inspect:
+    name: Nomes de servicos e portas
     runs-on: ubuntu-latest
     steps:
       - name: Setup SSH key
@@ -15,41 +15,24 @@ jobs:
           chmod 600 ~/.ssh/deploy_key
           ssh-keyscan "${{ secrets.CONTABO_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
 
-      - name: Instala Docker e clona o repo oficial
+      - name: Lista servicos
         uses: appleboy/ssh-action@v1.2.5
         with:
           host: ${{ secrets.CONTABO_HOST }}
           username: root
           key: ${{ secrets.CONTABO_SSH_KEY }}
-          command_timeout: 10m
+          command_timeout: 3m
           script: |
-            set -e
-            echo "===== Instalar Docker (script oficial) ====="
-            if ! command -v docker >/dev/null 2>&1; then
-              curl -fsSL https://get.docker.com -o /tmp/get-docker.sh
-              sh /tmp/get-docker.sh
-            else
-              echo "docker ja instalado"
-            fi
-            docker --version
-            docker compose version
+            cd /opt/supabase-contabo/docker
+            echo "===== Lista de servicos (nomes) ====="
+            docker compose config --services
 
             echo ""
-            echo "===== Clonar supabase/supabase (so a pasta docker/, sparse) ====="
-            mkdir -p /opt/supabase-contabo
-            if [ ! -d /opt/supabase-contabo/.git ]; then
-              cd /opt
-              git clone --depth 1 --filter=blob:none --sparse https://github.com/supabase/supabase supabase-contabo
-              cd supabase-contabo
-              git sparse-checkout set docker
-            else
-              echo "repo ja clonado"
-            fi
+            echo "===== Servico dono da porta 8000 (gateway) ====="
+            grep -n "^  [a-z-]*:$" docker-compose.yml | awk -F: '{print $1}' > /tmp/svc_lines.txt
+            awk '/ports:/{print NR": "$0; found=1} found && /8000/{print "  -> "prev; found=0} {prev=$0}' docker-compose.yml | head -20
+            grep -n "container_name" docker-compose.yml
 
             echo ""
-            echo "===== Conteudo real do .env.example (para eu ver os campos exactos) ====="
-            cat /opt/supabase-contabo/docker/.env.example
-
-            echo ""
-            echo "===== docker-compose.yml (portas expostas, para confirmar sem colisao) ====="
-            grep -n "ports:" -A2 /opt/supabase-contabo/docker/docker-compose.yml | head -60
+            echo "===== kong.yml existe? ====="
+            find . -iname "kong.yml" -o -iname "*.yml" | grep -i kong || echo "sem kong.yml"
