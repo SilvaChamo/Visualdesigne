@@ -1,11 +1,11 @@
-name: "Ops - Fase 1j. Verifica scripts de init do Postgres (roles supabase)"
+name: "Ops - Fase 1k. Apaga dados antigos do Postgres a serio e recria"
 
 on:
   workflow_dispatch:
 
 jobs:
-  diag:
-    name: volumes/db e migrations
+  reset:
+    name: down + rm -rf dados reais + up limpo de verdade
     runs-on: ubuntu-latest
     steps:
       - name: Setup SSH key
@@ -15,27 +15,46 @@ jobs:
           chmod 600 ~/.ssh/deploy_key
           ssh-keyscan "${{ secrets.CONTABO_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
 
-      - name: Diagnostico
+      - name: Reset a serio
         uses: appleboy/ssh-action@v1.2.5
         with:
           host: ${{ secrets.CONTABO_HOST }}
           username: root
           key: ${{ secrets.CONTABO_SSH_KEY }}
-          command_timeout: 3m
+          command_timeout: 8m
           script: |
+            set -e
             cd /opt/supabase-contabo/docker
 
-            echo "===== ficheiros em volumes/db/ (scripts de init esperados) ====="
-            ls -la volumes/db/ 2>&1
+            echo "===== Para tudo ====="
+            docker compose down -v
 
             echo ""
-            echo "===== secção 'db:' do docker-compose.yml (servico completo, incl. volumes) ====="
-            awk '/^  db:$/{f=1} f{print} f && /^  [a-z]/ && !/^  db:$/{if(NR>1)exit}' docker-compose.yml | head -60
+            echo "===== Apaga a pasta de dados REAL do Postgres (bind mount, nao e volume Docker) ====="
+            rm -rf ./volumes/db/data
+            echo "apagado."
 
             echo ""
-            echo "===== supabase_auth_admin existe no postgres? ====="
-            docker exec supabase-db psql -U supabase_admin -d postgres -c "\du" 2>&1 | head -30
+            echo "===== Apaga tambem estado de storage/functions, para ficarem consistentes com o Postgres novo ====="
+            rm -rf ./volumes/storage/*
+            echo "storage limpo."
 
             echo ""
-            echo "===== logs completos do arranque do supabase-db (procurar erros de init script) ====="
-            docker logs supabase-db 2>&1 | grep -iE "error|role|fatal|already exists|permission denied" | head -40
+            echo "===== Confirma que nao ha nada em 5432/6543/8000 antes de subir ====="
+            ss -tln | grep -E ':5432|:6543|:8000' || echo "tudo livre"
+
+            echo ""
+            echo "===== docker compose up -d (agora sim, dados a zero) ====="
+            docker compose up -d
+
+            echo ""
+            echo "===== Espera 90s para o Postgres correr os scripts de init e os outros arrancarem ====="
+            sleep 90
+
+            echo ""
+            echo "===== Logs do arranque do supabase-db: confirma criacao de roles ====="
+            docker logs supabase-db 2>&1 | grep -iE "CREATE ROLE|supabase_auth_admin|supabase_storage_admin|error|fatal" | head -30
+
+            echo ""
+            echo "===== Estado final de todos os containers ====="
+            docker ps -a --format "table {{.Names}}\t{{.Status}}"
