@@ -1,11 +1,11 @@
-name: "Ops - Fase 2c. Corrige auth+storage (exclui tabelas internas problematicas)"
+name: "Ops - Fase 2d. Corrige storage.objects (nomes certos das tabelas internas)"
 
 on:
   workflow_dispatch:
 
 jobs:
   migrate:
-    name: re-dump limpo, sem schema_migrations/vector_indexes
+    name: re-dump so storage.objects, exclui migrations/buckets_vectors
     runs-on: ubuntu-latest
     steps:
       - name: Setup chaves SSH
@@ -18,33 +18,25 @@ jobs:
           ssh-keyscan -p "${{ secrets.HETZNER_PORT }}" "${{ secrets.HETZNER_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
           ssh-keyscan "${{ secrets.CONTABO_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
 
-      - name: 0. Contagens reais no Hetzner, para comparar (so leitura)
-        run: |
-          ssh -i ~/.ssh/hetzner_key -p "${{ secrets.HETZNER_PORT }}" "${{ secrets.HETZNER_USER }}@${{ secrets.HETZNER_HOST }}" '
-            docker exec supabase-db psql -U postgres -d postgres -c "SELECT '"'"'buckets'"'"' t, count(*) FROM storage.buckets UNION ALL SELECT '"'"'objects'"'"', count(*) FROM storage.objects UNION ALL SELECT '"'"'identities'"'"', count(*) FROM auth.identities UNION ALL SELECT '"'"'sessions'"'"', count(*) FROM auth.sessions UNION ALL SELECT '"'"'refresh_tokens'"'"', count(*) FROM auth.refresh_tokens;"
-          '
-
-      - name: 1. Re-dump no Hetzner, excluindo tabelas internas (so leitura)
+      - name: 1. Re-dump so de storage.objects e storage.buckets (tabelas reais)
         run: |
           ssh -i ~/.ssh/hetzner_key -p "${{ secrets.HETZNER_PORT }}" "${{ secrets.HETZNER_USER }}@${{ secrets.HETZNER_HOST }}" '
             docker exec supabase-db pg_dump -U postgres -d postgres --no-owner --no-privileges --data-only \
-              --schema=auth --exclude-table=auth.schema_migrations > /tmp/dump-auth-data2.sql
-            docker exec supabase-db pg_dump -U postgres -d postgres --no-owner --no-privileges --data-only \
-              --schema=storage --exclude-table=storage.schema_migrations --exclude-table=storage.vector_indexes > /tmp/dump-storage-data2.sql
-            wc -l /tmp/dump-auth-data2.sql /tmp/dump-storage-data2.sql
+              --table=storage.objects --table=storage.buckets > /tmp/dump-storage-objects.sql
+            wc -l /tmp/dump-storage-objects.sql
           '
 
       - name: 2. Traz para o runner
         run: |
           scp -i ~/.ssh/hetzner_key -P "${{ secrets.HETZNER_PORT }}" \
-            "${{ secrets.HETZNER_USER }}@${{ secrets.HETZNER_HOST }}:/tmp/dump-*-data2.sql" ./
+            "${{ secrets.HETZNER_USER }}@${{ secrets.HETZNER_HOST }}:/tmp/dump-storage-objects.sql" ./
 
       - name: 3. Envia para o Contabo
         run: |
-          scp -i ~/.ssh/contabo_key dump-auth-data2.sql dump-storage-data2.sql \
+          scp -i ~/.ssh/contabo_key dump-storage-objects.sql \
             "root@${{ secrets.CONTABO_HOST }}:/tmp/"
 
-      - name: 4. Limpa o que ficou incompleto e restaura de novo, limpo
+      - name: 4. Restaura so objects+buckets no Contabo
         uses: appleboy/ssh-action@v1.2.5
         with:
           host: ${{ secrets.CONTABO_HOST }}
@@ -53,26 +45,17 @@ jobs:
           command_timeout: 5m
           script: |
             set -e
-            docker cp /tmp/dump-auth-data2.sql supabase-db:/tmp/dump-auth-data2.sql
-            docker cp /tmp/dump-storage-data2.sql supabase-db:/tmp/dump-storage-data2.sql
+            docker cp /tmp/dump-storage-objects.sql supabase-db:/tmp/dump-storage-objects.sql
 
-            echo "===== Limpa tabelas de auth/storage antes de repor (evita duplicados) ====="
-            docker exec supabase-db psql -U postgres -d postgres -c "
-              TRUNCATE auth.identities, auth.sessions, auth.refresh_tokens, auth.mfa_factors, auth.mfa_amr_claims, auth.mfa_challenges, auth.sso_providers, auth.sso_domains, auth.saml_providers, auth.saml_relay_states, auth.flow_state, auth.one_time_tokens CASCADE;
-              TRUNCATE storage.objects, storage.buckets CASCADE;
-            " 2>&1
+            echo "===== Limpa so objects+buckets (ja estava vazio/incompleto) ====="
+            docker exec supabase-db psql -U postgres -d postgres -c "TRUNCATE storage.objects, storage.buckets CASCADE;" 2>&1
 
             echo ""
-            echo "===== Restaura auth (sem schema_migrations) ====="
-            docker exec supabase-db psql -U postgres -d postgres -f /tmp/dump-auth-data2.sql 2>&1 | grep -v "^COPY\|^SET\|^SELECT" | head -20
+            echo "===== Restaura ====="
+            docker exec supabase-db psql -U postgres -d postgres -f /tmp/dump-storage-objects.sql 2>&1 | grep -v "^COPY\|^SET\|^SELECT" | head -20
 
             echo ""
-            echo "===== Restaura storage (sem schema_migrations/vector_indexes) ====="
-            docker exec supabase-db psql -U postgres -d postgres -f /tmp/dump-storage-data2.sql 2>&1 | grep -v "^COPY\|^SET\|^SELECT" | head -20
+            echo "===== Contagem final ====="
+            docker exec supabase-db psql -U postgres -d postgres -c "SELECT 'buckets' t, count(*) FROM storage.buckets UNION ALL SELECT 'objects', count(*) FROM storage.objects;"
 
-            echo ""
-            echo "===== Contagens finais no Contabo (devem bater com o Hetzner) ====="
-            docker exec supabase-db psql -U postgres -d postgres -c "SELECT 'buckets' t, count(*) FROM storage.buckets UNION ALL SELECT 'objects', count(*) FROM storage.objects UNION ALL SELECT 'identities', count(*) FROM auth.identities UNION ALL SELECT 'sessions', count(*) FROM auth.sessions UNION ALL SELECT 'refresh_tokens', count(*) FROM auth.refresh_tokens UNION ALL SELECT 'users', count(*) FROM auth.users;"
-
-            echo ""
-            rm -f /tmp/dump-*.sql
+            rm -f /tmp/dump-storage-objects.sql
