@@ -1,14 +1,14 @@
-name: "Ops - Fase 2b. Copia a base real do Hetzner para o Contabo (Hetzner so leitura)"
+name: "Ops - Fase 2c. Corrige auth+storage (exclui tabelas internas problematicas)"
 
 on:
   workflow_dispatch:
 
 jobs:
   migrate:
-    name: pg_dump no Hetzner, scp via runner, restore no Contabo
+    name: re-dump limpo, sem schema_migrations/vector_indexes
     runs-on: ubuntu-latest
     steps:
-      - name: Setup chaves SSH (Hetzner leitura + Contabo escrita)
+      - name: Setup chaves SSH
         run: |
           mkdir -p ~/.ssh
           echo "${{ secrets.HETZNER_SSH_KEY }}" > ~/.ssh/hetzner_key
@@ -18,27 +18,33 @@ jobs:
           ssh-keyscan -p "${{ secrets.HETZNER_PORT }}" "${{ secrets.HETZNER_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
           ssh-keyscan "${{ secrets.CONTABO_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
 
-      - name: 1. Dump no Hetzner (so leitura, dentro do proprio container)
+      - name: 0. Contagens reais no Hetzner, para comparar (so leitura)
         run: |
           ssh -i ~/.ssh/hetzner_key -p "${{ secrets.HETZNER_PORT }}" "${{ secrets.HETZNER_USER }}@${{ secrets.HETZNER_HOST }}" '
-            docker exec supabase-db pg_dump -U postgres -d postgres --no-owner --no-privileges --schema=public > /tmp/dump-public.sql
-            docker exec supabase-db pg_dump -U postgres -d postgres --no-owner --no-privileges --data-only --schema=auth > /tmp/dump-auth-data.sql
-            docker exec supabase-db pg_dump -U postgres -d postgres --no-owner --no-privileges --data-only --schema=storage > /tmp/dump-storage-data.sql
-            ls -la /tmp/dump-*.sql
+            docker exec supabase-db psql -U postgres -d postgres -c "SELECT '"'"'buckets'"'"' t, count(*) FROM storage.buckets UNION ALL SELECT '"'"'objects'"'"', count(*) FROM storage.objects UNION ALL SELECT '"'"'identities'"'"', count(*) FROM auth.identities UNION ALL SELECT '"'"'sessions'"'"', count(*) FROM auth.sessions UNION ALL SELECT '"'"'refresh_tokens'"'"', count(*) FROM auth.refresh_tokens;"
           '
 
-      - name: 2. Traz os dumps do Hetzner para o runner (leitura)
+      - name: 1. Re-dump no Hetzner, excluindo tabelas internas (so leitura)
+        run: |
+          ssh -i ~/.ssh/hetzner_key -p "${{ secrets.HETZNER_PORT }}" "${{ secrets.HETZNER_USER }}@${{ secrets.HETZNER_HOST }}" '
+            docker exec supabase-db pg_dump -U postgres -d postgres --no-owner --no-privileges --data-only \
+              --schema=auth --exclude-table=auth.schema_migrations > /tmp/dump-auth-data2.sql
+            docker exec supabase-db pg_dump -U postgres -d postgres --no-owner --no-privileges --data-only \
+              --schema=storage --exclude-table=storage.schema_migrations --exclude-table=storage.vector_indexes > /tmp/dump-storage-data2.sql
+            wc -l /tmp/dump-auth-data2.sql /tmp/dump-storage-data2.sql
+          '
+
+      - name: 2. Traz para o runner
         run: |
           scp -i ~/.ssh/hetzner_key -P "${{ secrets.HETZNER_PORT }}" \
-            "${{ secrets.HETZNER_USER }}@${{ secrets.HETZNER_HOST }}:/tmp/dump-*.sql" ./
-          ls -la dump-*.sql
+            "${{ secrets.HETZNER_USER }}@${{ secrets.HETZNER_HOST }}:/tmp/dump-*-data2.sql" ./
 
-      - name: 3. Envia os dumps para o Contabo
+      - name: 3. Envia para o Contabo
         run: |
-          scp -i ~/.ssh/contabo_key dump-public.sql dump-auth-data.sql dump-storage-data.sql \
+          scp -i ~/.ssh/contabo_key dump-auth-data2.sql dump-storage-data2.sql \
             "root@${{ secrets.CONTABO_HOST }}:/tmp/"
 
-      - name: 4. Restaura no Contabo (base nova, ja com estrutura propria)
+      - name: 4. Limpa o que ficou incompleto e restaura de novo, limpo
         uses: appleboy/ssh-action@v1.2.5
         with:
           host: ${{ secrets.CONTABO_HOST }}
@@ -47,27 +53,26 @@ jobs:
           command_timeout: 5m
           script: |
             set -e
-            echo "===== Copia os dumps para dentro do container ====="
-            docker cp /tmp/dump-public.sql supabase-db:/tmp/dump-public.sql
-            docker cp /tmp/dump-auth-data.sql supabase-db:/tmp/dump-auth-data.sql
-            docker cp /tmp/dump-storage-data.sql supabase-db:/tmp/dump-storage-data.sql
+            docker cp /tmp/dump-auth-data2.sql supabase-db:/tmp/dump-auth-data2.sql
+            docker cp /tmp/dump-storage-data2.sql supabase-db:/tmp/dump-storage-data2.sql
+
+            echo "===== Limpa tabelas de auth/storage antes de repor (evita duplicados) ====="
+            docker exec supabase-db psql -U postgres -d postgres -c "
+              TRUNCATE auth.identities, auth.sessions, auth.refresh_tokens, auth.mfa_factors, auth.mfa_amr_claims, auth.mfa_challenges, auth.sso_providers, auth.sso_domains, auth.saml_providers, auth.saml_relay_states, auth.flow_state, auth.one_time_tokens CASCADE;
+              TRUNCATE storage.objects, storage.buckets CASCADE;
+            " 2>&1
 
             echo ""
-            echo "===== Restaura public (estrutura + dados) ====="
-            docker exec supabase-db psql -U postgres -d postgres -f /tmp/dump-public.sql 2>&1 | tail -40
+            echo "===== Restaura auth (sem schema_migrations) ====="
+            docker exec supabase-db psql -U postgres -d postgres -f /tmp/dump-auth-data2.sql 2>&1 | grep -v "^COPY\|^SET\|^SELECT" | head -20
 
             echo ""
-            echo "===== Restaura dados de auth (utilizadores reais) ====="
-            docker exec supabase-db psql -U postgres -d postgres -f /tmp/dump-auth-data.sql 2>&1 | tail -20
+            echo "===== Restaura storage (sem schema_migrations/vector_indexes) ====="
+            docker exec supabase-db psql -U postgres -d postgres -f /tmp/dump-storage-data2.sql 2>&1 | grep -v "^COPY\|^SET\|^SELECT" | head -20
 
             echo ""
-            echo "===== Restaura dados de storage (metadados dos buckets) ====="
-            docker exec supabase-db psql -U postgres -d postgres -f /tmp/dump-storage-data.sql 2>&1 | tail -20
+            echo "===== Contagens finais no Contabo (devem bater com o Hetzner) ====="
+            docker exec supabase-db psql -U postgres -d postgres -c "SELECT 'buckets' t, count(*) FROM storage.buckets UNION ALL SELECT 'objects', count(*) FROM storage.objects UNION ALL SELECT 'identities', count(*) FROM auth.identities UNION ALL SELECT 'sessions', count(*) FROM auth.sessions UNION ALL SELECT 'refresh_tokens', count(*) FROM auth.refresh_tokens UNION ALL SELECT 'users', count(*) FROM auth.users;"
 
             echo ""
-            echo "===== Confirma contagens (devem bater certo com o Hetzner: 11/3/7/42) ====="
-            docker exec supabase-db psql -U postgres -d postgres -c "SELECT 'panel_sites' t, count(*) FROM public.panel_sites UNION ALL SELECT 'panel_users', count(*) FROM public.panel_users UNION ALL SELECT 'panel_auth_accounts', count(*) FROM public.panel_auth_accounts UNION ALL SELECT 'auth.users', count(*) FROM auth.users;"
-
-            echo ""
-            echo "===== Limpa os dumps temporarios do disco do Contabo ====="
             rm -f /tmp/dump-*.sql
