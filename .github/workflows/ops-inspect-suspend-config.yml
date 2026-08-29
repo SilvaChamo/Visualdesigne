@@ -1,11 +1,11 @@
-name: "Ops - Fase 2d. Corrige storage.objects (nomes certos das tabelas internas)"
+name: "Ops - Fase 2e. Copia os ficheiros reais do storage (Hetzner so leitura)"
 
 on:
   workflow_dispatch:
 
 jobs:
-  migrate:
-    name: re-dump so storage.objects, exclui migrations/buckets_vectors
+  copy_files:
+    name: rsync via runner (relay), Hetzner nunca escreve
     runs-on: ubuntu-latest
     steps:
       - name: Setup chaves SSH
@@ -18,44 +18,10 @@ jobs:
           ssh-keyscan -p "${{ secrets.HETZNER_PORT }}" "${{ secrets.HETZNER_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
           ssh-keyscan "${{ secrets.CONTABO_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
 
-      - name: 1. Re-dump so de storage.objects e storage.buckets (tabelas reais)
+      - name: 1. Confirma caminho real e tamanho no Hetzner (so leitura)
         run: |
           ssh -i ~/.ssh/hetzner_key -p "${{ secrets.HETZNER_PORT }}" "${{ secrets.HETZNER_USER }}@${{ secrets.HETZNER_HOST }}" '
-            docker exec supabase-db pg_dump -U postgres -d postgres --no-owner --no-privileges --data-only \
-              --table=storage.objects --table=storage.buckets > /tmp/dump-storage-objects.sql
-            wc -l /tmp/dump-storage-objects.sql
+            find /opt -maxdepth 3 -iname "storage" -type d 2>/dev/null
+            echo "---"
+            du -sh /opt/supabase-aamihe/docker/volumes/storage 2>&1 || echo "caminho nao existe, preciso de outro"
           '
-
-      - name: 2. Traz para o runner
-        run: |
-          scp -i ~/.ssh/hetzner_key -P "${{ secrets.HETZNER_PORT }}" \
-            "${{ secrets.HETZNER_USER }}@${{ secrets.HETZNER_HOST }}:/tmp/dump-storage-objects.sql" ./
-
-      - name: 3. Envia para o Contabo
-        run: |
-          scp -i ~/.ssh/contabo_key dump-storage-objects.sql \
-            "root@${{ secrets.CONTABO_HOST }}:/tmp/"
-
-      - name: 4. Restaura so objects+buckets no Contabo
-        uses: appleboy/ssh-action@v1.2.5
-        with:
-          host: ${{ secrets.CONTABO_HOST }}
-          username: root
-          key: ${{ secrets.CONTABO_SSH_KEY }}
-          command_timeout: 5m
-          script: |
-            set -e
-            docker cp /tmp/dump-storage-objects.sql supabase-db:/tmp/dump-storage-objects.sql
-
-            echo "===== Limpa so objects+buckets (ja estava vazio/incompleto) ====="
-            docker exec supabase-db psql -U postgres -d postgres -c "TRUNCATE storage.objects, storage.buckets CASCADE;" 2>&1
-
-            echo ""
-            echo "===== Restaura ====="
-            docker exec supabase-db psql -U postgres -d postgres -f /tmp/dump-storage-objects.sql 2>&1 | grep -v "^COPY\|^SET\|^SELECT" | head -20
-
-            echo ""
-            echo "===== Contagem final ====="
-            docker exec supabase-db psql -U postgres -d postgres -c "SELECT 'buckets' t, count(*) FROM storage.buckets UNION ALL SELECT 'objects', count(*) FROM storage.objects;"
-
-            rm -f /tmp/dump-storage-objects.sql
