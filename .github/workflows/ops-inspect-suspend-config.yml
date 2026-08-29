@@ -1,11 +1,11 @@
-name: "Ops - Fase 1l. Restart docker daemon + sobe envoy/pooler que faltavam"
+name: "Ops - Fase 1m. Logs do pooler + confirma o que esta na porta 8000"
 
 on:
   workflow_dispatch:
 
 jobs:
-  finish:
-    name: restart docker + up -d final
+  diag:
+    name: pooler logs + ss real
     runs-on: ubuntu-latest
     steps:
       - name: Setup SSH key
@@ -15,44 +15,26 @@ jobs:
           chmod 600 ~/.ssh/deploy_key
           ssh-keyscan "${{ secrets.CONTABO_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
 
-      - name: Finaliza
+      - name: Diagnostico
         uses: appleboy/ssh-action@v1.2.5
         with:
           host: ${{ secrets.CONTABO_HOST }}
           username: root
           key: ${{ secrets.CONTABO_SSH_KEY }}
-          command_timeout: 6m
+          command_timeout: 3m
           script: |
-            set -e
-            echo "===== Estado antes ====="
-            docker ps -a --format "table {{.Names}}\t{{.Status}}"
+            echo "===== docker logs supabase-pooler (ultimas 40) ====="
+            docker logs --tail 40 supabase-pooler 2>&1
 
             echo ""
-            echo "===== Reinicia o docker daemon (liberta portas presas) ====="
-            systemctl restart docker
-            sleep 8
+            echo "===== ss -tlnp real, 5432/6543/8000 ====="
+            ss -tlnp | grep -E ':5432|:6543|:8000'
 
             echo ""
-            echo "===== Confirma portas livres ====="
-            ss -tln | grep -E ':5432|:6543|:8000' || echo "tudo livre"
-
-            cd /opt/supabase-contabo/docker
-            echo ""
-            echo "===== docker compose up -d (dados ja existem, so completa o que falta) ====="
-            docker compose up -d
+            echo "===== curl outra vez, com mais espera ====="
+            sleep 10
+            curl -sv -o /dev/null http://127.0.0.1:8000/rest/v1/ 2>&1 | tail -20
 
             echo ""
-            echo "===== Espera 60s ====="
-            sleep 60
-
-            echo ""
-            echo "===== Estado final ====="
-            docker ps -a --format "table {{.Names}}\t{{.Status}}"
-
-            echo ""
-            echo "===== supabase_auth_admin existe agora? ====="
-            docker exec supabase-db psql -U supabase_admin -d postgres -c "\du" 2>&1 | grep -i auth
-
-            echo ""
-            echo "===== teste real: curl ao gateway local ====="
-            curl -s -o /dev/null -w "gateway HTTP %{http_code}\n" http://127.0.0.1:8000/rest/v1/ || echo "gateway nao responde"
+            echo "===== docker logs supabase-envoy (ultimas 20) ====="
+            docker logs --tail 20 supabase-envoy 2>&1
