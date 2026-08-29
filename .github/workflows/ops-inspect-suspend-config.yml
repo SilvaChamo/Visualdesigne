@@ -1,48 +1,73 @@
-name: "Ops - Fase 2a. Inspecciona a base real no Hetzner antes de copiar (so leitura)"
+name: "Ops - Fase 2b. Copia a base real do Hetzner para o Contabo (Hetzner so leitura)"
 
 on:
   workflow_dispatch:
 
 jobs:
-  inspect:
-    name: bases de dados e tabelas reais no Hetzner
+  migrate:
+    name: pg_dump no Hetzner, scp via runner, restore no Contabo
     runs-on: ubuntu-latest
     steps:
-      - name: Setup SSH key
+      - name: Setup chaves SSH (Hetzner leitura + Contabo escrita)
         run: |
           mkdir -p ~/.ssh
-          echo "${{ secrets.HETZNER_SSH_KEY }}" > ~/.ssh/deploy_key
-          chmod 600 ~/.ssh/deploy_key
+          echo "${{ secrets.HETZNER_SSH_KEY }}" > ~/.ssh/hetzner_key
+          chmod 600 ~/.ssh/hetzner_key
+          echo "${{ secrets.CONTABO_SSH_KEY }}" > ~/.ssh/contabo_key
+          chmod 600 ~/.ssh/contabo_key
           ssh-keyscan -p "${{ secrets.HETZNER_PORT }}" "${{ secrets.HETZNER_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
+          ssh-keyscan "${{ secrets.CONTABO_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
 
-      - name: Inspecciona (so leitura, nada e alterado)
+      - name: 1. Dump no Hetzner (so leitura, dentro do proprio container)
+        run: |
+          ssh -i ~/.ssh/hetzner_key -p "${{ secrets.HETZNER_PORT }}" "${{ secrets.HETZNER_USER }}@${{ secrets.HETZNER_HOST }}" '
+            docker exec supabase-db pg_dump -U postgres -d postgres --no-owner --no-privileges --schema=public > /tmp/dump-public.sql
+            docker exec supabase-db pg_dump -U postgres -d postgres --no-owner --no-privileges --data-only --schema=auth > /tmp/dump-auth-data.sql
+            docker exec supabase-db pg_dump -U postgres -d postgres --no-owner --no-privileges --data-only --schema=storage > /tmp/dump-storage-data.sql
+            ls -la /tmp/dump-*.sql
+          '
+
+      - name: 2. Traz os dumps do Hetzner para o runner (leitura)
+        run: |
+          scp -i ~/.ssh/hetzner_key -P "${{ secrets.HETZNER_PORT }}" \
+            "${{ secrets.HETZNER_USER }}@${{ secrets.HETZNER_HOST }}:/tmp/dump-*.sql" ./
+          ls -la dump-*.sql
+
+      - name: 3. Envia os dumps para o Contabo
+        run: |
+          scp -i ~/.ssh/contabo_key dump-public.sql dump-auth-data.sql dump-storage-data.sql \
+            "root@${{ secrets.CONTABO_HOST }}:/tmp/"
+
+      - name: 4. Restaura no Contabo (base nova, ja com estrutura propria)
         uses: appleboy/ssh-action@v1.2.5
         with:
-          host: ${{ secrets.HETZNER_HOST }}
-          port: ${{ secrets.HETZNER_PORT }}
-          username: ${{ secrets.HETZNER_USER }}
-          key: ${{ secrets.HETZNER_SSH_KEY }}
-          command_timeout: 3m
+          host: ${{ secrets.CONTABO_HOST }}
+          username: root
+          key: ${{ secrets.CONTABO_SSH_KEY }}
+          command_timeout: 5m
           script: |
-            echo "===== Nome real do container do postgres no Hetzner ====="
-            docker ps --format "{{.Names}}" | grep -i "db\|postgres"
+            set -e
+            echo "===== Copia os dumps para dentro do container ====="
+            docker cp /tmp/dump-public.sql supabase-db:/tmp/dump-public.sql
+            docker cp /tmp/dump-auth-data.sql supabase-db:/tmp/dump-auth-data.sql
+            docker cp /tmp/dump-storage-data.sql supabase-db:/tmp/dump-storage-data.sql
 
             echo ""
-            echo "===== Bases de dados existentes ====="
-            docker exec supabase-db psql -U postgres -c "\l" 2>&1 | head -20
+            echo "===== Restaura public (estrutura + dados) ====="
+            docker exec supabase-db psql -U postgres -d postgres -f /tmp/dump-public.sql 2>&1 | tail -40
 
             echo ""
-            echo "===== Tabelas no schema public (onde vive panel_sites etc) ====="
-            docker exec supabase-db psql -U postgres -d postgres -c "\dt public.*" 2>&1 | head -60
+            echo "===== Restaura dados de auth (utilizadores reais) ====="
+            docker exec supabase-db psql -U postgres -d postgres -f /tmp/dump-auth-data.sql 2>&1 | tail -20
 
             echo ""
-            echo "===== Contagem de linhas de 3 tabelas grandes, para comparar depois ====="
-            docker exec supabase-db psql -U postgres -d postgres -c "SELECT 'panel_sites' t, count(*) FROM public.panel_sites UNION ALL SELECT 'panel_users', count(*) FROM public.panel_users UNION ALL SELECT 'panel_auth_accounts', count(*) FROM public.panel_auth_accounts;" 2>&1
+            echo "===== Restaura dados de storage (metadados dos buckets) ====="
+            docker exec supabase-db psql -U postgres -d postgres -f /tmp/dump-storage-data.sql 2>&1 | tail -20
 
             echo ""
-            echo "===== Quantos utilizadores reais em auth.users ====="
-            docker exec supabase-db psql -U postgres -d postgres -c "SELECT count(*) FROM auth.users;" 2>&1
+            echo "===== Confirma contagens (devem bater certo com o Hetzner: 11/3/7/42) ====="
+            docker exec supabase-db psql -U postgres -d postgres -c "SELECT 'panel_sites' t, count(*) FROM public.panel_sites UNION ALL SELECT 'panel_users', count(*) FROM public.panel_users UNION ALL SELECT 'panel_auth_accounts', count(*) FROM public.panel_auth_accounts UNION ALL SELECT 'auth.users', count(*) FROM auth.users;"
 
             echo ""
-            echo "===== Tamanho real da base postgres (a que interessa) ====="
-            docker exec supabase-db psql -U postgres -d postgres -c "SELECT pg_size_pretty(pg_database_size('postgres'));" 2>&1
+            echo "===== Limpa os dumps temporarios do disco do Contabo ====="
+            rm -f /tmp/dump-*.sql
