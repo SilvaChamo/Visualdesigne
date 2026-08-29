@@ -1,55 +1,48 @@
-name: "Ops - Fase 1s. Remove referencia ao override apagado e sobe tudo"
+name: "Ops - Fase 2a. Inspecciona a base real no Hetzner antes de copiar (so leitura)"
 
 on:
   workflow_dispatch:
 
 jobs:
-  fix:
-    name: corrige COMPOSE_FILE no .env + up final
+  inspect:
+    name: bases de dados e tabelas reais no Hetzner
     runs-on: ubuntu-latest
     steps:
       - name: Setup SSH key
         run: |
           mkdir -p ~/.ssh
-          echo "${{ secrets.CONTABO_SSH_KEY }}" > ~/.ssh/deploy_key
+          echo "${{ secrets.HETZNER_SSH_KEY }}" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
-          ssh-keyscan "${{ secrets.CONTABO_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
+          ssh-keyscan -p "${{ secrets.HETZNER_PORT }}" "${{ secrets.HETZNER_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
 
-      - name: Corrige
+      - name: Inspecciona (so leitura, nada e alterado)
         uses: appleboy/ssh-action@v1.2.5
         with:
-          host: ${{ secrets.CONTABO_HOST }}
-          username: root
-          key: ${{ secrets.CONTABO_SSH_KEY }}
-          command_timeout: 5m
+          host: ${{ secrets.HETZNER_HOST }}
+          port: ${{ secrets.HETZNER_PORT }}
+          username: ${{ secrets.HETZNER_USER }}
+          key: ${{ secrets.HETZNER_SSH_KEY }}
+          command_timeout: 3m
           script: |
-            set -e
-            cd /opt/supabase-contabo/docker
-
-            echo "===== COMPOSE_FILE actual no .env ====="
-            grep "^COMPOSE_FILE=" .env
+            echo "===== Nome real do container do postgres no Hetzner ====="
+            docker ps --format "{{.Names}}" | grep -i "db\|postgres"
 
             echo ""
-            echo "===== Corrige para so o ficheiro principal ====="
-            sed -i 's|^COMPOSE_FILE=.*|COMPOSE_FILE=docker-compose.yml|' .env
-            grep "^COMPOSE_FILE=" .env
+            echo "===== Bases de dados existentes ====="
+            docker exec supabase-db psql -U postgres -c "\l" 2>&1 | head -20
 
             echo ""
-            echo "===== Sobe tudo de novo, limpo ====="
-            docker compose up -d --force-recreate
+            echo "===== Tabelas no schema public (onde vive panel_sites etc) ====="
+            docker exec supabase-db psql -U postgres -d postgres -c "\dt public.*" 2>&1 | head -60
 
             echo ""
-            echo "===== Espera 60s ====="
-            sleep 60
+            echo "===== Contagem de linhas de 3 tabelas grandes, para comparar depois ====="
+            docker exec supabase-db psql -U postgres -d postgres -c "SELECT 'panel_sites' t, count(*) FROM public.panel_sites UNION ALL SELECT 'panel_users', count(*) FROM public.panel_users UNION ALL SELECT 'panel_auth_accounts', count(*) FROM public.panel_auth_accounts;" 2>&1
 
             echo ""
-            echo "===== Estado final ====="
-            docker ps -a --format "table {{.Names}}\t{{.Status}}"
+            echo "===== Quantos utilizadores reais em auth.users ====="
+            docker exec supabase-db psql -U postgres -d postgres -c "SELECT count(*) FROM auth.users;" 2>&1
 
             echo ""
-            echo "===== curl ao gateway ====="
-            curl -s -o /dev/null -w "gateway HTTP %{http_code}\n" http://127.0.0.1:8000/rest/v1/ || echo "gateway nao responde"
-
-            echo ""
-            echo "===== confirma que 5432/6543/8000 SO aparecem em 127.0.0.1 ====="
-            ss -tln | grep -E ':5432|:6543|:8000'
+            echo "===== Tamanho real da base postgres (a que interessa) ====="
+            docker exec supabase-db psql -U postgres -d postgres -c "SELECT pg_size_pretty(pg_database_size('postgres'));" 2>&1
