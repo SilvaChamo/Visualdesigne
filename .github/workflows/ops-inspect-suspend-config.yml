@@ -1,11 +1,11 @@
-name: "Ops - Fase 1r. Corrige portas a serio (edita o compose principal, sem override)"
+name: "Ops - Fase 1s. Remove referencia ao override apagado e sobe tudo"
 
 on:
   workflow_dispatch:
 
 jobs:
   fix:
-    name: sed nas 3 linhas de porta + remove override antigo
+    name: corrige COMPOSE_FILE no .env + up final
     runs-on: ubuntu-latest
     steps:
       - name: Setup SSH key
@@ -26,27 +26,13 @@ jobs:
             set -e
             cd /opt/supabase-contabo/docker
 
-            echo "===== Ficheiros override existentes (para ver o que esta a somar portas) ====="
-            ls -la docker-compose.override.yml 2>&1 || echo "sem override.yml"
-            cat docker-compose.override.yml 2>&1 || true
+            echo "===== COMPOSE_FILE actual no .env ====="
+            grep "^COMPOSE_FILE=" .env
 
             echo ""
-            echo "===== Remove qualquer override de portas (vamos editar o ficheiro principal directamente) ====="
-            rm -f docker-compose.override.yml
-
-            echo ""
-            echo "===== Linhas de porta ANTES da edicao ====="
-            grep -n "^\s*- \${.*}:5432\|^\s*- \${.*}:6543\|^\s*- \${.*}:8000" docker-compose.yml
-
-            echo ""
-            echo "===== Aplica 127.0.0.1: no inicio dessas 3 linhas (só se ainda nao tiver) ====="
-            sed -i -E 's|^(\s*- )\$\{POSTGRES_PORT\}:5432|\1127.0.0.1:${POSTGRES_PORT}:5432|' docker-compose.yml
-            sed -i -E 's|^(\s*- )\$\{POOLER_PROXY_PORT_TRANSACTION\}:6543|\1127.0.0.1:${POOLER_PROXY_PORT_TRANSACTION}:6543|' docker-compose.yml
-            sed -i -E 's|^(\s*- )\$\{API_GW_HTTP_PORT:-\$\{KONG_HTTP_PORT:-8000\}\}:8000/tcp|\1127.0.0.1:${API_GW_HTTP_PORT:-${KONG_HTTP_PORT:-8000}}:8000/tcp|' docker-compose.yml
-
-            echo ""
-            echo "===== Linhas de porta DEPOIS da edicao ====="
-            grep -n "5432\|6543\|:8000" docker-compose.yml | grep "127.0.0.1\|:5432\|:6543\|:8000"
+            echo "===== Corrige para so o ficheiro principal ====="
+            sed -i 's|^COMPOSE_FILE=.*|COMPOSE_FILE=docker-compose.yml|' .env
+            grep "^COMPOSE_FILE=" .env
 
             echo ""
             echo "===== Sobe tudo de novo, limpo ====="
