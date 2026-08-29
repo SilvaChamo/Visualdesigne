@@ -1,11 +1,11 @@
-name: "Ops - Fase 1k. Apaga dados antigos do Postgres a serio e recria"
+name: "Ops - Fase 1l. Restart docker daemon + sobe envoy/pooler que faltavam"
 
 on:
   workflow_dispatch:
 
 jobs:
-  reset:
-    name: down + rm -rf dados reais + up limpo de verdade
+  finish:
+    name: restart docker + up -d final
     runs-on: ubuntu-latest
     steps:
       - name: Setup SSH key
@@ -15,46 +15,44 @@ jobs:
           chmod 600 ~/.ssh/deploy_key
           ssh-keyscan "${{ secrets.CONTABO_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
 
-      - name: Reset a serio
+      - name: Finaliza
         uses: appleboy/ssh-action@v1.2.5
         with:
           host: ${{ secrets.CONTABO_HOST }}
           username: root
           key: ${{ secrets.CONTABO_SSH_KEY }}
-          command_timeout: 8m
+          command_timeout: 6m
           script: |
             set -e
-            cd /opt/supabase-contabo/docker
-
-            echo "===== Para tudo ====="
-            docker compose down -v
+            echo "===== Estado antes ====="
+            docker ps -a --format "table {{.Names}}\t{{.Status}}"
 
             echo ""
-            echo "===== Apaga a pasta de dados REAL do Postgres (bind mount, nao e volume Docker) ====="
-            rm -rf ./volumes/db/data
-            echo "apagado."
+            echo "===== Reinicia o docker daemon (liberta portas presas) ====="
+            systemctl restart docker
+            sleep 8
 
             echo ""
-            echo "===== Apaga tambem estado de storage/functions, para ficarem consistentes com o Postgres novo ====="
-            rm -rf ./volumes/storage/*
-            echo "storage limpo."
-
-            echo ""
-            echo "===== Confirma que nao ha nada em 5432/6543/8000 antes de subir ====="
+            echo "===== Confirma portas livres ====="
             ss -tln | grep -E ':5432|:6543|:8000' || echo "tudo livre"
 
+            cd /opt/supabase-contabo/docker
             echo ""
-            echo "===== docker compose up -d (agora sim, dados a zero) ====="
+            echo "===== docker compose up -d (dados ja existem, so completa o que falta) ====="
             docker compose up -d
 
             echo ""
-            echo "===== Espera 90s para o Postgres correr os scripts de init e os outros arrancarem ====="
-            sleep 90
+            echo "===== Espera 60s ====="
+            sleep 60
 
             echo ""
-            echo "===== Logs do arranque do supabase-db: confirma criacao de roles ====="
-            docker logs supabase-db 2>&1 | grep -iE "CREATE ROLE|supabase_auth_admin|supabase_storage_admin|error|fatal" | head -30
-
-            echo ""
-            echo "===== Estado final de todos os containers ====="
+            echo "===== Estado final ====="
             docker ps -a --format "table {{.Names}}\t{{.Status}}"
+
+            echo ""
+            echo "===== supabase_auth_admin existe agora? ====="
+            docker exec supabase-db psql -U supabase_admin -d postgres -c "\du" 2>&1 | grep -i auth
+
+            echo ""
+            echo "===== teste real: curl ao gateway local ====="
+            curl -s -o /dev/null -w "gateway HTTP %{http_code}\n" http://127.0.0.1:8000/rest/v1/ || echo "gateway nao responde"
