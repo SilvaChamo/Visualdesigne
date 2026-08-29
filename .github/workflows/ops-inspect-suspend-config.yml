@@ -1,58 +1,43 @@
-name: "Ops - Fase 2f. Copia mesmo os ficheiros do storage para o Contabo"
+name: "Ops - Fase 2g. Teste real de ponta a ponta (REST com chave real)"
 
 on:
   workflow_dispatch:
 
 jobs:
-  copy_files:
-    name: rsync via runner, Hetzner so leitura
+  test:
+    name: docker ps + curl real ao REST com anon key
     runs-on: ubuntu-latest
     steps:
-      - name: Setup chaves SSH
+      - name: Setup SSH key
         run: |
           mkdir -p ~/.ssh
-          echo "${{ secrets.HETZNER_SSH_KEY }}" > ~/.ssh/hetzner_key
-          chmod 600 ~/.ssh/hetzner_key
-          echo "${{ secrets.CONTABO_SSH_KEY }}" > ~/.ssh/contabo_key
-          chmod 600 ~/.ssh/contabo_key
-          ssh-keyscan -p "${{ secrets.HETZNER_PORT }}" "${{ secrets.HETZNER_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
+          echo "${{ secrets.CONTABO_SSH_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
           ssh-keyscan "${{ secrets.CONTABO_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
 
-      - name: 1. Traz os ficheiros do Hetzner para o runner (so leitura la)
-        run: |
-          mkdir -p ./storage-copy
-          rsync -az \
-            -e "ssh -i ~/.ssh/hetzner_key -p ${{ secrets.HETZNER_PORT }}" \
-            "${{ secrets.HETZNER_USER }}@${{ secrets.HETZNER_HOST }}:/opt/supabase-aamihe/docker/volumes/storage/" \
-            ./storage-copy/
-          du -sh ./storage-copy
-          find ./storage-copy -maxdepth 1
-
-      - name: 2. Envia para o Contabo
-        run: |
-          rsync -az \
-            -e "ssh -i ~/.ssh/contabo_key" \
-            ./storage-copy/ \
-            "root@${{ secrets.CONTABO_HOST }}:/opt/supabase-contabo/docker/volumes/storage/"
-
-      - name: 3. Confirma no Contabo e reinicia o storage-api para reler
+      - name: Teste
         uses: appleboy/ssh-action@v1.2.5
         with:
           host: ${{ secrets.CONTABO_HOST }}
           username: root
           key: ${{ secrets.CONTABO_SSH_KEY }}
           command_timeout: 3m
+          envs: ANON_KEY
           script: |
-            echo "===== Tamanho copiado no Contabo ====="
-            du -sh /opt/supabase-contabo/docker/volumes/storage
-            find /opt/supabase-contabo/docker/volumes/storage -maxdepth 1
+            echo "===== Estado de TODOS os containers ====="
+            docker ps -a --format "table {{.Names}}\t{{.Status}}"
 
             echo ""
-            echo "===== Acerta dono/permissoes (o container corre como utilizador non-root) ====="
-            docker exec supabase-storage id
+            echo "===== Teste real: pede panel_sites via REST, com a anon key real ====="
+            curl -s -w "\nHTTP %{http_code}\n" \
+              -H "apikey: $ANON_KEY" \
+              -H "Authorization: Bearer $ANON_KEY" \
+              "http://127.0.0.1:8000/rest/v1/panel_sites?select=domain&limit=3"
 
             echo ""
-            echo "===== Reinicia o storage-api para ele reconhecer os ficheiros novos ====="
-            docker restart supabase-storage
-            sleep 8
-            docker ps --filter "name=supabase-storage" --format "{{.Names}}\t{{.Status}}"
+            echo "===== Teste de login (auth health) ====="
+            curl -s -w "\nHTTP %{http_code}\n" \
+              -H "apikey: $ANON_KEY" \
+              "http://127.0.0.1:8000/auth/v1/health"
+        env:
+          ANON_KEY: ${{ secrets.SUPABASE_CONTABO_ANON_KEY }}
