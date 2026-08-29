@@ -1,11 +1,11 @@
-name: "Ops - Fase 1n. Recria containers com --force-recreate (sem tocar em dados)"
+name: "Ops - Fase 1o. Sobe pooler e envoy um de cada vez, com retry"
 
 on:
   workflow_dispatch:
 
 jobs:
   fix:
-    name: force-recreate envoy e pooler
+    name: sequencial em vez de paralelo (evita race do iptables)
     runs-on: ubuntu-latest
     steps:
       - name: Setup SSH key
@@ -15,32 +15,46 @@ jobs:
           chmod 600 ~/.ssh/deploy_key
           ssh-keyscan "${{ secrets.CONTABO_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
 
-      - name: Force recreate
+      - name: Sobe um de cada vez
         uses: appleboy/ssh-action@v1.2.5
         with:
           host: ${{ secrets.CONTABO_HOST }}
           username: root
           key: ${{ secrets.CONTABO_SSH_KEY }}
-          command_timeout: 4m
+          command_timeout: 5m
           script: |
-            set -e
             cd /opt/supabase-contabo/docker
 
-            echo "===== force-recreate de todos os containers (dados do postgres ficam intactos) ====="
-            docker compose up -d --force-recreate
+            echo "===== Qual e o backend do iptables? (nftables costuma causar esta race) ====="
+            iptables --version 2>&1
 
             echo ""
-            echo "===== Espera 45s ====="
-            sleep 45
+            echo "===== Servico envoy, sozinho, com ate 5 tentativas ====="
+            for i in 1 2 3 4 5; do
+              echo "-- tentativa $i --"
+              if docker compose up -d --force-recreate --no-deps envoy 2>&1; then
+                echo "ok"
+                break
+              fi
+              sleep 6
+            done
 
             echo ""
-            echo "===== Estado final ====="
+            echo "===== Servico supavisor (pooler), sozinho, com ate 5 tentativas ====="
+            for i in 1 2 3 4 5; do
+              echo "-- tentativa $i --"
+              if docker compose up -d --force-recreate --no-deps supavisor 2>&1; then
+                echo "ok"
+                break
+              fi
+              sleep 6
+            done
+
+            echo ""
+            echo "===== Espera 30s e confirma ====="
+            sleep 30
             docker ps -a --format "table {{.Names}}\t{{.Status}}"
 
             echo ""
             echo "===== curl ao gateway ====="
             curl -s -o /dev/null -w "gateway HTTP %{http_code}\n" http://127.0.0.1:8000/rest/v1/ || echo "gateway nao responde"
-
-            echo ""
-            echo "===== logs do pooler, se ainda falhar ====="
-            docker logs --tail 15 supabase-pooler 2>&1
