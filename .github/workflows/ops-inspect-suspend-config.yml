@@ -1,11 +1,11 @@
-name: "Ops - Fase 3b. Le o nginx.ssl.conf real (padrao proxy a copiar)"
+name: "Ops - Fase 3c. Sintaxe exacta dos comandos Hestia (so leitura)"
 
 on:
   workflow_dispatch:
 
 jobs:
   inspect:
-    name: conteudo do template nodejs usado por teste.visualdesignmoz.com
+    name: v-add-web-domain e v-change-web-domain-tpl --help
     runs-on: ubuntu-latest
     steps:
       - name: Setup SSH key
@@ -23,13 +23,21 @@ jobs:
           key: ${{ secrets.CONTABO_SSH_KEY }}
           command_timeout: 3m
           script: |
-            echo "===== v-list-web-domain vdadmin teste.visualdesignmoz.com (template usado) ====="
-            /usr/local/hestia/bin/v-list-web-domain vdadmin teste.visualdesignmoz.com json
+            echo "===== v-add-web-domain --help ====="
+            /usr/local/hestia/bin/v-add-web-domain 2>&1 | head -20
 
             echo ""
-            echo "===== nginx.ssl.conf real (o que faz o proxy) ====="
-            cat /home/vdadmin/conf/web/teste.visualdesignmoz.com/nginx.ssl.conf
+            echo "===== v-change-web-domain-tpl --help ====="
+            /usr/local/hestia/bin/v-change-web-domain-tpl 2>&1 | head -20
 
             echo ""
-            echo "===== nginx.conf (porta 80, redireciona para ssl) ====="
-            cat /home/vdadmin/conf/web/teste.visualdesignmoz.com/nginx.conf
+            echo "===== v-add-letsencrypt-domain --help ====="
+            /usr/local/hestia/bin/v-add-letsencrypt-domain 2>&1 | head -20
+
+            echo ""
+            echo "===== Conteudo do template nodejs.tpl (para ver as variaveis de porta) ====="
+            cat /usr/local/hestia/data/templates/web/nginx/nodejs.tpl
+
+            echo ""
+            echo "===== nodejs.stpl (versao SSL) ====="
+            cat /usr/local/hestia/data/templates/web/nginx/nodejs.stpl
