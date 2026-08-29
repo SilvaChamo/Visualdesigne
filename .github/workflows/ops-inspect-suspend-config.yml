@@ -1,11 +1,11 @@
-name: "Ops - Fase 1h. Diagnostico direto: quem tem a porta 5432"
+name: "Ops - Fase 1i. Logs de auth, rest e storage (crash loop)"
 
 on:
   workflow_dispatch:
 
 jobs:
-  diag:
-    name: ss -p e docker ps -a completos
+  logs:
+    name: docker logs dos 3 servicos com problema
     runs-on: ubuntu-latest
     steps:
       - name: Setup SSH key
@@ -15,7 +15,7 @@ jobs:
           chmod 600 ~/.ssh/deploy_key
           ssh-keyscan "${{ secrets.CONTABO_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
 
-      - name: Diagnostico
+      - name: Logs
         uses: appleboy/ssh-action@v1.2.5
         with:
           host: ${{ secrets.CONTABO_HOST }}
@@ -23,27 +23,17 @@ jobs:
           key: ${{ secrets.CONTABO_SSH_KEY }}
           command_timeout: 3m
           script: |
-            echo "===== ss -tlnp porta 5432 exacta (com processo dono) ====="
-            ss -tlnp | grep ':5432' || echo "ss nao mostra nada em 5432"
+            echo "===== supabase-auth (ultimas 40 linhas) ====="
+            docker logs --tail 40 supabase-auth 2>&1
 
             echo ""
-            echo "===== lsof na porta 5432, se existir ====="
-            lsof -i :5432 2>&1 || echo "sem lsof ou nada encontrado"
+            echo "===== supabase-rest (ultimas 40 linhas) ====="
+            docker logs --tail 40 supabase-rest 2>&1
 
             echo ""
-            echo "===== TODOS os containers docker, incluindo outros projectos ====="
-            docker ps -a --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
+            echo "===== supabase-storage (ultimas 40 linhas) ====="
+            docker logs --tail 40 supabase-storage 2>&1
 
             echo ""
-            echo "===== docker network ls ====="
-            docker network ls
-
-            echo ""
-            echo "===== iptables NAT rules com 5432 (docker costuma la deixar regras orfas) ====="
-            iptables -t nat -L -n 2>&1 | grep -i "5432" || echo "sem regras iptables NAT para 5432"
-
-            echo ""
-            echo "===== reinicia o proprio docker daemon, ultimo recurso conhecido para isto ====="
-            systemctl restart docker
-            sleep 5
-            ss -tlnp | grep ':5432' || echo "apos restart do docker: 5432 livre"
+            echo "===== estado actual de todos os containers ====="
+            docker ps -a --format "table {{.Names}}\t{{.Status}}"
