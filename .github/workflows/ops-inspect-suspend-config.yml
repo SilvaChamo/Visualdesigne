@@ -1,11 +1,11 @@
-name: "Ops - Fase 2g. Teste real de ponta a ponta (REST com chave real)"
+name: "Ops - Fase 3a. Ve como o proprio teste.visualdesignmoz.com esta configurado (proxy)"
 
 on:
   workflow_dispatch:
 
 jobs:
-  test:
-    name: docker ps + curl real ao REST com anon key
+  inspect:
+    name: nginx config real do dominio teste (padrao a copiar)
     runs-on: ubuntu-latest
     steps:
       - name: Setup SSH key
@@ -15,29 +15,25 @@ jobs:
           chmod 600 ~/.ssh/deploy_key
           ssh-keyscan "${{ secrets.CONTABO_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
 
-      - name: Teste
+      - name: Inspecciona
         uses: appleboy/ssh-action@v1.2.5
         with:
           host: ${{ secrets.CONTABO_HOST }}
           username: root
           key: ${{ secrets.CONTABO_SSH_KEY }}
           command_timeout: 3m
-          envs: ANON_KEY
           script: |
-            echo "===== Estado de TODOS os containers ====="
-            docker ps -a --format "table {{.Names}}\t{{.Status}}"
+            echo "===== Qual utilizador Hestia serve teste.visualdesignmoz.com ====="
+            grep -rl "teste.visualdesignmoz.com" /home/*/conf/web/*/nginx*.conf 2>/dev/null
 
             echo ""
-            echo "===== Teste real: pede panel_sites via REST, com a anon key real ====="
-            curl -s -w "\nHTTP %{http_code}\n" \
-              -H "apikey: $ANON_KEY" \
-              -H "Authorization: Bearer $ANON_KEY" \
-              "http://127.0.0.1:8000/rest/v1/panel_sites?select=domain&limit=3"
+            echo "===== Lista de templates nginx disponiveis no Hestia ====="
+            ls /usr/local/hestia/data/templates/web/nginx/
 
             echo ""
-            echo "===== Teste de login (auth health) ====="
-            curl -s -w "\nHTTP %{http_code}\n" \
-              -H "apikey: $ANON_KEY" \
-              "http://127.0.0.1:8000/auth/v1/health"
-        env:
-          ANON_KEY: ${{ secrets.SUPABASE_CONTABO_ANON_KEY }}
+            echo "===== Conteudo do nginx.conf real do dominio teste (o SSL, que importa) ====="
+            find /home -path "*conf/web/teste.visualdesignmoz.com*" -name "*.conf" 2>/dev/null
+
+            echo ""
+            echo "===== v-list-web-domains do utilizador admin, para ver o template usado ====="
+            /usr/local/hestia/bin/v-list-web-domain admin teste.visualdesignmoz.com json 2>&1 || echo "nao esta no admin"
