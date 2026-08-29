@@ -1,11 +1,11 @@
-name: "Ops - Fase 1q. Muda para iptables-legacy e sobe a stack toda"
+name: "Ops - Fase 1r. Corrige portas a serio (edita o compose principal, sem override)"
 
 on:
   workflow_dispatch:
 
 jobs:
   fix:
-    name: iptables-legacy + restart docker + up completo
+    name: sed nas 3 linhas de porta + remove override antigo
     runs-on: ubuntu-latest
     steps:
       - name: Setup SSH key
@@ -21,28 +21,35 @@ jobs:
           host: ${{ secrets.CONTABO_HOST }}
           username: root
           key: ${{ secrets.CONTABO_SSH_KEY }}
-          command_timeout: 6m
+          command_timeout: 5m
           script: |
             set -e
-            echo "===== Muda para iptables-legacy (correcao padrao do Docker para nftables) ====="
-            update-alternatives --set iptables /usr/sbin/iptables-legacy
-            update-alternatives --set ip6tables /usr/sbin/ip6tables-legacy 2>&1 || echo "sem ip6tables-legacy, ok"
-            iptables --version
-
-            echo ""
-            echo "===== Reinicia o docker para aplicar ====="
-            systemctl restart docker
-            sleep 8
-
-            echo ""
-            echo "===== Confirma que os sites Hestia continuam a responder (nao mexemos neles, so confirmar) ====="
-            curl -s -o /dev/null -w "porta 443 local: HTTP %{http_code}\n" -k https://127.0.0.1:443 --max-time 5 || echo "sem resposta em 443 (pode ser normal sem SNI)"
-            systemctl is-active apache2 2>&1
-            systemctl is-active nginx 2>&1
-
-            echo ""
-            echo "===== Sobe a stack Supabase toda de novo ====="
             cd /opt/supabase-contabo/docker
+
+            echo "===== Ficheiros override existentes (para ver o que esta a somar portas) ====="
+            ls -la docker-compose.override.yml 2>&1 || echo "sem override.yml"
+            cat docker-compose.override.yml 2>&1 || true
+
+            echo ""
+            echo "===== Remove qualquer override de portas (vamos editar o ficheiro principal directamente) ====="
+            rm -f docker-compose.override.yml
+
+            echo ""
+            echo "===== Linhas de porta ANTES da edicao ====="
+            grep -n "^\s*- \${.*}:5432\|^\s*- \${.*}:6543\|^\s*- \${.*}:8000" docker-compose.yml
+
+            echo ""
+            echo "===== Aplica 127.0.0.1: no inicio dessas 3 linhas (só se ainda nao tiver) ====="
+            sed -i -E 's|^(\s*- )\$\{POSTGRES_PORT\}:5432|\1127.0.0.1:${POSTGRES_PORT}:5432|' docker-compose.yml
+            sed -i -E 's|^(\s*- )\$\{POOLER_PROXY_PORT_TRANSACTION\}:6543|\1127.0.0.1:${POOLER_PROXY_PORT_TRANSACTION}:6543|' docker-compose.yml
+            sed -i -E 's|^(\s*- )\$\{API_GW_HTTP_PORT:-\$\{KONG_HTTP_PORT:-8000\}\}:8000/tcp|\1127.0.0.1:${API_GW_HTTP_PORT:-${KONG_HTTP_PORT:-8000}}:8000/tcp|' docker-compose.yml
+
+            echo ""
+            echo "===== Linhas de porta DEPOIS da edicao ====="
+            grep -n "5432\|6543\|:8000" docker-compose.yml | grep "127.0.0.1\|:5432\|:6543\|:8000"
+
+            echo ""
+            echo "===== Sobe tudo de novo, limpo ====="
             docker compose up -d --force-recreate
 
             echo ""
@@ -54,5 +61,9 @@ jobs:
             docker ps -a --format "table {{.Names}}\t{{.Status}}"
 
             echo ""
-            echo "===== curl ao gateway (servico certo: api-gw, porta 8000) ====="
+            echo "===== curl ao gateway ====="
             curl -s -o /dev/null -w "gateway HTTP %{http_code}\n" http://127.0.0.1:8000/rest/v1/ || echo "gateway nao responde"
+
+            echo ""
+            echo "===== confirma que 5432/6543/8000 SO aparecem em 127.0.0.1 ====="
+            ss -tln | grep -E ':5432|:6543|:8000'
