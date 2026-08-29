@@ -1,11 +1,11 @@
-name: "Ops - Fase 2e. Copia os ficheiros reais do storage (Hetzner so leitura)"
+name: "Ops - Fase 2f. Copia mesmo os ficheiros do storage para o Contabo"
 
 on:
   workflow_dispatch:
 
 jobs:
   copy_files:
-    name: rsync via runner (relay), Hetzner nunca escreve
+    name: rsync via runner, Hetzner so leitura
     runs-on: ubuntu-latest
     steps:
       - name: Setup chaves SSH
@@ -18,10 +18,41 @@ jobs:
           ssh-keyscan -p "${{ secrets.HETZNER_PORT }}" "${{ secrets.HETZNER_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
           ssh-keyscan "${{ secrets.CONTABO_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
 
-      - name: 1. Confirma caminho real e tamanho no Hetzner (so leitura)
+      - name: 1. Traz os ficheiros do Hetzner para o runner (so leitura la)
         run: |
-          ssh -i ~/.ssh/hetzner_key -p "${{ secrets.HETZNER_PORT }}" "${{ secrets.HETZNER_USER }}@${{ secrets.HETZNER_HOST }}" '
-            find /opt -maxdepth 3 -iname "storage" -type d 2>/dev/null
-            echo "---"
-            du -sh /opt/supabase-aamihe/docker/volumes/storage 2>&1 || echo "caminho nao existe, preciso de outro"
-          '
+          mkdir -p ./storage-copy
+          rsync -az \
+            -e "ssh -i ~/.ssh/hetzner_key -p ${{ secrets.HETZNER_PORT }}" \
+            "${{ secrets.HETZNER_USER }}@${{ secrets.HETZNER_HOST }}:/opt/supabase-aamihe/docker/volumes/storage/" \
+            ./storage-copy/
+          du -sh ./storage-copy
+          find ./storage-copy -maxdepth 1
+
+      - name: 2. Envia para o Contabo
+        run: |
+          rsync -az \
+            -e "ssh -i ~/.ssh/contabo_key" \
+            ./storage-copy/ \
+            "root@${{ secrets.CONTABO_HOST }}:/opt/supabase-contabo/docker/volumes/storage/"
+
+      - name: 3. Confirma no Contabo e reinicia o storage-api para reler
+        uses: appleboy/ssh-action@v1.2.5
+        with:
+          host: ${{ secrets.CONTABO_HOST }}
+          username: root
+          key: ${{ secrets.CONTABO_SSH_KEY }}
+          command_timeout: 3m
+          script: |
+            echo "===== Tamanho copiado no Contabo ====="
+            du -sh /opt/supabase-contabo/docker/volumes/storage
+            find /opt/supabase-contabo/docker/volumes/storage -maxdepth 1
+
+            echo ""
+            echo "===== Acerta dono/permissoes (o container corre como utilizador non-root) ====="
+            docker exec supabase-storage id
+
+            echo ""
+            echo "===== Reinicia o storage-api para ele reconhecer os ficheiros novos ====="
+            docker restart supabase-storage
+            sleep 8
+            docker ps --filter "name=supabase-storage" --format "{{.Names}}\t{{.Status}}"
