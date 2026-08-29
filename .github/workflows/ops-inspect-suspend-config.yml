@@ -1,11 +1,11 @@
-name: "Ops - Fase 3a. Ve como o proprio teste.visualdesignmoz.com esta configurado (proxy)"
+name: "Ops - Fase 3b. Le o nginx.ssl.conf real (padrao proxy a copiar)"
 
 on:
   workflow_dispatch:
 
 jobs:
   inspect:
-    name: nginx config real do dominio teste (padrao a copiar)
+    name: conteudo do template nodejs usado por teste.visualdesignmoz.com
     runs-on: ubuntu-latest
     steps:
       - name: Setup SSH key
@@ -23,17 +23,13 @@ jobs:
           key: ${{ secrets.CONTABO_SSH_KEY }}
           command_timeout: 3m
           script: |
-            echo "===== Qual utilizador Hestia serve teste.visualdesignmoz.com ====="
-            grep -rl "teste.visualdesignmoz.com" /home/*/conf/web/*/nginx*.conf 2>/dev/null
+            echo "===== v-list-web-domain vdadmin teste.visualdesignmoz.com (template usado) ====="
+            /usr/local/hestia/bin/v-list-web-domain vdadmin teste.visualdesignmoz.com json
 
             echo ""
-            echo "===== Lista de templates nginx disponiveis no Hestia ====="
-            ls /usr/local/hestia/data/templates/web/nginx/
+            echo "===== nginx.ssl.conf real (o que faz o proxy) ====="
+            cat /home/vdadmin/conf/web/teste.visualdesignmoz.com/nginx.ssl.conf
 
             echo ""
-            echo "===== Conteudo do nginx.conf real do dominio teste (o SSL, que importa) ====="
-            find /home -path "*conf/web/teste.visualdesignmoz.com*" -name "*.conf" 2>/dev/null
-
-            echo ""
-            echo "===== v-list-web-domains do utilizador admin, para ver o template usado ====="
-            /usr/local/hestia/bin/v-list-web-domain admin teste.visualdesignmoz.com json 2>&1 || echo "nao esta no admin"
+            echo "===== nginx.conf (porta 80, redireciona para ssl) ====="
+            cat /home/vdadmin/conf/web/teste.visualdesignmoz.com/nginx.conf
