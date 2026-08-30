@@ -1,11 +1,11 @@
-name: "Ops - Fase 6c. Cria dominios+BDs no Hestia para aamihe/mltmark/provisualcorporate/files"
+name: "Ops - Fase 6d. Confirma dono real de aamihe.com e provisualcorporate.co.mz"
 
 on:
   workflow_dispatch:
 
 jobs:
-  setup_domains:
-    name: v-add-web-domain + v-add-database (vdadmin), Hetzner nao e tocado
+  inspect:
+    name: so leitura
     runs-on: ubuntu-latest
     steps:
       - name: Setup SSH key
@@ -15,34 +15,19 @@ jobs:
           chmod 600 ~/.ssh/deploy_key
           ssh-keyscan "${{ secrets.CONTABO_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
 
-      - name: Cria dominios (template default = PHP) e bases de dados
+      - name: Confirma
         uses: appleboy/ssh-action@v1.2.5
         with:
           host: ${{ secrets.CONTABO_HOST }}
           username: root
           key: ${{ secrets.CONTABO_SSH_KEY }}
-          command_timeout: 4m
+          command_timeout: 2m
           script: |
-            set -e
-            echo "===== sintaxe exacta de v-add-database (confirmar antes de usar) ====="
-            /usr/local/hestia/bin/v-add-database 2>&1 | head -5
-
-            USER=vdadmin
-            IP="169.58.148.144"
-
-            echo "===== Cria os 4 dominios (sem SSL/DNS por agora, so a preparar) ====="
-            for d in aamihe.com mltmark.com provisualcorporate.co.mz files.visualdesignmoz.com; do
-              /usr/local/hestia/bin/v-add-web-domain $USER $d $IP 2>&1 || echo "($d pode ja existir)"
-            done
+            echo "===== onde estao estes 2 dominios de facto (grep em todos os users) ====="
+            grep -rl "aamihe.com" /usr/local/hestia/data/users/*/web.conf 2>/dev/null
+            grep -rl "provisualcorporate.co.mz" /usr/local/hestia/data/users/*/web.conf 2>/dev/null
 
             echo ""
-            echo "===== Cria as bases de dados (nomes gerados pelo Hestia) ====="
-            /usr/local/hestia/bin/v-add-database $USER aamihe aamihe_db "$(openssl rand -hex 16)" mysql 2>&1 || echo "(aamihe pode ja existir)"
-            /usr/local/hestia/bin/v-add-database $USER mltmark mltmark_db "$(openssl rand -hex 16)" mysql 2>&1 || echo "(mltmark pode ja existir)"
-            /usr/local/hestia/bin/v-add-database $USER provisual provisual_db "$(openssl rand -hex 16)" mysql 2>&1 || echo "(provisual pode ja existir)"
-
-            echo ""
-            echo "===== Confirma ====="
-            /usr/local/hestia/bin/v-list-web-domains $USER
-            echo "---"
-            /usr/local/hestia/bin/v-list-databases $USER
+            echo "===== conteudo real, disco usado, template ====="
+            find /home -maxdepth 3 -iname "aamihe.com" -type d 2>/dev/null
+            find /home -maxdepth 3 -iname "provisualcorporate.co.mz" -type d 2>/dev/null
