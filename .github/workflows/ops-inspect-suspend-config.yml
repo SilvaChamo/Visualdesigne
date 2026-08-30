@@ -1,66 +1,38 @@
-name: "Ops - Fase 6a. Inspecciona sites admin (wp-config, PHP) e suporte PHP no Hestia"
+name: "Ops - Fase 6b. Como aamihe.com liga a base de dados (nao e WordPress)"
 
 on:
   workflow_dispatch:
 
 jobs:
   inspect:
-    name: so leitura nos dois lados
+    name: so leitura
     runs-on: ubuntu-latest
     steps:
-      - name: Setup chaves SSH
+      - name: Setup SSH key
         run: |
           mkdir -p ~/.ssh
-          echo "${{ secrets.HETZNER_SSH_KEY }}" > ~/.ssh/hetzner_key
-          chmod 600 ~/.ssh/hetzner_key
-          echo "${{ secrets.CONTABO_SSH_KEY }}" > ~/.ssh/contabo_key
-          chmod 600 ~/.ssh/contabo_key
+          echo "${{ secrets.HETZNER_SSH_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
           ssh-keyscan -p "${{ secrets.HETZNER_PORT }}" "${{ secrets.HETZNER_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
-          ssh-keyscan "${{ secrets.CONTABO_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
 
-      - name: 1. Hetzner - wp-config de cada site (so nomes de BD/user, nao a password)
-        run: |
-          ssh -i ~/.ssh/hetzner_key -p "${{ secrets.HETZNER_PORT }}" "${{ secrets.HETZNER_USER }}@${{ secrets.HETZNER_HOST }}" '
-            for d in aamihe.com mltmark.com provisualcorporate.co.mz files.visualdesignmoz.com; do
-              echo "===== $d ====="
-              f="/home/admin/domains/$d/public_html/wp-config.php"
-              if [ -f "$f" ]; then
-                grep -E "DB_NAME|DB_USER|DB_HOST|table_prefix" "$f" | sed "s/'\''[^'\'']*'\'' *);/'\'' *** *);/"
-              else
-                echo "sem wp-config.php (nao e WordPress ou ficheiro noutro sitio)"
-                find /home/admin/domains/$d/public_html -maxdepth 1 -type f 2>&1 | head -10
-              fi
-            done
-          '
-
-      - name: 2. Hetzner - versao PHP usada por cada dominio (DirectAdmin)
-        run: |
-          ssh -i ~/.ssh/hetzner_key -p "${{ secrets.HETZNER_PORT }}" "${{ secrets.HETZNER_USER }}@${{ secrets.HETZNER_HOST }}" '
-            cat /usr/local/directadmin/data/users/admin/php_versions.conf 2>&1 || echo "sem ficheiro"
-            echo "---"
-            php -v 2>&1 | head -3
-          '
-
-      - name: 3. Contabo/Hestia - suporte PHP e templates
+      - name: Inspecciona filefuns.php e index.php (aamihe)
         uses: appleboy/ssh-action@v1.2.5
         with:
-          host: ${{ secrets.CONTABO_HOST }}
-          username: root
-          key: ${{ secrets.CONTABO_SSH_KEY }}
+          host: ${{ secrets.HETZNER_HOST }}
+          port: ${{ secrets.HETZNER_PORT }}
+          username: ${{ secrets.HETZNER_USER }}
+          key: ${{ secrets.HETZNER_SSH_KEY }}
           command_timeout: 2m
           script: |
-            echo "===== PHP instalado no Contabo? ====="
-            php -v 2>&1 | head -3
-            which php-fpm* 2>&1
+            echo "===== grep por ligacao a base de dados em aamihe.com ====="
+            grep -rn "mysqli_connect\|new PDO\|new mysqli\|DB_HOST\|DB_NAME\|DB_USER\|getenv\|\$_ENV" \
+              /home/admin/domains/aamihe.com/public_html/*.php 2>&1 | head -30
 
             echo ""
-            echo "===== v-list-sys-php-versions (Hestia) ====="
-            /usr/local/hestia/bin/v-list-sys-php-versions 2>&1 || echo "comando nao existe"
+            echo "===== ficheiros .php na raiz (nomes, para ver se ha config.php escondido) ====="
+            find /home/admin/domains/aamihe.com/public_html -maxdepth 2 -iname "*.php" 2>&1
 
             echo ""
-            echo "===== Bases de dados MySQL ja existentes no Contabo ====="
-            mysql -u root -e "SHOW DATABASES;" 2>&1 || echo "sem acesso directo"
-
-            echo ""
-            echo "===== v-list-databases vdadmin ====="
-            /usr/local/hestia/bin/v-list-databases vdadmin 2>&1 || echo "nenhuma ou erro"
+            echo "===== o mesmo para provisualcorporate (para confirmar se a BD ainda e usada) ====="
+            grep -rn "mysqli_connect\|new PDO\|new mysqli\|DB_HOST\|DB_NAME" \
+              /home/admin/domains/provisualcorporate.co.mz/public_html/*.php 2>&1 | head -10
