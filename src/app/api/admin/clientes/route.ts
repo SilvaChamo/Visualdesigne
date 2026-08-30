@@ -217,7 +217,16 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    const osherCreds = await loadResellerCredentialsByDaUsername(OSHER_RESELLER);
+    // A senha DA guardada só serve para chamadas ao vivo ao DirectAdmin — uma
+    // conta já migrada para o Hestia não tem essa senha actualizada (foi
+    // encriptada com a chave antiga do Hetzner) nem precisa dela. Confirmar
+    // o fornecedor real primeiro evita tentar desencriptar algo que já não é
+    // suposto usar-se, e que faz esta página inteira falhar com "Unsupported
+    // state or unable to authenticate data" (erro de decifragem do Node) —
+    // aconteceu na oshercollective a seguir a passar para Hestia (30 ago).
+    const osherProvider = await getProviderByUsername(OSHER_RESELLER);
+    const osherCreds =
+      osherProvider === 'directadmin' ? await loadResellerCredentialsByDaUsername(OSHER_RESELLER) : null;
 
     // Pacotes admin — leitura live síncrona só quando o espelho está mesmo vazio.
     // Antes também disparava quando "stale" (>120min), o que travava toda a
