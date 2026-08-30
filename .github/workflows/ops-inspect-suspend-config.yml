@@ -1,40 +1,97 @@
-name: "Ops - Fase 5c. Verifica colunas reais antes de reencriptar credenciais"
+name: "Ops - Fase 5d. Reencripta credenciais DA guardadas com a chave nova do Contabo"
 
 on:
   workflow_dispatch:
 
 jobs:
-  inspect:
-    name: so leitura na base do Contabo
+  reencrypt:
+    name: decifra com a chave antiga (Hetzner), cifra de novo com a nova (Contabo)
     runs-on: ubuntu-latest
     steps:
-      - name: Setup SSH key
+      - name: Setup chaves SSH
         run: |
           mkdir -p ~/.ssh
-          echo "${{ secrets.CONTABO_SSH_KEY }}" > ~/.ssh/deploy_key
-          chmod 600 ~/.ssh/deploy_key
+          echo "${{ secrets.HETZNER_SSH_KEY }}" > ~/.ssh/hetzner_key
+          chmod 600 ~/.ssh/hetzner_key
+          echo "${{ secrets.CONTABO_SSH_KEY }}" > ~/.ssh/contabo_key
+          chmod 600 ~/.ssh/contabo_key
+          ssh-keyscan -p "${{ secrets.HETZNER_PORT }}" "${{ secrets.HETZNER_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
           ssh-keyscan "${{ secrets.CONTABO_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
 
-      - name: Inspecciona
-        uses: appleboy/ssh-action@v1.2.5
-        with:
-          host: ${{ secrets.CONTABO_HOST }}
-          username: root
-          key: ${{ secrets.CONTABO_SSH_KEY }}
-          command_timeout: 2m
-          script: |
-            echo "===== Colunas de panel_users com 'da_' no nome ====="
-            docker exec supabase-db psql -U postgres -d postgres -c "\d public.panel_users" 2>&1 | grep -i "da_\|id\b\|username"
+      - name: Escreve o script de reencriptacao (Node, corre no Contabo)
+        run: |
+          cat > reencrypt.js << 'NODEEOF'
+          const crypto = require('crypto');
+          const { execFileSync } = require('child_process');
 
-            echo ""
-            echo "===== Colunas de profiles com 'da_' no nome ====="
-            docker exec supabase-db psql -U postgres -d postgres -c "\d public.profiles" 2>&1 | grep -i "da_\|id\b"
+          const ALGO = 'aes-256-gcm';
+          const SALT = 'visualdesign-da-v1';
 
-            echo ""
-            echo "===== Quantas linhas tem valor v1: em cada tabela (sem mostrar o valor) ====="
-            docker exec supabase-db psql -U postgres -d postgres -c "SELECT count(*) FROM public.panel_users WHERE da_password_encrypted LIKE 'v1:%';"
-            docker exec supabase-db psql -U postgres -d postgres -c "SELECT count(*) FROM public.profiles WHERE da_password_encrypted LIKE 'v1:%';"
+          function keyFor(secret) {
+            return crypto.scryptSync(secret, SALT, 32);
+          }
 
-            echo ""
-            echo "===== node instalado? versao ====="
-            node --version
+          function decrypt(stored, key) {
+            const [, ivB64, tagB64, dataB64] = stored.split(':');
+            const decipher = crypto.createDecipheriv(ALGO, key, Buffer.from(ivB64, 'base64'));
+            decipher.setAuthTag(Buffer.from(tagB64, 'base64'));
+            return Buffer.concat([decipher.update(Buffer.from(dataB64, 'base64')), decipher.final()]).toString('utf8');
+          }
+
+          function encrypt(plain, key) {
+            const iv = crypto.randomBytes(12);
+            const cipher = crypto.createCipheriv(ALGO, key, iv);
+            const enc = Buffer.concat([cipher.update(plain, 'utf8'), cipher.final()]);
+            const tag = cipher.getAuthTag();
+            return `v1:${iv.toString('base64')}:${tag.toString('base64')}:${enc.toString('base64')}`;
+          }
+
+          function psql(sql) {
+            return execFileSync('docker', ['exec', '-i', 'supabase-db', 'psql', '-U', 'postgres', '-d', 'postgres', '-t', '-A', '-F', '\t', '-c', sql]).toString();
+          }
+
+          function psqlWrite(sql) {
+            execFileSync('docker', ['exec', '-i', 'supabase-db', 'psql', '-U', 'postgres', '-d', 'postgres', '-c', sql]);
+          }
+
+          const oldKey = keyFor(process.env.OLD_SECRET);
+          const newKey = keyFor(process.env.NEW_SECRET);
+
+          let okCount = 0, failCount = 0;
+
+          for (const [table, idCol] of [['panel_users', 'id'], ['profiles', 'id']]) {
+            const rows = psql(`SELECT ${idCol}, da_password_encrypted FROM public.${table} WHERE da_password_encrypted LIKE 'v1:%';`)
+              .split('\n').map((l) => l.trim()).filter(Boolean);
+            for (const line of rows) {
+              const idx = line.indexOf('\t');
+              const id = line.slice(0, idx);
+              const stored = line.slice(idx + 1);
+              try {
+                const plain = decrypt(stored, oldKey);
+                const reencrypted = encrypt(plain, newKey);
+                psqlWrite(`UPDATE public.${table} SET da_password_encrypted = '${reencrypted}' WHERE ${idCol} = '${id}';`);
+                okCount++;
+              } catch (e) {
+                failCount++;
+                console.log(`FALHOU: ${table} ${id} — ${e.message}`);
+              }
+            }
+          }
+          console.log(`Reencriptadas com sucesso: ${okCount}. Falharam: ${failCount}.`);
+          NODEEOF
+          echo "script escrito"
+
+      - name: Envia o script para o Contabo
+        run: |
+          scp -i ~/.ssh/contabo_key reencrypt.js "root@${{ secrets.CONTABO_HOST }}:/tmp/reencrypt.js"
+
+      - name: Busca as duas chaves (nunca impressas) e corre a reencriptacao no Contabo
+        run: |
+          OLD_KEY=$(ssh -i ~/.ssh/hetzner_key -p "${{ secrets.HETZNER_PORT }}" "${{ secrets.HETZNER_USER }}@${{ secrets.HETZNER_HOST }}" "grep '^SUPABASE_SERVICE_ROLE_KEY=' /opt/visualdesign-site/.env.local | cut -d= -f2-")
+          NEW_KEY=$(ssh -i ~/.ssh/contabo_key "root@${{ secrets.CONTABO_HOST }}" "grep '^SUPABASE_SERVICE_ROLE_KEY=' /opt/visualdesign-site-teste/.env.local | cut -d= -f2-")
+          if [ -z "$OLD_KEY" ] || [ -z "$NEW_KEY" ]; then
+            echo "Uma das chaves veio vazia — a parar sem tocar em nada."
+            exit 1
+          fi
+          ssh -i ~/.ssh/contabo_key "root@${{ secrets.CONTABO_HOST }}" \
+            "OLD_SECRET='$OLD_KEY' NEW_SECRET='$NEW_KEY' node /tmp/reencrypt.js && rm -f /tmp/reencrypt.js"
