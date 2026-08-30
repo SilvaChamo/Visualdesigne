@@ -1,11 +1,11 @@
-name: "Ops - Fase 3f. Confirma que a app ja fala com a base nova (logs + teste real)"
+name: "Ops - Fase 4a. Liga a oshercollective ao Hestia (so na base nova do Contabo)"
 
 on:
   workflow_dispatch:
 
 jobs:
-  verify:
-    name: pm2 logs + teste de uma rota real da app
+  switch:
+    name: UPDATE provider na base propria do Contabo (isolado do Hetzner)
     runs-on: ubuntu-latest
     steps:
       - name: Setup SSH key
@@ -15,25 +15,25 @@ jobs:
           chmod 600 ~/.ssh/deploy_key
           ssh-keyscan "${{ secrets.CONTABO_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
 
-      - name: Verifica
+      - name: Muda o provider
         uses: appleboy/ssh-action@v1.2.5
         with:
           host: ${{ secrets.CONTABO_HOST }}
           username: root
           key: ${{ secrets.CONTABO_SSH_KEY }}
-          command_timeout: 3m
+          command_timeout: 2m
           script: |
-            echo "===== Confirma o .env.local real no servidor aponta para a base nova ====="
-            grep "NEXT_PUBLIC_SUPABASE_URL" /opt/visualdesign-site-teste/.env.local
+            echo "===== Estado antes (na base propria do Contabo, nao a do Hetzner) ====="
+            docker exec supabase-db psql -U postgres -d postgres -c "SELECT da_username, provider FROM public.panel_auth_accounts WHERE da_username = 'oshercollective';"
 
             echo ""
-            echo "===== Ultimas 30 linhas de logs da app desde o restart (procura erros de ligacao) ====="
-            pm2 logs visualdesign-site-teste --lines 30 --nostream 2>&1 | grep -iE "supabase|error|fetch failed|ECONNREFUSED" | tail -30 || echo "sem linhas relevantes"
+            echo "===== Muda para hestia ====="
+            docker exec supabase-db psql -U postgres -d postgres -c "UPDATE public.panel_auth_accounts SET provider = 'hestia' WHERE da_username = 'oshercollective';"
 
             echo ""
-            echo "===== Teste real: rota /api/admin/clientes sem sessao (deve dar 401 limpo, nao 500) ====="
-            curl -s -o /dev/null -w "HTTP %{http_code}\n" http://127.0.0.1:3002/api/admin/clientes
+            echo "===== Confirma ====="
+            docker exec supabase-db psql -U postgres -d postgres -c "SELECT da_username, provider FROM public.panel_auth_accounts WHERE da_username = 'oshercollective';"
 
             echo ""
-            echo "===== Teste real: homepage responde bem ====="
-            curl -s -o /dev/null -w "HTTP %{http_code}\n" http://127.0.0.1:3002/
+            echo "===== Confirma que o Hetzner NAO foi tocado (isto e so informativo, nao muda nada) ====="
+            echo "Esta base e so a do Contabo (supabase-db local); o Hetzner tem o seu proprio container separado, nunca acedido aqui."
