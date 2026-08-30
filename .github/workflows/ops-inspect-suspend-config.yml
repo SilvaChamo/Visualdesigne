@@ -1,11 +1,11 @@
-name: "Ops - Fase 5d. Reencripta credenciais DA guardadas com a chave nova do Contabo"
+name: "Ops - Fase 5b. Copia elimservicos+shalomdeco e localiza entrecampos/anap/matolario"
 
 on:
   workflow_dispatch:
 
 jobs:
-  reencrypt:
-    name: decifra com a chave antiga (Hetzner), cifra de novo com a nova (Contabo)
+  copy_and_find:
+    name: rsync via runner (Hetzner so leitura) + find addon domains
     runs-on: ubuntu-latest
     steps:
       - name: Setup chaves SSH
@@ -18,80 +18,52 @@ jobs:
           ssh-keyscan -p "${{ secrets.HETZNER_PORT }}" "${{ secrets.HETZNER_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
           ssh-keyscan "${{ secrets.CONTABO_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
 
-      - name: Escreve o script de reencriptacao (Node, corre no Contabo)
+      - name: 1. Localiza addon domains (entrecampos/anap/matolario/suregrowth) no Hetzner (so leitura)
         run: |
-          cat > reencrypt.js << 'NODEEOF'
-          const crypto = require('crypto');
-          const { execFileSync } = require('child_process');
+          ssh -i ~/.ssh/hetzner_key -p "${{ secrets.HETZNER_PORT }}" "${{ secrets.HETZNER_USER }}@${{ secrets.HETZNER_HOST }}" '
+            echo "===== find por nome, em qualquer sitio dentro de /home ====="
+            find /home -maxdepth 5 -iname "*entrecampos*" 2>/dev/null
+            find /home -maxdepth 5 -iname "*anap*" 2>/dev/null
+            find /home -maxdepth 5 -iname "*matolario*" 2>/dev/null
+            find /home -maxdepth 5 -iname "*suregrowth*" 2>/dev/null
 
-          const ALGO = 'aes-256-gcm';
-          const SALT = 'visualdesign-da-v1';
+            echo ""
+            echo "===== DirectAdmin: ficheiro de dominios extra (addon) da conta admin ====="
+            cat /usr/local/directadmin/data/users/admin/domains.list 2>/dev/null
+            echo "---"
+            find /usr/local/directadmin/data/users/admin -iname "*entrecampos*" -o -iname "*anap*" -o -iname "*matolario*" 2>/dev/null
+          '
 
-          function keyFor(secret) {
-            return crypto.scryptSync(secret, SALT, 32);
-          }
-
-          function decrypt(stored, key) {
-            const [, ivB64, tagB64, dataB64] = stored.split(':');
-            const decipher = crypto.createDecipheriv(ALGO, key, Buffer.from(ivB64, 'base64'));
-            decipher.setAuthTag(Buffer.from(tagB64, 'base64'));
-            return Buffer.concat([decipher.update(Buffer.from(dataB64, 'base64')), decipher.final()]).toString('utf8');
-          }
-
-          function encrypt(plain, key) {
-            const iv = crypto.randomBytes(12);
-            const cipher = crypto.createCipheriv(ALGO, key, iv);
-            const enc = Buffer.concat([cipher.update(plain, 'utf8'), cipher.final()]);
-            const tag = cipher.getAuthTag();
-            return `v1:${iv.toString('base64')}:${tag.toString('base64')}:${enc.toString('base64')}`;
-          }
-
-          function psql(sql) {
-            return execFileSync('docker', ['exec', '-i', 'supabase-db', 'psql', '-U', 'postgres', '-d', 'postgres', '-t', '-A', '-F', '\t', '-c', sql]).toString();
-          }
-
-          function psqlWrite(sql) {
-            execFileSync('docker', ['exec', '-i', 'supabase-db', 'psql', '-U', 'postgres', '-d', 'postgres', '-c', sql]);
-          }
-
-          const oldKey = keyFor(process.env.OLD_SECRET);
-          const newKey = keyFor(process.env.NEW_SECRET);
-
-          let okCount = 0, failCount = 0;
-
-          for (const [table, idCol] of [['panel_users', 'id'], ['profiles', 'id']]) {
-            const rows = psql(`SELECT ${idCol}, da_password_encrypted FROM public.${table} WHERE da_password_encrypted LIKE 'v1:%';`)
-              .split('\n').map((l) => l.trim()).filter(Boolean);
-            for (const line of rows) {
-              const idx = line.indexOf('\t');
-              const id = line.slice(0, idx);
-              const stored = line.slice(idx + 1);
-              try {
-                const plain = decrypt(stored, oldKey);
-                const reencrypted = encrypt(plain, newKey);
-                psqlWrite(`UPDATE public.${table} SET da_password_encrypted = '${reencrypted}' WHERE ${idCol} = '${id}';`);
-                okCount++;
-              } catch (e) {
-                failCount++;
-                console.log(`FALHOU: ${table} ${id} — ${e.message}`);
-              }
-            }
-          }
-          console.log(`Reencriptadas com sucesso: ${okCount}. Falharam: ${failCount}.`);
-          NODEEOF
-          echo "script escrito"
-
-      - name: Envia o script para o Contabo
+      - name: 2. Copia elimservicos.com e shalomdeco.com para o runner (Hetzner so leitura)
         run: |
-          scp -i ~/.ssh/contabo_key reencrypt.js "root@${{ secrets.CONTABO_HOST }}:/tmp/reencrypt.js"
+          mkdir -p ./elim-copy ./shalom-copy
+          rsync -az -e "ssh -i ~/.ssh/hetzner_key -p ${{ secrets.HETZNER_PORT }}" \
+            "${{ secrets.HETZNER_USER }}@${{ secrets.HETZNER_HOST }}:/home/oshercollective/domains/elimservicos.com/public_html/" ./elim-copy/
+          rsync -az -e "ssh -i ~/.ssh/hetzner_key -p ${{ secrets.HETZNER_PORT }}" \
+            "${{ secrets.HETZNER_USER }}@${{ secrets.HETZNER_HOST }}:/home/oshercollective/domains/shalomdeco.com/public_html/" ./shalom-copy/
+          du -sh ./elim-copy ./shalom-copy
 
-      - name: Busca as duas chaves (nunca impressas) e corre a reencriptacao no Contabo
+      - name: 3. Envia para o Contabo (dentro da conta oshercollective do Hestia)
         run: |
-          OLD_KEY=$(ssh -i ~/.ssh/hetzner_key -p "${{ secrets.HETZNER_PORT }}" "${{ secrets.HETZNER_USER }}@${{ secrets.HETZNER_HOST }}" "grep '^SUPABASE_SERVICE_ROLE_KEY=' /opt/visualdesign-site/.env.local | cut -d= -f2-")
-          NEW_KEY=$(ssh -i ~/.ssh/contabo_key "root@${{ secrets.CONTABO_HOST }}" "grep '^SUPABASE_SERVICE_ROLE_KEY=' /opt/visualdesign-site-teste/.env.local | cut -d= -f2-")
-          if [ -z "$OLD_KEY" ] || [ -z "$NEW_KEY" ]; then
-            echo "Uma das chaves veio vazia — a parar sem tocar em nada."
-            exit 1
-          fi
-          ssh -i ~/.ssh/contabo_key "root@${{ secrets.CONTABO_HOST }}" \
-            "OLD_SECRET='$OLD_KEY' NEW_SECRET='$NEW_KEY' node /tmp/reencrypt.js && rm -f /tmp/reencrypt.js"
+          rsync -az -e "ssh -i ~/.ssh/contabo_key" \
+            ./elim-copy/ "root@${{ secrets.CONTABO_HOST }}:/home/oshercollective/web/elimservicos.com/public_html/"
+          rsync -az -e "ssh -i ~/.ssh/contabo_key" \
+            ./shalom-copy/ "root@${{ secrets.CONTABO_HOST }}:/home/oshercollective/web/shalomdeco.com/public_html/"
+
+      - name: 4. Confirma no Contabo
+        uses: appleboy/ssh-action@v1.2.5
+        with:
+          host: ${{ secrets.CONTABO_HOST }}
+          username: root
+          key: ${{ secrets.CONTABO_SSH_KEY }}
+          command_timeout: 2m
+          script: |
+            echo "===== Tamanho real copiado ====="
+            du -sh /home/oshercollective/web/elimservicos.com/public_html
+            du -sh /home/oshercollective/web/shalomdeco.com/public_html
+
+            echo ""
+            echo "===== Acerta o dono dos ficheiros (Hestia exige dono = utilizador do site) ====="
+            chown -R oshercollective:oshercollective /home/oshercollective/web/elimservicos.com/public_html
+            chown -R oshercollective:oshercollective /home/oshercollective/web/shalomdeco.com/public_html
+            echo "ok"
