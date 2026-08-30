@@ -1,11 +1,11 @@
-name: "Ops - Fase 6d. Confirma dono real de aamihe.com e provisualcorporate.co.mz"
+name: "Ops - Fase 6e. Verifica tabelas provisualcorporate na BD partilhada + corrige conta aamihe"
 
 on:
   workflow_dispatch:
 
 jobs:
-  inspect:
-    name: so leitura
+  fix:
+    name: limpa BD errada + confirma ausencia de tabelas provisualcorporate
     runs-on: ubuntu-latest
     steps:
       - name: Setup SSH key
@@ -15,7 +15,7 @@ jobs:
           chmod 600 ~/.ssh/deploy_key
           ssh-keyscan "${{ secrets.CONTABO_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
 
-      - name: Confirma
+      - name: Corrige
         uses: appleboy/ssh-action@v1.2.5
         with:
           host: ${{ secrets.CONTABO_HOST }}
@@ -23,11 +23,22 @@ jobs:
           key: ${{ secrets.CONTABO_SSH_KEY }}
           command_timeout: 2m
           script: |
-            echo "===== onde estao estes 2 dominios de facto (grep em todos os users) ====="
-            grep -rl "aamihe.com" /usr/local/hestia/data/users/*/web.conf 2>/dev/null
-            grep -rl "provisualcorporate.co.mz" /usr/local/hestia/data/users/*/web.conf 2>/dev/null
+            echo "===== Tabelas com 'provisual' no nome na base partilhada (copia local, mesmo schema) ====="
+            docker exec supabase-db psql -U postgres -d postgres -c "SELECT table_name FROM information_schema.tables WHERE table_schema='public' AND table_name ILIKE '%provisual%';"
 
             echo ""
-            echo "===== conteudo real, disco usado, template ====="
-            find /home -maxdepth 3 -iname "aamihe.com" -type d 2>/dev/null
-            find /home -maxdepth 3 -iname "provisualcorporate.co.mz" -type d 2>/dev/null
+            echo "===== Remove a base de dados errada (vdadmin_provisual, nao e preciso) ====="
+            /usr/local/hestia/bin/v-delete-database vdadmin vdadmin_provisual 2>&1 || echo "(ja nao existe ou erro)"
+
+            echo ""
+            echo "===== Remove a base de dados errada (vdadmin_aamihe, vai para a conta certa) ====="
+            /usr/local/hestia/bin/v-delete-database vdadmin vdadmin_aamihe 2>&1 || echo "(ja nao existe ou erro)"
+
+            echo ""
+            echo "===== Cria a base de dados certa, na conta aamihe (nao vdadmin) ====="
+            /usr/local/hestia/bin/v-add-database aamihe aamihe_bd aamihe_bd "$(openssl rand -hex 16)" mysql 2>&1 || echo "(pode ja existir)"
+
+            echo ""
+            echo "===== Confirma ====="
+            /usr/local/hestia/bin/v-list-databases aamihe 2>&1
+            /usr/local/hestia/bin/v-list-databases vdadmin 2>&1
