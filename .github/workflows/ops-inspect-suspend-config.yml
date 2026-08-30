@@ -1,66 +1,31 @@
-name: "Ops - Fase 6g. Corrige mltmark: nome certo da BD (vdadmin_mltmark, nao _db)"
+name: "Ops - Fase 7a. Confirma app sem erros pos-correcoes + rota admin real"
 
 on:
   workflow_dispatch:
 
 jobs:
-  fix:
-    name: re-dump + restaura no nome certo + corrige wp-config
+  verify:
+    name: pm2 logs + rota real
     runs-on: ubuntu-latest
     steps:
-      - name: Setup chaves SSH
+      - name: Setup SSH key
         run: |
           mkdir -p ~/.ssh
-          echo "${{ secrets.HETZNER_SSH_KEY }}" > ~/.ssh/hetzner_key
-          chmod 600 ~/.ssh/hetzner_key
-          echo "${{ secrets.CONTABO_SSH_KEY }}" > ~/.ssh/contabo_key
-          chmod 600 ~/.ssh/contabo_key
-          ssh-keyscan -p "${{ secrets.HETZNER_PORT }}" "${{ secrets.HETZNER_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
+          echo "${{ secrets.CONTABO_SSH_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
           ssh-keyscan "${{ secrets.CONTABO_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
 
-      - name: 1. Re-dump no Hetzner (so leitura) e traz para o runner
-        run: |
-          ssh -i ~/.ssh/hetzner_key -p "${{ secrets.HETZNER_PORT }}" "${{ secrets.HETZNER_USER }}@${{ secrets.HETZNER_HOST }}" "mysqldump admin_mltmark_bd > /tmp/mltmark.sql"
-          scp -i ~/.ssh/hetzner_key -P "${{ secrets.HETZNER_PORT }}" "${{ secrets.HETZNER_USER }}@${{ secrets.HETZNER_HOST }}:/tmp/mltmark.sql" ./
-          ls -la mltmark.sql
-
-      - name: 2. Envia para o Contabo
-        run: |
-          scp -i ~/.ssh/contabo_key mltmark.sql "root@${{ secrets.CONTABO_HOST }}:/tmp/mltmark.sql"
-
-      - name: 3. Restaura no nome certo, reseta password, corrige wp-config.php
+      - name: Verifica
         uses: appleboy/ssh-action@v1.2.5
         with:
           host: ${{ secrets.CONTABO_HOST }}
           username: root
           key: ${{ secrets.CONTABO_SSH_KEY }}
-          command_timeout: 3m
+          command_timeout: 2m
           script: |
-            set -e
-            echo "===== Restaura na base certa (vdadmin_mltmark) ====="
-            mysql vdadmin_mltmark < /tmp/mltmark.sql
-            echo "ok, importado"
-            rm -f /tmp/mltmark.sql
+            echo "===== Ultimas 40 linhas de erro desde o restart ====="
+            pm2 logs visualdesign-site-teste --lines 40 --nostream --err 2>&1 | grep -iE "Unsupported state|TypeError|ReferenceError|is not a function|is not defined" || echo "sem erros relevantes nos logs"
 
             echo ""
-            echo "===== Reseta a password do utilizador certo (vdadmin_mltmark_db) ====="
-            NEWPASS=$(openssl rand -hex 16)
-            /usr/local/hestia/bin/v-change-database-password vdadmin vdadmin_mltmark "$NEWPASS" mysql
-
-            echo ""
-            echo "===== Repoe o wp-config.php original e corrige com os valores certos ====="
-            F=/home/vdadmin/web/mltmark.com/public_html/wp-config.php
-            cp "$F.bak" "$F"
-            sed -i "s/define( *'DB_NAME', *'[^']*' *);/define( 'DB_NAME', 'vdadmin_mltmark' );/" "$F"
-            sed -i "s/define( *'DB_USER', *'[^']*' *);/define( 'DB_USER', 'vdadmin_mltmark_db' );/" "$F"
-            sed -i "s/define( *'DB_HOST', *'[^']*' *);/define( 'DB_HOST', 'localhost' );/" "$F"
-            sed -i "s/define( *'DB_PASSWORD', *'[^']*' *);/define( 'DB_PASSWORD', '$NEWPASS' );/" "$F"
-            chown vdadmin:vdadmin "$F"
-
-            echo ""
-            echo "===== Confirma (nomes, nunca a senha) ====="
-            grep -E "DB_NAME|DB_USER|DB_HOST" "$F"
-
-            echo ""
-            echo "===== Confirma que a base tem tabelas reais agora ====="
-            mysql -e "SELECT count(*) AS tabelas FROM information_schema.tables WHERE table_schema='vdadmin_mltmark';"
+            echo "===== Confirma processo saudavel ====="
+            pm2 describe visualdesign-site-teste 2>&1 | grep -E "status|restarts"
