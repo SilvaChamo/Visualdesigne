@@ -1,29 +1,39 @@
-name: "Ops - Fase 3e. Teste real a partir de fora (runner, nao dos servidores)"
+name: "Ops - Fase 3f. Confirma que a app ja fala com a base nova (logs + teste real)"
 
 on:
   workflow_dispatch:
 
 jobs:
-  test:
-    name: curl publico real ao dominio novo
+  verify:
+    name: pm2 logs + teste de uma rota real da app
     runs-on: ubuntu-latest
     steps:
-      - name: Teste externo real
-        env:
-          ANON_KEY: ${{ secrets.SUPABASE_CONTABO_ANON_KEY }}
+      - name: Setup SSH key
         run: |
-          echo "===== REST: panel_sites via HTTPS publico ====="
-          curl -s -w "\nHTTP %{http_code}\n" \
-            -H "apikey: $ANON_KEY" \
-            -H "Authorization: Bearer $ANON_KEY" \
-            "https://supabase-contabo.visualdesignmoz.com/rest/v1/panel_sites?select=domain&limit=3"
+          mkdir -p ~/.ssh
+          echo "${{ secrets.CONTABO_SSH_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan "${{ secrets.CONTABO_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
 
-          echo ""
-          echo "===== Auth health ====="
-          curl -s -w "\nHTTP %{http_code}\n" \
-            -H "apikey: $ANON_KEY" \
-            "https://supabase-contabo.visualdesignmoz.com/auth/v1/health"
+      - name: Verifica
+        uses: appleboy/ssh-action@v1.2.5
+        with:
+          host: ${{ secrets.CONTABO_HOST }}
+          username: root
+          key: ${{ secrets.CONTABO_SSH_KEY }}
+          command_timeout: 3m
+          script: |
+            echo "===== Confirma o .env.local real no servidor aponta para a base nova ====="
+            grep "NEXT_PUBLIC_SUPABASE_URL" /opt/visualdesign-site-teste/.env.local
 
-          echo ""
-          echo "===== Certificado SSL real (emissor e validade) ====="
-          echo | openssl s_client -servername supabase-contabo.visualdesignmoz.com -connect supabase-contabo.visualdesignmoz.com:443 2>/dev/null | openssl x509 -noout -issuer -dates
+            echo ""
+            echo "===== Ultimas 30 linhas de logs da app desde o restart (procura erros de ligacao) ====="
+            pm2 logs visualdesign-site-teste --lines 30 --nostream 2>&1 | grep -iE "supabase|error|fetch failed|ECONNREFUSED" | tail -30 || echo "sem linhas relevantes"
+
+            echo ""
+            echo "===== Teste real: rota /api/admin/clientes sem sessao (deve dar 401 limpo, nao 500) ====="
+            curl -s -o /dev/null -w "HTTP %{http_code}\n" http://127.0.0.1:3002/api/admin/clientes
+
+            echo ""
+            echo "===== Teste real: homepage responde bem ====="
+            curl -s -o /dev/null -w "HTTP %{http_code}\n" http://127.0.0.1:3002/
