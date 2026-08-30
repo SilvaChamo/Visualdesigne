@@ -1,11 +1,11 @@
-name: "Ops - Fase 5b. Copia elimservicos+shalomdeco e localiza entrecampos/anap/matolario"
+name: "Ops - Fase 6a. Inspecciona sites admin (wp-config, PHP) e suporte PHP no Hestia"
 
 on:
   workflow_dispatch:
 
 jobs:
-  copy_and_find:
-    name: rsync via runner (Hetzner so leitura) + find addon domains
+  inspect:
+    name: so leitura nos dois lados
     runs-on: ubuntu-latest
     steps:
       - name: Setup chaves SSH
@@ -18,39 +18,30 @@ jobs:
           ssh-keyscan -p "${{ secrets.HETZNER_PORT }}" "${{ secrets.HETZNER_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
           ssh-keyscan "${{ secrets.CONTABO_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
 
-      - name: 1. Localiza addon domains (entrecampos/anap/matolario/suregrowth) no Hetzner (so leitura)
+      - name: 1. Hetzner - wp-config de cada site (so nomes de BD/user, nao a password)
         run: |
           ssh -i ~/.ssh/hetzner_key -p "${{ secrets.HETZNER_PORT }}" "${{ secrets.HETZNER_USER }}@${{ secrets.HETZNER_HOST }}" '
-            echo "===== find por nome, em qualquer sitio dentro de /home ====="
-            find /home -maxdepth 5 -iname "*entrecampos*" 2>/dev/null
-            find /home -maxdepth 5 -iname "*anap*" 2>/dev/null
-            find /home -maxdepth 5 -iname "*matolario*" 2>/dev/null
-            find /home -maxdepth 5 -iname "*suregrowth*" 2>/dev/null
-
-            echo ""
-            echo "===== DirectAdmin: ficheiro de dominios extra (addon) da conta admin ====="
-            cat /usr/local/directadmin/data/users/admin/domains.list 2>/dev/null
-            echo "---"
-            find /usr/local/directadmin/data/users/admin -iname "*entrecampos*" -o -iname "*anap*" -o -iname "*matolario*" 2>/dev/null
+            for d in aamihe.com mltmark.com provisualcorporate.co.mz files.visualdesignmoz.com; do
+              echo "===== $d ====="
+              f="/home/admin/domains/$d/public_html/wp-config.php"
+              if [ -f "$f" ]; then
+                grep -E "DB_NAME|DB_USER|DB_HOST|table_prefix" "$f" | sed "s/'\''[^'\'']*'\'' *);/'\'' *** *);/"
+              else
+                echo "sem wp-config.php (nao e WordPress ou ficheiro noutro sitio)"
+                find /home/admin/domains/$d/public_html -maxdepth 1 -type f 2>&1 | head -10
+              fi
+            done
           '
 
-      - name: 2. Copia elimservicos.com e shalomdeco.com para o runner (Hetzner so leitura)
+      - name: 2. Hetzner - versao PHP usada por cada dominio (DirectAdmin)
         run: |
-          mkdir -p ./elim-copy ./shalom-copy
-          rsync -az -e "ssh -i ~/.ssh/hetzner_key -p ${{ secrets.HETZNER_PORT }}" \
-            "${{ secrets.HETZNER_USER }}@${{ secrets.HETZNER_HOST }}:/home/oshercollective/domains/elimservicos.com/public_html/" ./elim-copy/
-          rsync -az -e "ssh -i ~/.ssh/hetzner_key -p ${{ secrets.HETZNER_PORT }}" \
-            "${{ secrets.HETZNER_USER }}@${{ secrets.HETZNER_HOST }}:/home/oshercollective/domains/shalomdeco.com/public_html/" ./shalom-copy/
-          du -sh ./elim-copy ./shalom-copy
+          ssh -i ~/.ssh/hetzner_key -p "${{ secrets.HETZNER_PORT }}" "${{ secrets.HETZNER_USER }}@${{ secrets.HETZNER_HOST }}" '
+            cat /usr/local/directadmin/data/users/admin/php_versions.conf 2>&1 || echo "sem ficheiro"
+            echo "---"
+            php -v 2>&1 | head -3
+          '
 
-      - name: 3. Envia para o Contabo (dentro da conta oshercollective do Hestia)
-        run: |
-          rsync -az -e "ssh -i ~/.ssh/contabo_key" \
-            ./elim-copy/ "root@${{ secrets.CONTABO_HOST }}:/home/oshercollective/web/elimservicos.com/public_html/"
-          rsync -az -e "ssh -i ~/.ssh/contabo_key" \
-            ./shalom-copy/ "root@${{ secrets.CONTABO_HOST }}:/home/oshercollective/web/shalomdeco.com/public_html/"
-
-      - name: 4. Confirma no Contabo
+      - name: 3. Contabo/Hestia - suporte PHP e templates
         uses: appleboy/ssh-action@v1.2.5
         with:
           host: ${{ secrets.CONTABO_HOST }}
@@ -58,12 +49,18 @@ jobs:
           key: ${{ secrets.CONTABO_SSH_KEY }}
           command_timeout: 2m
           script: |
-            echo "===== Tamanho real copiado ====="
-            du -sh /home/oshercollective/web/elimservicos.com/public_html
-            du -sh /home/oshercollective/web/shalomdeco.com/public_html
+            echo "===== PHP instalado no Contabo? ====="
+            php -v 2>&1 | head -3
+            which php-fpm* 2>&1
 
             echo ""
-            echo "===== Acerta o dono dos ficheiros (Hestia exige dono = utilizador do site) ====="
-            chown -R oshercollective:oshercollective /home/oshercollective/web/elimservicos.com/public_html
-            chown -R oshercollective:oshercollective /home/oshercollective/web/shalomdeco.com/public_html
-            echo "ok"
+            echo "===== v-list-sys-php-versions (Hestia) ====="
+            /usr/local/hestia/bin/v-list-sys-php-versions 2>&1 || echo "comando nao existe"
+
+            echo ""
+            echo "===== Bases de dados MySQL ja existentes no Contabo ====="
+            mysql -u root -e "SHOW DATABASES;" 2>&1 || echo "sem acesso directo"
+
+            echo ""
+            echo "===== v-list-databases vdadmin ====="
+            /usr/local/hestia/bin/v-list-databases vdadmin 2>&1 || echo "nenhuma ou erro"
