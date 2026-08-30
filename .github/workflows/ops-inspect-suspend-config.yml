@@ -1,11 +1,11 @@
-name: "Ops - Fase 6f. Copia ficheiros+BDs reais (aamihe, mltmark, files.visualdesignmoz.com)"
+name: "Ops - Fase 6g. Corrige mltmark: nome certo da BD (vdadmin_mltmark, nao _db)"
 
 on:
   workflow_dispatch:
 
 jobs:
-  copy:
-    name: rsync + mysqldump via runner, Hetzner so leitura
+  fix:
+    name: re-dump + restaura no nome certo + corrige wp-config
     runs-on: ubuntu-latest
     steps:
       - name: Setup chaves SSH
@@ -18,36 +18,17 @@ jobs:
           ssh-keyscan -p "${{ secrets.HETZNER_PORT }}" "${{ secrets.HETZNER_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
           ssh-keyscan "${{ secrets.CONTABO_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
 
-      - name: 1. Copia ficheiros dos 3 sites (Hetzner so leitura)
+      - name: 1. Re-dump no Hetzner (so leitura) e traz para o runner
         run: |
-          mkdir -p ./aamihe-copy ./mltmark-copy ./files-copy
-          rsync -az -e "ssh -i ~/.ssh/hetzner_key -p ${{ secrets.HETZNER_PORT }}" \
-            "${{ secrets.HETZNER_USER }}@${{ secrets.HETZNER_HOST }}:/home/admin/domains/aamihe.com/public_html/" ./aamihe-copy/
-          rsync -az -e "ssh -i ~/.ssh/hetzner_key -p ${{ secrets.HETZNER_PORT }}" \
-            "${{ secrets.HETZNER_USER }}@${{ secrets.HETZNER_HOST }}:/home/admin/domains/mltmark.com/public_html/" ./mltmark-copy/
-          rsync -az -e "ssh -i ~/.ssh/hetzner_key -p ${{ secrets.HETZNER_PORT }}" \
-            "${{ secrets.HETZNER_USER }}@${{ secrets.HETZNER_HOST }}:/home/admin/domains/files.visualdesignmoz.com/public_html/" ./files-copy/
-          du -sh ./aamihe-copy ./mltmark-copy ./files-copy
+          ssh -i ~/.ssh/hetzner_key -p "${{ secrets.HETZNER_PORT }}" "${{ secrets.HETZNER_USER }}@${{ secrets.HETZNER_HOST }}" "mysqldump admin_mltmark_bd > /tmp/mltmark.sql"
+          scp -i ~/.ssh/hetzner_key -P "${{ secrets.HETZNER_PORT }}" "${{ secrets.HETZNER_USER }}@${{ secrets.HETZNER_HOST }}:/tmp/mltmark.sql" ./
+          ls -la mltmark.sql
 
-      - name: 2. Dump das bases de dados MySQL (Hetzner so leitura)
+      - name: 2. Envia para o Contabo
         run: |
-          ssh -i ~/.ssh/hetzner_key -p "${{ secrets.HETZNER_PORT }}" "${{ secrets.HETZNER_USER }}@${{ secrets.HETZNER_HOST }}" \
-            "mysqldump admin_aamihe_bd > /tmp/aamihe.sql; mysqldump admin_mltmark_bd > /tmp/mltmark.sql; ls -la /tmp/*.sql"
-          scp -i ~/.ssh/hetzner_key -P "${{ secrets.HETZNER_PORT }}" \
-            "${{ secrets.HETZNER_USER }}@${{ secrets.HETZNER_HOST }}:/tmp/aamihe.sql" \
-            "${{ secrets.HETZNER_USER }}@${{ secrets.HETZNER_HOST }}:/tmp/mltmark.sql" ./ 2>&1 || \
-          (scp -i ~/.ssh/hetzner_key -P "${{ secrets.HETZNER_PORT }}" "${{ secrets.HETZNER_USER }}@${{ secrets.HETZNER_HOST }}:/tmp/aamihe.sql" ./ && \
-           scp -i ~/.ssh/hetzner_key -P "${{ secrets.HETZNER_PORT }}" "${{ secrets.HETZNER_USER }}@${{ secrets.HETZNER_HOST }}:/tmp/mltmark.sql" ./)
-          ls -la aamihe.sql mltmark.sql
+          scp -i ~/.ssh/contabo_key mltmark.sql "root@${{ secrets.CONTABO_HOST }}:/tmp/mltmark.sql"
 
-      - name: 3. Envia ficheiros para o Contabo
-        run: |
-          rsync -az -e "ssh -i ~/.ssh/contabo_key" ./aamihe-copy/ "root@${{ secrets.CONTABO_HOST }}:/home/aamihe/web/aamihe.com/public_html/"
-          rsync -az -e "ssh -i ~/.ssh/contabo_key" ./mltmark-copy/ "root@${{ secrets.CONTABO_HOST }}:/home/vdadmin/web/mltmark.com/public_html/"
-          rsync -az -e "ssh -i ~/.ssh/contabo_key" ./files-copy/ "root@${{ secrets.CONTABO_HOST }}:/home/vdadmin/web/files.visualdesignmoz.com/public_html/"
-          scp -i ~/.ssh/contabo_key aamihe.sql mltmark.sql "root@${{ secrets.CONTABO_HOST }}:/tmp/"
-
-      - name: 4. Restaura BDs no Contabo e acerta donos dos ficheiros
+      - name: 3. Restaura no nome certo, reseta password, corrige wp-config.php
         uses: appleboy/ssh-action@v1.2.5
         with:
           host: ${{ secrets.CONTABO_HOST }}
@@ -55,44 +36,31 @@ jobs:
           key: ${{ secrets.CONTABO_SSH_KEY }}
           command_timeout: 3m
           script: |
-            echo "===== Restaura aamihe_aamihe_bd ====="
-            mysql aamihe_aamihe_bd < /tmp/aamihe.sql 2>&1 && echo "ok aamihe"
+            set -e
+            echo "===== Restaura na base certa (vdadmin_mltmark) ====="
+            mysql vdadmin_mltmark < /tmp/mltmark.sql
+            echo "ok, importado"
+            rm -f /tmp/mltmark.sql
 
             echo ""
-            echo "===== Restaura vdadmin_mltmark_db ====="
-            mysql vdadmin_mltmark_db < /tmp/mltmark.sql 2>&1 && echo "ok mltmark"
-
-            echo ""
-            echo "===== Acerta donos dos ficheiros ====="
-            chown -R aamihe:aamihe /home/aamihe/web/aamihe.com/public_html
-            chown -R vdadmin:vdadmin /home/vdadmin/web/mltmark.com/public_html
-            chown -R vdadmin:vdadmin /home/vdadmin/web/files.visualdesignmoz.com/public_html
-
-            echo ""
-            echo "===== Limpa dumps temporarios ====="
-            rm -f /tmp/aamihe.sql /tmp/mltmark.sql
-
-            echo ""
-            echo "===== Tamanhos finais ====="
-            du -sh /home/aamihe/web/aamihe.com/public_html
-            du -sh /home/vdadmin/web/mltmark.com/public_html
-            du -sh /home/vdadmin/web/files.visualdesignmoz.com/public_html
-
-      - name: 5. Actualiza o wp-config.php do mltmark para a BD local nova (senha gerada e usada so aqui)
-        uses: appleboy/ssh-action@v1.2.5
-        with:
-          host: ${{ secrets.CONTABO_HOST }}
-          username: root
-          key: ${{ secrets.CONTABO_SSH_KEY }}
-          command_timeout: 2m
-          script: |
+            echo "===== Reseta a password do utilizador certo (vdadmin_mltmark_db) ====="
             NEWPASS=$(openssl rand -hex 16)
-            /usr/local/hestia/bin/v-change-database-password vdadmin vdadmin_mltmark_db "$NEWPASS" mysql
+            /usr/local/hestia/bin/v-change-database-password vdadmin vdadmin_mltmark "$NEWPASS" mysql
+
+            echo ""
+            echo "===== Repoe o wp-config.php original e corrige com os valores certos ====="
             F=/home/vdadmin/web/mltmark.com/public_html/wp-config.php
-            cp "$F" "$F.bak"
-            sed -i "s/define( *'DB_NAME', *'[^']*' *);/define( 'DB_NAME', 'vdadmin_mltmark_db' );/" "$F"
+            cp "$F.bak" "$F"
+            sed -i "s/define( *'DB_NAME', *'[^']*' *);/define( 'DB_NAME', 'vdadmin_mltmark' );/" "$F"
             sed -i "s/define( *'DB_USER', *'[^']*' *);/define( 'DB_USER', 'vdadmin_mltmark_db' );/" "$F"
             sed -i "s/define( *'DB_HOST', *'[^']*' *);/define( 'DB_HOST', 'localhost' );/" "$F"
             sed -i "s/define( *'DB_PASSWORD', *'[^']*' *);/define( 'DB_PASSWORD', '$NEWPASS' );/" "$F"
-            echo "wp-config.php actualizado (confirmando so os nomes, nunca a senha):"
+            chown vdadmin:vdadmin "$F"
+
+            echo ""
+            echo "===== Confirma (nomes, nunca a senha) ====="
             grep -E "DB_NAME|DB_USER|DB_HOST" "$F"
+
+            echo ""
+            echo "===== Confirma que a base tem tabelas reais agora ====="
+            mysql -e "SELECT count(*) AS tabelas FROM information_schema.tables WHERE table_schema='vdadmin_mltmark';"
