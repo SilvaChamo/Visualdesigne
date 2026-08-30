@@ -1,11 +1,11 @@
-name: "Ops - Fase 3c. Sintaxe exacta dos comandos Hestia (so leitura)"
+name: "Ops - Fase 3d. Cria o dominio supabase-contabo, SSL, e proxy para 8000"
 
 on:
   workflow_dispatch:
 
 jobs:
-  inspect:
-    name: v-add-web-domain e v-change-web-domain-tpl --help
+  setup:
+    name: v-add-web-domain + letsencrypt + proxy manual para 8000
     runs-on: ubuntu-latest
     steps:
       - name: Setup SSH key
@@ -15,29 +15,70 @@ jobs:
           chmod 600 ~/.ssh/deploy_key
           ssh-keyscan "${{ secrets.CONTABO_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
 
-      - name: Inspecciona
+      - name: Configura
         uses: appleboy/ssh-action@v1.2.5
         with:
           host: ${{ secrets.CONTABO_HOST }}
           username: root
           key: ${{ secrets.CONTABO_SSH_KEY }}
-          command_timeout: 3m
+          command_timeout: 4m
           script: |
-            echo "===== v-add-web-domain --help ====="
-            /usr/local/hestia/bin/v-add-web-domain 2>&1 | head -20
+            set -e
+            DOMAIN=supabase-contabo.visualdesignmoz.com
+            USER=vdadmin
+
+            echo "===== 1. Confirma DNS ja resolve para este servidor ====="
+            getent hosts $DOMAIN || echo "AVISO: DNS ainda nao resolve aqui"
 
             echo ""
-            echo "===== v-change-web-domain-tpl --help ====="
-            /usr/local/hestia/bin/v-change-web-domain-tpl 2>&1 | head -20
+            echo "===== 2. Cria o dominio (template default por agora) ====="
+            /usr/local/hestia/bin/v-add-web-domain $USER $DOMAIN 2>&1 || echo "(pode ja existir, seguindo em frente)"
 
             echo ""
-            echo "===== v-add-letsencrypt-domain --help ====="
-            /usr/local/hestia/bin/v-add-letsencrypt-domain 2>&1 | head -20
+            echo "===== 3. Pede certificado SSL real (Lets Encrypt) ====="
+            /usr/local/hestia/bin/v-add-letsencrypt-domain $USER $DOMAIN 2>&1
 
             echo ""
-            echo "===== Conteudo do template nodejs.tpl (para ver as variaveis de porta) ====="
-            cat /usr/local/hestia/data/templates/web/nginx/nodejs.tpl
+            echo "===== 4. Escreve o proxy real para a porta 8000 (nginx.ssl.conf) ====="
+            cat > /home/$USER/conf/web/$DOMAIN/nginx.ssl.conf << 'EOF'
+            server {
+            	listen      169.58.148.144:443 ssl;
+            	server_name supabase-contabo.visualdesignmoz.com ;
+            	error_log   /var/log/apache2/domains/supabase-contabo.visualdesignmoz.com.error.log error;
+            	ssl_certificate     /home/vdadmin/conf/web/supabase-contabo.visualdesignmoz.com/ssl/supabase-contabo.visualdesignmoz.com.pem;
+            	ssl_certificate_key /home/vdadmin/conf/web/supabase-contabo.visualdesignmoz.com/ssl/supabase-contabo.visualdesignmoz.com.key;
+            	if ($anti_replay = 307) { return 307 https://$host$request_uri; }
+            	if ($anti_replay = 425) { return 425; }
+            	client_max_body_size 50m;
+            	location / {
+            		proxy_pass http://127.0.0.1:8000;
+            		proxy_set_header Host $host;
+            		proxy_set_header X-Real-IP $remote_addr;
+            		proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            		proxy_set_header X-Forwarded-Proto $scheme;
+            		proxy_http_version 1.1;
+            		proxy_set_header Upgrade $http_upgrade;
+            		proxy_set_header Connection "upgrade";
+            	}
+            	location /error/ {
+            		alias /home/vdadmin/web/supabase-contabo.visualdesignmoz.com/document_errors/;
+            	}
+            }
+            EOF
 
             echo ""
-            echo "===== nodejs.stpl (versao SSL) ====="
-            cat /usr/local/hestia/data/templates/web/nginx/nodejs.stpl
+            echo "===== 5. Escreve o redireccionamento da porta 80 para https ====="
+            cat > /home/$USER/conf/web/$DOMAIN/nginx.conf << 'EOF'
+            server {
+            	listen      169.58.148.144:80;
+            	server_name supabase-contabo.visualdesignmoz.com ;
+            	error_log   /var/log/apache2/domains/supabase-contabo.visualdesignmoz.com.error.log error;
+            	return 301 https://$host$request_uri;
+            }
+            EOF
+
+            echo ""
+            echo "===== 6. Testa a config e recarrega o nginx ====="
+            nginx -t
+            systemctl reload nginx
+            echo "nginx recarregado."
