@@ -1,39 +1,49 @@
-name: "Ops - Fase 4a. Liga a oshercollective ao Hestia (so na base nova do Contabo)"
+name: "Ops - Fase 5a. Inventario real: dominios da oshercollective e da admin no Hetzner"
 
 on:
   workflow_dispatch:
 
 jobs:
-  switch:
-    name: UPDATE provider na base propria do Contabo (isolado do Hetzner)
+  inspect:
+    name: so leitura no Hetzner
     runs-on: ubuntu-latest
     steps:
       - name: Setup SSH key
         run: |
           mkdir -p ~/.ssh
-          echo "${{ secrets.CONTABO_SSH_KEY }}" > ~/.ssh/deploy_key
+          echo "${{ secrets.HETZNER_SSH_KEY }}" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
-          ssh-keyscan "${{ secrets.CONTABO_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
+          ssh-keyscan -p "${{ secrets.HETZNER_PORT }}" "${{ secrets.HETZNER_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
 
-      - name: Muda o provider
+      - name: Inventario (so leitura)
         uses: appleboy/ssh-action@v1.2.5
         with:
-          host: ${{ secrets.CONTABO_HOST }}
-          username: root
-          key: ${{ secrets.CONTABO_SSH_KEY }}
-          command_timeout: 2m
+          host: ${{ secrets.HETZNER_HOST }}
+          port: ${{ secrets.HETZNER_PORT }}
+          username: ${{ secrets.HETZNER_USER }}
+          key: ${{ secrets.HETZNER_SSH_KEY }}
+          command_timeout: 3m
           script: |
-            echo "===== Estado antes (na base propria do Contabo, nao a do Hetzner) ====="
-            docker exec supabase-db psql -U postgres -d postgres -c "SELECT da_username, provider FROM public.panel_auth_accounts WHERE da_username = 'oshercollective';"
+            echo "===== Utilizadores DirectAdmin reais no servidor ====="
+            ls /usr/local/directadmin/data/users/ 2>/dev/null || ls /home/ 2>/dev/null
 
             echo ""
-            echo "===== Muda para hestia ====="
-            docker exec supabase-db psql -U postgres -d postgres -c "UPDATE public.panel_auth_accounts SET provider = 'hestia' WHERE da_username = 'oshercollective';"
+            echo "===== Dominios do utilizador admin (sites proprios da VisualDesign) ====="
+            ls -la /home/admin/domains/ 2>&1
 
             echo ""
-            echo "===== Confirma ====="
-            docker exec supabase-db psql -U postgres -d postgres -c "SELECT da_username, provider FROM public.panel_auth_accounts WHERE da_username = 'oshercollective';"
+            echo "===== Tamanho de cada um ====="
+            du -sh /home/admin/domains/*/public_html 2>&1
 
             echo ""
-            echo "===== Confirma que o Hetzner NAO foi tocado (isto e so informativo, nao muda nada) ====="
-            echo "Esta base e so a do Contabo (supabase-db local); o Hetzner tem o seu proprio container separado, nunca acedido aqui."
+            echo "===== Dominios do utilizador oshercollective ====="
+            ls -la /home/oshercollective/domains/ 2>&1
+
+            echo ""
+            echo "===== Tamanho de elimservicos.com e shalomdeco.com (os que faltam no Hestia) ====="
+            du -sh /home/oshercollective/domains/elimservicos.com/public_html 2>&1
+            du -sh /home/oshercollective/domains/shalomdeco.com/public_html 2>&1
+
+            echo ""
+            echo "===== Bases de dados MySQL de cada conta (para saber se precisam de copiar tambem) ====="
+            mysql -u root -e "SHOW DATABASES;" 2>&1 || echo "sem acesso directo ao mysql root"
