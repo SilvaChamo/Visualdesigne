@@ -1,49 +1,40 @@
-name: "Ops - Fase 5a. Inventario real: dominios da oshercollective e da admin no Hetzner"
+name: "Ops - Fase 5c. Verifica colunas reais antes de reencriptar credenciais"
 
 on:
   workflow_dispatch:
 
 jobs:
   inspect:
-    name: so leitura no Hetzner
+    name: so leitura na base do Contabo
     runs-on: ubuntu-latest
     steps:
       - name: Setup SSH key
         run: |
           mkdir -p ~/.ssh
-          echo "${{ secrets.HETZNER_SSH_KEY }}" > ~/.ssh/deploy_key
+          echo "${{ secrets.CONTABO_SSH_KEY }}" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
-          ssh-keyscan -p "${{ secrets.HETZNER_PORT }}" "${{ secrets.HETZNER_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
+          ssh-keyscan "${{ secrets.CONTABO_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
 
-      - name: Inventario (so leitura)
+      - name: Inspecciona
         uses: appleboy/ssh-action@v1.2.5
         with:
-          host: ${{ secrets.HETZNER_HOST }}
-          port: ${{ secrets.HETZNER_PORT }}
-          username: ${{ secrets.HETZNER_USER }}
-          key: ${{ secrets.HETZNER_SSH_KEY }}
-          command_timeout: 3m
+          host: ${{ secrets.CONTABO_HOST }}
+          username: root
+          key: ${{ secrets.CONTABO_SSH_KEY }}
+          command_timeout: 2m
           script: |
-            echo "===== Utilizadores DirectAdmin reais no servidor ====="
-            ls /usr/local/directadmin/data/users/ 2>/dev/null || ls /home/ 2>/dev/null
+            echo "===== Colunas de panel_users com 'da_' no nome ====="
+            docker exec supabase-db psql -U postgres -d postgres -c "\d public.panel_users" 2>&1 | grep -i "da_\|id\b\|username"
 
             echo ""
-            echo "===== Dominios do utilizador admin (sites proprios da VisualDesign) ====="
-            ls -la /home/admin/domains/ 2>&1
+            echo "===== Colunas de profiles com 'da_' no nome ====="
+            docker exec supabase-db psql -U postgres -d postgres -c "\d public.profiles" 2>&1 | grep -i "da_\|id\b"
 
             echo ""
-            echo "===== Tamanho de cada um ====="
-            du -sh /home/admin/domains/*/public_html 2>&1
+            echo "===== Quantas linhas tem valor v1: em cada tabela (sem mostrar o valor) ====="
+            docker exec supabase-db psql -U postgres -d postgres -c "SELECT count(*) FROM public.panel_users WHERE da_password_encrypted LIKE 'v1:%';"
+            docker exec supabase-db psql -U postgres -d postgres -c "SELECT count(*) FROM public.profiles WHERE da_password_encrypted LIKE 'v1:%';"
 
             echo ""
-            echo "===== Dominios do utilizador oshercollective ====="
-            ls -la /home/oshercollective/domains/ 2>&1
-
-            echo ""
-            echo "===== Tamanho de elimservicos.com e shalomdeco.com (os que faltam no Hestia) ====="
-            du -sh /home/oshercollective/domains/elimservicos.com/public_html 2>&1
-            du -sh /home/oshercollective/domains/shalomdeco.com/public_html 2>&1
-
-            echo ""
-            echo "===== Bases de dados MySQL de cada conta (para saber se precisam de copiar tambem) ====="
-            mysql -u root -e "SHOW DATABASES;" 2>&1 || echo "sem acesso directo ao mysql root"
+            echo "===== node instalado? versao ====="
+            node --version
