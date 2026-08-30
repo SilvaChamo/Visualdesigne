@@ -37,9 +37,13 @@ jobs:
 
       - name: Build project
         env:
-          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
-          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
-          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          # Base de dados PRÓPRIA do Contabo (27-30 ago) — já não é a mesma do
+          # Hetzner. Nomes de secrets diferentes de propósito (CONTABO_* /
+          # SUPABASE_CONTABO_*) para nunca colidir com os que o
+          # deploy-hetzner.yml usa — mudar um dos dois nunca afecta o outro.
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.CONTABO_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_CONTABO_ANON_KEY }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_CONTABO_SERVICE_ROLE_KEY }}
         run: npm run build
 
       - name: Setup SSH key
@@ -112,9 +116,11 @@ jobs:
             # deploy, só existia no .env.local local) — descoberto 19 ago via
             # o caso real do aamihe.com.
             set_env_var BREVO_API_KEY "${{ secrets.BREVO_API_KEY }}"
-            set_env_var NEXT_PUBLIC_SUPABASE_URL "${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}"
-            set_env_var NEXT_PUBLIC_SUPABASE_ANON_KEY "${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}"
-            set_env_var SUPABASE_SERVICE_ROLE_KEY "${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}"
+            # Idem ao passo de build acima: secrets próprios do Contabo, nunca
+            # os partilhados com o Hetzner.
+            set_env_var NEXT_PUBLIC_SUPABASE_URL "${{ secrets.CONTABO_SUPABASE_URL }}"
+            set_env_var NEXT_PUBLIC_SUPABASE_ANON_KEY "${{ secrets.SUPABASE_CONTABO_ANON_KEY }}"
+            set_env_var SUPABASE_SERVICE_ROLE_KEY "${{ secrets.SUPABASE_CONTABO_SERVICE_ROLE_KEY }}"
             # Domínio próprio desta instância — sem isto, vários links (reset de
             # password, "aceder ao painel" em emails, origem do OAuth) caem no
             # domínio de produção mesmo a partir daqui.
