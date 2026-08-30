@@ -8,6 +8,25 @@ import { createClient } from '@supabase/supabase-js';
 const ALGO = 'aes-256-gcm';
 const SALT = 'visualdesign-da-v1';
 
+/** Guarda central: nenhuma das funções `loadResellerCredentialsBy*` abaixo
+ * devolve a password DA de uma conta que já esteja no Hestia — ver
+ * [[project_da-to-hestia-migration]]. Uma conta migrada não tem "credenciais
+ * DA" válidas de propósito (nem a password guardada corresponde a nada de
+ * real do lado do servidor), por isso devolver `null` aqui (o mesmo valor
+ * que já significa "sem credenciais guardadas") é a resposta correcta — e
+ * todos os chamadores já sabem lidar com esse caso sem rebentar. Corrige de
+ * raiz, para as 20+ chamadas espalhadas pelo painel, o mesmo erro que partiu
+ * a página Contas: tentar decifrar uma password DA de uma conta Hestia
+ * lançava "Unsupported state or unable to authenticate data".
+ * `getProviderByUsername` é importado tarde (dentro da função) para evitar
+ * puxar `@/lib/hosting-provider` (e as suas próprias dependências) para
+ * qualquer código que só precise das outras exportações deste ficheiro. */
+export async function isHestiaAccount(daUsername: string | null | undefined): Promise<boolean> {
+  if (!daUsername) return false;
+  const { getProviderByUsername } = await import('@/lib/hosting-provider');
+  return (await getProviderByUsername(daUsername)) === 'hestia';
+}
+
 function encryptionKey(): Buffer {
   const secret =
     process.env.DA_CREDENTIALS_SECRET ||
@@ -62,6 +81,29 @@ export type StoredResellerCredentials = {
   domain?: string | null;
 };
 
+/** Só o username (dono), sem exigir password DA legível — para verificações
+ * de "este domínio/email é mesmo teu" que não precisam de falar com o DA, só
+ * de confirmar identidade. Ao contrário de `loadResellerCredentialsByUserId`,
+ * não devolve `null` para uma conta já no Hestia: essa continua a ser dona
+ * dos seus próprios dados, só deixou de ter password DA guardada. Usar isto
+ * em vez de checar `(await loadResellerCredentialsByUserId(id))?.user` sempre
+ * que o objectivo for permissão/posse, não uma chamada real ao DA — ver
+ * [[project_da-to-hestia-migration]] (foi o mesmo padrão a rebentar em vários
+ * sítios: `panel-dns`, `da-emails`, `email-contas`, `email-senha`, `imap`). */
+export async function resolveOwnerDaUsername(userId: string): Promise<string | null> {
+  const admin = adminClient();
+  const { getProfileForAuthUser } = await import('@/lib/profile-db');
+  const profile = await getProfileForAuthUser(admin, userId);
+  if (profile?.da_username) return profile.da_username;
+
+  const { data: panelUser } = await admin
+    .from('panel_users')
+    .select('username')
+    .eq('auth_user_id', userId)
+    .maybeSingle();
+  return panelUser?.username || null;
+}
+
 export async function loadResellerCredentialsByUserId(
   userId: string,
 ): Promise<StoredResellerCredentials | null> {
@@ -70,6 +112,7 @@ export async function loadResellerCredentialsByUserId(
   const profile = await getProfileForAuthUser(admin, userId);
 
   if (!profile?.da_username || !profile?.da_password_encrypted) return null;
+  if (await isHestiaAccount(profile.da_username)) return null;
 
   return {
     user: profile.da_username,
@@ -81,6 +124,8 @@ export async function loadResellerCredentialsByUserId(
 export async function loadResellerCredentialsByDaUsername(
   daUsername: string,
 ): Promise<StoredResellerCredentials | null> {
+  if (await isHestiaAccount(daUsername)) return null;
+
   const admin = adminClient();
   const username = daUsername.trim().toLowerCase();
 
@@ -127,7 +172,7 @@ export async function loadResellerCredentialsByEmail(
     .eq('email', normalized)
     .maybeSingle();
 
-  if (profile?.da_username && profile?.da_password_encrypted) {
+  if (profile?.da_username && profile?.da_password_encrypted && !(await isHestiaAccount(profile.da_username))) {
     return {
       userId: profile.id,
       user: profile.da_username,
@@ -142,7 +187,7 @@ export async function loadResellerCredentialsByEmail(
     .eq('email', normalized)
     .maybeSingle();
 
-  if (panelUser?.username && panelUser?.da_password_encrypted) {
+  if (panelUser?.username && panelUser?.da_password_encrypted && !(await isHestiaAccount(panelUser.username))) {
     return {
       userId: panelUser.auth_user_id || undefined,
       user: panelUser.username,

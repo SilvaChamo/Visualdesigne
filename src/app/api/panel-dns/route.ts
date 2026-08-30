@@ -3,6 +3,7 @@ import { daAddDnsRecord, daDeleteDnsRecord, normalizeDnsNameForDa } from '@/lib/
 import {
   loadResellerCredentialsByDaUsername,
   loadResellerCredentialsByUserId,
+  resolveOwnerDaUsername,
 } from '@/lib/da-credential-store';
 import { scheduleDaSync } from '@/lib/da-sync-engine';
 import { getDaSyncAdmin } from '@/lib/da-sync-schema';
@@ -24,10 +25,23 @@ async function canAccessDomain(
     return owner === impersonatingDaUsername;
   }
   if (role === 'admin') return true;
-  const creds = await loadResellerCredentialsByUserId(userId);
-  if (!creds?.user) return false;
+  const username = await resolveOwnerDaUsername(userId);
+  if (!username) return false;
   const owner = await getMirrorSiteOwner(domain);
-  return owner === creds.user;
+  return owner === username;
+}
+
+/** DNS por DirectAdmin não tem equivalente Hestia ainda — mensagem correcta
+ * em vez de "credenciais indisponíveis" (que sugeria um problema de sync)
+ * quando a causa real é a conta já estar no Hestia. */
+async function missingDaCredsMessage(daUsername?: string | null): Promise<string> {
+  if (daUsername) {
+    const { getProviderByUsername } = await import('@/lib/hosting-provider');
+    if ((await getProviderByUsername(daUsername)) === 'hestia') {
+      return 'Esta conta já está no Hestia — a gestão de DNS por aqui ainda só cobre contas DirectAdmin.';
+    }
+  }
+  return 'Credenciais de revendedor indisponíveis';
 }
 
 async function resolveDaCreds(
@@ -37,12 +51,14 @@ async function resolveDaCreds(
 ) {
   if (impersonatingDaUsername) {
     const stored = await loadResellerCredentialsByDaUsername(impersonatingDaUsername);
-    if (!stored) throw new Error('Credenciais de revendedor indisponíveis');
+    if (!stored) throw new Error(await missingDaCredsMessage(impersonatingDaUsername));
     return { role: 'reseller' as const, user: stored.user, password: stored.password };
   }
   if (role === 'admin') return resolveDirectAdminCredentials('admin');
   const stored = await loadResellerCredentialsByUserId(userId);
-  if (!stored) throw new Error('Credenciais de revendedor indisponíveis');
+  if (!stored) {
+    throw new Error(await missingDaCredsMessage(await resolveOwnerDaUsername(userId)));
+  }
   return { role: 'reseller' as const, user: stored.user, password: stored.password };
 }
 

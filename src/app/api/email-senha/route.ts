@@ -58,12 +58,12 @@ export async function POST(req: NextRequest) {
     // Revendedor: só se o domínio da conta pertencer de facto à sua conta DA — nunca um
     // bypass total (evita que qualquer revendedor veja a password de qualquer cliente).
     if (!canAccess && effectiveRole === 'reseller' && accountDomain) {
-      const { loadResellerCredentialsByUserId } = await import('@/lib/da-credential-store');
+      const { resolveOwnerDaUsername } = await import('@/lib/da-credential-store');
       const { getMirrorSiteOwner } = await import('@/lib/panel-mirror-read');
-      const creds = await loadResellerCredentialsByUserId(session.user.id);
-      if (creds?.user) {
+      const username = await resolveOwnerDaUsername(session.user.id);
+      if (username) {
         const owner = await getMirrorSiteOwner(accountDomain);
-        canAccess = owner === creds.user;
+        canAccess = owner === username;
       }
     }
 

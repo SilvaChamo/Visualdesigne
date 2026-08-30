@@ -49,12 +49,12 @@ async function userCanAccessMailboxPassword(
   // Revendedor: só se o domínio da conta pertencer de facto à sua conta DA — nunca um
   // bypass total (evita que qualquer revendedor veja a password de qualquer cliente).
   if (effectiveRole === 'reseller' && accountDomain) {
-    const { loadResellerCredentialsByUserId } = await import('@/lib/da-credential-store')
+    const { resolveOwnerDaUsername } = await import('@/lib/da-credential-store')
     const { getMirrorSiteOwner } = await import('@/lib/panel-mirror-read')
-    const creds = await loadResellerCredentialsByUserId(sessionUser.id)
-    if (creds?.user) {
+    const username = await resolveOwnerDaUsername(sessionUser.id)
+    if (username) {
       const owner = await getMirrorSiteOwner(accountDomain)
-      if (owner === creds.user) return true
+      if (owner === username) return true
     }
   }
   return false

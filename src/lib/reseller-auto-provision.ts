@@ -139,6 +139,27 @@ export async function ensureResellerProvisioned(
     };
   }
 
+  // Sem credenciais DA guardadas por termos migrado esta conta para o Hestia
+  // não é "por provisionar" — é o estado definitivo dela. Sem esta
+  // verificação, este auto-provisionamento tentava criar-lhe uma conta
+  // DirectAdmin nova/duplicada. Ver [[project_da-to-hestia-migration]].
+  const { getProfileForAuthUser } = await import('@/lib/profile-db');
+  const profile = await getProfileForAuthUser(adminClient(), input.userId);
+  if (profile?.da_username) {
+    const { isHestiaAccount } = await import('@/lib/da-credential-store');
+    if (await isHestiaAccount(profile.da_username)) {
+      return {
+        authUserId: input.userId,
+        daUsername: profile.da_username,
+        daDomain: profile.da_domain || deriveResellerDomain(email, profile.da_username),
+        createdAuth: false,
+        createdDirectAdmin: false,
+        linkedExisting: true,
+        alreadyProvisioned: true,
+      };
+    }
+  }
+
   await setResellerRole(input.userId, email, input.nome);
 
   let password = input.password;

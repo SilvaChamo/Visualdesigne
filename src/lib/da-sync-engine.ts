@@ -5,7 +5,7 @@
 
 import { createDirectAdminAPI, fetchDaUserUsageStats, getAdminDirectAdminAPI } from '@/lib/directadmin-adapter';
 import type { DirectAdminServerAPI } from '@/lib/directadmin-adapter';
-import { loadResellerCredentialsByDaUsername } from '@/lib/da-credential-store';
+import { isHestiaAccount, loadResellerCredentialsByDaUsername } from '@/lib/da-credential-store';
 import { ensureDaLoginKeyForUsername } from '@/lib/da-login-key-ssh';
 import type { DirectAdminCredentials } from '@/lib/directadmin-credentials';
 import { resolveDirectAdminCredentials } from '@/lib/directadmin-credentials';
@@ -455,6 +455,12 @@ export async function runDaFullSync(): Promise<DaSyncResult> {
   const siteOwners = new Map(sites.map((s) => [s.domain, s.owner || 'admin']));
   const uniqueOwners = [...new Set(siteOwners.values())].filter((o) => o && o !== 'admin');
   for (const owner of uniqueOwners) {
+    // Uma conta já no Hestia nunca tem (nem precisa de) chave de login DA —
+    // tentar gerar uma aqui era trabalho perdido, e por vezes ruído/efeitos
+    // no servidor DA antigo para uma conta que já não é suposto gerir-se por
+    // lá. `apiForOwner` abaixo já falha por conta (dentro de um try/catch por
+    // domínio), por isso isto é só para não gastar chamadas à toa.
+    if (await isHestiaAccount(owner)) continue;
     const creds = await loadResellerCredentialsByDaUsername(owner);
     if (!creds) {
       const sb = getDaSyncAdmin();

@@ -4,7 +4,7 @@
 
 import { getDaSyncAdmin } from '@/lib/da-sync-schema';
 import { loadResellerCredentialsByUserId } from '@/lib/da-credential-store';
-import { profileName, type ProfileRow } from '@/lib/profile-db';
+import { getProfileForAuthUser, profileName, type ProfileRow } from '@/lib/profile-db';
 import { belongsToCurrentPanel, resolveAccountPanelSite } from '@/lib/panel-tenant';
 import { getRedirectPathForRole, resolveUserRole, type UserRole } from '@/lib/user-roles';
 import { listPanelAuthAccounts, type PanelAuthAccountRow } from '@/lib/panel-auth-accounts';
@@ -42,10 +42,27 @@ async function resolveScope(scope: MirrorScope): Promise<{ daUsername?: string; 
   } else if (scope.daUsername) {
     resolved = { isAdmin: false, daUsername: scope.daUsername };
   } else if (scope.userId) {
+    // O username do dono não pode depender de haver password DA guardada e
+    // legível — uma conta já migrada para o Hestia não tem isso (de
+    // propósito) mas continua a ser dona dos seus próprios dados no espelho.
+    // Sem este fallback directo ao perfil, um revendedor no Hestia via aqui
+    // o próprio painel completamente vazio (nenhum site/email/etc.).
     const creds = await loadResellerCredentialsByUserId(scope.userId);
-    resolved = creds?.user
-      ? { isAdmin: false, daUsername: creds.user }
-      : { isAdmin: false };
+    let daUsername = creds?.user;
+    if (!daUsername) {
+      const sb = getDaSyncAdmin();
+      const profile = sb ? await getProfileForAuthUser(sb, scope.userId) : null;
+      daUsername = profile?.da_username || undefined;
+      if (!daUsername && sb) {
+        const { data: panelUser } = await sb
+          .from('panel_users')
+          .select('username')
+          .eq('auth_user_id', scope.userId)
+          .maybeSingle();
+        daUsername = panelUser?.username || undefined;
+      }
+    }
+    resolved = daUsername ? { isAdmin: false, daUsername } : { isAdmin: false };
   } else {
     resolved = { isAdmin: false };
   }

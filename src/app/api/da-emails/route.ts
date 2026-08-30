@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { daRequest } from '@/lib/directadmin';
 import { requireAdminResellerOrManager, type PanelStaffAuthSuccess } from '@/lib/panel-api-auth';
 import { resolvePanelDaContext } from '@/lib/panel-api-context';
-import { loadResellerCredentialsByDaUsername, loadResellerCredentialsByUserId } from '@/lib/da-credential-store';
+import { loadResellerCredentialsByDaUsername, resolveOwnerDaUsername } from '@/lib/da-credential-store';
 import { resolveDirectAdminCredentials, type DirectAdminCredentials } from '@/lib/directadmin-credentials';
 import { getMirrorSiteOwner } from '@/lib/panel-mirror-read';
 import { getDaSyncAdmin } from '@/lib/da-sync-schema';
@@ -26,10 +26,10 @@ async function canAccessDomain(
     return owner === impersonatingDaUsername;
   }
   if (role === 'admin') return true;
-  const creds = await loadResellerCredentialsByUserId(userId);
-  if (!creds?.user) return false;
+  const username = await resolveOwnerDaUsername(userId);
+  if (!username) return false;
   const owner = await getMirrorSiteOwner(domain);
-  return owner === creds.user;
+  return owner === username;
 }
 
 /** daRequest só conhece 'admin'|'reseller' — "manager"/"profissional" usam sempre o caminho escopado 'reseller'. */
