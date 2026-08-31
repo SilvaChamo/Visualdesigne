@@ -1,11 +1,11 @@
-name: "Ops - Fase 8a. Espaco em disco + Hestia (emails e pacotes) - so leitura"
+name: "Ops - Fase 9a. Confirma app sem erros pos-fix email Hestia"
 
 on:
   workflow_dispatch:
 
 jobs:
   verify:
-    name: espaco + hestia mail/packages
+    name: pm2 logs + processo saudavel
     runs-on: ubuntu-latest
     steps:
       - name: Setup SSH key
@@ -15,81 +15,21 @@ jobs:
           chmod 600 ~/.ssh/deploy_key
           ssh-keyscan "${{ secrets.CONTABO_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
 
-      - name: Inspeciona
+      - name: Verifica
         uses: appleboy/ssh-action@v1.2.5
         with:
           host: ${{ secrets.CONTABO_HOST }}
           username: root
           key: ${{ secrets.CONTABO_SSH_KEY }}
-          command_timeout: 3m
+          command_timeout: 2m
           script: |
-            echo "===== ESPACO EM DISCO (visao geral) ====="
-            df -h /
+            echo "===== Ultimas 60 linhas de erro desde o restart ====="
+            pm2 logs visualdesign-site-teste --lines 60 --nostream --err 2>&1 | grep -iE "Unsupported state|TypeError|ReferenceError|is not a function|is not defined|Credenciais de revendedor indisponiveis|Cannot read propert|hestiaAdapter" || echo "sem erros relevantes nos logs"
 
             echo ""
-            echo "===== MEMORIA RAM ====="
-            free -h
+            echo "===== Confirma processo saudavel ====="
+            pm2 describe visualdesign-site-teste 2>&1 | grep -E "status|restarts"
 
             echo ""
-            echo "===== DOCKER: espaco usado (imagens/containers/volumes) ====="
-            docker system df
-
-            echo ""
-            echo "===== DOCKER: containers activos ====="
-            docker ps --format 'table {{.Names}}\t{{.Status}}'
-
-            echo ""
-            echo "===== MAIORES CONSUMIDORES DE DISCO ====="
-            echo "-- Stack Supabase (bd + storage) --"
-            du -sh /opt/supabase-contabo/docker/volumes 2>/dev/null || echo "n/d"
-            echo "-- Sites Hestia (todas as contas) --"
-            du -sh /home/*/web 2>/dev/null
-            echo "-- Backups Hestia --"
-            du -sh /backup 2>/dev/null || echo "sem pasta de backups"
-            echo "-- Caixas de correio --"
-            du -sh /home/*/mail 2>/dev/null
-
-            echo ""
-            echo "===== HESTIA: versao instalada ====="
-            cat /usr/local/hestia/data/hestia.conf 2>/dev/null | grep -i version || (dpkg -l 2>/dev/null | grep -i hestia) || echo "n/d"
-
-            echo ""
-            echo "===== HESTIA: todas as contas e o que cada uma tem (users/dominios/emails/bds) ====="
-            /usr/local/hestia/bin/v-list-users
-
-            echo ""
-            echo "===== HESTIA: detalhe da conta admin (para confirmar privilegios) ====="
-            /usr/local/hestia/bin/v-list-user admin
-
-            echo ""
-            echo "===== HESTIA: dominios de email por conta ====="
-            for u in admin vdadmin oshercollective aamihe provisualcorporate; do
-              echo "--- conta: $u ---"
-              /usr/local/hestia/bin/v-list-mail-domains "$u" 2>&1 || echo "(conta nao existe ou sem dominios de email)"
-            done
-
-            echo ""
-            echo "===== HESTIA: contas de email criadas, por dominio ====="
-            for u in admin vdadmin oshercollective aamihe; do
-              domains=$(/usr/local/hestia/bin/v-list-mail-domains "$u" plain 2>/dev/null | awk '{print $1}')
-              for d in $domains; do
-                echo "--- $u / $d ---"
-                /usr/local/hestia/bin/v-list-mail-accounts "$u" "$d" 2>&1
-              done
-            done
-
-            echo ""
-            echo "===== HESTIA: pacotes existentes (lista) ====="
-            /usr/local/hestia/bin/v-list-packages admin 2>&1
-
-            echo ""
-            echo "===== HESTIA: ficheiros de pacotes disponiveis ====="
-            ls -la /usr/local/hestia/data/packages/ 2>&1
-
-            echo ""
-            echo "===== HESTIA: conteudo de cada pacote (limites reais) ====="
-            for f in /usr/local/hestia/data/packages/*.pkg; do
-              echo "--- $f ---"
-              cat "$f" 2>&1
-              echo ""
-            done
+            echo "===== HTTP 200 na homepage ====="
+            curl -s -o /dev/null -w "%{http_code}\n" http://localhost:3003/ || echo "falhou curl local"
