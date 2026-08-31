@@ -1,4 +1,4 @@
-name: "Ops - Fase 11a. Confirma app sem erros pos-fix DNS/WP-install Hestia"
+name: "Ops - Fase 12a. Confirma app sem erros pos-automacao email Hestia"
 
 on:
   workflow_dispatch:
@@ -24,7 +24,7 @@ jobs:
           command_timeout: 2m
           script: |
             echo "===== Ultimas 60 linhas de erro desde o restart ====="
-            pm2 logs visualdesign-site-teste --lines 60 --nostream --err 2>&1 | grep -iE "Unsupported state|TypeError|ReferenceError|is not a function|is not defined|Cannot read propert|hestiaAdapter|resolveDnsProvider|wp-cli" || echo "sem erros relevantes nos logs"
+            pm2 logs visualdesign-site-teste --lines 60 --nostream --err 2>&1 | grep -iE "Unsupported state|TypeError|ReferenceError|is not a function|is not defined|Cannot read propert|circular|domain-email-auth|hestiaAdapter" || echo "sem erros relevantes nos logs"
 
             echo ""
             echo "===== Confirma processo saudavel ====="
