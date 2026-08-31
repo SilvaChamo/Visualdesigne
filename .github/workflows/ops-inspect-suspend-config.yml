@@ -1,11 +1,11 @@
-name: "Ops - Fase 9a. Confirma app sem erros pos-fix email Hestia"
+name: "Ops - Fase 10a. Verifica comandos DNS do Hestia (so leitura)"
 
 on:
   workflow_dispatch:
 
 jobs:
   verify:
-    name: pm2 logs + processo saudavel
+    name: comandos dns hestia
     runs-on: ubuntu-latest
     steps:
       - name: Setup SSH key
@@ -15,7 +15,7 @@ jobs:
           chmod 600 ~/.ssh/deploy_key
           ssh-keyscan "${{ secrets.CONTABO_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
 
-      - name: Verifica
+      - name: Inspeciona
         uses: appleboy/ssh-action@v1.2.5
         with:
           host: ${{ secrets.CONTABO_HOST }}
@@ -23,13 +23,32 @@ jobs:
           key: ${{ secrets.CONTABO_SSH_KEY }}
           command_timeout: 2m
           script: |
-            echo "===== Ultimas 60 linhas de erro desde o restart ====="
-            pm2 logs visualdesign-site-teste --lines 60 --nostream --err 2>&1 | grep -iE "Unsupported state|TypeError|ReferenceError|is not a function|is not defined|Credenciais de revendedor indisponiveis|Cannot read propert|hestiaAdapter" || echo "sem erros relevantes nos logs"
+            BIN=/usr/local/hestia/bin
+            echo "===== binarios dns existentes ====="
+            ls "$BIN" | grep -i dns
 
             echo ""
-            echo "===== Confirma processo saudavel ====="
-            pm2 describe visualdesign-site-teste 2>&1 | grep -E "status|restarts"
+            echo "===== uso: v-add-dns-domain ====="
+            "$BIN/v-add-dns-domain" 2>&1 || true
+            echo "===== uso: v-add-dns-record ====="
+            "$BIN/v-add-dns-record" 2>&1 || true
+            echo "===== uso: v-delete-dns-record ====="
+            "$BIN/v-delete-dns-record" 2>&1 || true
+            echo "===== uso: v-list-dns-records ====="
+            "$BIN/v-list-dns-records" 2>&1 || true
+            echo "===== uso: v-list-dns-domains ====="
+            "$BIN/v-list-dns-domains" 2>&1 || true
+            echo "===== uso: v-delete-dns-domain ====="
+            "$BIN/v-delete-dns-domain" 2>&1 || true
 
             echo ""
-            echo "===== HTTP 200 na homepage ====="
-            curl -s -o /dev/null -w "%{http_code}\n" http://localhost:3003/ || echo "falhou curl local"
+            echo "===== oshercollective ja tem zonas dns no hestia? ====="
+            "$BIN/v-list-dns-domains" oshercollective 2>&1 || echo "sem zonas"
+
+            echo ""
+            echo "===== registos reais de oshercollective.com (se existir zona) ====="
+            "$BIN/v-list-dns-records" oshercollective oshercollective.com 2>&1 || echo "sem zona para este dominio"
+
+            echo ""
+            echo "===== vdadmin tambem tem zonas (referencia) ====="
+            "$BIN/v-list-dns-domains" vdadmin 2>&1 || echo "sem zonas"
