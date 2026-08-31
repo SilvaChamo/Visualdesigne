@@ -356,6 +356,11 @@ export function DomainTransferSection() {
         setMsg('Este domínio está livre — ninguém o possui, por isso não há nada para transferir. Registe-o directamente em vez de transferir.');
         return;
       }
+      if (data.alreadyOurs) {
+        setMsgOk(false);
+        setMsg('Este domínio já está registado connosco — não é preciso transferir.');
+        return;
+      }
 
       const pricesRes = await fetch('/api/domain-tld-prices');
       const pricesData = await pricesRes.json();
