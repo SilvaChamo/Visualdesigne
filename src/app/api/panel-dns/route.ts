@@ -13,6 +13,8 @@ import { resolvePanelDaContext } from '@/lib/panel-api-context';
 import { getMirrorSiteOwner, isMirrorStale, listMirrorDns } from '@/lib/panel-mirror-read';
 import { deleteMirrorDnsById, upsertMirrorDns } from '@/lib/panel-mirror-write';
 import { resolveDirectAdminCredentials, resolveDirectAdminCredentialsForDomainOwner } from '@/lib/directadmin-credentials';
+import { getProviderByUsername } from '@/lib/hosting-provider';
+import * as hestiaAdapter from '@/lib/hestia-adapter';
 
 async function canAccessDomain(
   role: 'admin' | 'reseller' | 'manager' | 'profissional',
@@ -29,6 +31,24 @@ async function canAccessDomain(
   if (!username) return false;
   const owner = await getMirrorSiteOwner(domain);
   return owner === username;
+}
+
+/** Dono real do domínio + onde vive hoje — despacha DNS para o adaptador certo. */
+async function resolveDnsProvider(domain: string): Promise<{ provider: 'hestia' | 'directadmin'; owner: string | null }> {
+  const owner = await getMirrorSiteOwner(domain);
+  if (!owner) return { provider: 'directadmin', owner: null };
+  return { provider: await getProviderByUsername(owner), owner };
+}
+
+/** "@" para o próprio domínio (vazio, "@", ou o domínio completo com/sem
+ * ponto final), senão o nome relativo tal como escrito — mesma ideia de
+ * normalizeDnsNameForDa, mas na convenção do Hestia (nunca o domínio
+ * completo, nunca ponto final; confirmado no servidor, ver hestia-adapter). */
+function normalizeDnsNameForHestia(name: string, domain: string): string {
+  const n = (name || '').trim();
+  if (!n || n === '@' || n === domain || n === `${domain}.`) return '@';
+  const escapedDomain = domain.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return n.replace(new RegExp(`\\.${escapedDomain}\\.?$`), '').replace(/\.$/, '');
 }
 
 /** DNS por DirectAdmin não tem equivalente Hestia ainda — mensagem correcta
@@ -75,19 +95,16 @@ export async function GET(req: NextRequest) {
     if ('error' in auth) return auth.error;
 
     let mirrorScope: Awaited<ReturnType<typeof resolvePanelDaContext>>['mirrorScope'];
-    let daApi: Awaited<ReturnType<typeof resolvePanelDaContext>>['daApi'];
+    let staffCtx: Awaited<ReturnType<typeof resolvePanelDaContext>> | null = null;
 
     if (auth.user.role === 'client') {
-      const { getDirectAdminAPIForAuth } = await import('@/lib/directadmin-adapter');
-      daApi = await getDirectAdminAPIForAuth({ id: auth.user.id, email: auth.user.email, role: 'admin' });
       mirrorScope = { role: 'admin', userId: auth.user.id };
     } else {
-      const ctx = await resolvePanelDaContext(auth as PanelStaffAuthSuccess);
-      if (!(await canAccessDomain(auth.user.role, auth.user.id, domain, ctx.impersonating))) {
+      staffCtx = await resolvePanelDaContext(auth as PanelStaffAuthSuccess);
+      if (!(await canAccessDomain(auth.user.role, auth.user.id, domain, staffCtx.impersonating))) {
         return NextResponse.json({ success: false, error: 'Sem acesso a este domínio' }, { status: 403 });
       }
-      mirrorScope = ctx.mirrorScope;
-      daApi = ctx.daApi;
+      mirrorScope = staffCtx.mirrorScope;
     }
 
     const stale = await isMirrorStale(120);
@@ -97,17 +114,39 @@ export async function GET(req: NextRequest) {
     let source: 'mirror' | 'live' = 'mirror';
 
     if (records.length === 0) {
+      const { provider, owner } = await resolveDnsProvider(domain);
+
       try {
-        const live = await daApi.listDNS(domain);
-        records = live.map((r) => ({
-          id: '',
-          name: String(r.name || ''),
-          type: String(r.type || 'A').toUpperCase(),
-          content: String(r.content || r.value || ''),
-          ttl: Number(r.ttl) || 3600,
-        }));
-        source = 'live';
-        scheduleDaSync(0);
+        if (provider === 'hestia' && owner) {
+          const live = await hestiaAdapter.listDnsRecords(owner, domain);
+          records = live.map((r) => ({
+            id: '',
+            name: r.record === '@' ? domain : r.record,
+            type: r.type,
+            content: r.value,
+            ttl: r.ttl || 3600,
+          }));
+          source = 'live';
+        } else if (provider !== 'hestia') {
+          const daApi =
+            auth.user.role === 'client'
+              ? await (await import('@/lib/directadmin-adapter')).getDirectAdminAPIForAuth({
+                  id: auth.user.id,
+                  email: auth.user.email,
+                  role: 'admin',
+                })
+              : staffCtx!.daApi;
+          const live = await daApi.listDNS(domain);
+          records = live.map((r) => ({
+            id: '',
+            name: String(r.name || ''),
+            type: String(r.type || 'A').toUpperCase(),
+            content: String(r.content || r.value || ''),
+            ttl: Number(r.ttl) || 3600,
+          }));
+          source = 'live';
+          scheduleDaSync(0);
+        }
       } catch {
         /* espelho vazio — devolver lista vazia */
       }
@@ -143,16 +182,39 @@ export async function POST(req: NextRequest) {
     const auth = await requireDaAccessForDomain(domain);
     if ('error' in auth) return auth.error;
 
-    let creds: Awaited<ReturnType<typeof resolveDaCreds>>;
-    if (auth.user.role === 'client') {
-      creds = await resolveDirectAdminCredentialsForDomainOwner(domain);
-    } else {
-      const { impersonating } = await resolvePanelDaContext(auth as PanelStaffAuthSuccess);
+    let impersonating: string | null | undefined;
+    if (auth.user.role !== 'client') {
+      const ctx = await resolvePanelDaContext(auth as PanelStaffAuthSuccess);
+      impersonating = ctx.impersonating;
       if (!(await canAccessDomain(auth.user.role, auth.user.id, domain, impersonating))) {
         return NextResponse.json({ success: false, error: 'Sem acesso a este domínio' }, { status: 403 });
       }
-      creds = await resolveDaCreds(auth.user.role, auth.user.id, impersonating);
     }
+
+    const { provider, owner } = await resolveDnsProvider(domain);
+
+    if (provider === 'hestia') {
+      if (!owner) {
+        return NextResponse.json({ success: false, error: 'Dono do domínio não identificado no Hestia.' }, { status: 404 });
+      }
+      const hestiaName = normalizeDnsNameForHestia(name, domain);
+      const result = await hestiaAdapter.addDnsRecord(owner, domain, hestiaName, type, value, ttl);
+      if (!result.ok) {
+        return NextResponse.json({ success: false, error: result.error || 'Falha ao criar registo' }, { status: 502 });
+      }
+      const mirrorName = hestiaName === '@' ? domain : hestiaName;
+      const mirror = await upsertMirrorDns({ domain, name: mirrorName, type, value, ttl });
+      return NextResponse.json({
+        success: true,
+        message: 'Registo DNS criado com sucesso.',
+        id: mirror.id,
+      });
+    }
+
+    const creds =
+      auth.user.role === 'client'
+        ? await resolveDirectAdminCredentialsForDomainOwner(domain)
+        : await resolveDaCreds(auth.user.role, auth.user.id, impersonating);
 
     const result = await daAddDnsRecord(creds, { domain, name, type, value, ttl });
     if (!result.ok) {
@@ -189,15 +251,13 @@ export async function DELETE(req: NextRequest) {
     const auth = await requireDaAccessForDomain(domain);
     if ('error' in auth) return auth.error;
 
-    let creds: Awaited<ReturnType<typeof resolveDaCreds>>;
-    if (auth.user.role === 'client') {
-      creds = await resolveDirectAdminCredentialsForDomainOwner(domain);
-    } else {
-      const { impersonating } = await resolvePanelDaContext(auth as PanelStaffAuthSuccess);
+    let impersonating: string | null | undefined;
+    if (auth.user.role !== 'client') {
+      const ctx = await resolvePanelDaContext(auth as PanelStaffAuthSuccess);
+      impersonating = ctx.impersonating;
       if (!(await canAccessDomain(auth.user.role, auth.user.id, domain, impersonating))) {
         return NextResponse.json({ success: false, error: 'Sem acesso a este domínio' }, { status: 403 });
       }
-      creds = await resolveDaCreds(auth.user.role, auth.user.id, impersonating);
     }
 
     const admin = getDaSyncAdmin();
@@ -215,6 +275,40 @@ export async function DELETE(req: NextRequest) {
     if (fetchErr || !row) {
       return NextResponse.json({ success: false, error: 'Registo não encontrado' }, { status: 404 });
     }
+
+    const { provider, owner } = await resolveDnsProvider(domain);
+
+    if (provider === 'hestia') {
+      if (!owner) {
+        return NextResponse.json({ success: false, error: 'Dono do domínio não identificado no Hestia.' }, { status: 404 });
+      }
+      // O Hestia apaga por ID numérico próprio (não guardado no espelho) —
+      // encontra-se o registo real a corresponder por nome+tipo+valor,
+      // mesma ideia do daDeleteDnsRecord (que também casa por conteúdo).
+      const wantedName = normalizeDnsNameForHestia(String(row.name), domain);
+      const wantedType = String(row.type).toUpperCase();
+      const wantedValue = String(row.value).replace(/\.$/, '');
+      const live = await hestiaAdapter.listDnsRecords(owner, domain);
+      const match = live.find(
+        (r) => r.record === wantedName && r.type === wantedType && r.value.replace(/\.$/, '') === wantedValue,
+      );
+      if (!match) {
+        // Já não existe no servidor — limpa o espelho na mesma para não ficar preso.
+        await deleteMirrorDnsById(id);
+        return NextResponse.json({ success: true, message: 'Registo já não existia no Hestia; espelho limpo.' });
+      }
+      const result = await hestiaAdapter.deleteDnsRecord(owner, domain, match.id);
+      if (!result.ok) {
+        return NextResponse.json({ success: false, error: result.error || 'Falha ao remover registo' }, { status: 502 });
+      }
+      await deleteMirrorDnsById(id);
+      return NextResponse.json({ success: true, message: 'Registo DNS removido com sucesso.' });
+    }
+
+    const creds =
+      auth.user.role === 'client'
+        ? await resolveDirectAdminCredentialsForDomainOwner(domain)
+        : await resolveDaCreds(auth.user.role, auth.user.id, impersonating);
 
     const result = await daDeleteDnsRecord(creds, {
       domain,

@@ -361,6 +361,97 @@ export async function addMailForward(
 }
 
 // ---------------------------------------------------------------------------
+// DNS — confirmado no servidor (bin/v-add-dns-domain e afins, 2026-08-31,
+// testado com uma zona descartável .invalid antes de assumir a sintaxe).
+// Isto é o servidor de nomes PRÓPRIO do Hestia (ns1/ns2.visualdesignmoz.com)
+// — só afecta a resolução real de um domínio se os nameservers dele
+// apontarem para aqui. Nenhum domínio real tinha zona criada em 31 ago
+// (nem oshercollective nem vdadmin) — criar uma zona aqui não muda nada
+// visível até alguém mudar os nameservers do domínio de verdade, decisão
+// fora do código.
+// ---------------------------------------------------------------------------
+
+/** IP público deste servidor — obrigatório para v-add-dns-domain, não é
+ * segredo (mesmo IP já usado nos vhosts nginx do Contabo). */
+const HESTIA_SERVER_IP = '169.58.148.144';
+
+/** v-add-dns-domain semeia sempre ~15 registos por omissão (NS, A do
+ * domínio e do "mail", CNAME www/ftp/webmail, MX, SPF, DMARC, SRV de
+ * autoconfig de email) — idêntico ao que os outros v-add-* já fazem aqui. */
+export async function addDnsZone(username: string, domain: string): Promise<{ ok: boolean; error?: string }> {
+  const result = await hestiaCall('v-add-dns-domain', [username, domain, HESTIA_SERVER_IP]);
+  if (!result.ok && !isAlreadyExistsError(result.error)) return { ok: false, error: result.error };
+  return { ok: true };
+}
+
+export async function deleteDnsZone(username: string, domain: string): Promise<{ ok: boolean; error?: string }> {
+  const result = await hestiaCall('v-delete-dns-domain', [username, domain]);
+  return { ok: result.ok, error: result.error };
+}
+
+export type HestiaDnsRecord = {
+  id: string;
+  record: string;
+  type: string;
+  value: string;
+  priority: string;
+  ttl: number;
+};
+
+export async function listDnsRecords(username: string, domain: string): Promise<HestiaDnsRecord[]> {
+  const result = await hestiaCallJson<Record<string, Record<string, string>>>('v-list-dns-records', [username, domain]);
+  if (!result.ok) return [];
+  return Object.entries(result.data).map(([id, r]) => ({
+    id,
+    record: r.RECORD || '@',
+    type: (r.TYPE || 'A').toUpperCase(),
+    value: r.VALUE || '',
+    priority: r.PRIORITY || '',
+    ttl: Number(r.TTL) || 14400,
+  }));
+}
+
+/** `record`: "@" para o próprio domínio, ou o nome relativo (ex.: "www",
+ * "blog") — nunca o domínio completo nem com ponto final (confirmado no
+ * servidor: v-add-dns-record guarda exactamente o que se lhe dá, sem
+ * normalizar). Cria a zona primeiro se ainda não existir (idempotente,
+ * mesmo padrão de addMailAccount a criar o mail domain primeiro). */
+export async function addDnsRecord(
+  username: string,
+  domain: string,
+  record: string,
+  type: string,
+  value: string,
+  ttl?: number,
+  priority?: string,
+): Promise<{ ok: boolean; error?: string }> {
+  const zoneStep = await addDnsZone(username, domain);
+  if (!zoneStep.ok) return zoneStep;
+  const args = [
+    username,
+    domain,
+    record || '@',
+    type.toUpperCase(),
+    value,
+    priority || '',
+    '',
+    '',
+    String(ttl || 14400),
+  ];
+  const result = await hestiaCall('v-add-dns-record', args);
+  return { ok: result.ok, error: result.error };
+}
+
+export async function deleteDnsRecord(
+  username: string,
+  domain: string,
+  recordId: string,
+): Promise<{ ok: boolean; error?: string }> {
+  const result = await hestiaCall('v-delete-dns-record', [username, domain, recordId]);
+  return { ok: result.ok, error: result.error };
+}
+
+// ---------------------------------------------------------------------------
 // FTP — confirmado no servidor (bin/v-add-web-domain-ftp e afins, 2026-08-11):
 // contas FTP são sempre associadas a um domínio (não existe FTP "solto" da
 // conta), e não há v-list-web-domain-ftp — a lista vem embutida nos campos
