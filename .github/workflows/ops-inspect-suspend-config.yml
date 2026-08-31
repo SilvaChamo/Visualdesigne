@@ -1,11 +1,11 @@
-name: "Ops - Fase 10c. Testa 1 registo custom isolado (zona descartavel)"
+name: "Ops - Fase 11a. Confirma app sem erros pos-fix DNS/WP-install Hestia"
 
 on:
   workflow_dispatch:
 
 jobs:
   verify:
-    name: teste registo isolado
+    name: pm2 logs + processo saudavel
     runs-on: ubuntu-latest
     steps:
       - name: Setup SSH key
@@ -15,7 +15,7 @@ jobs:
           chmod 600 ~/.ssh/deploy_key
           ssh-keyscan "${{ secrets.CONTABO_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
 
-      - name: Testa
+      - name: Verifica
         uses: appleboy/ssh-action@v1.2.5
         with:
           host: ${{ secrets.CONTABO_HOST }}
@@ -23,49 +23,9 @@ jobs:
           key: ${{ secrets.CONTABO_SSH_KEY }}
           command_timeout: 2m
           script: |
-            BIN=/usr/local/hestia/bin
-            TEST_DOMAIN="claude-dns-test.invalid"
-            FAKE_IP="203.0.113.77"
-
-            "$BIN/v-delete-dns-domain" vdadmin "$TEST_DOMAIN" 2>&1 || true
-            "$BIN/v-add-dns-domain" vdadmin "$TEST_DOMAIN" 203.0.113.1 2>&1
-            echo "EXIT add-domain: $?"
-
-            echo "===== BASELINE (so template default) ====="
-            "$BIN/v-list-dns-records" vdadmin "$TEST_DOMAIN" json 2>&1 | grep -c RECORD
-            echo "IDs no baseline:"
-            "$BIN/v-list-dns-records" vdadmin "$TEST_DOMAIN" json 2>&1 | python3 -c "import json,sys; d=json.load(sys.stdin); [print(k, v['RECORD'], v['TYPE'], v['VALUE']) for k,v in d.items()]"
+            echo "===== Ultimas 60 linhas de erro desde o restart ====="
+            pm2 logs visualdesign-site-teste --lines 60 --nostream --err 2>&1 | grep -iE "Unsupported state|TypeError|ReferenceError|is not a function|is not defined|Cannot read propert|hestiaAdapter|resolveDnsProvider|wp-cli" || echo "sem erros relevantes nos logs"
 
             echo ""
-            echo "===== A CRIAR: RECORD=claudetest123 TYPE=A VALUE=$FAKE_IP ====="
-            OUT=$("$BIN/v-add-dns-record" vdadmin "$TEST_DOMAIN" claudetest123 A "$FAKE_IP" 2>&1)
-            echo "saida: [$OUT]"
-            echo "EXIT add-record: $?"
-
-            echo ""
-            echo "===== APOS CRIAR (so as diferencas) ====="
-            "$BIN/v-list-dns-records" vdadmin "$TEST_DOMAIN" json 2>&1 | python3 -c "import json,sys; d=json.load(sys.stdin); [print(k, v['RECORD'], v['TYPE'], v['VALUE']) for k,v in d.items()]"
-
-            echo ""
-            echo "===== A CRIAR registo APEX: RECORD=@ TYPE=TXT VALUE=claude-apex-test ====="
-            OUT2=$("$BIN/v-add-dns-record" vdadmin "$TEST_DOMAIN" @ TXT "claude-apex-test" 2>&1)
-            echo "saida: [$OUT2]"
-            echo "EXIT add-record-apex: $?"
-
-            echo ""
-            echo "===== LISTA FINAL COMPLETA ====="
-            "$BIN/v-list-dns-records" vdadmin "$TEST_DOMAIN" json 2>&1 | python3 -c "import json,sys; d=json.load(sys.stdin); [print(k, v['RECORD'], v['TYPE'], v['VALUE']) for k,v in d.items()]"
-
-            echo ""
-            echo "===== apaga o registo claudetest123 (precisa do ID - vamos descobrir) ====="
-            RECID=$("$BIN/v-list-dns-records" vdadmin "$TEST_DOMAIN" json 2>&1 | python3 -c "import json,sys; d=json.load(sys.stdin); ids=[k for k,v in d.items() if v['RECORD']=='claudetest123']; print(ids[0] if ids else '')")
-            echo "id encontrado: $RECID"
-            if [ -n "$RECID" ]; then
-              "$BIN/v-delete-dns-record" vdadmin "$TEST_DOMAIN" "$RECID" 2>&1
-              echo "EXIT delete-record: $?"
-            fi
-
-            echo ""
-            echo "===== limpa a zona de teste ====="
-            "$BIN/v-delete-dns-domain" vdadmin "$TEST_DOMAIN" 2>&1
-            "$BIN/v-list-dns-domains" vdadmin 2>&1
+            echo "===== Confirma processo saudavel ====="
+            pm2 describe visualdesign-site-teste 2>&1 | grep -E "status|restarts"
