@@ -47,6 +47,13 @@ export async function createAccount(input: {
   // resultado da criação da conta em si.
   await hestiaCall('v-add-letsencrypt-domain', [input.username, input.domain]).catch(() => {});
 
+  // Mesma automação de SPF/DKIM/DMARC/Brevo que já corre ao criar um site no
+  // DirectAdmin — sem isto, uma conta nova no Hestia ficava sempre sem
+  // nenhuma configuração de email, mesmo quando a Cloudflare já tem zona
+  // própria para o domínio. Import dinâmico evita ciclo com domain-email-auth.ts.
+  const { runEmailDnsAutomation } = await import('@/lib/domain-email-auth');
+  runEmailDnsAutomation(input.domain);
+
   return { ok: true };
 }
 
@@ -61,11 +68,17 @@ export async function addWebDomain(username: string, domain: string): Promise<{ 
   const result = await hestiaCall('v-add-web-domain', [username, domain]);
   if (!result.ok && !isAlreadyExistsError(result.error)) return { ok: false, error: result.error };
   await hestiaCall('v-add-letsencrypt-domain', [username, domain]).catch(() => {});
+  const { runEmailDnsAutomation } = await import('@/lib/domain-email-auth');
+  runEmailDnsAutomation(domain);
   return { ok: true };
 }
 
 export async function deleteWebDomain(username: string, domain: string): Promise<{ ok: boolean; error?: string }> {
   const result = await hestiaCall('v-delete-web-domain', [username, domain]);
+  if (result.ok) {
+    const { runEmailDnsCleanup } = await import('@/lib/domain-email-auth');
+    runEmailDnsCleanup(domain);
+  }
   return { ok: result.ok, error: result.error };
 }
 
