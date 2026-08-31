@@ -7,6 +7,8 @@ import { resolveDirectAdminCredentials, type DirectAdminCredentials } from '@/li
 import { getMirrorSiteOwner } from '@/lib/panel-mirror-read';
 import { getDaSyncAdmin } from '@/lib/da-sync-schema';
 import { encryptStoredPassword } from '@/lib/panel-access-credentials';
+import { getProviderByUsername } from '@/lib/hosting-provider';
+import * as hestiaAdapter from '@/lib/hestia-adapter';
 
 /**
  * GET  ?action=list&domain=visualdesignmoz.com  → lista emails
@@ -30,6 +32,18 @@ async function canAccessDomain(
   if (!username) return false;
   const owner = await getMirrorSiteOwner(domain);
   return owner === username;
+}
+
+/** Dono real do domínio no servidor + onde ele vive hoje (Hestia ou
+ * DirectAdmin) — despacha as operações de email para o adaptador certo.
+ * Só o "list" de todos os domínios (`action=domains`, admin) continua
+ * DirectAdmin-only por agora; contas Hestia ainda não entram nesse resumo. */
+async function resolveEmailProvider(
+  domain: string,
+): Promise<{ provider: 'hestia' | 'directadmin'; owner: string | null }> {
+  const owner = await getMirrorSiteOwner(domain);
+  if (!owner) return { provider: 'directadmin', owner: null };
+  return { provider: await getProviderByUsername(owner), owner };
 }
 
 /** daRequest só conhece 'admin'|'reseller' — "manager"/"profissional" usam sempre o caminho escopado 'reseller'. */
@@ -57,7 +71,6 @@ export async function GET(req: NextRequest) {
     if ('error' in auth) return auth.error;
     const ctx = auth.user;
     const { impersonating } = await resolvePanelDaContext(auth);
-    const creds = await resolveDaRequestCredentials(auth);
 
     const { searchParams } = new URL(req.url);
     const action = searchParams.get('action') || 'list';
@@ -67,7 +80,10 @@ export async function GET(req: NextRequest) {
       if (ctx.role !== 'admin' || impersonating) {
         return NextResponse.json({ success: false, error: 'Acção restrita a administradores.' }, { status: 403 });
       }
-      // Listar todos os domínios que têm email no servidor
+      // Listar todos os domínios que têm email no servidor — só cobre
+      // DirectAdmin por agora; domínios já no Hestia ainda não aparecem
+      // neste resumo (ver resolveEmailProvider para as acções por domínio).
+      const creds = await resolveDaRequestCredentials(auth);
       const res = await daRequest('CMD_API_SHOW_ALL_USERS', 'GET', { json: 'yes' }, creds);
       const domainsRes = await daRequest('CMD_API_ADDITIONAL_DOMAINS', 'GET', { domain: 'admin' }, creds);
       return NextResponse.json({ success: true, raw: domainsRes });
@@ -77,6 +93,23 @@ export async function GET(req: NextRequest) {
       if (!(await canAccessDomain(ctx.role, ctx.id, domain, impersonating))) {
         return NextResponse.json({ success: false, error: 'Domínio fora do seu painel.' }, { status: 403 });
       }
+
+      const { provider, owner } = await resolveEmailProvider(domain);
+
+      if (provider === 'hestia') {
+        if (!owner) {
+          return NextResponse.json({ success: false, error: 'Dono do domínio não identificado no Hestia.' }, { status: 404 });
+        }
+        const accounts = await hestiaAdapter.listMailAccounts(owner, domain);
+        const emails = accounts.map((a) => ({
+          email: `${a.account}@${domain}`,
+          quota: a.quotaMb != null ? String(a.quotaMb) : 'N/A',
+          usage: String(a.diskUsedMb ?? 0),
+        }));
+        return NextResponse.json({ success: true, domain, emails });
+      }
+
+      const creds = await resolveDaRequestCredentials(auth);
       // CMD_API_POP lista as contas de email para um domínio
       const res = await daRequest('CMD_API_POP', 'GET', { action: 'list', domain }, creds);
 
@@ -119,7 +152,6 @@ export async function POST(req: NextRequest) {
     if ('error' in auth) return auth.error;
     const ctx = auth.user;
     const { impersonating } = await resolvePanelDaContext(auth);
-    const creds = await resolveDaRequestCredentials(auth);
 
     const { action, domain, username, password, quota = '250' } = await req.json();
 
@@ -132,6 +164,20 @@ export async function POST(req: NextRequest) {
     }
 
     if (action === 'create') {
+      const { provider, owner } = await resolveEmailProvider(domain);
+
+      if (provider === 'hestia') {
+        if (!owner) {
+          return NextResponse.json({ success: false, error: 'Dono do domínio não identificado no Hestia.' }, { status: 404 });
+        }
+        const result = await hestiaAdapter.addMailAccount(owner, domain, username, password, Number(quota) || undefined);
+        if (!result.ok) {
+          return NextResponse.json({ success: false, error: result.error || 'Erro ao criar email' });
+        }
+        return NextResponse.json({ success: true, message: `Email ${username}@${domain} criado com sucesso!` });
+      }
+
+      const creds = await resolveDaRequestCredentials(auth);
       const res = await daRequest(
         'CMD_API_POP',
         'POST',
@@ -161,7 +207,6 @@ export async function DELETE(req: NextRequest) {
     if ('error' in auth) return auth.error;
     const ctx = auth.user;
     const { impersonating } = await resolvePanelDaContext(auth);
-    const creds = await resolveDaRequestCredentials(auth);
 
     const { domain, username } = await req.json();
 
@@ -173,6 +218,20 @@ export async function DELETE(req: NextRequest) {
       return NextResponse.json({ success: false, error: 'Domínio fora do seu painel.' }, { status: 403 });
     }
 
+    const { provider, owner } = await resolveEmailProvider(domain);
+
+    if (provider === 'hestia') {
+      if (!owner) {
+        return NextResponse.json({ success: false, error: 'Dono do domínio não identificado no Hestia.' }, { status: 404 });
+      }
+      const result = await hestiaAdapter.deleteMailAccount(owner, domain, username);
+      if (!result.ok) {
+        return NextResponse.json({ success: false, error: result.error || 'Erro ao apagar email' });
+      }
+      return NextResponse.json({ success: true, message: `Email ${username}@${domain} apagado.` });
+    }
+
+    const creds = await resolveDaRequestCredentials(auth);
     const res = await daRequest('CMD_API_POP', 'POST', { action: 'delete', domain, user: username }, creds);
 
     if (res.error) {
@@ -191,7 +250,6 @@ export async function PATCH(req: NextRequest) {
     if ('error' in auth) return auth.error;
     const ctx = auth.user;
     const { impersonating } = await resolvePanelDaContext(auth);
-    const creds = await resolveDaRequestCredentials(auth);
 
     const { domain, username, password } = await req.json();
 
@@ -203,6 +261,29 @@ export async function PATCH(req: NextRequest) {
       return NextResponse.json({ success: false, error: 'Domínio fora do seu painel.' }, { status: 403 });
     }
 
+    const { provider, owner } = await resolveEmailProvider(domain);
+
+    if (provider === 'hestia') {
+      if (!owner) {
+        return NextResponse.json({ success: false, error: 'Dono do domínio não identificado no Hestia.' }, { status: 404 });
+      }
+      const result = await hestiaAdapter.changeMailAccountPassword(owner, domain, username, password);
+      if (!result.ok) {
+        return NextResponse.json({ success: false, error: result.error || 'Erro ao alterar password' });
+      }
+
+      const sbHestia = getDaSyncAdmin();
+      if (sbHestia) {
+        await sbHestia
+          .from('email_contas')
+          .update({ senha_servidor: encryptStoredPassword(password) })
+          .eq('email', `${username}@${domain}`);
+      }
+
+      return NextResponse.json({ success: true, message: `Password de ${username}@${domain} alterada.` });
+    }
+
+    const creds = await resolveDaRequestCredentials(auth);
     const res = await daRequest(
       'CMD_API_POP',
       'POST',

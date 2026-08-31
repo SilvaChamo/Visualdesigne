@@ -547,19 +547,39 @@ export async function PATCH(req: NextRequest) {
       return NextResponse.json({ error: 'Não tens permissão para alterar a password desta conta.' }, { status: 403 });
     }
 
-    const { daRequest } = await import('@/lib/directadmin')
-    const { resolveDirectAdminCredentialsForDomainOwner } = await import('@/lib/directadmin-credentials')
-    const creds = await resolveDirectAdminCredentialsForDomainOwner(domain)
+    // Despacha para Hestia ou DirectAdmin consoante o dono real do domínio —
+    // sem isto, um email já no Hestia (ex.: oshercollective) tentava sempre
+    // mudar a password via credenciais DA, que já não existem para essa
+    // conta (ver [[project_da-to-hestia-migration]]).
+    const { getMirrorSiteOwner } = await import('@/lib/panel-mirror-read')
+    const { getProviderByUsername } = await import('@/lib/hosting-provider')
+    const mailOwner = await getMirrorSiteOwner(domain)
+    const mailProvider = mailOwner ? await getProviderByUsername(mailOwner) : 'directadmin'
 
-    const res = await daRequest(
-      'CMD_API_POP',
-      'POST',
-      { action: 'modify', domain, user: username, passwd: newPassword, passwd2: newPassword },
-      creds,
-    )
+    if (mailProvider === 'hestia') {
+      if (!mailOwner) {
+        return NextResponse.json({ error: 'Dono do domínio não identificado no Hestia.' }, { status: 404 });
+      }
+      const hestiaAdapter = await import('@/lib/hestia-adapter')
+      const result = await hestiaAdapter.changeMailAccountPassword(mailOwner, domain, username, newPassword)
+      if (!result.ok) {
+        return NextResponse.json({ error: result.error || 'Erro ao alterar a password no servidor de correio.' }, { status: 500 });
+      }
+    } else {
+      const { daRequest } = await import('@/lib/directadmin')
+      const { resolveDirectAdminCredentialsForDomainOwner } = await import('@/lib/directadmin-credentials')
+      const creds = await resolveDirectAdminCredentialsForDomainOwner(domain)
 
-    if (res.error) {
-      return NextResponse.json({ error: res.details || res.text || 'Erro ao alterar a password no servidor de correio.' }, { status: 500 });
+      const res = await daRequest(
+        'CMD_API_POP',
+        'POST',
+        { action: 'modify', domain, user: username, passwd: newPassword, passwd2: newPassword },
+        creds,
+      )
+
+      if (res.error) {
+        return NextResponse.json({ error: res.details || res.text || 'Erro ao alterar a password no servidor de correio.' }, { status: 500 });
+      }
     }
 
     // Mantém a cópia usada pelo webmail (IMAP) em sincronia com a password real
