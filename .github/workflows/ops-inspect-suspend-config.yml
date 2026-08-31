@@ -1,11 +1,11 @@
-name: "Ops - Fase 10a. Verifica comandos DNS do Hestia (so leitura)"
+name: "Ops - Fase 10b. Testa convencao de nomes DNS Hestia (zona descartavel)"
 
 on:
   workflow_dispatch:
 
 jobs:
   verify:
-    name: comandos dns hestia
+    name: teste zona dns descartavel
     runs-on: ubuntu-latest
     steps:
       - name: Setup SSH key
@@ -15,7 +15,7 @@ jobs:
           chmod 600 ~/.ssh/deploy_key
           ssh-keyscan "${{ secrets.CONTABO_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
 
-      - name: Inspeciona
+      - name: Testa
         uses: appleboy/ssh-action@v1.2.5
         with:
           host: ${{ secrets.CONTABO_HOST }}
@@ -24,31 +24,40 @@ jobs:
           command_timeout: 2m
           script: |
             BIN=/usr/local/hestia/bin
-            echo "===== binarios dns existentes ====="
-            ls "$BIN" | grep -i dns
+            TEST_DOMAIN="claude-dns-test.invalid"
+
+            echo "===== limpa qualquer resto de teste anterior ====="
+            "$BIN/v-delete-dns-domain" vdadmin "$TEST_DOMAIN" 2>&1 || true
 
             echo ""
-            echo "===== uso: v-add-dns-domain ====="
-            "$BIN/v-add-dns-domain" 2>&1 || true
-            echo "===== uso: v-add-dns-record ====="
-            "$BIN/v-add-dns-record" 2>&1 || true
-            echo "===== uso: v-delete-dns-record ====="
-            "$BIN/v-delete-dns-record" 2>&1 || true
-            echo "===== uso: v-list-dns-records ====="
-            "$BIN/v-list-dns-records" 2>&1 || true
-            echo "===== uso: v-list-dns-domains ====="
-            "$BIN/v-list-dns-domains" 2>&1 || true
-            echo "===== uso: v-delete-dns-domain ====="
-            "$BIN/v-delete-dns-domain" 2>&1 || true
+            echo "===== cria zona de teste descartavel (.invalid = RFC2606, nunca e real) ====="
+            "$BIN/v-add-dns-domain" vdadmin "$TEST_DOMAIN" 169.58.148.144 2>&1
 
             echo ""
-            echo "===== oshercollective ja tem zonas dns no hestia? ====="
-            "$BIN/v-list-dns-domains" oshercollective 2>&1 || echo "sem zonas"
+            echo "===== registos default criados automaticamente (formato JSON) ====="
+            "$BIN/v-list-dns-records" vdadmin "$TEST_DOMAIN" json 2>&1
 
             echo ""
-            echo "===== registos reais de oshercollective.com (se existir zona) ====="
-            "$BIN/v-list-dns-records" oshercollective oshercollective.com 2>&1 || echo "sem zona para este dominio"
+            echo "===== adiciona um registo 'www' A para ver convencao ====="
+            "$BIN/v-add-dns-record" vdadmin "$TEST_DOMAIN" www A 169.58.148.144 2>&1
 
             echo ""
-            echo "===== vdadmin tambem tem zonas (referencia) ====="
-            "$BIN/v-list-dns-domains" vdadmin 2>&1 || echo "sem zonas"
+            echo "===== adiciona um registo apex (@) A para ver convencao ====="
+            "$BIN/v-add-dns-record" vdadmin "$TEST_DOMAIN" "$TEST_DOMAIN" A 169.58.148.144 2>&1
+
+            echo ""
+            echo "===== lista final (json) ====="
+            "$BIN/v-list-dns-records" vdadmin "$TEST_DOMAIN" json 2>&1
+
+            echo ""
+            echo "===== template default usado (para referencia futura) ====="
+            find /usr/local/hestia/data/templates/dns -iname "*default*" 2>&1
+            cat /usr/local/hestia/data/templates/dns/default.tpl 2>&1 || echo "sem template default.tpl"
+
+            echo ""
+            echo "===== limpa a zona de teste ====="
+            "$BIN/v-delete-dns-domain" vdadmin "$TEST_DOMAIN" 2>&1
+
+            echo ""
+            echo "===== confirma que ficou mesmo limpo ====="
+            "$BIN/v-list-dns-domains" vdadmin 2>&1
