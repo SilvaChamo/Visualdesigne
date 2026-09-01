@@ -1,4 +1,4 @@
-name: "Ops - Fase 51. Confirma limite de tamanho de upload do Supabase Storage (Contabo)"
+name: "Ops - Fase 52. Aumenta limite de upload do Supabase Storage (Contabo) temporariamente"
 
 on:
   workflow_dispatch:
@@ -14,7 +14,7 @@ jobs:
           echo "${{ secrets.CONTABO_SSH_KEY }}" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
           ssh-keyscan "${{ secrets.CONTABO_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
-      - name: Verifica limite
+      - name: Aumenta limite e reinicia
         uses: appleboy/ssh-action@v1.2.5
         with:
           host: ${{ secrets.CONTABO_HOST }}
@@ -23,6 +23,25 @@ jobs:
           command_timeout: 3m
           script: |
             set +e
-            docker inspect supabase-storage --format '{{range .Config.Env}}{{println .}}{{end}}' 2>&1 | grep -i "FILE_SIZE\|UPLOAD"
+            echo "===== localiza o .env da stack supabase ====="
+            ENVFILE=$(find /opt -maxdepth 3 -path "*supabase*/docker/.env" 2>/dev/null | head -1)
+            echo "$ENVFILE"
+
             echo ""
-            df -h /var/lib/docker 2>&1
+            echo "===== valor actual ====="
+            grep "FILE_SIZE_LIMIT" "$ENVFILE"
+
+            echo ""
+            echo "===== aumenta para 500MB (era so 50MB) ====="
+            sed -i "s|^FILE_SIZE_LIMIT=.*|FILE_SIZE_LIMIT=524288000|" "$ENVFILE"
+            grep "FILE_SIZE_LIMIT" "$ENVFILE"
+
+            echo ""
+            echo "===== reinicia o container de storage ====="
+            COMPOSE_DIR=$(dirname "$ENVFILE")
+            cd "$COMPOSE_DIR" && docker compose up -d storage 2>&1
+
+            echo ""
+            sleep 3
+            echo "===== confirma no container ====="
+            docker inspect supabase-storage --format '{{range .Config.Env}}{{println .}}{{end}}' 2>&1 | grep FILE_SIZE
