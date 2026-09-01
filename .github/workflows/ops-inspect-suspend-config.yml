@@ -1,4 +1,4 @@
-name: "Ops - Fase 21d. Investiga por que hestia-sync devolve users:0"
+name: "Ops - Fase 21e. Investiga porque a autenticacao Hestia voltou a falhar"
 
 on:
   workflow_dispatch:
@@ -23,31 +23,24 @@ jobs:
           command_timeout: 5m
           script: |
             set +e
+            echo "===== ultimas 25 linhas do auth.log do Hestia ====="
+            tail -25 /usr/local/hestia/log/auth.log 2>&1
+
+            echo ""
+            echo "===== mtime do user.conf do vdadmin agora ====="
+            stat -c '%y %n' /usr/local/hestia/data/users/vdadmin/user.conf 2>&1
+
+            echo ""
+            echo "===== ha algum ban/firewall a bloquear localhost/IP proprio? ====="
+            iptables -L -n 2>&1 | grep -i "drop\|reject" | head -20
+
+            echo ""
+            echo "===== fail2ban: jails activas e bans actuais ====="
+            fail2ban-client status 2>&1
+            fail2ban-client status hestia 2>&1
+
+            echo ""
+            echo "===== confirma codigo novo no ficheiro fonte (grep simples) ====="
             cd /opt/visualdesign-site-teste
-
-            echo "===== confirma que o codigo novo esta mesmo no servidor ====="
-            grep -n "liveUsernames.add((process.env.HESTIA_USER" .next/server/chunks/*.js 2>/dev/null | head -3
-            grep -rn "propria conta principal" src/lib/hestia-sync-engine.ts 2>/dev/null
-
-            HOST="teste.visualdesignmoz.com"
-            PORT="8083"
-            USR=$(grep '^HESTIA_USER=' .env.local | cut -d= -f2- | tr -d "'\"")
-            PASS=$(grep '^HESTIA_PASSWORD=' .env.local | cut -d= -f2- | tr -d "'\"")
-            echo "::add-mask::$PASS"
-
-            echo ""
-            echo "===== testa v-list-users directamente (comando exacto que listUsers() usa) ====="
-            curl -sS -k -w "\nHTTP_STATUS:%{http_code}\n" -X POST "https://${HOST}:${PORT}/api/" \
-              --data-urlencode "user=${USR}" \
-              --data-urlencode "password=${PASS}" \
-              --data-urlencode "cmd=v-list-users" \
-              --data-urlencode "arg1=json"
-
-            echo ""
-            echo "===== testa v-list-web-domains vdadmin directamente ====="
-            curl -sS -k -w "\nHTTP_STATUS:%{http_code}\n" -X POST "https://${HOST}:${PORT}/api/" \
-              --data-urlencode "user=${USR}" \
-              --data-urlencode "password=${PASS}" \
-              --data-urlencode "cmd=v-list-web-domains" \
-              --data-urlencode "arg1=vdadmin" \
-              --data-urlencode "arg2=json"
+            grep -c "HESTIA_USER" src/lib/hestia-sync-engine.ts 2>&1
+            git log -1 --oneline 2>&1
