@@ -1,52 +1,48 @@
-name: "Ops - Fase 88. Porque as noticias/blog nao aparecem + estado real do jet-engine"
+name: "Ops - Fase 89. Verifica porque a oshercollective parece offline"
 
 on:
   workflow_dispatch:
 
 jobs:
-  hetzner:
-    name: hetzner
+  contabo:
+    name: contabo
     runs-on: ubuntu-latest
     steps:
       - name: Setup SSH key
         run: |
           mkdir -p ~/.ssh
-          echo "${{ secrets.HETZNER_SSH_KEY }}" > ~/.ssh/deploy_key
+          echo "${{ secrets.CONTABO_SSH_KEY }}" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
-          ssh-keyscan -p "${{ secrets.HETZNER_PORT }}" "${{ secrets.HETZNER_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
+          ssh-keyscan "${{ secrets.CONTABO_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
       - name: Investiga
         uses: appleboy/ssh-action@v1.2.5
         with:
-          host: ${{ secrets.HETZNER_HOST }}
-          port: ${{ secrets.HETZNER_PORT }}
-          username: ${{ secrets.HETZNER_USER }}
-          key: ${{ secrets.HETZNER_SSH_KEY }}
+          host: ${{ secrets.CONTABO_HOST }}
+          username: root
+          key: ${{ secrets.CONTABO_SSH_KEY }}
           command_timeout: 3m
           script: |
             set +e
-            ROOT=/home/admin/domains/aamihe.com/public_html
-            WP="/usr/local/bin/wp --allow-root --path=$ROOT"
-
-            echo "===== estado REAL do jet-engine/jet-elements agora (pastas no disco) ====="
-            ls -la "$ROOT/wp-content/plugins/" 2>&1 | grep -i jet
-            find "$ROOT/wp-content/plugins/jet-engine" -maxdepth 1 -iname "*.php" 2>&1
-            find "$ROOT/wp-content/plugins/jet-elements" -maxdepth 1 -iname "*.php" 2>&1
+            echo "===== conta oshercollective existe no hestia? estado? ====="
+            v-list-user oshercollective 2>&1
 
             echo ""
-            echo "===== todos os plugins reconhecidos pelo wordpress agora ====="
-            $WP plugin list 2>&1
+            echo "===== dominios desta conta ====="
+            v-list-web-domains oshercollective 2>&1
 
             echo ""
-            echo "===== quantas noticias/posts existem, e com que estado ====="
-            $WP post list --post_type=post --format=count 2>&1
-            $WP post list --post_type=post --fields=ID,post_title,post_status,post_date --format=table 2>&1 | head -15
+            echo "===== a conta esta suspensa? ====="
+            grep -i "SUSPENDED" /usr/local/hestia/data/users/oshercollective/user.conf 2>&1
 
             echo ""
-            echo "===== testa a pagina de blog directamente ====="
-            curl -sSL --max-time 15 https://aamihe.com/blog/ -o /tmp/blog.html 2>&1
-            echo "tamanho: $(wc -c < /tmp/blog.html) bytes"
-            grep -c "post-" /tmp/blog.html 2>&1
+            echo "===== nginx/apache deste utilizador esta a correr? ====="
+            systemctl is-active nginx 2>&1
+            systemctl is-active httpd 2>&1
+            systemctl is-active apache2 2>&1
 
             echo ""
-            echo "===== erro php ao carregar a pagina de blog agora ====="
-            tail -n 30 /var/log/httpd/domains/aamihe.com.error.log 2>&1 | tail -20
+            echo "===== teste directo aos dominios (se conseguir adivinhar pelo nome) ====="
+            for d in oshercollective.com oshercollective.co.mz osher.co.mz; do
+              echo "--- $d ---"
+              curl -sSI --max-time 8 "https://$d/" 2>&1 | head -3
+            done
