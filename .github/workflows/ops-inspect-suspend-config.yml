@@ -11,14 +11,16 @@ jobs:
       - name: Cria registos A (@ e www) na Cloudflare
         run: |
           set +e
-          TOKEN="${{ secrets.CLOUDFLARE_API_TOKEN_ACCOUNT }}"
+          EMAIL="${{ secrets.CLOUDFLARE_EMAIL }}"
+          GKEY="${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}"
           IP="${{ secrets.CONTABO_HOST }}"
           ZONE_ID="c91fd14533ea44b5b5626d37225e039c"
 
           for NAME in "entrecamposblog.com" "www.entrecamposblog.com"; do
             echo "===== $NAME -> $IP ====="
             curl -sS -X POST \
-              -H "Authorization: Bearer $TOKEN" \
+              -H "X-Auth-Email: $EMAIL" \
+              -H "X-Auth-Key: $GKEY" \
               -H "Content-Type: application/json" \
               "https://api.cloudflare.com/client/v4/zones/$ZONE_ID/dns_records" \
               --data "{\"type\":\"A\",\"name\":\"$NAME\",\"content\":\"$IP\",\"ttl\":1,\"proxied\":false}" \
