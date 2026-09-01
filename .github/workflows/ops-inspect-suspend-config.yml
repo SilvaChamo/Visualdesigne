@@ -1,42 +1,28 @@
-name: "Ops - Fase 50. O backup mensal admin (todos os dominios, hoje 05h) completou?"
+name: "Ops - Fase 51. Confirma limite de tamanho de upload do Supabase Storage (Contabo)"
 
 on:
   workflow_dispatch:
 
 jobs:
-  hetzner:
-    name: hetzner
+  contabo:
+    name: contabo
     runs-on: ubuntu-latest
     steps:
       - name: Setup SSH key
         run: |
           mkdir -p ~/.ssh
-          echo "${{ secrets.HETZNER_SSH_KEY }}" > ~/.ssh/deploy_key
+          echo "${{ secrets.CONTABO_SSH_KEY }}" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
-          ssh-keyscan -p "${{ secrets.HETZNER_PORT }}" "${{ secrets.HETZNER_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
-      - name: Verifica estado do backup mensal admin
+          ssh-keyscan "${{ secrets.CONTABO_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
+      - name: Verifica limite
         uses: appleboy/ssh-action@v1.2.5
         with:
-          host: ${{ secrets.HETZNER_HOST }}
-          port: ${{ secrets.HETZNER_PORT }}
-          username: ${{ secrets.HETZNER_USER }}
-          key: ${{ secrets.HETZNER_SSH_KEY }}
+          host: ${{ secrets.CONTABO_HOST }}
+          username: root
+          key: ${{ secrets.CONTABO_SSH_KEY }}
           command_timeout: 3m
           script: |
             set +e
-            echo "===== conteudo actual e fresco de admin_backups ====="
-            ls -la /home/admin/admin_backups/ 2>&1
-
+            docker inspect supabase-storage --format '{{range .Config.Env}}{{println .}}{{end}}' 2>&1 | grep -i "FILE_SIZE\|UPLOAD"
             echo ""
-            echo "===== algum processo de backup do DA ainda a correr agora? ====="
-            ps aux 2>&1 | grep -i "backup\|dataskq" | grep -v grep
-
-            echo ""
-            echo "===== fila de tarefas do DirectAdmin - tarefas de hoje ====="
-            ls -la /usr/local/directadmin/data/task.queue* 2>&1
-            grep -i "backup\|aamihe" /usr/local/directadmin/data/task.queue 2>&1 | head -20
-
-            echo ""
-            echo "===== log geral do directadmin, procura por 'backup' nas ultimas horas ====="
-            tail -300 /var/log/directadmin/errortaskq.log 2>&1 | grep -i "backup\|aamihe" | tail -40
-            tail -300 /var/log/directadmin/task.log 2>&1 | grep -i "backup\|aamihe" | tail -40
+            df -h /var/lib/docker 2>&1
