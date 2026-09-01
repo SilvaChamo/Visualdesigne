@@ -1,30 +1,34 @@
-name: "Ops - Fase 23. Confirma NEXT_PUBLIC_SERVER_IP no Contabo + aponta DNS entrecamposblog"
+name: "Ops - Fase 24. Aponta DNS do entrecamposblog.com para o Contabo (site ja criado)"
 
 on:
   workflow_dispatch:
 
 jobs:
-  contabo:
-    name: contabo
+  fix-dns:
+    name: fix-dns
     runs-on: ubuntu-latest
     steps:
-      - name: Setup SSH key
+      - name: Cria registos A (@ e www) na Cloudflare
         run: |
-          mkdir -p ~/.ssh
-          echo "${{ secrets.CONTABO_SSH_KEY }}" > ~/.ssh/deploy_key
-          chmod 600 ~/.ssh/deploy_key
-          ssh-keyscan "${{ secrets.CONTABO_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
-      - name: Confirma IP configurado
-        uses: appleboy/ssh-action@v1.2.5
-        with:
-          host: ${{ secrets.CONTABO_HOST }}
-          username: root
-          key: ${{ secrets.CONTABO_SSH_KEY }}
-          command_timeout: 3m
-          script: |
-            set +e
-            echo "===== IP público real deste servidor (Contabo) ====="
-            curl -sS --max-time 5 https://api.ipify.org
-            echo ""
-            echo "===== NEXT_PUBLIC_SERVER_IP no .env.local ====="
-            grep '^NEXT_PUBLIC_SERVER_IP=' /opt/visualdesign-site-teste/.env.local || echo "(não definido)"
+          set +e
+          TOKEN="${{ secrets.CLOUDFLARE_API_TOKEN_ACCOUNT }}"
+          IP="${{ secrets.CONTABO_HOST }}"
+          ZONE_ID="c91fd14533ea44b5b5626d37225e039c"
+
+          for NAME in "entrecamposblog.com" "www.entrecamposblog.com"; do
+            echo "===== $NAME -> $IP ====="
+            curl -sS -X POST \
+              -H "Authorization: Bearer $TOKEN" \
+              -H "Content-Type: application/json" \
+              "https://api.cloudflare.com/client/v4/zones/$ZONE_ID/dns_records" \
+              --data "{\"type\":\"A\",\"name\":\"$NAME\",\"content\":\"$IP\",\"ttl\":1,\"proxied\":false}" \
+              > /tmp/resp.json 2>&1
+            python3 -c "import json,sys; d=json.load(open('/tmp/resp.json')); print('success:', d.get('success'), '| errors:', d.get('errors'))" 2>/dev/null || cat /tmp/resp.json
+          done
+
+      - name: Confirma DNS a resolver
+        run: |
+          sleep 5
+          echo "===== dig via 1.1.1.1 ====="
+          dig +short A entrecamposblog.com @1.1.1.1
+          dig +short A www.entrecamposblog.com @1.1.1.1
