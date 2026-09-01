@@ -1,4 +1,4 @@
-name: "Ops - Fase 82. Ve o que falta no jet-engine/jet-elements + cala avisos honeypot"
+name: "Ops - Fase 83. Investiga logotipo e imagens partidas"
 
 on:
   workflow_dispatch:
@@ -14,7 +14,7 @@ jobs:
           echo "${{ secrets.HETZNER_SSH_KEY }}" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
           ssh-keyscan -p "${{ secrets.HETZNER_PORT }}" "${{ secrets.HETZNER_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
-      - name: Investiga e corrige o que der
+      - name: Investiga
         uses: appleboy/ssh-action@v1.2.5
         with:
           host: ${{ secrets.HETZNER_HOST }}
@@ -25,30 +25,31 @@ jobs:
           script: |
             set +e
             ROOT=/home/admin/domains/aamihe.com/public_html
-            PLUGDIR="$ROOT/wp-content/plugins"
+            WP="/usr/local/bin/wp --allow-root --path=$ROOT"
 
-            echo "===== o que resta de jet-engine ====="
-            ls -la "$PLUGDIR/jet-engine/" 2>&1 | head -20
-            find "$PLUGDIR/jet-engine" -maxdepth 1 -iname "jet-engine.php" 2>&1
-
-            echo ""
-            echo "===== o que resta de jet-elements ====="
-            ls -la "$PLUGDIR/jet-elements/" 2>&1 | head -20
-            find "$PLUGDIR/jet-elements" -maxdepth 1 -iname "jet-elements.php" 2>&1
+            echo "===== urls de imagens reais que a homepage esta a pedir ====="
+            curl -sSL --max-time 15 https://aamihe.com/ 2>&1 > /tmp/home.html
+            grep -oE '(src|href)="[^"]*\.(jpg|jpeg|png|webp|svg)[^"]*"' /tmp/home.html | head -10
 
             echo ""
-            echo "===== erro real que o site esta a dar agora (php errors recentes) ====="
-            tail -n 40 /var/log/httpd/domains/aamihe.com.error.log 2>&1 | grep -i "fatal\|error" | tail -15
+            echo "===== testa uma imagem real directamente (o logo, se conseguir encontrar) ====="
+            grep -oE 'https?://[^"]*logo[^"]*\.(png|jpg|jpeg|svg|webp)' /tmp/home.html | head -3
 
             echo ""
-            echo "===== mu-plugins existe? cria e cala o aviso do wp armour ====="
-            mkdir -p "$ROOT/wp-content/mu-plugins"
-            F="$ROOT/wp-content/mu-plugins/silence-notices.php"
-            printf '%s\n' "<?php" > "$F"
-            printf '%s\n' "/* Silencia avisos promocionais do WP Armour (honeypot) sem desligar a proteccao real */" >> "$F"
-            printf '%s\n' "add_action('admin_notices', function () {" >> "$F"
-            printf '%s\n' "    remove_action('admin_notices', 'wpa_admin_notices');" >> "$F"
-            printf '%s\n' "}, 1);" >> "$F"
-            chown admin:admin "$F"
-            chmod 644 "$F"
-            cat "$F"
+            echo "===== estado do plugin amazon s3 (offload media) - onde diz que estao as imagens ====="
+            $WP option get tantan_wordpress_s3 2>&1 | head -30
+            $WP option get wpos3_settings 2>&1 | head -30
+
+            echo ""
+            echo "===== testa se o bucket S3 responde ====="
+            firstimg=$(grep -oE 'https?://[a-zA-Z0-9.-]*\.(s3[.-][a-zA-Z0-9-]*\.amazonaws\.com|cloudfront\.net)[^"]*\.(jpg|jpeg|png|webp)' /tmp/home.html | head -1)
+            echo "primeira imagem s3 encontrada: $firstimg"
+            if [ -n "$firstimg" ]; then curl -sSI --max-time 10 "$firstimg" 2>&1 | head -5; fi
+
+            echo ""
+            echo "===== quantos ficheiros reais existem em uploads (local) ====="
+            find "$ROOT/wp-content/uploads" -type f \( -iname "*.jpg" -o -iname "*.png" -o -iname "*.webp" \) 2>/dev/null | wc -l
+
+            echo ""
+            echo "===== logo do site definido no customizer/tema ====="
+            $WP option get theme_mods_oceanwp 2>&1 | grep -i "logo" | head -5
