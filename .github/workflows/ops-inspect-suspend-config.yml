@@ -1,4 +1,4 @@
-name: "Ops - Fase 55. Descobre o prefixo real das tabelas e avalia se a bd actual e boa"
+name: "Ops - Fase 56. O wp-content actual (plugins/temas/uploads) ainda esta intacto?"
 
 on:
   workflow_dispatch:
@@ -24,11 +24,24 @@ jobs:
           command_timeout: 3m
           script: |
             set +e
-            echo "===== todas as tabelas da base actual ====="
-            mysql -u root admin_aamihe_bd -e "show tables;" 2>&1
+            ROOT=/home/admin/domains/aamihe.com/public_html
+            echo "===== wp-content existe? o que tem la dentro ====="
+            ls -la "$ROOT/wp-content/" 2>&1
 
             echo ""
-            echo "===== procura a tabela de posts, seja qual for o prefixo ====="
-            mysql -u root admin_aamihe_bd -e "select table_name from information_schema.tables where table_schema='admin_aamihe_bd' and table_name like '%posts%';" 2>&1
-            mysql -u root admin_aamihe_bd -e "select table_name from information_schema.tables where table_schema='admin_aamihe_bd' and table_name like '%users%';" 2>&1
-            mysql -u root admin_aamihe_bd -e "select table_name from information_schema.tables where table_schema='admin_aamihe_bd' and table_name like '%options%';" 2>&1
+            echo "===== uploads: tamanho total e ficheiro mais recente ====="
+            du -sh "$ROOT/wp-content/uploads/" 2>&1
+            find "$ROOT/wp-content/uploads/" -type f 2>/dev/null | sort | tail -5
+            find "$ROOT/wp-content/uploads/" -type f -newermt "2026-01-01" 2>/dev/null | wc -l
+
+            echo ""
+            echo "===== plugins instalados agora ====="
+            ls "$ROOT/wp-content/plugins/" 2>&1
+
+            echo ""
+            echo "===== tema activo (pasta themes) ====="
+            ls "$ROOT/wp-content/themes/" 2>&1
+
+            echo ""
+            echo "===== confirma que nenhum ficheiro core do wordpress (wp-admin/wp-includes) sobrou ====="
+            ls "$ROOT/" 2>&1
