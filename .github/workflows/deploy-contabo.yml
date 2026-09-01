@@ -66,11 +66,13 @@ jobs:
           host: ${{ secrets.CONTABO_HOST }}
           username: root
           key: ${{ secrets.CONTABO_SSH_KEY }}
-          # Instância de TESTE: liga-se à MESMA base de dados de produção
-          # (para os testes serem reais) mas de propósito SEM os cron jobs
-          # (renewal-check / da-sync / mailmarketing queue) que o Hetzner tem
-          # — correr os dois em simultâneo duplicaria efeitos reais (emails,
-          # cobranças). Esta instância é só para teste manual no browser.
+          # Desde 30 ago este site tem base de dados própria (Supabase no
+          # Contabo, separada do Hetzner) — deixou de fazer sentido a regra
+          # antiga de "zero crons para não duplicar efeitos reais na BD
+          # partilhada". Tem os seus próprios crons de domínio (dns-retry,
+          # brevo-retry, mais abaixo) e o sync do Hestia; ainda não tem
+          # renewal-check/da-sync/mailmarketing (esses continuam só no
+          # Hetzner, por agora).
           command_timeout: 30m
           script: |
             set -e
@@ -179,6 +181,18 @@ jobs:
             npm run build
             pm2 restart visualdesign-site-teste || pm2 start npm --name "visualdesign-site-teste" -- start -- -p 3002
             pm2 save
+
+            # Desde que este site passou a ter base de dados própria (separada do
+            # Hetzner, 30 ago), as compras de domínio feitas aqui deixaram de ser
+            # reprocessadas por engano nenhuma — o cron do Hetzner só vê a base de
+            # dados dele. Sem estes dois, um domínio comprado aqui cujo DNS/Cloudflare
+            # tenha falhado a meio, ou cuja autenticação na Brevo ainda não tenha sido
+            # confirmada, ficava para sempre à espera de alguém reparar manualmente.
+            CRON_SECRET_VALUE=$(grep '^CRON_SECRET=' .env.local | cut -d= -f2-)
+            (crontab -l 2>/dev/null | grep -v '# visualdesign-dns-retry'; \
+              echo "*/30 * * * * curl -fsS -H \"Authorization: Bearer ${CRON_SECRET_VALUE}\" http://127.0.0.1:3002/api/cron/dns-retry >> /var/log/visualdesign-cron.log 2>&1 # visualdesign-dns-retry") | crontab -
+            (crontab -l 2>/dev/null | grep -v '# visualdesign-brevo-retry'; \
+              echo "*/30 * * * * curl -fsS -H \"Authorization: Bearer ${CRON_SECRET_VALUE}\" http://127.0.0.1:3002/api/cron/brevo-retry >> /var/log/visualdesign-cron.log 2>&1 # visualdesign-brevo-retry") | crontab -
 
             # Reflecte o estado real do Hestia (contas/domínios/suspensões) de volta
             # para o espelho Supabase — sem isto, mudanças feitas directamente no

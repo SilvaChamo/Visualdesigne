@@ -533,9 +533,14 @@ export async function fulfillCheckout(
               await notifyClientOfDomainProvisionResult(admin, userId, domainName, false, failed);
             }
           } else {
+            // A Brevo pode demorar até 48h a confirmar a propagação do DNS
+            // (ver triggerBrevoDomainVerification) — as poucas tentativas
+            // rápidas feitas aqui quase nunca chegam a tempo. `brevo_verified`
+            // fica `false` nesse caso (o normal, não um erro) e o cron
+            // brevo-retry vai voltar a tentar sozinho até confirmar.
             await supabase
               .from('domain_renewals')
-              .update({ dns_status: 'ok' })
+              .update({ dns_status: 'ok', brevo_verified: Boolean(result.emailDns?.verified) })
               .eq('user_id', userId)
               .eq('domain_name', domainName);
             await notifyClientOfDomainProvisionResult(admin, userId, domainName, true, '');
