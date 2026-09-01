@@ -30,6 +30,23 @@ export type HostingProvider = 'directadmin' | 'hestia';
  * "utilizador não existe" e pára) enquanto um falso positivo para
  * 'directadmin' manda o comando para um servidor de produção partilhado. */
 export async function getProviderByUsername(username: string): Promise<HostingProvider> {
+  // A própria conta principal do Hestia (HESTIA_USER, normalmente 'vdadmin')
+  // nunca aparece em panel_users nem panel_auth_accounts — de propósito,
+  // não é uma conta de cliente (ver hestia-sync-engine.ts) — por isso caía
+  // sempre no 'directadmin' por omissão abaixo, mesmo sendo Hestia a sério.
+  // Confirmado ao vivo 1 set: por causa disto, instalar WordPress num
+  // domínio criado directamente nesta conta (ex.: entrecamposblog.com)
+  // criava a base de dados no DirectAdmin/Hetzner errado, e o wp-cli falhava
+  // silenciosamente a instalar no Hestia/Contabo certo — o domínio ficava só
+  // com a página "Coming Soon" por omissão do Hestia.
+  if (
+    username &&
+    (process.env.DEFAULT_HOSTING_PROVIDER || '').trim().toLowerCase() === 'hestia' &&
+    username === (process.env.HESTIA_USER || 'vdadmin').trim()
+  ) {
+    return 'hestia';
+  }
+
   const sb = getDaSyncAdmin();
   if (!sb || !username) return 'directadmin';
   const [authAccount, mirrorUser] = await Promise.all([
