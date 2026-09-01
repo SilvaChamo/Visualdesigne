@@ -1,4 +1,4 @@
-name: "Ops - Fase 54. A base de dados actual (mesmo sem wp-config.php) ainda existe e esta boa?"
+name: "Ops - Fase 55. Descobre o prefixo real das tabelas e avalia se a bd actual e boa"
 
 on:
   workflow_dispatch:
@@ -14,7 +14,7 @@ jobs:
           echo "${{ secrets.HETZNER_SSH_KEY }}" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
           ssh-keyscan -p "${{ secrets.HETZNER_PORT }}" "${{ secrets.HETZNER_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
-      - name: Verifica bases de dados existentes
+      - name: Verifica
         uses: appleboy/ssh-action@v1.2.5
         with:
           host: ${{ secrets.HETZNER_HOST }}
@@ -24,28 +24,11 @@ jobs:
           command_timeout: 3m
           script: |
             set +e
-            MYSQL="mysql -u root"
-            mysql -u root -e "select 1;" >/dev/null 2>&1
-            if [ $? -ne 0 ]; then
-              MYSQL="mysql --defaults-file=/usr/local/directadmin/conf/my.cnf"
-              $MYSQL -e "select 1;" >/dev/null 2>&1 || MYSQL="mysql --defaults-file=/etc/mysql/debian.cnf"
-            fi
-            echo "usando: $MYSQL"
-
-            echo "===== bases de dados da conta admin relacionadas com aamihe ====="
-            $MYSQL -e "show databases like '%aamihe%';" 2>&1
+            echo "===== todas as tabelas da base actual ====="
+            mysql -u root admin_aamihe_bd -e "show tables;" 2>&1
 
             echo ""
-            echo "===== estrutura/tabelas da base actual (se existir) ====="
-            mysql -u root -e "select table_schema, count(*) as tabelas from information_schema.tables where table_schema like '%aamihe%' group by table_schema;" 2>&1
-
-            echo ""
-            echo "===== se existir admin_aamihe_bd, quantos posts/users tem, e a data mais recente ====="
-            mysql -u root admin_aamihe_bd -e "select count(*) as total_users from wp_users;" 2>&1
-            mysql -u root admin_aamihe_bd -e "select count(*) as total_posts from wp_posts where post_type='post' and post_status='publish';" 2>&1
-            mysql -u root admin_aamihe_bd -e "select max(post_modified) as mais_recente from wp_posts;" 2>&1
-            mysql -u root admin_aamihe_bd -e "show tables like 'wp%';" 2>&1 | head -10
-
-            echo ""
-            echo "===== confirma credenciais reais desta base (na config do DA) ====="
-            cat /usr/local/directadmin/data/users/admin/domains/aamihe.com.conf 2>&1 | grep -i "db\|sql"
+            echo "===== procura a tabela de posts, seja qual for o prefixo ====="
+            mysql -u root admin_aamihe_bd -e "select table_name from information_schema.tables where table_schema='admin_aamihe_bd' and table_name like '%posts%';" 2>&1
+            mysql -u root admin_aamihe_bd -e "select table_name from information_schema.tables where table_schema='admin_aamihe_bd' and table_name like '%users%';" 2>&1
+            mysql -u root admin_aamihe_bd -e "select table_name from information_schema.tables where table_schema='admin_aamihe_bd' and table_name like '%options%';" 2>&1
