@@ -1,4 +1,4 @@
-name: "Ops - Fase 105. SO LEITURA - procura configuracao duplicada/antiga para estes dominios"
+name: "Ops - Fase 106. Testa SSL via o IP publico real, nao localhost"
 
 on:
   workflow_dispatch:
@@ -14,7 +14,7 @@ jobs:
           echo "${{ secrets.HETZNER_SSH_KEY }}" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
           ssh-keyscan -p "${{ secrets.HETZNER_PORT }}" "${{ secrets.HETZNER_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
-      - name: Investiga
+      - name: Testa via IP publico
         uses: appleboy/ssh-action@v1.2.5
         with:
           host: ${{ secrets.HETZNER_HOST }}
@@ -24,19 +24,14 @@ jobs:
           command_timeout: 2m
           script: |
             set +e
-            echo "===== o vhost 'default server' da porta 443, qual certificado usa? ====="
-            sed -n '35,55p' /etc/httpd/conf/extra/httpd-vhosts.conf 2>&1
+            MYIP=$(curl -s https://api.ipify.org)
+            echo "IP publico deste servidor confirmado"
+
+            for d in oshercollective.com msdn-moz.org lirandzojewelry.com; do
+              echo "--- $d (via IP publico) ---"
+              echo | openssl s_client -connect "$MYIP:443" -servername "$d" 2>/dev/null | openssl x509 -noout -subject -dates 2>&1
+            done
 
             echo ""
-            echo "===== procura QUALQUER ficheiro de config que mencione oshercollective.com (fora da pasta normal da conta) ====="
-            grep -rl "oshercollective.com\|msdn-moz.org\|lirandzojewelry.com" /etc/httpd/ 2>/dev/null
-            grep -rl "oshercollective.com\|msdn-moz.org\|lirandzojewelry.com" /usr/local/directadmin/data/users/*/httpd.conf 2>/dev/null
-
-            echo ""
-            echo "===== confirma a ordem de inclusao dos ficheiros de vhost no httpd principal ====="
-            grep -n "Include" /etc/httpd/conf/httpd.conf 2>&1 | head -20
-            grep -n "Include" /etc/httpd/conf/extra/httpd-vhosts.conf 2>&1 | head -20
-
-            echo ""
-            echo "===== erro/aviso do apache relacionado com ssl na ultima recarga ====="
-            tail -n 60 /var/log/httpd/error_log 2>&1 | grep -i "ssl\|oshercollective\|msdn\|lirandzo" | tail -20
+            echo "===== confirma tambem que vhost usa que IP exactamente ====="
+            grep -B2 "ServerName www.oshercollective.com" /usr/local/directadmin/data/users/oshercollective/httpd.conf 2>&1 | head -10
