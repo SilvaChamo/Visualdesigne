@@ -1,4 +1,4 @@
-name: "Ops - Fase 68. Onde mais o wp-da-sso esta a ser bloqueado (vhost/Imunify)"
+name: "Ops - Fase 69. Ve o bloco completo do Directory/FilesMatch no vhost do aamihe"
 
 on:
   workflow_dispatch:
@@ -14,7 +14,7 @@ jobs:
           echo "${{ secrets.HETZNER_SSH_KEY }}" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
           ssh-keyscan -p "${{ secrets.HETZNER_PORT }}" "${{ secrets.HETZNER_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
-      - name: Investiga camada extra
+      - name: Ve bloco completo
         uses: appleboy/ssh-action@v1.2.5
         with:
           host: ${{ secrets.HETZNER_HOST }}
@@ -24,41 +24,14 @@ jobs:
           command_timeout: 3m
           script: |
             set +e
-            ROOT=/home/admin/domains/aamihe.com/public_html
-
-            echo "===== conteudo completo wp-includes/.htaccess ====="
-            cat "$ROOT/wp-includes/.htaccess" 2>&1
+            echo "===== linhas 240 a 280 do httpd.conf (primeiro vhost aamihe) ====="
+            sed -n '240,280p' /usr/local/directadmin/data/users/admin/httpd.conf 2>&1
 
             echo ""
-            echo "===== conteudo completo image/.htaccess ====="
-            cat "$ROOT/image/.htaccess" 2>&1
+            echo "===== procura o ficheiro de configuracao custom por dominio (DA custom httpd) ====="
+            find /usr/local/directadmin/data/users/admin -iname "*httpd*aamihe*" -o -iname "*custom*aamihe*" 2>/dev/null
+            ls -la /usr/local/directadmin/data/users/admin/domains/ 2>&1 | grep -i aamihe
 
             echo ""
-            echo "===== bloco do vhost apache para aamihe.com (Directory/FilesMatch/Deny) ====="
-            grep -n "aamihe" -A 3 -B 3 /usr/local/directadmin/data/users/admin/httpd.conf 2>/dev/null | grep -i "directory\|filesmatch\|deny\|require\|aamihe" | head -60
-
-            echo ""
-            echo "===== imunify360 instalado? ====="
-            which imunify360-agent 2>&1
-            systemctl is-active imunify360-agent 2>&1
-            systemctl is-active imunify-antivirus 2>&1
-
-            echo ""
-            echo "===== log do imunify sobre este ficheiro (se existir) ====="
-            grep -ri "wp-da-sso" /var/log/imunify360/*.log 2>&1 | tail -20
-            find /var/imunify360 -iname "*wp-da-sso*" 2>&1 | head -10
-            find / -maxdepth 6 -iname "*quarantine*imunify*" -o -iname "*imunify*quarantine*" 2>/dev/null | head -10
-
-            echo ""
-            echo "===== ha modsecurity a correr no apache? ====="
-            httpd -M 2>&1 | grep -i security
-            apachectl -M 2>&1 | grep -i security
-            find /etc/httpd -iname "*modsec*" 2>&1 | head -10
-
-            echo ""
-            echo "===== mensagem de erro EXACTA agora, com todos os detalhes ====="
-            rm -f /tmp/before_sso.log
-            wc -l /var/log/httpd/domains/aamihe.com.error.log > /tmp/before_sso.log
-            curl -sS -o /dev/null "https://aamihe.com/wp-da-sso-k8ZRgIWc-Oz_YgM1nurVYJnatanPAGra.php" 2>&1
-            sleep 1
-            tail -n 5 /var/log/httpd/domains/aamihe.com.error.log 2>&1
+            echo "===== conteudo de um eventual ficheiro custom_httpd.conf para aamihe ====="
+            find /usr/local/directadmin -iname "*aamihe*" 2>/dev/null | grep -i "conf\|custom"
