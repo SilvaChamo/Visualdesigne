@@ -1,44 +1,53 @@
-name: "Ops - Fase 93. Ve se o nginx do contabo tem vhost para estes dominios"
+name: "Ops - Fase 94. SO LEITURA - estado real da conta oshercollective no Hetzner"
 
 on:
   workflow_dispatch:
 
 jobs:
-  contabo:
-    name: contabo
+  hetzner:
+    name: hetzner
     runs-on: ubuntu-latest
     steps:
       - name: Setup SSH key
         run: |
           mkdir -p ~/.ssh
-          echo "${{ secrets.CONTABO_SSH_KEY }}" > ~/.ssh/deploy_key
+          echo "${{ secrets.HETZNER_SSH_KEY }}" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
-          ssh-keyscan "${{ secrets.CONTABO_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
-      - name: Investiga config web
+          ssh-keyscan -p "${{ secrets.HETZNER_PORT }}" "${{ secrets.HETZNER_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
+      - name: So leitura, nada e alterado
         uses: appleboy/ssh-action@v1.2.5
         with:
-          host: ${{ secrets.CONTABO_HOST }}
-          username: root
-          key: ${{ secrets.CONTABO_SSH_KEY }}
+          host: ${{ secrets.HETZNER_HOST }}
+          port: ${{ secrets.HETZNER_PORT }}
+          username: ${{ secrets.HETZNER_USER }}
+          key: ${{ secrets.HETZNER_SSH_KEY }}
           command_timeout: 2m
           script: |
             set +e
-            echo "===== nginx esta mesmo a ouvir na porta 443/80? ====="
-            ss -tlnp 2>&1 | grep -E ":443|:80"
+            echo "===== a conta directadmin oshercollective ainda existe? esta suspensa? ====="
+            cat /usr/local/directadmin/data/users/oshercollective/user.conf 2>&1 | grep -iE "^suspended|^usertype"
 
             echo ""
-            echo "===== existe vhost nginx para oshercollective.com? ====="
-            find /etc/nginx -iname "*oshercollective*" 2>&1
-            find /usr/local/hestia -iname "*oshercollective.com*" -maxdepth 4 2>&1 | grep -v "/ssl/\|/mail/"
+            echo "===== dominios listados nesta conta ====="
+            cat /usr/local/directadmin/data/users/oshercollective/domains.list 2>&1
 
             echo ""
-            echo "===== teste directo via http (porta 80, sem ssl) ====="
-            curl -sSI --max-time 8 --resolve "oshercollective.com:80:127.0.0.1" "http://oshercollective.com/" 2>&1 | head -6
+            echo "===== pasta de ficheiros do site ainda existe? ====="
+            for d in oshercollective.com msdn-moz.org lirandzojewelry.com elimservicos.com shalomdeco.com; do
+              echo "--- $d ---"
+              ls -la "/home/oshercollective/domains/$d/public_html/" 2>&1 | head -5
+            done
 
             echo ""
-            echo "===== estado geral da conta no hestia (resumo v-list-user) ====="
-            /usr/local/hestia/bin/v-list-user oshercollective 2>&1 | head -20
+            echo "===== o httpd.conf desta conta esta a ser incluido na config activa do apache? ====="
+            httpd -S 2>&1 | grep -i oshercollective
+            apachectl -S 2>&1 | grep -i oshercollective
 
             echo ""
-            echo "===== pasta do site existe fisicamente? ====="
-            ls -la /home/oshercollective/web/oshercollective.com/public_html/ 2>&1 | head -10
+            echo "===== bases de dados desta conta ainda existem no mysql? ====="
+            mysql -e "SHOW DATABASES LIKE 'oshercollective%';" 2>&1
+            mysql -e "SHOW DATABASES;" 2>&1 | grep -i "osher\|msdn\|lirandzo\|elimservicos\|shalomdeco"
+
+            echo ""
+            echo "===== espaco em disco ainda ocupado por esta conta (indica se ficheiros ainda la estao) ====="
+            du -sh /home/oshercollective/ 2>&1
