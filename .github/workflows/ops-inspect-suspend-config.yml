@@ -1,4 +1,4 @@
-name: "Ops - Fase 13b. Estado real de entrecamposorg.com (so leitura, corrige aspas)"
+name: "Ops - Fase 13c. Detalhe do checkout pendente entrecamposblog.com (so leitura)"
 
 on:
   workflow_dispatch:
@@ -25,17 +25,17 @@ jobs:
           script: |
             SQL() { docker exec -i supabase-db psql -U postgres -d postgres -t -A -c "$1"; }
 
-            echo "===== domain_renewals: qualquer coisa com 'entrecampos' ====="
-            SQL "select id, user_id, domain_name, status, dns_status, created_at, expiration_date, notes from domain_renewals where domain_name ilike '%entrecampos%' order by created_at desc nulls last;"
+            echo "===== colunas de checkout_sessions ====="
+            SQL "select column_name, data_type from information_schema.columns where table_name='checkout_sessions' order by ordinal_position;"
 
             echo ""
-            echo "===== domain_renewals: 5 mais recentes (qualquer dominio) ====="
-            SQL "select domain_name, status, dns_status, created_at from domain_renewals order by created_at desc nulls last limit 5;"
+            echo "===== a sessao inteira (entrecamposblog.com) ====="
+            SQL "select row_to_json(t) from (select * from checkout_sessions where id = '56b560c0-eb8c-4205-b008-22f3d5bf531b') t;"
 
             echo ""
-            echo "===== checkout_sessions: mais recentes com 'entrecampos' ====="
-            SQL "select id, status, created_at, items::text from checkout_sessions where items::text ilike '%entrecampos%' order by created_at desc limit 5;"
+            echo "===== renewal_payment_requests ligados a este user (se houver) ====="
+            SQL "select rpr.* from renewal_payment_requests rpr, checkout_sessions cs where cs.id = '56b560c0-eb8c-4205-b008-22f3d5bf531b' and rpr.user_id = cs.user_id order by rpr.created_at desc limit 5;"
 
             echo ""
-            echo "===== pagamentos: mais recentes com 'entrecampos' ====="
-            SQL "select id, status, created_at, descricao from pagamentos where descricao ilike '%entrecampos%' order by created_at desc limit 5;"
+            echo "===== pagamentos deste user (5 mais recentes) ====="
+            SQL "select p.* from pagamentos p, checkout_sessions cs where cs.id = '56b560c0-eb8c-4205-b008-22f3d5bf531b' and p.user_id = cs.user_id order by p.created_at desc limit 5;"
