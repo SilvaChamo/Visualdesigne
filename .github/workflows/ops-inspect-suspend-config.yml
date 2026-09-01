@@ -1,51 +1,44 @@
-name: "Ops - Fase 71. Isola o .htaccess malicioso na pasta pai (fora do public_html)"
+name: "Ops - Fase 72. Mesmo fix (htaccess na pasta pai) na copia Contabo"
 
 on:
   workflow_dispatch:
 
 jobs:
-  hetzner:
-    name: hetzner
+  contabo:
+    name: contabo
     runs-on: ubuntu-latest
     steps:
       - name: Setup SSH key
         run: |
           mkdir -p ~/.ssh
-          echo "${{ secrets.HETZNER_SSH_KEY }}" > ~/.ssh/deploy_key
+          echo "${{ secrets.CONTABO_SSH_KEY }}" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
-          ssh-keyscan -p "${{ secrets.HETZNER_PORT }}" "${{ secrets.HETZNER_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
+          ssh-keyscan "${{ secrets.CONTABO_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
       - name: Isola htaccess da pasta pai
         uses: appleboy/ssh-action@v1.2.5
         with:
-          host: ${{ secrets.HETZNER_HOST }}
-          port: ${{ secrets.HETZNER_PORT }}
-          username: ${{ secrets.HETZNER_USER }}
-          key: ${{ secrets.HETZNER_SSH_KEY }}
+          host: ${{ secrets.CONTABO_HOST }}
+          username: root
+          key: ${{ secrets.CONTABO_SSH_KEY }}
           command_timeout: 3m
           script: |
             set +e
-            PARENT=/home/admin/domains/aamihe.com
-            QDIR="/root/security-quarantine/aamihe.com-hetzner-parent-$(date +%Y%m%d-%H%M%S)"
+            PARENT=/home/aamihe/web/aamihe.com
+            QDIR="/root/security-quarantine/aamihe.com-contabo-parent-$(date +%Y%m%d-%H%M%S)"
             mkdir -p "$QDIR"
 
-            echo "===== isola o .htaccess da pasta pai (fora do public_html, nao precisa de nenhum) ====="
-            if [ -f "$PARENT/.htaccess" ]; then
+            echo "===== conteudo actual (para confirmar se tem o padrao malicioso) ====="
+            head -c 500 "$PARENT/.htaccess" 2>&1
+
+            echo ""
+            echo "===== isola se tiver o padrao malicioso ====="
+            if grep -q "filefuns\|chtmlfuns\|cjfuns" "$PARENT/.htaccess" 2>/dev/null; then
               mv "$PARENT/.htaccess" "$QDIR/htaccess-pasta-pai.bak"
               echo "isolado: $PARENT/.htaccess"
             else
-              echo "ja nao existe (alguem ja tratou?)"
+              echo "nao tinha o padrao malicioso (ou nao existe), nao mexi"
             fi
 
             echo ""
-            echo "===== confirma que ja nao ha .htaccess nenhum nesta pasta pai ====="
+            echo "===== confirma ====="
             ls -la "$PARENT/" | grep htaccess
-
-            echo ""
-            echo "===== testa o link real de SSO outra vez ====="
-            sleep 2
-            curl -sS -o /dev/null -w "HTTP:%{http_code}\n" --max-time 10 "https://aamihe.com/wp-da-sso-k8ZRgIWc-Oz_YgM1nurVYJnatanPAGra.php" 2>&1
-
-            echo ""
-            echo "===== testa tambem um ficheiro real do wp-includes que estava a ser negado antes ====="
-            curl -sS -o /dev/null -w "HTTP:%{http_code}\n" --max-time 10 "https://aamihe.com/wp-admin/" 2>&1
-            curl -sS -o /dev/null -w "HTTP:%{http_code}\n" --max-time 10 "https://aamihe.com/wp-login.php" 2>&1
