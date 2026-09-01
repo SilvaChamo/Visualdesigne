@@ -1,49 +1,28 @@
-name: "Ops - Fase 18e. Investiga conteudo do backup entrecampos no Hetzner (so leitura)"
+name: "Ops - Fase 19a. Confirma DEFAULT_HOSTING_PROVIDER e HESTIA_USER no Contabo (so leitura)"
 
 on:
   workflow_dispatch:
 
 jobs:
-  hetzner:
-    name: hetzner
+  contabo:
+    name: contabo
     runs-on: ubuntu-latest
     steps:
       - name: Setup SSH key
         run: |
           mkdir -p ~/.ssh
-          echo "${{ secrets.HETZNER_SSH_KEY }}" > ~/.ssh/deploy_key
+          echo "${{ secrets.CONTABO_SSH_KEY }}" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
-          ssh-keyscan -p "${{ secrets.HETZNER_PORT }}" "${{ secrets.HETZNER_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
-      - name: Investiga
+          ssh-keyscan "${{ secrets.CONTABO_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
+      - name: Verifica
         uses: appleboy/ssh-action@v1.2.5
         with:
-          host: ${{ secrets.HETZNER_HOST }}
-          port: ${{ secrets.HETZNER_PORT }}
-          username: ${{ secrets.HETZNER_USER }}
-          key: ${{ secrets.HETZNER_SSH_KEY }}
+          host: ${{ secrets.CONTABO_HOST }}
+          username: root
+          key: ${{ secrets.CONTABO_SSH_KEY }}
           command_timeout: 5m
           script: |
             set +e
-            echo "===== conteudo do zip de backup (so lista, nao extrai) ====="
-            unzip -l "/home/admin/.trash/BackUp/backup_2026-04-07-0734_EntreCAMPOS_b412ce975cca-others.zip" 2>&1 | head -40
-
-            echo ""
-            echo "===== tamanho do zip ====="
-            ls -lah "/home/admin/.trash/BackUp/backup_2026-04-07-0734_EntreCAMPOS_b412ce975cca-others.zip"
-
-            echo ""
-            echo "===== pasta entrecampos.co.mz no trash (site em si) ====="
-            ls -la "/home/admin/.trash/files/entrecampos.co.mz.E-JH7wRYwRg" 2>&1 | head -20
-            du -sh "/home/admin/.trash/files/entrecampos.co.mz.E-JH7wRYwRg" 2>&1
-
-            echo ""
-            echo "===== pasta de backup entrecampos.co.mz (a que apareceu no find) ====="
-            ls -la "/home/admin/backups/backup/entrecampos.co.mz/" 2>&1
-
-            echo ""
-            echo "===== primeiras linhas do .conf (site original) ====="
-            cat "/home/admin/backups/backup/admin_wp_entrecampos_co_mz.conf" 2>&1
-
-            echo ""
-            echo "===== outros backups mais recentes do admin (todos, para ver se ha algo mais novo) ====="
-            ls -la /home/admin/backups/backup/ 2>&1
+            cd /opt/visualdesign-site-teste
+            echo "DEFAULT_HOSTING_PROVIDER=$(grep '^DEFAULT_HOSTING_PROVIDER=' .env.local)"
+            echo "HESTIA_USER=$(grep '^HESTIA_USER=' .env.local)"
