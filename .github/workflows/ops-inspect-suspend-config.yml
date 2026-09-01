@@ -1,4 +1,4 @@
-name: "Ops - Fase 25. Porque entrecamposblog.com mostra Coming Soon em vez do WordPress"
+name: "Ops - Fase 26. Emite SSL real para entrecamposblog.com agora que o DNS ja aponta certo"
 
 on:
   workflow_dispatch:
@@ -14,7 +14,7 @@ jobs:
           echo "${{ secrets.CONTABO_SSH_KEY }}" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
           ssh-keyscan "${{ secrets.CONTABO_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
-      - name: Inspecciona docroot real e vhost
+      - name: Emite SSL
         uses: appleboy/ssh-action@v1.2.5
         with:
           host: ${{ secrets.CONTABO_HOST }}
@@ -23,24 +23,10 @@ jobs:
           command_timeout: 3m
           script: |
             set +e
-            echo "===== conteúdo real do docroot ====="
-            ls -la /home/vdadmin/web/entrecamposblog.com/public_html/ 2>&1
-
+            echo "===== emitindo Let's Encrypt para entrecamposblog.com ====="
+            /usr/local/hestia/bin/v-add-letsencrypt-domain vdadmin entrecamposblog.com 2>&1
+            echo "exit: $?"
             echo ""
-            echo "===== wp-config.php existe? ====="
-            test -f /home/vdadmin/web/entrecamposblog.com/public_html/wp-config.php && echo "SIM" || echo "NAO"
-
-            echo ""
-            echo "===== vhost nginx configurado para este domínio ====="
-            grep -rl "entrecamposblog.com" /etc/nginx/conf.d/domains/ 2>/dev/null
-            cat /etc/nginx/conf.d/domains/entrecamposblog.com.conf 2>/dev/null | head -40
-
-            echo ""
-            echo "===== onde está o texto 'Coming Soon' no servidor ====="
-            grep -rl "Coming Soon" /home/vdadmin/web/entrecamposblog.com/ 2>/dev/null
-            grep -rl "Coming Soon" /var/www/ 2>/dev/null | head -5
-            grep -rl "Coming Soon" /usr/local/hestia/data/templates/web/ 2>/dev/null | head -5
-
-            echo ""
-            echo "===== teste directo local no servidor (127.0.0.1 com Host correcto) ====="
-            curl -sS -o /dev/null -w "HTTP %{http_code}\n" --max-time 5 -H "Host: entrecamposblog.com" http://127.0.0.1/
+            echo "===== confirma ====="
+            sleep 3
+            curl -sSk -o /dev/null -w "HTTPS local: %{http_code}\n" --max-time 8 -H "Host: entrecamposblog.com" https://127.0.0.1/ --resolve entrecamposblog.com:443:127.0.0.1
