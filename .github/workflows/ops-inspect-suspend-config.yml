@@ -1,4 +1,4 @@
-name: "Ops - Fase 20a. Testa Dynadot getDomainDetails ao vivo (so leitura)"
+name: "Ops - Fase 20b. Diagnostica tela branca no site (so leitura)"
 
 on:
   workflow_dispatch:
@@ -14,7 +14,7 @@ jobs:
           echo "${{ secrets.CONTABO_SSH_KEY }}" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
           ssh-keyscan "${{ secrets.CONTABO_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
-      - name: Testa
+      - name: Verifica
         uses: appleboy/ssh-action@v1.2.5
         with:
           host: ${{ secrets.CONTABO_HOST }}
@@ -23,51 +23,20 @@ jobs:
           command_timeout: 5m
           script: |
             set +e
+            echo "===== PM2 status ====="
+            pm2 jlist | node -e "const d=JSON.parse(require('fs').readFileSync(0,'utf8'));for(const p of d) console.log(p.name,'| status:',p.pm2_env.status,'| restarts:',p.pm2_env.restart_time,'| unstable:',p.pm2_env.unstable_restarts,'| uptime desde:',new Date(p.pm2_env.pm_uptime).toISOString())"
+
+            echo ""
+            echo "===== ultimas 40 linhas do log de erro ====="
+            pm2 logs visualdesign-site-teste --lines 40 --nostream --err 2>&1 | tail -50
+
+            echo ""
+            echo "===== resposta real da homepage (primeiros 300 caracteres do HTML) ====="
+            curl -sS https://teste.visualdesignmoz.com/ --max-time 15 | head -c 300
+            echo ""
+
+            echo ""
+            echo "===== estado do build (.next existe? quando foi feito?) ====="
             cd /opt/visualdesign-site-teste
-            API_KEY=$(grep '^DYNADOT_API_KEY=' .env.local | cut -d= -f2-)
-            SECRET_KEY=$(grep '^DYNADOT_SECRET_KEY=' .env.local | cut -d= -f2-)
-            echo "::add-mask::$API_KEY"
-            echo "::add-mask::$SECRET_KEY"
-
-            cat > /tmp/dyntest.js << 'NODE_EOF'
-            const crypto = require('crypto');
-            const apiKey = process.env.DK;
-            const secretKey = process.env.SK;
-            const domains = ['visualdesignmoz.com', 'entrecamposblog.com'];
-
-            function sign(path, requestId, body) {
-              const stringToSign = `${apiKey}\n${path}\n${requestId}\n${body}`;
-              return crypto.createHmac('sha256', secretKey).update(stringToSign).digest('hex');
-            }
-
-            async function run() {
-              for (const domain of domains) {
-                const path = `/restful/v1/domains/${encodeURIComponent(domain)}`;
-                const requestId = crypto.randomUUID();
-                const signature = sign(path, requestId, '');
-                const res = await fetch(`https://api.dynadot.com${path}`, {
-                  headers: {
-                    Accept: 'application/json',
-                    Authorization: `Bearer ${apiKey}`,
-                    'X-Request-ID': requestId,
-                    'X-Signature': signature,
-                  },
-                });
-                const json = await res.json().catch(() => ({}));
-                console.log('=====', domain, '=====');
-                console.log('HTTP', res.status, 'code:', json.code, 'message:', json.message);
-                const info = json.data?.domainInfo?.[0];
-                if (info) {
-                  console.log('status:', info.status, '| locked:', info.locked, '| expiration:', info.expiration, '| registration:', info.registration);
-                  const ns = (info.glueInfo?.name_server_settings?.name_servers || []).map(n => n.server_name);
-                  console.log('nameservers:', JSON.stringify(ns));
-                } else {
-                  console.log('sem domainInfo. resposta completa:', JSON.stringify(json).slice(0, 500));
-                }
-              }
-            }
-            run().catch(e => console.error('ERRO:', e.message));
-            NODE_EOF
-
-            DK="$API_KEY" SK="$SECRET_KEY" node /tmp/dyntest.js
-            rm -f /tmp/dyntest.js
+            ls -la .next/BUILD_ID 2>&1
+            date -r .next/BUILD_ID 2>&1
