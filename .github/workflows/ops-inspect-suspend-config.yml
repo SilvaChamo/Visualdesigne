@@ -1,4 +1,4 @@
-name: "Ops - Fase 73. Confirma a porta de entrada + varredura geral de malware"
+name: "Ops - Fase 74. Inspecciona plugins com nomes fora do padrao (Backup/Back-Up/imunify-security)"
 
 on:
   workflow_dispatch:
@@ -14,7 +14,7 @@ jobs:
           echo "${{ secrets.HETZNER_SSH_KEY }}" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
           ssh-keyscan -p "${{ secrets.HETZNER_PORT }}" "${{ secrets.HETZNER_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
-      - name: Investiga
+      - name: Inspecciona
         uses: appleboy/ssh-action@v1.2.5
         with:
           host: ${{ secrets.HETZNER_HOST }}
@@ -24,45 +24,20 @@ jobs:
           command_timeout: 3m
           script: |
             set +e
-            ROOT=/home/admin/domains/aamihe.com/public_html
-            PLUGDIR="$ROOT/wp-content/plugins"
+            PLUGDIR=/home/admin/domains/aamihe.com/public_html/wp-content/plugins
 
-            echo "===== o plugin pro-elements existe? quando foi criado/alterado? ====="
-            ls -la "$PLUGDIR/" 2>&1 | grep -i "pro-elements\|element"
-            find "$PLUGDIR" -maxdepth 1 -iname "*pro-elements*" -exec ls -la {} \; 2>&1
-
-            echo ""
-            echo "===== tem ficheiro de licenca/cabecalho que identifique origem (nulled/pirata)? ====="
-            find "$PLUGDIR/pro-elements" -iname "*.php" 2>/dev/null | head -3 | xargs -I{} sh -c 'echo "--- {} ---"; head -20 "{}"' 2>&1
-
-            echo ""
-            echo "===== data de criacao mais antiga dentro do pro-elements (para saber desde quando esta ai) ====="
-            find "$PLUGDIR/pro-elements" -type f 2>/dev/null | xargs stat -c '%y %n' 2>&1 | sort | head -5
-
-            echo ""
-            echo "===== varredura geral: padroes classicos de malware em TODOS os plugins/temas/uploads ====="
-            echo "--- eval+base64 ---"
-            grep -rlE "eval\s*\(\s*(base64_decode|gzinflate|str_rot13)" "$ROOT/wp-content" 2>/dev/null | grep -v "/plugins/amazon-s3-and-cloudfront/" | head -20
-            echo "--- goto-obfuscation (o mesmo padrao do filefuns.php) ---"
-            grep -rl "goto [A-Za-z0-9_]*;" "$ROOT/wp-content" 2>/dev/null | head -20
-
-            echo ""
-            echo "===== todos os plugins instalados, com data da ultima alteracao ====="
-            for d in "$PLUGDIR"/*/; do
-              name=$(basename "$d")
-              newest=$(find "$d" -type f -name "*.php" -printf '%T@ %p\n' 2>/dev/null | sort -rn | head -1)
-              echo "$name -- $newest"
+            for name in "Backup" "Back-Up" "imunify-security"; do
+              echo "===== $name ====="
+              ls -la "$PLUGDIR/$name/" 2>&1 | head -15
+              echo "--- ficheiros .php dentro, com data ---"
+              find "$PLUGDIR/$name" -iname "*.php" 2>/dev/null | xargs stat -c '%y %n' 2>&1 | sort | head -10
+              echo ""
             done
 
-            echo ""
-            echo "===== wp-config.php ja tem DISALLOW_FILE_EDIT? ====="
-            grep -i "DISALLOW_FILE_EDIT\|DISALLOW_FILE_MODS" "$ROOT/wp-config.php" 2>&1
+            echo "===== conteudo do modulo updater do pro-elements (para onde ele liga?) ====="
+            find "$PLUGDIR/pro-elements/updater" -type f 2>&1
+            grep -rEo "https?://[a-zA-Z0-9./_-]+" "$PLUGDIR/pro-elements/updater" 2>/dev/null | sort -u | head -20
 
             echo ""
-            echo "===== pasta uploads permite executar php directamente? (deve estar bloqueado) ====="
-            cat "$ROOT/wp-content/uploads/.htaccess" 2>&1
-
-            echo ""
-            echo "===== porque nenhum plugin aparece activo no wp-admin? ====="
-            /usr/local/bin/wp --allow-root --path="$ROOT" option get active_plugins 2>&1
-            /usr/local/bin/wp --allow-root --path="$ROOT" plugin list 2>&1
+            echo "===== pasta license do pro-elements (mexida hoje) ====="
+            find "$PLUGDIR/pro-elements/license" -type f 2>&1
