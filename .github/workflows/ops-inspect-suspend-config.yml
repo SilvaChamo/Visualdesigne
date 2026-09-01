@@ -41,8 +41,11 @@ jobs:
             grep "FILE_SIZE_LIMIT" "$ENVFILE"
 
             echo ""
-            echo "===== confirma que o docker-compose.yml referencia esta variavel ====="
-            grep -n "FILE_SIZE_LIMIT" "$(dirname "$ENVFILE")/docker-compose.yml" 2>&1
+            echo "===== o valor esta fixo directamente no docker-compose.yml, nao le do .env ====="
+            COMPOSEFILE="$(dirname "$ENVFILE")/docker-compose.yml"
+            grep -n "FILE_SIZE_LIMIT" "$COMPOSEFILE" 2>&1
+            sed -i "s|FILE_SIZE_LIMIT: 52428800|FILE_SIZE_LIMIT: 524288000|" "$COMPOSEFILE"
+            grep -n "FILE_SIZE_LIMIT" "$COMPOSEFILE" 2>&1
 
             echo ""
             echo "===== reinicia o container de storage ====="
