@@ -1,4 +1,4 @@
-name: "Ops - Fase 80. Activa os restantes plugins um a um"
+name: "Ops - Fase 81. Encontra o gancho dos avisos do WP Armour para os calar"
 
 on:
   workflow_dispatch:
@@ -14,7 +14,7 @@ jobs:
           echo "${{ secrets.HETZNER_SSH_KEY }}" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
           ssh-keyscan -p "${{ secrets.HETZNER_PORT }}" "${{ secrets.HETZNER_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
-      - name: Activa um a um
+      - name: Investiga o gancho
         uses: appleboy/ssh-action@v1.2.5
         with:
           host: ${{ secrets.HETZNER_HOST }}
@@ -24,20 +24,11 @@ jobs:
           command_timeout: 3m
           script: |
             set +e
-            ROOT=/home/admin/domains/aamihe.com/public_html
-            WP="/usr/local/bin/wp --allow-root --path=$ROOT"
+            PLUG=/home/admin/domains/aamihe.com/public_html/wp-content/plugins/honeypot
 
-            for slug in translatepress-multilingual wp-optimize loginpress honeypot icon-element auto-image-download-button automatic-translate-addon-for-translatepress drag-and-drop-file-upload-for-elementor-forms pro-elements; do
-              echo "--- activa $slug ---"
-              $WP plugin activate "$slug" 2>&1 | tail -3
-            done
+            echo "===== onde regista os avisos admin_notices ====="
+            grep -rn "admin_notices\|admin_footer_text\|donation\|rating" "$PLUG" --include="*.php" 2>/dev/null | grep -i "add_action\|add_filter" | head -20
 
             echo ""
-            echo "===== estado final ====="
-            $WP plugin list 2>&1
-
-            echo ""
-            echo "===== confirma homepage ====="
-            curl -sS -o /tmp/check3.html --max-time 15 https://aamihe.com/ 2>&1
-            echo "tamanho: $(wc -c < /tmp/check3.html) bytes"
-            grep -io "<title>.*</title>" /tmp/check3.html | head -1
+            echo "===== nome da classe/funcao principal do plugin (para o remove_action apontar certo) ====="
+            grep -rn "class .*Honeypot\|class .*WP_Armour\|class .*wp_armour" "$PLUG" --include="*.php" 2>/dev/null | head -5
