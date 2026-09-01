@@ -1,4 +1,4 @@
-name: "Ops - Fase 32. Desfaz a instalacao WordPress de teste em entrecamposblog.com"
+name: "Ops - Fase 33. Porque a lista Sites continua vazia mesmo apos a correcao"
 
 on:
   workflow_dispatch:
@@ -14,7 +14,7 @@ jobs:
           echo "${{ secrets.CONTABO_SSH_KEY }}" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
           ssh-keyscan "${{ secrets.CONTABO_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
-      - name: Limpa tudo
+      - name: Investiga
         uses: appleboy/ssh-action@v1.2.5
         with:
           host: ${{ secrets.CONTABO_HOST }}
@@ -23,32 +23,21 @@ jobs:
           command_timeout: 3m
           script: |
             set +e
-            echo "===== bases de dados reais da conta vdadmin ====="
-            /usr/local/hestia/bin/v-list-databases vdadmin plain 2>&1
+            echo "===== o build publicado tem mesmo a correcao? ====="
+            grep -rl "O admin gere contas em mais" /opt/visualdesign-site-teste/.next/server/ 2>/dev/null
+            echo "(vazio acima = a correcao NAO esta no build publicado)"
 
             echo ""
-            echo "===== apaga a base de dados de teste ====="
-            /usr/local/hestia/bin/v-delete-database vdadmin vdadmin_entrecampos_wp 2>&1
-            echo "exit: $?"
-            /usr/local/hestia/bin/v-delete-database vdadmin vdadmin_entrecamposblog_wpdb 2>&1
-            echo "exit: $?"
+            echo "===== data/hora do build actual ====="
+            date -r /opt/visualdesign-site-teste/.next/BUILD_ID 2>&1
+            cat /opt/visualdesign-site-teste/.next/BUILD_ID 2>&1
+            echo ""
+            date
 
             echo ""
-            echo "===== apaga os ficheiros do WordPress ====="
-            rm -rf /home/vdadmin/web/entrecamposblog.com/public_html/*
-            rm -rf /home/vdadmin/web/entrecamposblog.com/public_html/.[!.]*
+            echo "===== panel_sites completo (todos os dominios e donos) ====="
+            docker exec -i supabase-db psql -U postgres -d postgres -t -A -F' | ' -c "select domain, owner, status from panel_sites order by domain;"
 
             echo ""
-            echo "===== repõe a página placeholder por omissão do Hestia ====="
-            cp -r /usr/local/hestia/data/templates/web/skel/public_html/. /home/vdadmin/web/entrecamposblog.com/public_html/ 2>&1
-            chown -R vdadmin:vdadmin /home/vdadmin/web/entrecamposblog.com/public_html/
-
-            echo ""
-            echo "===== confirma limpo ====="
-            ls -la /home/vdadmin/web/entrecamposblog.com/public_html/
-            test -f /home/vdadmin/web/entrecamposblog.com/public_html/wp-config.php && echo "AINDA TEM wp-config.php!" || echo "limpo, sem wp-config.php"
-
-      - name: Confirma via HTTPS público
-        run: |
-          sleep 3
-          curl -sSL --max-time 15 https://entrecamposblog.com/ 2>&1 | grep -io "<title>.*</title>" | head -1
+            echo "===== logs recentes do pm2 - procura por erros no wp-update ====="
+            pm2 logs visualdesign-site-teste --lines 500 --nostream 2>&1 | grep -i "wp-update\|Conta de revenda\|panel-mirror\|listWebsites\|Erro ao listar\|resolvePanelWpScope\|role" | tail -40
