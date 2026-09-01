@@ -1,4 +1,4 @@
-name: "Ops - Fase 76. Resolve permissao bloqueada do uploads/.htaccess e aplica a regra"
+name: "Ops - Fase 77. Volta a trancar o uploads/.htaccess como estava (imutavel)"
 
 on:
   workflow_dispatch:
@@ -14,7 +14,7 @@ jobs:
           echo "${{ secrets.HETZNER_SSH_KEY }}" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
           ssh-keyscan -p "${{ secrets.HETZNER_PORT }}" "${{ secrets.HETZNER_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
-      - name: Resolve e aplica
+      - name: Tranca outra vez
         uses: appleboy/ssh-action@v1.2.5
         with:
           host: ${{ secrets.HETZNER_HOST }}
@@ -25,23 +25,5 @@ jobs:
           script: |
             set +e
             F=/home/admin/domains/aamihe.com/public_html/wp-content/uploads/.htaccess
-
-            echo "===== porque nao consigo escrever? (permissoes e atributos) ====="
-            ls -la "$F" 2>&1
+            chattr +i "$F" 2>&1
             lsattr "$F" 2>&1
-
-            echo ""
-            echo "===== tenta destravar se estiver imutavel, e aplicar a regra ====="
-            chattr -i "$F" 2>&1
-            chown admin:admin "$F" 2>&1
-            chmod 644 "$F" 2>&1
-            printf '\n%s\n' "# Bloqueia execucao de PHP dentro de uploads (seguranca)" >> "$F"
-            printf '%s\n' "<FilesMatch \"\.(php|phtml|php3|php4|php5|php7|pl|py|cgi)\$\">" >> "$F"
-            printf '%s\n' "Order Allow,Deny" >> "$F"
-            printf '%s\n' "Deny from all" >> "$F"
-            printf '%s\n' "</FilesMatch>" >> "$F"
-            echo "resultado da escrita: $?"
-
-            echo ""
-            echo "===== confirma conteudo final ====="
-            tail -10 "$F" 2>&1
