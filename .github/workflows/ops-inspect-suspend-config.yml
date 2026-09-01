@@ -1,4 +1,4 @@
-name: "Ops - Fase 100. Repoe os 3 sites osher no Hetzner (extrai + config + testa)"
+name: "Ops - Fase 101. Destrava ficheiros presos e repoe oshercollective.com"
 
 on:
   workflow_dispatch:
@@ -14,53 +14,44 @@ jobs:
           echo "${{ secrets.HETZNER_SSH_KEY }}" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
           ssh-keyscan -p "${{ secrets.HETZNER_PORT }}" "${{ secrets.HETZNER_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
-      - name: Repoe os 3 sites
+      - name: Destrava e repoe
         uses: appleboy/ssh-action@v1.2.5
         with:
           host: ${{ secrets.HETZNER_HOST }}
           port: ${{ secrets.HETZNER_PORT }}
           username: ${{ secrets.HETZNER_USER }}
           key: ${{ secrets.HETZNER_SSH_KEY }}
-          command_timeout: 4m
+          command_timeout: 3m
           script: |
             set +e
+            ROOT="/home/oshercollective/domains/oshercollective.com/public_html"
             WP="/usr/local/bin/wp --allow-root"
 
-            restore_site() {
-              DOMAIN="$1"
-              DBNAME="$2"
-              DBUSER="$3"
-              ROOT="/home/oshercollective/domains/$DOMAIN/public_html"
+            echo "===== quais ficheiros estao imutaveis? ====="
+            lsattr "$ROOT"/* 2>&1
 
-              echo "===== $DOMAIN ====="
+            echo ""
+            echo "===== destrava tudo nesta pasta ====="
+            chattr -R -i "$ROOT" 2>&1
+            lsattr "$ROOT"/* 2>&1
 
-              echo "-- extrai wp-content --"
-              tar xzf "/tmp/wpcontent-$DOMAIN.tar.gz" -C "$ROOT"
+            echo ""
+            echo "===== agora tenta outra vez: core download ====="
+            $WP core download --force --skip-content --path="$ROOT" 2>&1 | tail -8
 
-              echo "-- baixa core oficial do wordpress (nao mexe no wp-content que acabou de chegar) --"
-              $WP core download --force --skip-content --path="$ROOT" 2>&1 | tail -5
+            echo ""
+            echo "===== gera password nova ====="
+            NEWPASS=$(openssl rand -base64 24 | tr -dc 'A-Za-z0-9' | head -c 20)
+            echo "::add-mask::$NEWPASS"
+            mysql -e "ALTER USER 'oshercollective_wp_oshercollective_com'@'localhost' IDENTIFIED BY '$NEWPASS'; FLUSH PRIVILEGES;" 2>&1
 
-              echo "-- gera password nova para a base de dados --"
-              NEWPASS=$(openssl rand -base64 24 | tr -dc 'A-Za-z0-9' | head -c 20)
-              echo "::add-mask::$NEWPASS"
-              mysql -e "ALTER USER '$DBUSER'@'localhost' IDENTIFIED BY '$NEWPASS'; FLUSH PRIVILEGES;" 2>&1
+            echo "===== cria wp-config.php ====="
+            rm -f "$ROOT/wp-config.php"
+            $WP config create --path="$ROOT" --dbname="oshercollective_wp_oshercollective_com" --dbuser="oshercollective_wp_oshercollective_com" --dbpass="$NEWPASS" --dbhost="localhost" --dbprefix="wp_" --skip-check --force 2>&1
 
-              echo "-- cria wp-config.php --"
-              rm -f "$ROOT/wp-config.php"
-              $WP config create --path="$ROOT" --dbname="$DBNAME" --dbuser="$DBUSER" --dbpass="$NEWPASS" --dbhost="localhost" --dbprefix="wp_" --skip-check --force 2>&1
+            echo "===== permissoes ====="
+            chown -R oshercollective:oshercollective "$ROOT"
 
-              echo "-- permissoes --"
-              chown -R oshercollective:oshercollective "$ROOT"
-
-              echo "-- testa --"
-              sleep 1
-              curl -sSI --max-time 10 "https://$DOMAIN/" 2>&1 | head -3
-              echo ""
-            }
-
-            restore_site "oshercollective.com" "oshercollective_wp_oshercollective_com" "oshercollective_wp_oshercollective_com"
-            restore_site "msdn-moz.org" "oshercollective_wp_msdn-moz_org" "oshercollective_wp_msdn-moz_org"
-            restore_site "lirandzojewelry.com" "oshercollective_wp_lirandzojewelry_com" "oshercollective_wp_lirandzojewelry_com"
-
-            echo "===== limpa os pacotes temporarios ====="
-            rm -f /tmp/wpcontent-*.tar.gz
+            echo "===== testa ====="
+            sleep 1
+            curl -sSI --max-time 10 "https://oshercollective.com/" 2>&1 | head -4
