@@ -1024,10 +1024,23 @@ function AdminPageContent() {
       setSelectedManageDomain(window.__selectedManageDomain);
       // @ts-ignore
       window.__selectedManageDomain = null;
-    } else if (activeSection !== 'domain-detail') {
+    } else if (activeSection === 'domain-detail') {
+      // Refresh directo (sem passar pelo clique que define window.__selectedManageDomain,
+      // que se perde sempre num reload a sério) — sem isto caía sempre no fallback
+      // 'primaryDomain' de page.tsx, mostrando SILENCIOSAMENTE outro domínio
+      // qualquer em vez do que estava mesmo a ser visto (confirmado ao vivo 1 set:
+      // "Gerir domínio" do entrecamposblog.com virava visualdesignmoz.com só com F5).
+      const stored = typeof window !== 'undefined' ? window.sessionStorage.getItem('vd-dashboard-manage-domain') : null
+      if (stored) setSelectedManageDomain(stored)
+    } else {
       setSelectedManageDomain('');
     }
   }, [activeSection]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    if (selectedManageDomain) window.sessionStorage.setItem('vd-dashboard-manage-domain', selectedManageDomain)
+  }, [selectedManageDomain]);
 
   // Efeito para limpar preSelectedEmailDomain quando sair da seção de email
   useEffect(() => {
