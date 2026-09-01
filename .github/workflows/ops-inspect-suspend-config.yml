@@ -1,4 +1,4 @@
-name: "Ops - Fase 75. Aplica bloqueios de seguranca seguros (nao apaga nada)"
+name: "Ops - Fase 76. Resolve permissao bloqueada do uploads/.htaccess e aplica a regra"
 
 on:
   workflow_dispatch:
@@ -14,7 +14,7 @@ jobs:
           echo "${{ secrets.HETZNER_SSH_KEY }}" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
           ssh-keyscan -p "${{ secrets.HETZNER_PORT }}" "${{ secrets.HETZNER_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
-      - name: Aplica bloqueios
+      - name: Resolve e aplica
         uses: appleboy/ssh-action@v1.2.5
         with:
           host: ${{ secrets.HETZNER_HOST }}
@@ -24,36 +24,24 @@ jobs:
           command_timeout: 3m
           script: |
             set +e
-            ROOT=/home/admin/domains/aamihe.com/public_html
+            F=/home/admin/domains/aamihe.com/public_html/wp-content/uploads/.htaccess
 
-            echo "===== impede editar plugins/temas pelo wp-admin (mesmo que um admin seja comprometido, nao pode injectar codigo por ali) ====="
-            if ! grep -q "DISALLOW_FILE_EDIT" "$ROOT/wp-config.php" 2>/dev/null; then
-              cp "$ROOT/wp-config.php" "/root/security-quarantine/wp-config-antes-hardening-$(date +%Y%m%d-%H%M%S).bak"
-              sed -i "/\/\* That's all, stop editing/i define( 'DISALLOW_FILE_EDIT', true );" "$ROOT/wp-config.php"
-              echo "adicionado"
-            else
-              echo "ja tinha"
-            fi
-            grep -i "DISALLOW_FILE_EDIT" "$ROOT/wp-config.php"
+            echo "===== porque nao consigo escrever? (permissoes e atributos) ====="
+            ls -la "$F" 2>&1
+            lsattr "$F" 2>&1
 
             echo ""
-            echo "===== impede executar php dentro da pasta uploads (onde ficam imagens, nao deviam la existir programas) ====="
-            if ! grep -q "Deny from all" "$ROOT/wp-content/uploads/.htaccess" 2>/dev/null; then
-              printf '\n%s\n' "# Bloqueia execucao de PHP dentro de uploads (seguranca)" >> "$ROOT/wp-content/uploads/.htaccess"
-              printf '%s\n' "<FilesMatch \"\.(php|phtml|php3|php4|php5|php7|pl|py|cgi)\$\">" >> "$ROOT/wp-content/uploads/.htaccess"
-              printf '%s\n' "Order Allow,Deny" >> "$ROOT/wp-content/uploads/.htaccess"
-              printf '%s\n' "Deny from all" >> "$ROOT/wp-content/uploads/.htaccess"
-              printf '%s\n' "</FilesMatch>" >> "$ROOT/wp-content/uploads/.htaccess"
-              echo "adicionado"
-            else
-              echo "ja tinha"
-            fi
+            echo "===== tenta destravar se estiver imutavel, e aplicar a regra ====="
+            chattr -i "$F" 2>&1
+            chown admin:admin "$F" 2>&1
+            chmod 644 "$F" 2>&1
+            printf '\n%s\n' "# Bloqueia execucao de PHP dentro de uploads (seguranca)" >> "$F"
+            printf '%s\n' "<FilesMatch \"\.(php|phtml|php3|php4|php5|php7|pl|py|cgi)\$\">" >> "$F"
+            printf '%s\n' "Order Allow,Deny" >> "$F"
+            printf '%s\n' "Deny from all" >> "$F"
+            printf '%s\n' "</FilesMatch>" >> "$F"
+            echo "resultado da escrita: $?"
 
             echo ""
-            echo "===== confirma se ha algum ficheiro .php escondido dentro de uploads (nao deveria existir nenhum) ====="
-            find "$ROOT/wp-content/uploads" -iname "*.php" 2>&1
-
-            echo ""
-            echo "===== confirma versao do WordPress e do PHP (para saberes se estao actualizados) ====="
-            /usr/local/bin/wp --allow-root --path="$ROOT" core version 2>&1
-            php83 -v 2>&1 | head -1
+            echo "===== confirma conteudo final ====="
+            tail -10 "$F" 2>&1
