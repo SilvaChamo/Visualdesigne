@@ -1,4 +1,4 @@
-name: "Ops - Fase 38. Le logs reais do aamihe.com no Hetzner (so leitura)"
+name: "Ops - Fase 39. Aamihe.com - testa https com SNI certo + php-fpm logs"
 
 on:
   workflow_dispatch:
@@ -14,7 +14,7 @@ jobs:
           echo "${{ secrets.HETZNER_SSH_KEY }}" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
           ssh-keyscan -p "${{ secrets.HETZNER_PORT }}" "${{ secrets.HETZNER_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
-      - name: Le logs (so leitura)
+      - name: Testa via HTTPS/SNI certo
         uses: appleboy/ssh-action@v1.2.5
         with:
           host: ${{ secrets.HETZNER_HOST }}
@@ -24,21 +24,25 @@ jobs:
           command_timeout: 3m
           script: |
             set +e
-            echo "===== conteudo real servido agora (bypassa cloudflare) ====="
-            curl -sS --max-time 8 -H "Host: aamihe.com" http://127.0.0.1/ 2>&1 | head -c 3000
+            echo "===== https directo, com SNI certo ====="
+            curl -sSk --max-time 10 --resolve aamihe.com:443:127.0.0.1 https://aamihe.com/ -o /tmp/body.html -w "HTTP %{http_code} | bytes: %{size_download}\n"
+            echo "--- primeiros 1000 bytes do corpo ---"
+            head -c 1000 /tmp/body.html
+            echo ""
 
             echo ""
-            echo ""
-            echo "===== onde vive o site aamihe.com (pasta owner) ====="
-            find /home -maxdepth 3 -iname "aamihe.com" 2>/dev/null
+            echo "===== index real do site (o que existe) ====="
+            ls -la /home/admin/domains/aamihe.com/public_html/ 2>&1 | head -20
 
             echo ""
-            echo "===== ultimas linhas do error log (varias localizacoes possiveis) ====="
-            tail -80 /var/log/httpd/domains/aamihe.com.error.log 2>&1
-            tail -80 /home/*/domains/aamihe.com/private/error.log 2>&1
-            find /home -maxdepth 5 -iname "*aamihe.com*error*" 2>/dev/null
+            echo "===== versao do php desta conta ====="
+            cat /home/admin/domains/aamihe.com/private/php_version 2>&1
+            find /etc/php* -maxdepth 1 -type d 2>/dev/null
 
             echo ""
-            echo "===== php error log do sistema (ultimas 40 linhas com aamihe) ====="
-            find /var/log -iname "php*" -maxdepth 2 2>/dev/null
-            grep -i "aamihe" /var/log/php*/error.log 2>/dev/null | tail -40
+            echo "===== erro php mais recente, sem filtro de data ====="
+            tail -n 40 /var/log/httpd/domains/aamihe.com.error.log 2>&1 | tail -15
+
+            echo ""
+            echo "===== teste directo do php-cli para ver o erro real ====="
+            cd /home/admin/domains/aamihe.com/public_html/ && sudo -u admin php index.php 2>&1 | head -c 2000
