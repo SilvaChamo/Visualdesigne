@@ -1,4 +1,4 @@
-name: "Ops - Fase 67. Porque o link wp-da-sso continua Forbidden apos o htaccess limpo"
+name: "Ops - Fase 68. Onde mais o wp-da-sso esta a ser bloqueado (vhost/Imunify)"
 
 on:
   workflow_dispatch:
@@ -14,7 +14,7 @@ jobs:
           echo "${{ secrets.HETZNER_SSH_KEY }}" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
           ssh-keyscan -p "${{ secrets.HETZNER_PORT }}" "${{ secrets.HETZNER_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
-      - name: Investiga
+      - name: Investiga camada extra
         uses: appleboy/ssh-action@v1.2.5
         with:
           host: ${{ secrets.HETZNER_HOST }}
@@ -26,34 +26,39 @@ jobs:
             set +e
             ROOT=/home/admin/domains/aamihe.com/public_html
 
-            echo "===== o ficheiro do token existe mesmo no disco? ====="
-            ls -la "$ROOT"/wp-da-sso-*.php 2>&1
+            echo "===== conteudo completo wp-includes/.htaccess ====="
+            cat "$ROOT/wp-includes/.htaccess" 2>&1
 
             echo ""
-            echo "===== htaccess actual da raiz (deve estar limpo, sem FilesMatch) ====="
-            cat "$ROOT/.htaccess" 2>&1
+            echo "===== conteudo completo image/.htaccess ====="
+            cat "$ROOT/image/.htaccess" 2>&1
 
             echo ""
-            echo "===== outros .htaccess algures no site que possam ter regras antigas ====="
-            find "$ROOT" -maxdepth 2 -iname ".htaccess" -exec echo "--- {} ---" \; -exec cat {} \; 2>&1
+            echo "===== bloco do vhost apache para aamihe.com (Directory/FilesMatch/Deny) ====="
+            grep -n "aamihe" -A 3 -B 3 /usr/local/directadmin/data/users/admin/httpd.conf 2>/dev/null | grep -i "directory\|filesmatch\|deny\|require\|aamihe" | head -60
 
             echo ""
-            echo "===== log de erros mais recente para este pedido exacto ====="
-            tail -n 50 /var/log/httpd/domains/aamihe.com.error.log 2>&1 | grep -i "sso\|forbidden\|denied" | tail -20
+            echo "===== imunify360 instalado? ====="
+            which imunify360-agent 2>&1
+            systemctl is-active imunify360-agent 2>&1
+            systemctl is-active imunify-antivirus 2>&1
 
             echo ""
-            echo "===== ha mod_security activo neste dominio? ====="
-            grep -ril "aamihe" /etc/httpd/conf/extra/*.conf 2>/dev/null | xargs grep -il "modsecurity\|SecRule" 2>/dev/null
-            find / -maxdepth 5 -iname "modsec*aamihe*" 2>/dev/null
+            echo "===== log do imunify sobre este ficheiro (se existir) ====="
+            grep -ri "wp-da-sso" /var/log/imunify360/*.log 2>&1 | tail -20
+            find /var/imunify360 -iname "*wp-da-sso*" 2>&1 | head -10
+            find / -maxdepth 6 -iname "*quarantine*imunify*" -o -iname "*imunify*quarantine*" 2>/dev/null | head -10
 
             echo ""
-            echo "===== o teu IP proprio esta banido pelo fail2ban? ====="
-            fail2ban-client status 2>&1 | grep -i "jail list"
-            for j in $(fail2ban-client status 2>&1 | grep "Jail list" | sed 's/.*://; s/,//g'); do
-              echo "--- jail: $j ---"
-              fail2ban-client status "$j" 2>&1 | grep -i "banned"
-            done
+            echo "===== ha modsecurity a correr no apache? ====="
+            httpd -M 2>&1 | grep -i security
+            apachectl -M 2>&1 | grep -i security
+            find /etc/httpd -iname "*modsec*" 2>&1 | head -10
 
             echo ""
-            echo "===== teste directo curl como se fosse agora, com verbose minimo ====="
-            curl -sS -o /dev/null -w "HTTP:%{http_code}\n" --max-time 10 "https://aamihe.com/wp-da-sso-k8ZRgIWc-Oz_YgM1nurVYJnatanPAGra.php" 2>&1
+            echo "===== mensagem de erro EXACTA agora, com todos os detalhes ====="
+            rm -f /tmp/before_sso.log
+            wc -l /var/log/httpd/domains/aamihe.com.error.log > /tmp/before_sso.log
+            curl -sS -o /dev/null "https://aamihe.com/wp-da-sso-k8ZRgIWc-Oz_YgM1nurVYJnatanPAGra.php" 2>&1
+            sleep 1
+            tail -n 5 /var/log/httpd/domains/aamihe.com.error.log 2>&1
