@@ -1,4 +1,4 @@
-name: "Ops - Fase 35. Repoe entrecamposblog.com no espelho do painel"
+name: "Ops - Fase 36. Repoe entrecamposblog.com outra vez, ja com o fix a caminho"
 
 on:
   workflow_dispatch:
@@ -14,7 +14,7 @@ jobs:
           echo "${{ secrets.CONTABO_SSH_KEY }}" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
           ssh-keyscan "${{ secrets.CONTABO_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
-      - name: Repoe via sync + confirma
+      - name: Repoe via sync
         uses: appleboy/ssh-action@v1.2.5
         with:
           host: ${{ secrets.CONTABO_HOST }}
@@ -25,14 +25,6 @@ jobs:
             set +e
             CRON_SECRET_VALUE=$(grep '^CRON_SECRET=' /opt/visualdesign-site-teste/.env.local | cut -d= -f2-)
             echo "::add-mask::$CRON_SECRET_VALUE"
-
-            echo "===== dispara hestia-sync ====="
             curl -sS -w "\nHTTP_STATUS:%{http_code}\n" --max-time 60 -H "Host: teste.visualdesignmoz.com" -H "Authorization: Bearer ${CRON_SECRET_VALUE}" http://127.0.0.1:3002/api/cron/hestia-sync
-
             echo ""
-            echo "===== confirma entrecamposblog.com de volta ====="
-            docker exec -i supabase-db psql -U postgres -d postgres -t -A -F' | ' -c "select domain, owner, status, updated_at from panel_sites where domain = 'entrecamposblog.com';"
-
-            echo ""
-            echo "===== todos os sites do vdadmin, para conferir mais nada desapareceu ====="
             docker exec -i supabase-db psql -U postgres -d postgres -t -A -F' | ' -c "select domain, owner, status from panel_sites where owner = 'vdadmin' order by domain;"
