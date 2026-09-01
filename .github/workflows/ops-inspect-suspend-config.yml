@@ -1,4 +1,4 @@
-name: "Ops - Fase 60. O plugin amazon-s3-and-cloudfront e legitimo ou faz parte do ataque?"
+name: "Ops - Fase 61. Porque a homepage vem vazia (HTTP 200 mas 0 bytes)"
 
 on:
   workflow_dispatch:
@@ -14,7 +14,7 @@ jobs:
           echo "${{ secrets.HETZNER_SSH_KEY }}" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
           ssh-keyscan -p "${{ secrets.HETZNER_PORT }}" "${{ secrets.HETZNER_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
-      - name: Investiga o plugin a fundo
+      - name: Investiga
         uses: appleboy/ssh-action@v1.2.5
         with:
           host: ${{ secrets.HETZNER_HOST }}
@@ -25,20 +25,24 @@ jobs:
           script: |
             set +e
             ROOT=/home/admin/domains/aamihe.com/public_html
-            echo "===== dados oficiais do plugin instalado (nome, autor, versao) ====="
-            /usr/local/bin/wp --allow-root --path="$ROOT" plugin get amazon-s3-and-cloudfront --fields=name,title,author,version,description 2>&1
+
+            echo "===== ultimos erros php reais (agora mesmo) ====="
+            tail -30 /var/log/httpd/domains/aamihe.com.error.log 2>&1
 
             echo ""
-            echo "===== data de instalacao (data de criacao da pasta) ====="
-            ls -la --time-style=full-iso "$ROOT/wp-content/plugins/amazon-s3-and-cloudfront" 2>&1 | head -3
-            stat "$ROOT/wp-content/plugins/amazon-s3-and-cloudfront" 2>&1 | grep -i "modify\|birth\|change"
+            echo "===== teste directo do php-cli no index.php (mostra o erro real) ====="
+            cd "$ROOT" && sudo -u admin php index.php 2>&1 | head -c 3000
 
             echo ""
-            echo "===== para onde este plugin esta configurado a enviar ficheiros (bucket real) ====="
-            /usr/local/bin/wp --allow-root --path="$ROOT" option get tantan_wp_options 2>&1 | head -c 2000
-            /usr/local/bin/wp --allow-root --path="$ROOT" option list --search="*as3cf*" --fields=option_name 2>&1
-            /usr/local/bin/wp --allow-root --path="$ROOT" eval 'echo get_option("tantan_wp_options") ? print_r(get_option("tantan_wp_options"), true) : "sem opcoes as3cf\n";' 2>&1 | grep -i "bucket\|region\|domain" | head -10
+            echo "===== permissoes do wp-config.php e do index.php ====="
+            ls -la "$ROOT/wp-config.php" "$ROOT/index.php" "$ROOT/wp-load.php" 2>&1
 
             echo ""
-            echo "===== confirma se e mesmo o plugin oficial (compara com o wordpress.org) ====="
-            /usr/local/bin/wp --allow-root --path="$ROOT" plugin verify-checksums amazon-s3-and-cloudfront 2>&1
+            echo "===== homepage configurada (pagina estatica?) ====="
+            /usr/local/bin/wp --allow-root --path="$ROOT" option get show_on_front 2>&1
+            /usr/local/bin/wp --allow-root --path="$ROOT" option get page_on_front 2>&1
+            /usr/local/bin/wp --allow-root --path="$ROOT" post get 7996 --field=post_status 2>&1
+
+            echo ""
+            echo "===== tema activo ====="
+            /usr/local/bin/wp --allow-root --path="$ROOT" theme list --status=active 2>&1
