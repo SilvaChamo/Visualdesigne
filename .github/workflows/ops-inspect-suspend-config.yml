@@ -1,51 +1,49 @@
-name: "Ops - Fase 40. Isola o ficheiro malicioso do aamihe.com (quarentena, nao apaga)"
+name: "Ops - Fase 41. Estado real da firewall no Contabo + aamihe la tem a mesma infeccao"
 
 on:
   workflow_dispatch:
 
 jobs:
-  hetzner:
-    name: hetzner
+  contabo:
+    name: contabo
     runs-on: ubuntu-latest
     steps:
       - name: Setup SSH key
         run: |
           mkdir -p ~/.ssh
-          echo "${{ secrets.HETZNER_SSH_KEY }}" > ~/.ssh/deploy_key
+          echo "${{ secrets.CONTABO_SSH_KEY }}" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
-          ssh-keyscan -p "${{ secrets.HETZNER_PORT }}" "${{ secrets.HETZNER_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
-      - name: Isola e procura mais ficheiros suspeitos
+          ssh-keyscan "${{ secrets.CONTABO_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
+      - name: Verifica firewall e conta aamihe
         uses: appleboy/ssh-action@v1.2.5
         with:
-          host: ${{ secrets.HETZNER_HOST }}
-          port: ${{ secrets.HETZNER_PORT }}
-          username: ${{ secrets.HETZNER_USER }}
-          key: ${{ secrets.HETZNER_SSH_KEY }}
+          host: ${{ secrets.CONTABO_HOST }}
+          username: root
+          key: ${{ secrets.CONTABO_SSH_KEY }}
           command_timeout: 3m
           script: |
             set +e
-            QDIR=/root/security-quarantine/aamihe.com-$(date +%Y%m%d-%H%M%S)
-            mkdir -p "$QDIR"
-
-            echo "===== 1. isola a pasta maliciosa 05a0wp (move, nao apaga) ====="
-            if [ -d /home/admin/domains/aamihe.com/public_html/05a0wp ]; then
-              mv /home/admin/domains/aamihe.com/public_html/05a0wp "$QDIR/"
-              echo "movido para $QDIR/05a0wp"
-            else
-              echo "ja nao existe (pode ter sido apagado por outra coisa entretanto)"
-            fi
+            echo "===== firewall do sistema (iptables/ufw) ====="
+            ufw status verbose 2>&1
+            echo "--- iptables ---"
+            iptables -L -n 2>&1 | head -30
 
             echo ""
-            echo "===== 2. outros ficheiros .php fora dos sitios normais do WordPress, modificados nos ultimos 10 dias ====="
-            find /home/admin/domains/aamihe.com/public_html/ -maxdepth 1 -iname "*.php" -mtime -10 2>/dev/null
-            echo "--- (estes ficam SO listados, nao mexidos, sao os que estao directamente na raiz) ---"
+            echo "===== firewall do Hestia (o proprio painel) ====="
+            /usr/local/hestia/bin/v-list-firewall plain 2>&1 | head -20
+            echo "(vazio acima = sem nenhuma regra configurada no Hestia)"
 
             echo ""
-            echo "===== 3. ficheiros php modificados nos ultimos 3 dias, em qualquer lado dentro do site ====="
-            find /home/admin/domains/aamihe.com/public_html/ -iname "*.php" -mtime -3 2>/dev/null | grep -v "/wp-content/uploads/" | head -60
+            echo "===== fail2ban a correr? ====="
+            systemctl is-active fail2ban 2>&1
+            fail2ban-client status 2>&1
 
             echo ""
-            echo "===== 4. confirma que o site volta a responder normalmente ====="
-            sleep 2
-            curl -sSk --max-time 10 --resolve aamihe.com:443:127.0.0.1 https://aamihe.com/ -o /tmp/body2.html -w "HTTP %{http_code} | bytes: %{size_download}\n"
-            head -c 300 /tmp/body2.html
+            echo "===== a conta aamihe existe aqui, tem sites? ====="
+            /usr/local/hestia/bin/v-list-web-domains aamihe plain 2>&1
+
+            echo ""
+            echo "===== aamihe.com tem a mesma infeccao aqui no Contabo? ====="
+            find /home/aamihe/web/aamihe.com/public_html/ -iname "05a0wp" -o -iname "*.b26_sed_bak*" -o -path "*spLlo*" 2>/dev/null
+            echo "(vazio acima = nao tem esta infeccao aqui)"
+            ls -la /home/aamihe/web/ 2>&1
