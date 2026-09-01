@@ -73,6 +73,17 @@ export async function runHestiaFullSync(): Promise<HestiaSyncResult> {
   const syncedAt = nowIso();
   const liveUsernames = new Set<string>();
 
+  // A própria conta principal (HESTIA_USER, normalmente 'vdadmin') fica de
+  // propósito fora de listUsers() — não é uma conta de cliente, não faz
+  // sentido ter uma linha em panel_users para ela. MAS pode ter sites reais
+  // próprios (ex.: um domínio criado directamente nela pelo admin, como
+  // aconteceu com entrecamposblog.com) — sem isto no conjunto abaixo, esses
+  // sites nunca entravam no espelho panel_sites (o loop de sites só percorre
+  // liveUsernames), ficando invisíveis em TODAS as listas do painel mesmo
+  // existindo de facto no Hestia. Confirmado ao vivo 1 set: hestia-sync
+  // corria com sucesso (users:0, sites:0, sem erros) e nunca via este site.
+  liveUsernames.add((process.env.HESTIA_USER || 'vdadmin').trim());
+
   // ── Contas ──
   for (const user of users) {
     liveUsernames.add(user.username);
