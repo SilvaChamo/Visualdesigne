@@ -1,11 +1,56 @@
-name: "Ops - Fase 14d. Confirma saude pos-restart (so leitura)"
+name: "Ops - Fase 15a. Re-verificacao profunda Google OAuth (Hetzner + Contabo, so leitura)"
 
 on:
   workflow_dispatch:
 
 jobs:
-  verify:
-    name: confirma saude
+  hetzner:
+    name: hetzner - busca ampla
+    runs-on: ubuntu-latest
+    steps:
+      - name: Setup SSH key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.HETZNER_SSH_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -p "${{ secrets.HETZNER_PORT }}" "${{ secrets.HETZNER_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
+      - name: Verifica
+        uses: appleboy/ssh-action@v1.2.5
+        with:
+          host: ${{ secrets.HETZNER_HOST }}
+          port: ${{ secrets.HETZNER_PORT }}
+          username: ${{ secrets.HETZNER_USER }}
+          key: ${{ secrets.HETZNER_SSH_KEY }}
+          command_timeout: 3m
+          script: |
+            echo "===== containers docker a correr (nomes) ====="
+            docker ps --format '{{.Names}}' | sort
+
+            echo ""
+            echo "===== qualquer linha com GOOGLE em qualquer .env dentro de /opt (so nomes de variavel, nunca valores) ====="
+            find /opt -maxdepth 4 -iname ".env*" 2>/dev/null | while read -r f; do
+              hits=$(grep -in "google" "$f" 2>/dev/null | sed -E 's/=.*$/=<oculto>/')
+              if [ -n "$hits" ]; then
+                echo "--- $f ---"
+                echo "$hits"
+              fi
+            done
+
+            echo ""
+            echo "===== env real do container auth (nomes de variavel, nunca valores) ====="
+            for c in $(docker ps --format '{{.Names}}' | grep -i auth); do
+              echo "--- container: $c ---"
+              docker inspect "$c" --format '{{range .Config.Env}}{{println .}}{{end}}' 2>/dev/null | grep -i google | sed -E 's/=.*$/=<oculto>/'
+            done
+
+            echo ""
+            echo "===== todas as GOTRUE_EXTERNAL_*_ENABLED=true no env do container auth ====="
+            for c in $(docker ps --format '{{.Names}}' | grep -i auth); do
+              docker inspect "$c" --format '{{range .Config.Env}}{{println .}}{{end}}' 2>/dev/null | grep "GOTRUE_EXTERNAL_.*_ENABLED=true"
+            done
+
+  contabo:
+    name: contabo - busca ampla
     runs-on: ubuntu-latest
     steps:
       - name: Setup SSH key
@@ -14,22 +59,31 @@ jobs:
           echo "${{ secrets.CONTABO_SSH_KEY }}" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
           ssh-keyscan "${{ secrets.CONTABO_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
-
       - name: Verifica
         uses: appleboy/ssh-action@v1.2.5
         with:
           host: ${{ secrets.CONTABO_HOST }}
           username: root
           key: ${{ secrets.CONTABO_SSH_KEY }}
-          command_timeout: 2m
+          command_timeout: 3m
           script: |
-            echo "===== processo: uptime e restarts ====="
-            pm2 describe visualdesign-site-teste 2>&1 | grep -E "status|restarts|uptime"
+            echo "===== containers docker a correr (nomes) ====="
+            docker ps --format '{{.Names}}' | sort
 
             echo ""
-            echo "===== erros desde o ultimo restart (manifest / 500 / invariant) ====="
-            pm2 logs visualdesign-site-teste --lines 200 --nostream --err 2>&1 | grep -iE "client reference manifest|invariant|failed to load static" | tail -20 || echo "nenhum encontrado nas ultimas 200 linhas"
+            echo "===== qualquer linha com GOOGLE em qualquer .env dentro de /opt (so nomes de variavel) ====="
+            find /opt -maxdepth 4 -iname ".env*" 2>/dev/null | while read -r f; do
+              hits=$(grep -in "google" "$f" 2>/dev/null | sed -E 's/=.*$/=<oculto>/')
+              if [ -n "$hits" ]; then
+                echo "--- $f ---"
+                echo "$hits"
+              fi
+            done
 
             echo ""
-            echo "===== ultimas 15 linhas de erro (cru, para ver se ha algo novo) ====="
-            pm2 logs visualdesign-site-teste --lines 15 --nostream --err 2>&1
+            echo "===== .env.local da app Next.js: linhas com GOOGLE ====="
+            grep -in "google" /opt/visualdesign-site-teste/.env.local 2>/dev/null | sed -E 's/=.*$/=<oculto>/' || echo "nenhuma linha"
+
+            echo ""
+            echo "===== env real do container auth (nomes de variavel) ====="
+            docker inspect supabase-auth --format '{{range .Config.Env}}{{println .}}{{end}}' 2>/dev/null | grep -i google | sed -E 's/=.*$/=<oculto>/'
