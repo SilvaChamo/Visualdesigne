@@ -1,65 +1,44 @@
-name: "Ops - Fase 15c. Copia Google OAuth de Hetzner para Contabo (sem heredoc, valores nunca impressos)"
+name: "Ops - Fase 15d. Diagnostica porque google nao aparece no container (so leitura)"
 
 on:
   workflow_dispatch:
 
 jobs:
-  copy:
-    name: copia client id/secret e liga no contabo
+  verify:
+    name: diagnostica
     runs-on: ubuntu-latest
     steps:
-      - name: Setup SSH keys
+      - name: Setup SSH key
         run: |
           mkdir -p ~/.ssh
-          echo "${{ secrets.HETZNER_SSH_KEY }}" > ~/.ssh/hetzner_key
-          echo "${{ secrets.CONTABO_SSH_KEY }}" > ~/.ssh/contabo_key
-          chmod 600 ~/.ssh/hetzner_key ~/.ssh/contabo_key
-          ssh-keyscan -p "${{ secrets.HETZNER_PORT }}" "${{ secrets.HETZNER_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
+          echo "${{ secrets.CONTABO_SSH_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
           ssh-keyscan "${{ secrets.CONTABO_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
 
-      - name: Copia (valores nunca impressos no log)
-        env:
-          HETZNER_HOST: ${{ secrets.HETZNER_HOST }}
-          HETZNER_PORT: ${{ secrets.HETZNER_PORT }}
-          HETZNER_USER: ${{ secrets.HETZNER_USER }}
-          CONTABO_HOST: ${{ secrets.CONTABO_HOST }}
-        run: |
-          set -euo pipefail
+      - name: Verifica
+        uses: appleboy/ssh-action@v1.2.5
+        with:
+          host: ${{ secrets.CONTABO_HOST }}
+          username: root
+          key: ${{ secrets.CONTABO_SSH_KEY }}
+          command_timeout: 2m
+          script: |
+            echo "===== .env tem as linhas? (so nomes) ====="
+            grep -n "^GOTRUE_EXTERNAL_GOOGLE_" /opt/supabase-contabo/docker/.env | sed -E 's/=.*$/=<definido>/'
 
-          CLIENT_ID=$(ssh -i ~/.ssh/hetzner_key -p "$HETZNER_PORT" "$HETZNER_USER@$HETZNER_HOST" "docker inspect supabase-auth --format '{{range .Config.Env}}{{println .}}{{end}}' | grep '^GOTRUE_EXTERNAL_GOOGLE_CLIENT_ID=' | cut -d= -f2-")
-          CLIENT_SECRET=$(ssh -i ~/.ssh/hetzner_key -p "$HETZNER_PORT" "$HETZNER_USER@$HETZNER_HOST" "docker inspect supabase-auth --format '{{range .Config.Env}}{{println .}}{{end}}' | grep '^GOTRUE_EXTERNAL_GOOGLE_SECRET=' | cut -d= -f2-")
+            echo ""
+            echo "===== docker-compose.yml: como o servico auth trata GOOGLE ====="
+            grep -n -i "google" /opt/supabase-contabo/docker/docker-compose.yml || echo "nao encontrado no docker-compose.yml"
 
-          echo "::add-mask::$CLIENT_ID"
-          echo "::add-mask::$CLIENT_SECRET"
+            echo ""
+            echo "===== docker-compose.yml: o servico auth usa env_file ou environment explicito? ====="
+            sed -n '/^  auth:/,/^  [a-z]/p' /opt/supabase-contabo/docker/docker-compose.yml | grep -E "env_file|environment:|image:" 
 
-          if [ -z "$CLIENT_ID" ] || [ -z "$CLIENT_SECRET" ]; then
-            echo "ERRO: nao consegui ler client id/secret do Hetzner"
-            exit 1
-          fi
-          echo "Lido do Hetzner com sucesso (valores ocultos). CLIENT_ID tem ${#CLIENT_ID} caracteres, SECRET tem ${#CLIENT_SECRET} caracteres."
+            echo ""
+            echo "===== container auth: quando foi criado, esta a correr? ====="
+            docker inspect supabase-auth --format 'Created: {{.Created}} | State: {{.State.Status}} | StartedAt: {{.State.StartedAt}}'
 
-          REDIRECT_URI="https://supabase-contabo.visualdesignmoz.com/auth/v1/callback"
-
-          REMOTE_SCRIPT='set -e
-          CLIENT_ID="$1"
-          CLIENT_SECRET="$2"
-          REDIRECT_URI="$3"
-          ENV_FILE=/opt/supabase-contabo/docker/.env
-          cp "$ENV_FILE" "$ENV_FILE.bak-google-$(date +%s)"
-          sed -i "/^GOTRUE_EXTERNAL_GOOGLE_/d" "$ENV_FILE"
-          {
-            echo "GOTRUE_EXTERNAL_GOOGLE_ENABLED=true"
-            echo "GOTRUE_EXTERNAL_GOOGLE_CLIENT_ID=$CLIENT_ID"
-            echo "GOTRUE_EXTERNAL_GOOGLE_SECRET=$CLIENT_SECRET"
-            echo "GOTRUE_EXTERNAL_GOOGLE_REDIRECT_URI=$REDIRECT_URI"
-          } >> "$ENV_FILE"
-          cd /opt/supabase-contabo/docker
-          docker compose up -d auth
-          sleep 4
-          echo "Confirmacao (so nomes, sem valores):"
-          docker inspect supabase-auth --format "{{range .Config.Env}}{{println .}}{{end}}" | grep "GOTRUE_EXTERNAL_GOOGLE_" | sed -E "s/=.*$/=<definido>/"
-          '
-
-          ssh -i ~/.ssh/contabo_key root@"$CONTABO_HOST" bash -s -- "$CLIENT_ID" "$CLIENT_SECRET" "$REDIRECT_URI" <<< "$REMOTE_SCRIPT"
-
-          echo "Concluido."
+            echo ""
+            echo "===== container auth: TEM mesmo GOTRUE_EXTERNAL_GOOGLE agora? ====="
+            docker inspect supabase-auth --format '{{range .Config.Env}}{{println .}}{{end}}' | grep -c "GOTRUE_EXTERNAL_GOOGLE" || echo "0 - nao tem nenhuma"
+            docker inspect supabase-auth --format '{{range .Config.Env}}{{println .}}{{end}}' | grep "GOTRUE_EXTERNAL_GOOGLE" | sed -E 's/=.*$/=<definido>/'
