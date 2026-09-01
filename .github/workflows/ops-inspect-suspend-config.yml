@@ -1,4 +1,4 @@
-name: "Ops - Fase 102. SO LEITURA - verifica certificados ssl reais no Hetzner"
+name: "Ops - Fase 103. Recarrega o Apache (le os certificados corretos) e testa"
 
 on:
   workflow_dispatch:
@@ -14,7 +14,7 @@ jobs:
           echo "${{ secrets.HETZNER_SSH_KEY }}" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
           ssh-keyscan -p "${{ secrets.HETZNER_PORT }}" "${{ secrets.HETZNER_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
-      - name: Verifica certificados
+      - name: Recarrega e testa
         uses: appleboy/ssh-action@v1.2.5
         with:
           host: ${{ secrets.HETZNER_HOST }}
@@ -24,15 +24,17 @@ jobs:
           command_timeout: 2m
           script: |
             set +e
-            for d in oshercollective.com msdn-moz.org lirandzojewelry.com; do
-              echo "===== $d ====="
-              CERT="/usr/local/directadmin/data/users/oshercollective/domains/$d.cert.combined"
-              ls -la "$CERT" 2>&1
-              openssl x509 -in "$CERT" -noout -subject -dates 2>&1
-              echo ""
-            done
+            echo "===== testa a configuracao antes de recarregar (nao aplica nada se tiver erro) ====="
+            apachectl -t 2>&1
 
-            echo "===== o que o apache serve mesmo, testando via localhost com SNI certo ====="
+            echo ""
+            echo "===== recarrega ====="
+            systemctl reload httpd 2>&1
+            echo "resultado: $?"
+
+            echo ""
+            sleep 2
+            echo "===== testa outra vez qual certificado cada dominio mostra agora ====="
             for d in oshercollective.com msdn-moz.org lirandzojewelry.com; do
               echo "--- $d ---"
               echo | openssl s_client -connect 127.0.0.1:443 -servername "$d" 2>/dev/null | openssl x509 -noout -subject -dates 2>&1
