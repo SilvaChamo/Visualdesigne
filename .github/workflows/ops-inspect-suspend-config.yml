@@ -1,4 +1,4 @@
-name: "Ops - Fase 18c. Investiga backup + conta hestia entrecampos v2 (so leitura)"
+name: "Ops - Fase 18d. Investiga bucket real + servidor Hetzner por entrecampos (so leitura)"
 
 on:
   workflow_dispatch:
@@ -14,7 +14,7 @@ jobs:
           echo "${{ secrets.CONTABO_SSH_KEY }}" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
           ssh-keyscan "${{ secrets.CONTABO_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
-      - name: Investiga
+      - name: Investiga bucket Contabo
         uses: appleboy/ssh-action@v1.2.5
         with:
           host: ${{ secrets.CONTABO_HOST }}
@@ -23,34 +23,45 @@ jobs:
           command_timeout: 5m
           script: |
             set +e
-            echo "===== panel_sites: colunas ====="
-            docker exec -i supabase-db psql -U postgres -d postgres -t -A -c "select column_name from information_schema.columns where table_name = 'panel_sites' order by ordinal_position;"
+            echo "===== buckets existentes no Contabo ====="
+            docker exec -i supabase-db psql -U postgres -d postgres -t -A -c "select id, name from storage.buckets;"
 
             echo ""
-            echo "===== panel_sites: linhas de entrecampos ====="
-            docker exec -i supabase-db psql -U postgres -d postgres -t -A -F' | ' -c "select * from panel_sites where domain ilike '%entrecampos%';"
+            echo "===== objectos no storage com 'entrecampos' no nome ====="
+            docker exec -i supabase-db psql -U postgres -d postgres -t -A -F' | ' -c "select bucket_id, name, created_at from storage.objects where name ilike '%entrecampos%' order by created_at desc;"
 
             echo ""
-            echo "===== panel_backup_files: colunas ====="
-            docker exec -i supabase-db psql -U postgres -d postgres -t -A -c "select column_name from information_schema.columns where table_name = 'panel_backup_files' order by ordinal_position;"
+            echo "===== todos os objectos de qualquer bucket de backups (amostra 30) ====="
+            docker exec -i supabase-db psql -U postgres -d postgres -t -A -F' | ' -c "select bucket_id, name from storage.objects where bucket_id ilike '%backup%' order by created_at desc limit 30;"
+
+  hetzner:
+    name: hetzner
+    runs-on: ubuntu-latest
+    steps:
+      - name: Setup SSH key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.HETZNER_SSH_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -p "${{ secrets.HETZNER_PORT }}" "${{ secrets.HETZNER_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
+      - name: Investiga servidor Hetzner/DA
+        uses: appleboy/ssh-action@v1.2.5
+        with:
+          host: ${{ secrets.HETZNER_HOST }}
+          port: ${{ secrets.HETZNER_PORT }}
+          username: ${{ secrets.HETZNER_USER }}
+          key: ${{ secrets.HETZNER_SSH_KEY }}
+          command_timeout: 5m
+          script: |
+            set +e
+            echo "===== backup sql em /home/admin/backups ====="
+            ls -la /home/admin/backups/backup/ 2>&1 | grep -i entrecampos
+            find / -maxdepth 6 -iname "*entrecampos*" 2>/dev/null
 
             echo ""
-            echo "===== panel_backup_files: linhas de entrecampos ====="
-            docker exec -i supabase-db psql -U postgres -d postgres -t -A -F' | ' -c "select * from panel_backup_files where domain ilike '%entrecampos%' or filename ilike '%entrecampos%';"
+            echo "===== dominios da conta admin no DirectAdmin ====="
+            ls -la /home/admin/domains/ 2>&1
 
             echo ""
-            echo "===== hestia: lista de contas (v-list-users) ====="
-            /usr/local/hestia/bin/v-list-users plain 2>&1 | head -20
-
-            echo ""
-            echo "===== procura dominio em qualquer conta hestia ====="
-            grep -ril "entrecampos" /home/*/conf/web/ 2>&1
-            find /home -maxdepth 4 -iname "*entrecampos*" 2>&1
-
-            echo ""
-            echo "===== quem e o owner 78dac824 no supabase auth ====="
-            docker exec -i supabase-db psql -U postgres -d postgres -t -A -F' | ' -c "select id, email from auth.users where id = '78dac824-ff02-4deb-bdea-b537eeacad99';"
-
-            echo ""
-            echo "===== panel_users: qual username/owner esta associado a este user_id ====="
-            docker exec -i supabase-db psql -U postgres -d postgres -t -A -F' | ' -c "select * from panel_users where user_id = '78dac824-ff02-4deb-bdea-b537eeacad99';" 2>&1 | head -5
+            echo "===== buckets/objectos no storage do Hetzner com entrecampos ====="
+            docker exec -i supabase-db psql -U postgres -d postgres -t -A -F' | ' -c "select bucket_id, name, created_at from storage.objects where name ilike '%entrecampos%' order by created_at desc;" 2>&1
