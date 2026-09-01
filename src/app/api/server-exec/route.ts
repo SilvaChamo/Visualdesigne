@@ -150,6 +150,52 @@ async function pushPackageToDa(
   }
 }
 
+/** Cria um domínio adicional numa conta Hestia — equivalente ao CMD_API_DOMAIN
+ * do DirectAdmin usado por DA_MUTATION_PROXY.createWebsite (o único caminho
+ * antes disto, mesmo para contas Hestia — confirmado ao vivo 1 set: dava
+ * sempre erro do DirectAdmin real ao tentar criar um domínio numa conta que
+ * só existe no Hestia). O DomainCreateModal nunca envia 'owner', por isso a
+ * conta alvo tem de ser inferida: revendedor/impersonação usa a conta real
+ * dele (só avança se essa conta for mesmo Hestia); admin puro (sem conta
+ * escolhida) segue a mesma regra já usada para decidir o provider de contas
+ * NOVAS (ver resolveNewAccountProvider em checkout-fulfillment.ts) — Contabo
+ * (DEFAULT_HOSTING_PROVIDER=hestia) usa a conta principal do Hestia
+ * (HESTIA_USER, normalmente 'vdadmin'); Hetzner continua no DirectAdmin como
+ * sempre. Devolve null quando a conta é DirectAdmin — segue o caminho antigo. */
+async function tryHestiaCreateWebsite(
+  mirrorScope: { role: 'admin' | 'reseller'; daUsername?: string },
+  params: Record<string, unknown>,
+): Promise<NextResponse | null> {
+  const domain = String(params.domain || params.domainName || '').trim().toLowerCase();
+  if (!domain) return null;
+
+  const { getProviderByUsername } = await import('@/lib/hosting-provider');
+
+  let owner: string;
+  if (mirrorScope.role === 'reseller' && mirrorScope.daUsername) {
+    owner = mirrorScope.daUsername;
+    const provider = await getProviderByUsername(owner);
+    if (provider !== 'hestia') return null;
+  } else {
+    const defaultProvider = (process.env.DEFAULT_HOSTING_PROVIDER || '').trim().toLowerCase();
+    if (defaultProvider !== 'hestia') return null;
+    owner = (process.env.HESTIA_USER || 'vdadmin').trim();
+  }
+
+  const { addWebDomain } = await import('@/lib/hestia-adapter');
+  const result = await addWebDomain(owner, domain);
+  if (!result.ok) {
+    return NextResponse.json(
+      { success: false, error: result.error || 'Falha ao criar domínio no Hestia' },
+      { status: 500 },
+    );
+  }
+
+  await mirrorAfterDaMutation('createWebsite', { ...params, owner }).catch(() => undefined);
+  scheduleDaSync(400);
+  return NextResponse.json({ success: true, data: { output: 'website has been created' } });
+}
+
 const DA_READ_PROXY: Record<
   string,
   (api: DirectAdminServerAPI, params: Record<string, unknown>) => Promise<unknown>
@@ -346,6 +392,12 @@ export async function POST(req: NextRequest) {
       }
 
       const { daApi: api, mirrorScope } = await resolvePanelDaContext(auth);
+
+      if (action === 'createWebsite') {
+        const hestiaResponse = await tryHestiaCreateWebsite(mirrorScope, params as Record<string, unknown>);
+        if (hestiaResponse) return hestiaResponse;
+      }
+
       let data = await DA_MUTATION_PROXY[action](api, params as Record<string, unknown>);
       const ok = mutationSucceeded(data);
       const errMsg =
