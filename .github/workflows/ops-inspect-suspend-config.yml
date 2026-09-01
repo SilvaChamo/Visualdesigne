@@ -1,88 +1,59 @@
-name: "Ops - Fase 66. Mesma limpeza (filefuns.php + htaccess) na copia aamihe do Contabo"
+name: "Ops - Fase 67. Porque o link wp-da-sso continua Forbidden apos o htaccess limpo"
 
 on:
   workflow_dispatch:
 
 jobs:
-  contabo:
-    name: contabo
+  hetzner:
+    name: hetzner
     runs-on: ubuntu-latest
     steps:
       - name: Setup SSH key
         run: |
           mkdir -p ~/.ssh
-          echo "${{ secrets.CONTABO_SSH_KEY }}" > ~/.ssh/deploy_key
+          echo "${{ secrets.HETZNER_SSH_KEY }}" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
-          ssh-keyscan "${{ secrets.CONTABO_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
-      - name: Localiza, isola e repoe
+          ssh-keyscan -p "${{ secrets.HETZNER_PORT }}" "${{ secrets.HETZNER_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
+      - name: Investiga
         uses: appleboy/ssh-action@v1.2.5
         with:
-          host: ${{ secrets.CONTABO_HOST }}
-          username: root
-          key: ${{ secrets.CONTABO_SSH_KEY }}
+          host: ${{ secrets.HETZNER_HOST }}
+          port: ${{ secrets.HETZNER_PORT }}
+          username: ${{ secrets.HETZNER_USER }}
+          key: ${{ secrets.HETZNER_SSH_KEY }}
           command_timeout: 3m
           script: |
             set +e
-            echo "===== localiza a pasta do site aamihe.com no Contabo ====="
-            CANDIDATES=$(find /home -maxdepth 4 -type d -iname "aamihe.com" 2>/dev/null)
-            echo "$CANDIDATES"
-            ROOT=""
-            for d in $CANDIDATES; do
-              if [ -d "$d/public_html" ]; then ROOT="$d/public_html"; break; fi
-            done
-            echo "ROOT escolhido: $ROOT"
-            if [ -z "$ROOT" ]; then echo "NAO ENCONTREI a pasta - parar aqui"; exit 0; fi
+            ROOT=/home/admin/domains/aamihe.com/public_html
 
-            QDIR="/root/security-quarantine/aamihe.com-contabo-$(date +%Y%m%d-%H%M%S)"
-            mkdir -p "$QDIR"
-            FOUNDLIST=/tmp/aamihe_found_c_$$.txt
-            rm -f "$FOUNDLIST"
-            touch "$FOUNDLIST"
-
-            echo "===== .htaccess actual na raiz (para ver se e' o mesmo padrao malicioso) ====="
-            head -c 500 "$ROOT/.htaccess" 2>&1
+            echo "===== o ficheiro do token existe mesmo no disco? ====="
+            ls -la "$ROOT"/wp-da-sso-*.php 2>&1
 
             echo ""
-            echo "===== procura os mesmos nomes suspeitos ====="
-            NAMES="filefuns.php chtmlfuns.php cjfuns.php classsmtps.php classfuns.php comfunctions.php comdofuns.php connects.php copypaths.php delpaths.php doiconvs.php epinyins.php gdftps.php hinfofuns.php hplfuns.php memberfuns.php moddofuns.php onclickfuns.php phpzipincs.php qfunctions.php qinfofuns.php schallfuns.php tempfuns.php userfuns.php siteheads.php termps.php txets.php thoms.php postnews.php system_log.php inputs.php adminfuns.php"
-            for n in $NAMES; do find "$ROOT" -type f -iname "$n" 2>/dev/null >> "$FOUNDLIST"; done
-            cat "$FOUNDLIST"
+            echo "===== htaccess actual da raiz (deve estar limpo, sem FilesMatch) ====="
+            cat "$ROOT/.htaccess" 2>&1
 
-            echo "===== isola os ficheiros encontrados ====="
-            while IFS= read -r f; do
-              [ -z "$f" ] && continue
-              rel=$(echo "$f" | sed "s#^$ROOT/##")
-              destdir="$QDIR/$(dirname "$rel")"
-              mkdir -p "$destdir"
-              mv "$f" "$QDIR/$rel"
-              echo "isolado: $f"
-            done < "$FOUNDLIST"
+            echo ""
+            echo "===== outros .htaccess algures no site que possam ter regras antigas ====="
+            find "$ROOT" -maxdepth 2 -iname ".htaccess" -exec echo "--- {} ---" \; -exec cat {} \; 2>&1
 
-            echo "===== se o .htaccess tiver o mesmo padrao malicioso (FilesMatch com filefuns/chtmlfuns), substitui por um limpo ====="
-            if grep -q "filefuns\|chtmlfuns\|cjfuns" "$ROOT/.htaccess" 2>/dev/null; then
-              cp "$ROOT/.htaccess" "$QDIR/htaccess-raiz.bak"
-              printf '%s\n' "# BEGIN WordPress" > "$ROOT/.htaccess"
-              printf '%s\n' "<IfModule mod_rewrite.c>" >> "$ROOT/.htaccess"
-              printf '%s\n' "RewriteEngine On" >> "$ROOT/.htaccess"
-              printf '%s\n' "RewriteBase /" >> "$ROOT/.htaccess"
-              printf '%s\n' "RewriteRule ^index\.php$ - [L]" >> "$ROOT/.htaccess"
-              printf '%s\n' "RewriteCond %{REQUEST_FILENAME} !-f" >> "$ROOT/.htaccess"
-              printf '%s\n' "RewriteCond %{REQUEST_FILENAME} !-d" >> "$ROOT/.htaccess"
-              printf '%s\n' "RewriteRule . /index.php [L]" >> "$ROOT/.htaccess"
-              printf '%s\n' "</IfModule>" >> "$ROOT/.htaccess"
-              printf '%s\n' "# END WordPress" >> "$ROOT/.htaccess"
-              chmod 644 "$ROOT/.htaccess"
-              echo "htaccess da raiz substituido"
-            else
-              echo "htaccess da raiz nao tem o padrao malicioso, nao mexi"
-            fi
+            echo ""
+            echo "===== log de erros mais recente para este pedido exacto ====="
+            tail -n 50 /var/log/httpd/domains/aamihe.com.error.log 2>&1 | grep -i "sso\|forbidden\|denied" | tail -20
 
-            if [ -f "$ROOT/wp-admin/.htaccess" ] && grep -q "filefuns\|chtmlfuns\|cjfuns" "$ROOT/wp-admin/.htaccess" 2>/dev/null; then
-              mkdir -p "$QDIR/wp-admin"
-              mv "$ROOT/wp-admin/.htaccess" "$QDIR/wp-admin/.htaccess"
-              echo "wp-admin/.htaccess isolado"
-            fi
+            echo ""
+            echo "===== ha mod_security activo neste dominio? ====="
+            grep -ril "aamihe" /etc/httpd/conf/extra/*.conf 2>/dev/null | xargs grep -il "modsecurity\|SecRule" 2>/dev/null
+            find / -maxdepth 5 -iname "modsec*aamihe*" 2>/dev/null
 
-            echo "===== confirma quarentena ====="
-            find "$QDIR" -type f 2>&1
-            rm -f "$FOUNDLIST"
+            echo ""
+            echo "===== o teu IP proprio esta banido pelo fail2ban? ====="
+            fail2ban-client status 2>&1 | grep -i "jail list"
+            for j in $(fail2ban-client status 2>&1 | grep "Jail list" | sed 's/.*://; s/,//g'); do
+              echo "--- jail: $j ---"
+              fail2ban-client status "$j" 2>&1 | grep -i "banned"
+            done
+
+            echo ""
+            echo "===== teste directo curl como se fosse agora, com verbose minimo ====="
+            curl -sS -o /dev/null -w "HTTP:%{http_code}\n" --max-time 10 "https://aamihe.com/wp-da-sso-k8ZRgIWc-Oz_YgM1nurVYJnatanPAGra.php" 2>&1
