@@ -9431,7 +9431,17 @@ export function WordPressInstallSection({ sites, onRefresh }: { sites: DirectAdm
                 Ver Site
               </a>
               <button
-                onClick={() => window.location.href = '/revendedor?section=cp-wp-list'}
+                onClick={() => {
+                  // Este formulário é partilhado por 3 painéis diferentes
+                  // (dashboard admin, revendedor, cliente) — antes ia sempre
+                  // para /revendedor com valor fixo, mesmo a partir do painel
+                  // admin, levando o utilizador para o sítio errado. Mantém-se
+                  // no mesmo painel onde o WordPress foi criado.
+                  const knownPanels = ['dashboard', 'revendedor', 'cliente', 'profissional']
+                  const currentPanel = window.location.pathname.split('/')[1]
+                  const panelBase = knownPanels.includes(currentPanel) ? currentPanel : 'dashboard'
+                  window.location.href = `/${panelBase}?section=cp-wp-list`
+                }}
                 className="inline-flex items-center gap-1.5 bg-green-600 text-white px-4 py-2 rounded text-sm font-medium hover:bg-green-700 transition-colors shadow-sm"
               >
                 <Check className="w-4 h-4" />

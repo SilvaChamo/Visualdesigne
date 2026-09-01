@@ -191,6 +191,26 @@ async function tryHestiaCreateWebsite(
     );
   }
 
+  // Aponta o domínio para o servidor — melhor esforço, mesma lógica de
+  // attach-hosting/route.ts. Sem isto o site fica criado no Hestia mas
+  // continua sem resolver (NXDOMAIN), porque criar o website aqui nunca
+  // mexe na Cloudflare — confirmado ao vivo 1 set com entrecamposblog.com.
+  (async () => {
+    try {
+      const { findCloudflareZoneId, upsertCloudflareRecord } = await import('@/lib/cloudflare-dns');
+      const zoneId = await findCloudflareZoneId(domain);
+      if (zoneId) {
+        const serverIp = getServerHost();
+        await Promise.all([
+          upsertCloudflareRecord(zoneId, domain, { type: 'A', name: '@', content: serverIp, proxied: false }),
+          upsertCloudflareRecord(zoneId, domain, { type: 'A', name: 'www', content: serverIp, proxied: false }),
+        ]);
+      }
+    } catch {
+      // best-effort — não bloqueia a criação do website
+    }
+  })();
+
   await mirrorAfterDaMutation('createWebsite', { ...params, owner }).catch(() => undefined);
   scheduleDaSync(400);
   return NextResponse.json({ success: true, data: { output: 'website has been created' } });
