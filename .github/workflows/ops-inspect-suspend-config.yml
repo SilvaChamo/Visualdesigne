@@ -1,89 +1,66 @@
-name: "Ops - Fase 15a. Re-verificacao profunda Google OAuth (Hetzner + Contabo, so leitura)"
+name: "Ops - Fase 15b. Copia Google OAuth de Hetzner para Contabo (valores nunca impressos)"
 
 on:
   workflow_dispatch:
 
 jobs:
-  hetzner:
-    name: hetzner - busca ampla
+  copy:
+    name: copia client id/secret e liga no contabo
     runs-on: ubuntu-latest
     steps:
-      - name: Setup SSH key
+      - name: Setup SSH keys
         run: |
           mkdir -p ~/.ssh
-          echo "${{ secrets.HETZNER_SSH_KEY }}" > ~/.ssh/deploy_key
-          chmod 600 ~/.ssh/deploy_key
+          echo "${{ secrets.HETZNER_SSH_KEY }}" > ~/.ssh/hetzner_key
+          echo "${{ secrets.CONTABO_SSH_KEY }}" > ~/.ssh/contabo_key
+          chmod 600 ~/.ssh/hetzner_key ~/.ssh/contabo_key
           ssh-keyscan -p "${{ secrets.HETZNER_PORT }}" "${{ secrets.HETZNER_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
-      - name: Verifica
-        uses: appleboy/ssh-action@v1.2.5
-        with:
-          host: ${{ secrets.HETZNER_HOST }}
-          port: ${{ secrets.HETZNER_PORT }}
-          username: ${{ secrets.HETZNER_USER }}
-          key: ${{ secrets.HETZNER_SSH_KEY }}
-          command_timeout: 3m
-          script: |
-            echo "===== containers docker a correr (nomes) ====="
-            docker ps --format '{{.Names}}' | sort
-
-            echo ""
-            echo "===== qualquer linha com GOOGLE em qualquer .env dentro de /opt (so nomes de variavel, nunca valores) ====="
-            find /opt -maxdepth 4 -iname ".env*" 2>/dev/null | while read -r f; do
-              hits=$(grep -in "google" "$f" 2>/dev/null | sed -E 's/=.*$/=<oculto>/')
-              if [ -n "$hits" ]; then
-                echo "--- $f ---"
-                echo "$hits"
-              fi
-            done
-
-            echo ""
-            echo "===== env real do container auth (nomes de variavel, nunca valores) ====="
-            for c in $(docker ps --format '{{.Names}}' | grep -i auth); do
-              echo "--- container: $c ---"
-              docker inspect "$c" --format '{{range .Config.Env}}{{println .}}{{end}}' 2>/dev/null | grep -i google | sed -E 's/=.*$/=<oculto>/'
-            done
-
-            echo ""
-            echo "===== todas as GOTRUE_EXTERNAL_*_ENABLED=true no env do container auth ====="
-            for c in $(docker ps --format '{{.Names}}' | grep -i auth); do
-              docker inspect "$c" --format '{{range .Config.Env}}{{println .}}{{end}}' 2>/dev/null | grep "GOTRUE_EXTERNAL_.*_ENABLED=true"
-            done
-
-  contabo:
-    name: contabo - busca ampla
-    runs-on: ubuntu-latest
-    steps:
-      - name: Setup SSH key
-        run: |
-          mkdir -p ~/.ssh
-          echo "${{ secrets.CONTABO_SSH_KEY }}" > ~/.ssh/deploy_key
-          chmod 600 ~/.ssh/deploy_key
           ssh-keyscan "${{ secrets.CONTABO_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
-      - name: Verifica
-        uses: appleboy/ssh-action@v1.2.5
-        with:
-          host: ${{ secrets.CONTABO_HOST }}
-          username: root
-          key: ${{ secrets.CONTABO_SSH_KEY }}
-          command_timeout: 3m
-          script: |
-            echo "===== containers docker a correr (nomes) ====="
-            docker ps --format '{{.Names}}' | sort
 
-            echo ""
-            echo "===== qualquer linha com GOOGLE em qualquer .env dentro de /opt (so nomes de variavel) ====="
-            find /opt -maxdepth 4 -iname ".env*" 2>/dev/null | while read -r f; do
-              hits=$(grep -in "google" "$f" 2>/dev/null | sed -E 's/=.*$/=<oculto>/')
-              if [ -n "$hits" ]; then
-                echo "--- $f ---"
-                echo "$hits"
-              fi
-            done
+      - name: Copia (valores nunca impressos no log)
+        env:
+          HETZNER_HOST: ${{ secrets.HETZNER_HOST }}
+          HETZNER_PORT: ${{ secrets.HETZNER_PORT }}
+          HETZNER_USER: ${{ secrets.HETZNER_USER }}
+          CONTABO_HOST: ${{ secrets.CONTABO_HOST }}
+        run: |
+          set -euo pipefail
 
-            echo ""
-            echo "===== .env.local da app Next.js: linhas com GOOGLE ====="
-            grep -in "google" /opt/visualdesign-site-teste/.env.local 2>/dev/null | sed -E 's/=.*$/=<oculto>/' || echo "nenhuma linha"
+          CLIENT_ID=$(ssh -i ~/.ssh/hetzner_key -p "$HETZNER_PORT" "$HETZNER_USER@$HETZNER_HOST" \
+            "docker inspect supabase-auth --format '{{range .Config.Env}}{{println .}}{{end}}' | grep '^GOTRUE_EXTERNAL_GOOGLE_CLIENT_ID=' | cut -d= -f2-")
+          CLIENT_SECRET=$(ssh -i ~/.ssh/hetzner_key -p "$HETZNER_PORT" "$HETZNER_USER@$HETZNER_HOST" \
+            "docker inspect supabase-auth --format '{{range .Config.Env}}{{println .}}{{end}}' | grep '^GOTRUE_EXTERNAL_GOOGLE_SECRET=' | cut -d= -f2-")
 
-            echo ""
-            echo "===== env real do container auth (nomes de variavel) ====="
-            docker inspect supabase-auth --format '{{range .Config.Env}}{{println .}}{{end}}' 2>/dev/null | grep -i google | sed -E 's/=.*$/=<oculto>/'
+          echo "::add-mask::$CLIENT_ID"
+          echo "::add-mask::$CLIENT_SECRET"
+
+          if [ -z "$CLIENT_ID" ] || [ -z "$CLIENT_SECRET" ]; then
+            echo "ERRO: nao consegui ler client id/secret do Hetzner"
+            exit 1
+          fi
+          echo "Lido do Hetzner com sucesso (valores ocultos). CLIENT_ID tem ${#CLIENT_ID} caracteres, SECRET tem ${#CLIENT_SECRET} caracteres."
+
+          REDIRECT_URI="https://supabase-contabo.visualdesignmoz.com/auth/v1/callback"
+
+          ssh -i ~/.ssh/contabo_key root@"$CONTABO_HOST" bash -s -- "$CLIENT_ID" "$CLIENT_SECRET" "$REDIRECT_URI" <<'REMOTE_SCRIPT'
+            set -e
+            CLIENT_ID="$1"
+            CLIENT_SECRET="$2"
+            REDIRECT_URI="$3"
+            ENV_FILE=/opt/supabase-contabo/docker/.env
+            cp "$ENV_FILE" "$ENV_FILE.bak-google-$(date +%s)"
+            sed -i '/^GOTRUE_EXTERNAL_GOOGLE_/d' "$ENV_FILE"
+            {
+              echo "GOTRUE_EXTERNAL_GOOGLE_ENABLED=true"
+              echo "GOTRUE_EXTERNAL_GOOGLE_CLIENT_ID=$CLIENT_ID"
+              echo "GOTRUE_EXTERNAL_GOOGLE_SECRET=$CLIENT_SECRET"
+              echo "GOTRUE_EXTERNAL_GOOGLE_REDIRECT_URI=$REDIRECT_URI"
+            } >> "$ENV_FILE"
+            cd /opt/supabase-contabo/docker
+            docker compose up -d auth
+            sleep 4
+            echo "Confirmacao (so nomes, sem valores):"
+            docker inspect supabase-auth --format '{{range .Config.Env}}{{println .}}{{end}}' | grep "GOTRUE_EXTERNAL_GOOGLE_" | sed -E 's/=.*$/=<definido>/'
+REMOTE_SCRIPT
+
+          echo "Concluido."
