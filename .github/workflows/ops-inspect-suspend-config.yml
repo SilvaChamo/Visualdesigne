@@ -1,4 +1,4 @@
-name: "Ops - Fase 61. Porque a homepage vem vazia (HTTP 200 mas 0 bytes)"
+name: "Ops - Fase 62. Reactiva o tema real (oceanwp) e confirma a homepage"
 
 on:
   workflow_dispatch:
@@ -14,7 +14,7 @@ jobs:
           echo "${{ secrets.HETZNER_SSH_KEY }}" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
           ssh-keyscan -p "${{ secrets.HETZNER_PORT }}" "${{ secrets.HETZNER_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
-      - name: Investiga
+      - name: Reactiva
         uses: appleboy/ssh-action@v1.2.5
         with:
           host: ${{ secrets.HETZNER_HOST }}
@@ -25,24 +25,22 @@ jobs:
           script: |
             set +e
             ROOT=/home/admin/domains/aamihe.com/public_html
-
-            echo "===== ultimos erros php reais (agora mesmo) ====="
-            tail -30 /var/log/httpd/domains/aamihe.com.error.log 2>&1
-
-            echo ""
-            echo "===== teste directo do php-cli no index.php (mostra o erro real) ====="
-            cd "$ROOT" && sudo -u admin php index.php 2>&1 | head -c 3000
+            echo "===== estado actual (antes) ====="
+            /usr/local/bin/wp --allow-root --path="$ROOT" option get template 2>&1
+            /usr/local/bin/wp --allow-root --path="$ROOT" option get stylesheet 2>&1
+            /usr/local/bin/wp --allow-root --path="$ROOT" theme list 2>&1
 
             echo ""
-            echo "===== permissoes do wp-config.php e do index.php ====="
-            ls -la "$ROOT/wp-config.php" "$ROOT/index.php" "$ROOT/wp-load.php" 2>&1
+            echo "===== activa oceanwp (o tema real do site) ====="
+            /usr/local/bin/wp --allow-root --path="$ROOT" theme activate oceanwp 2>&1
 
             echo ""
-            echo "===== homepage configurada (pagina estatica?) ====="
-            /usr/local/bin/wp --allow-root --path="$ROOT" option get show_on_front 2>&1
-            /usr/local/bin/wp --allow-root --path="$ROOT" option get page_on_front 2>&1
-            /usr/local/bin/wp --allow-root --path="$ROOT" post get 7996 --field=post_status 2>&1
-
-            echo ""
-            echo "===== tema activo ====="
+            echo "===== confirma ====="
             /usr/local/bin/wp --allow-root --path="$ROOT" theme list --status=active 2>&1
+
+      - name: Confirma a homepage a sério
+        run: |
+          sleep 3
+          curl -sSL -o /tmp/check.html --max-time 15 https://aamihe.com/
+          echo "tamanho: $(wc -c < /tmp/check.html) bytes"
+          grep -io "<title>.*</title>" /tmp/check.html | head -1
