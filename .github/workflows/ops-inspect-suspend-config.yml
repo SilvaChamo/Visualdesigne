@@ -1,4 +1,4 @@
-name: "Ops - Fase 59. Confirma utilizadores admin reais + visual final do site"
+name: "Ops - Fase 60. O plugin amazon-s3-and-cloudfront e legitimo ou faz parte do ataque?"
 
 on:
   workflow_dispatch:
@@ -14,7 +14,7 @@ jobs:
           echo "${{ secrets.HETZNER_SSH_KEY }}" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
           ssh-keyscan -p "${{ secrets.HETZNER_PORT }}" "${{ secrets.HETZNER_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
-      - name: Confirma utilizadores admin
+      - name: Investiga o plugin a fundo
         uses: appleboy/ssh-action@v1.2.5
         with:
           host: ${{ secrets.HETZNER_HOST }}
@@ -25,17 +25,20 @@ jobs:
           script: |
             set +e
             ROOT=/home/admin/domains/aamihe.com/public_html
-            echo "===== todos os administradores reais do site ====="
-            /usr/local/bin/wp --allow-root --path="$ROOT" user list --role=administrator --fields=ID,user_login,user_email,user_registered 2>&1
+            echo "===== dados oficiais do plugin instalado (nome, autor, versao) ====="
+            /usr/local/bin/wp --allow-root --path="$ROOT" plugin get amazon-s3-and-cloudfront --fields=name,title,author,version,description 2>&1
 
             echo ""
-            echo "===== plugins activos agora (confirma que nada estranho ficou activo) ====="
-            /usr/local/bin/wp --allow-root --path="$ROOT" plugin list --status=active --fields=name,version,update 2>&1
+            echo "===== data de instalacao (data de criacao da pasta) ====="
+            ls -la --time-style=full-iso "$ROOT/wp-content/plugins/amazon-s3-and-cloudfront" 2>&1 | head -3
+            stat "$ROOT/wp-content/plugins/amazon-s3-and-cloudfront" 2>&1 | grep -i "modify\|birth\|change"
 
             echo ""
-            echo "===== confirma se ha algum utilizador criado nos ultimos 30 dias (suspeito) ====="
-            /usr/local/bin/wp --allow-root --path="$ROOT" user list --fields=ID,user_login,user_registered --format=csv 2>&1 | awk -F, 'NR==1 || $3 > "2026-08-01"'
+            echo "===== para onde este plugin esta configurado a enviar ficheiros (bucket real) ====="
+            /usr/local/bin/wp --allow-root --path="$ROOT" option get tantan_wp_options 2>&1 | head -c 2000
+            /usr/local/bin/wp --allow-root --path="$ROOT" option list --search="*as3cf*" --fields=option_name 2>&1
+            /usr/local/bin/wp --allow-root --path="$ROOT" eval 'echo get_option("tantan_wp_options") ? print_r(get_option("tantan_wp_options"), true) : "sem opcoes as3cf\n";' 2>&1 | grep -i "bucket\|region\|domain" | head -10
 
             echo ""
-            echo "===== estado geral: erros php recentes ====="
-            /usr/local/bin/wp --allow-root --path="$ROOT" core verify-checksums 2>&1 | head -20
+            echo "===== confirma se e mesmo o plugin oficial (compara com o wordpress.org) ====="
+            /usr/local/bin/wp --allow-root --path="$ROOT" plugin verify-checksums amazon-s3-and-cloudfront 2>&1
