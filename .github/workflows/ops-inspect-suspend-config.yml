@@ -30,6 +30,8 @@ jobs:
             echo "===== apaga a base de dados de teste ====="
             /usr/local/hestia/bin/v-delete-database vdadmin vdadmin_entrecampos_wp 2>&1
             echo "exit: $?"
+            /usr/local/hestia/bin/v-delete-database vdadmin vdadmin_entrecamposblog_wpdb 2>&1
+            echo "exit: $?"
 
             echo ""
             echo "===== apaga os ficheiros do WordPress ====="
