@@ -1,4 +1,4 @@
-name: "Ops - Fase 45. Confirma conteudo real do backup aamihe.com (23 junho)"
+name: "Ops - Fase 46. Verifica se a base de dados actual do aamihe.com foi alterada"
 
 on:
   workflow_dispatch:
@@ -14,7 +14,7 @@ jobs:
           echo "${{ secrets.HETZNER_SSH_KEY }}" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
           ssh-keyscan -p "${{ secrets.HETZNER_PORT }}" "${{ secrets.HETZNER_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
-      - name: Inspecciona
+      - name: Verifica DB actual + procura outros backups
         uses: appleboy/ssh-action@v1.2.5
         with:
           host: ${{ secrets.HETZNER_HOST }}
@@ -24,21 +24,30 @@ jobs:
           command_timeout: 3m
           script: |
             set +e
-            echo "===== estrutura da pasta aamihe.com dentro do backup ====="
-            find /home/admin/backups/backup/aamihe.com/ -maxdepth 4 2>&1
+            WPPATH=/home/admin/domains/aamihe.com/public_html
+            DBNAME=$(grep "DB_NAME" "$WPPATH/wp-config.php" | sed -E "s/.*'DB_NAME', *'([^']+)'.*/\1/")
+            DBUSER=$(grep "DB_USER" "$WPPATH/wp-config.php" | sed -E "s/.*'DB_USER', *'([^']+)'.*/\1/")
+            DBPASS=$(grep "DB_PASSWORD" "$WPPATH/wp-config.php" | sed -E "s/.*'DB_PASSWORD', *'([^']+)'.*/\1/")
+            echo "::add-mask::$DBPASS"
+            echo "db name: $DBNAME | db user: $DBUSER"
 
             echo ""
-            echo "===== se houver um .tar.gz dos ficheiros, ve o conteudo ====="
-            find /home/admin/backups/backup/aamihe.com/ -iname "*.tar.gz" 2>&1 | while read -r f; do
-              echo "--- $f ---"
-              tar -tzf "$f" 2>&1 | head -30
-              echo "total de ficheiros no tar:"
-              tar -tzf "$f" 2>&1 | wc -l
-            done
+            echo "===== utilizadores administradores reais na base de dados actual ====="
+            mysql -u"$DBUSER" -p"$DBPASS" "$DBNAME" -e "select u.ID, u.user_login, u.user_email, u.user_registered from wp_users u inner join wp_usermeta m on m.user_id=u.ID and m.meta_key='wp_capabilities' and m.meta_value like '%administrator%' order by u.user_registered desc;" 2>&1
 
             echo ""
-            echo "===== confirma que o dump sql tem mesmo dados reais (nao esta vazio/corrompido) ====="
-            head -c 500 /home/admin/backups/backup/admin_aamihe_bd.sql
+            echo "===== plugins activos agora ====="
+            mysql -u"$DBUSER" -p"$DBPASS" "$DBNAME" -e "select option_value from wp_options where option_name='active_plugins';" 2>&1
+
             echo ""
-            echo "..."
-            grep -c "INSERT INTO" /home/admin/backups/backup/admin_aamihe_bd.sql
+            echo "===== opcoes suspeitas (ligadas a temas/plugins desconhecidos, criadas ou mudadas ha pouco) ====="
+            mysql -u"$DBUSER" -p"$DBPASS" "$DBNAME" -e "select option_name from wp_options where option_name like '%wp_ffl_%' or option_name like '%_transient_%backdoor%' or option_name like '%eval%' limit 20;" 2>&1
+
+            echo ""
+            echo "===== data mais recente de artigos/paginas (para comparar com o que os visitantes viam) ====="
+            mysql -u"$DBUSER" -p"$DBPASS" "$DBNAME" -e "select ID, post_title, post_type, post_status, post_modified from wp_posts where post_type in ('post','page') order by post_modified desc limit 10;" 2>&1
+
+            echo ""
+            echo "===== procura por MAIS backups nativos (nao so o de 23 junho) ====="
+            find / -maxdepth 5 -path "*/backups/*" -newer /home/admin/backups/backup -iname "*aamihe*" 2>/dev/null
+            ls -la /home/admin/ 2>&1 | grep -i backup
