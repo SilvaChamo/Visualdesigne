@@ -561,13 +561,28 @@ export function DomainDetailSection({ domain, sites, onNavigate, onRefresh, setA
           {!clientMode && (
             <div className="rounded border border-gray-200 bg-white p-5 dark:border-zinc-700 dark:bg-zinc-900">
               <h3 className="mb-3 text-sm font-bold text-gray-900 dark:text-zinc-100">Nameservers</h3>
-              <NameserverManagementSection
-                sites={sites}
-                initialDomain={domain}
-                lockDomain
-                currentNameservers={registrar.nameservers}
-                onChanged={() => void loadRegistrarInfo()}
-              />
+              {registrar.isLocked === null ? (
+                // Sem dados do registador (ex.: domínio não encontrado na Dynadot,
+                // registado noutro sítio fora do nosso controlo) — mostrar a
+                // selecção "DNS predefinido Visual Design" pré-marcada aqui seria
+                // afirmar algo que não confirmámos. Confirmado ao vivo 1 set:
+                // o utilizador via sempre essa opção marcada mesmo em domínios
+                // já apontados para a Cloudflare, só porque currentNameservers
+                // vinha vazio (não por os nameservers serem mesmo os nossos).
+                <p className="text-sm text-gray-400 dark:text-zinc-500">
+                  {registrarLoading
+                    ? 'A verificar…'
+                    : 'Não disponível — domínio não encontrado no registador (pode estar registado noutro sítio). Não é possível confirmar os nameservers reais aqui.'}
+                </p>
+              ) : (
+                <NameserverManagementSection
+                  sites={sites}
+                  initialDomain={domain}
+                  lockDomain
+                  currentNameservers={registrar.nameservers}
+                  onChanged={() => void loadRegistrarInfo()}
+                />
+              )}
             </div>
           )}
 
