@@ -1,4 +1,4 @@
-name: "Ops - Fase 101. Destrava ficheiros presos e repoe oshercollective.com"
+name: "Ops - Fase 102. SO LEITURA - verifica certificados ssl reais no Hetzner"
 
 on:
   workflow_dispatch:
@@ -14,44 +14,26 @@ jobs:
           echo "${{ secrets.HETZNER_SSH_KEY }}" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
           ssh-keyscan -p "${{ secrets.HETZNER_PORT }}" "${{ secrets.HETZNER_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
-      - name: Destrava e repoe
+      - name: Verifica certificados
         uses: appleboy/ssh-action@v1.2.5
         with:
           host: ${{ secrets.HETZNER_HOST }}
           port: ${{ secrets.HETZNER_PORT }}
           username: ${{ secrets.HETZNER_USER }}
           key: ${{ secrets.HETZNER_SSH_KEY }}
-          command_timeout: 3m
+          command_timeout: 2m
           script: |
             set +e
-            ROOT="/home/oshercollective/domains/oshercollective.com/public_html"
-            WP="/usr/local/bin/wp --allow-root"
+            for d in oshercollective.com msdn-moz.org lirandzojewelry.com; do
+              echo "===== $d ====="
+              CERT="/usr/local/directadmin/data/users/oshercollective/domains/$d.cert.combined"
+              ls -la "$CERT" 2>&1
+              openssl x509 -in "$CERT" -noout -subject -dates 2>&1
+              echo ""
+            done
 
-            echo "===== quais ficheiros estao imutaveis? ====="
-            lsattr "$ROOT"/* 2>&1
-
-            echo ""
-            echo "===== destrava tudo nesta pasta ====="
-            chattr -R -i "$ROOT" 2>&1
-            lsattr "$ROOT"/* 2>&1
-
-            echo ""
-            echo "===== agora tenta outra vez: core download ====="
-            $WP core download --force --skip-content --path="$ROOT" 2>&1 | tail -8
-
-            echo ""
-            echo "===== gera password nova ====="
-            NEWPASS=$(openssl rand -base64 24 | tr -dc 'A-Za-z0-9' | head -c 20)
-            echo "::add-mask::$NEWPASS"
-            mysql -e "ALTER USER 'oshercollective_wp_oshercollective_com'@'localhost' IDENTIFIED BY '$NEWPASS'; FLUSH PRIVILEGES;" 2>&1
-
-            echo "===== cria wp-config.php ====="
-            rm -f "$ROOT/wp-config.php"
-            $WP config create --path="$ROOT" --dbname="oshercollective_wp_oshercollective_com" --dbuser="oshercollective_wp_oshercollective_com" --dbpass="$NEWPASS" --dbhost="localhost" --dbprefix="wp_" --skip-check --force 2>&1
-
-            echo "===== permissoes ====="
-            chown -R oshercollective:oshercollective "$ROOT"
-
-            echo "===== testa ====="
-            sleep 1
-            curl -sSI --max-time 10 "https://oshercollective.com/" 2>&1 | head -4
+            echo "===== o que o apache serve mesmo, testando via localhost com SNI certo ====="
+            for d in oshercollective.com msdn-moz.org lirandzojewelry.com; do
+              echo "--- $d ---"
+              echo | openssl s_client -connect 127.0.0.1:443 -servername "$d" 2>/dev/null | openssl x509 -noout -subject -dates 2>&1
+            done
