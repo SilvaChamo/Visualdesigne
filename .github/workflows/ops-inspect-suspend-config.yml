@@ -1,4 +1,4 @@
-name: "Ops - Fase 20c. Reinicia app (bug conhecido do Next.js) e confirma saude"
+name: "Ops - Fase 21a. Verifica onde entrecamposblog.com deveria aparecer no painel (so leitura)"
 
 on:
   workflow_dispatch:
@@ -14,7 +14,7 @@ jobs:
           echo "${{ secrets.CONTABO_SSH_KEY }}" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
           ssh-keyscan "${{ secrets.CONTABO_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
-      - name: Reinicia
+      - name: Verifica
         uses: appleboy/ssh-action@v1.2.5
         with:
           host: ${{ secrets.CONTABO_HOST }}
@@ -23,20 +23,23 @@ jobs:
           command_timeout: 5m
           script: |
             set +e
-            pm2 restart visualdesign-site-teste
-            sleep 5
+            SQL() { docker exec -i supabase-db psql -U postgres -d postgres -t -A -F' | ' -c "$1"; }
 
-            echo "===== PM2 status apos reinicio ====="
-            pm2 jlist | node -e "const d=JSON.parse(require('fs').readFileSync(0,'utf8'));for(const p of d) console.log(p.name,'| status:',p.pm2_env.status,'| restarts:',p.pm2_env.restart_time,'| unstable:',p.pm2_env.unstable_restarts)"
-
-            echo ""
-            echo "===== testa varias rotas reais ====="
-            for path in / /dashboard /login /favicon.ico; do
-              CODE=$(curl -sS -o /dev/null -w "%{http_code}" --max-time 15 "https://teste.visualdesignmoz.com${path}")
-              echo "$path -> HTTP $CODE"
-            done
+            echo "===== panel_sites: linha de entrecamposblog.com ====="
+            SQL "select id, domain, owner, status, package, wp_installed, synced_at from panel_sites where domain ilike '%entrecampos%';"
 
             echo ""
-            echo "===== ultimas 15 linhas do log de erro (apos reinicio) ====="
-            sleep 3
-            pm2 logs visualdesign-site-teste --lines 15 --nostream --err 2>&1 | tail -20
+            echo "===== panel_sites: todos os sites do owner vdadmin ====="
+            SQL "select domain, owner, status from panel_sites where owner = 'vdadmin';"
+
+            echo ""
+            echo "===== domain_renewals: linha de entrecamposblog.com ====="
+            SQL "select user_id, domain_name, status, dns_status from domain_renewals where domain_name = 'entrecamposblog.com';"
+
+            echo ""
+            echo "===== panel_auth_accounts: contas do user_id 78dac824 ====="
+            SQL "select user_id, da_username, provider from panel_auth_accounts where user_id = '78dac824-ff02-4deb-bdea-b537eeacad99';"
+
+            echo ""
+            echo "===== panel_users: linha vdadmin ====="
+            SQL "select username, hosting_provider from panel_users where username = 'vdadmin';"
