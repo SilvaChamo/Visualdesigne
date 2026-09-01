@@ -1,4 +1,4 @@
-name: "Ops - Fase 18b. Investiga backup + conta hestia entrecampos (so leitura)"
+name: "Ops - Fase 18c. Investiga backup + conta hestia entrecampos v2 (so leitura)"
 
 on:
   workflow_dispatch:
@@ -22,23 +22,35 @@ jobs:
           key: ${{ secrets.CONTABO_SSH_KEY }}
           command_timeout: 5m
           script: |
-            set -e
-            echo "===== domain_renewals: quem comprou entrecamposblog.com ====="
-            docker exec -i supabase-db psql -U postgres -d postgres -t -A -F' | ' -c "select user_id, domain_name, status, dns_status, brevo_verified, created_at from domain_renewals where domain_name ilike '%entrecampos%';"
+            set +e
+            echo "===== panel_sites: colunas ====="
+            docker exec -i supabase-db psql -U postgres -d postgres -t -A -c "select column_name from information_schema.columns where table_name = 'panel_sites' order by ordinal_position;"
 
             echo ""
-            echo "===== panel_sites: sites deste dominio ou de 'entrecampos' ====="
-            docker exec -i supabase-db psql -U postgres -d postgres -t -A -F' | ' -c "select owner, domain, provider, status from panel_sites where domain ilike '%entrecampos%';"
+            echo "===== panel_sites: linhas de entrecampos ====="
+            docker exec -i supabase-db psql -U postgres -d postgres -t -A -F' | ' -c "select * from panel_sites where domain ilike '%entrecampos%';"
 
             echo ""
-            echo "===== panel_backup_files: ficheiros relacionados a entrecampos ====="
-            docker exec -i supabase-db psql -U postgres -d postgres -t -A -F' | ' -c "select owner, domain, filename, scope, source, bucket_path, backup_date from panel_backup_files where domain ilike '%entrecampos%' or filename ilike '%entrecampos%';"
+            echo "===== panel_backup_files: colunas ====="
+            docker exec -i supabase-db psql -U postgres -d postgres -t -A -c "select column_name from information_schema.columns where table_name = 'panel_backup_files' order by ordinal_position;"
+
+            echo ""
+            echo "===== panel_backup_files: linhas de entrecampos ====="
+            docker exec -i supabase-db psql -U postgres -d postgres -t -A -F' | ' -c "select * from panel_backup_files where domain ilike '%entrecampos%' or filename ilike '%entrecampos%';"
 
             echo ""
             echo "===== hestia: lista de contas (v-list-users) ====="
-            /usr/local/hestia/bin/v-list-users plain 2>/dev/null | head -20 || echo "(hestia bin nao encontrado neste caminho)"
+            /usr/local/hestia/bin/v-list-users plain 2>&1 | head -20
 
             echo ""
             echo "===== procura dominio em qualquer conta hestia ====="
-            grep -ril "entrecampos" /home/*/conf/web/ 2>/dev/null || echo "(nao encontrado em conf/web)"
-            find /home -maxdepth 4 -iname "*entrecampos*" 2>/dev/null || echo "(nenhuma pasta com esse nome em /home)"
+            grep -ril "entrecampos" /home/*/conf/web/ 2>&1
+            find /home -maxdepth 4 -iname "*entrecampos*" 2>&1
+
+            echo ""
+            echo "===== quem e o owner 78dac824 no supabase auth ====="
+            docker exec -i supabase-db psql -U postgres -d postgres -t -A -F' | ' -c "select id, email from auth.users where id = '78dac824-ff02-4deb-bdea-b537eeacad99';"
+
+            echo ""
+            echo "===== panel_users: qual username/owner esta associado a este user_id ====="
+            docker exec -i supabase-db psql -U postgres -d postgres -t -A -F' | ' -c "select * from panel_users where user_id = '78dac824-ff02-4deb-bdea-b537eeacad99';" 2>&1 | head -5
