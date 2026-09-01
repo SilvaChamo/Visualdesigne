@@ -1,4 +1,4 @@
-name: "Ops - Fase 29. Porque a lista de sites wordpress continua vazia"
+name: "Ops - Fase 31. Instala wp-cli e instala WordPress a serio em entrecamposblog.com"
 
 on:
   workflow_dispatch:
@@ -14,38 +14,51 @@ jobs:
           echo "${{ secrets.CONTABO_SSH_KEY }}" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
           ssh-keyscan "${{ secrets.CONTABO_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
-      - name: Investiga
+      - name: Instala wp-cli e WordPress
         uses: appleboy/ssh-action@v1.2.5
         with:
           host: ${{ secrets.CONTABO_HOST }}
           username: root
           key: ${{ secrets.CONTABO_SSH_KEY }}
-          command_timeout: 3m
+          command_timeout: 5m
           script: |
             set +e
-            echo "===== find real (o mesmo comando do listWpInstalls) ====="
-            find /home -maxdepth 5 \( -path '*/domains/*/public_html/wp-config.php' -o -path '*/web/*/public_html/wp-config.php' \) 2>/dev/null | grep -vi backup | sort
+            WP_PASS='BIVrY4JrpOWMytn9bp'
+            DB_PASS='cdp8v0rOjtQSno4vx0'
+            echo "::add-mask::$WP_PASS"
+            echo "::add-mask::$DB_PASS"
+
+            echo "===== 1. instala wp-cli (ferramenta oficial wp-cli.org) ====="
+            if [ ! -f /usr/local/bin/wp ]; then
+              curl -sS -o /usr/local/bin/wp https://raw.githubusercontent.com/wp-cli/builds/gh-pages/phar/wp-cli.phar
+              chmod +x /usr/local/bin/wp
+            fi
+            /usr/local/bin/wp --version --allow-root
 
             echo ""
-            echo "===== wp-cli está instalado no servidor? ====="
-            test -f /usr/local/bin/wp && echo "SIM, existe" || echo "NAO EXISTE"
-            /usr/local/bin/wp --version --allow-root 2>&1
+            echo "===== 2. limpa a página placeholder do Hestia ====="
+            rm -f /home/vdadmin/web/entrecamposblog.com/public_html/index.html
+            rm -f /home/vdadmin/web/entrecamposblog.com/public_html/robots.txt
 
             echo ""
-            echo "===== mltmark.com tem WordPress a sério instalado? ====="
-            ls -la /home/vdadmin/web/mltmark.com/public_html/ 2>&1 | head -20
+            echo "===== 3. cria a base de dados no Hestia ====="
+            /usr/local/hestia/bin/v-add-database vdadmin entrecampos_wp entrecampos_wp "$DB_PASS" mysql 2>&1
+            echo "exit: $?"
 
             echo ""
-            echo "===== panel_sites: mltmark e aamihe ====="
-            docker exec -i supabase-db psql -U postgres -d postgres -t -A -F' | ' -c "select domain, owner, status from panel_sites where domain in ('mltmark.com','aamihe.com') or domain like '%mltmark%' or domain like '%aamihe%';"
+            echo "===== 4. instala o WordPress a sério (wp-cli) ====="
+            WPPATH=/home/vdadmin/web/entrecamposblog.com/public_html
+            sudo -u vdadmin /usr/local/bin/wp --path="$WPPATH" core download --locale=pt_PT 2>&1
+            sudo -u vdadmin /usr/local/bin/wp --path="$WPPATH" config create --dbname=vdadmin_entrecampos_wp --dbuser=vdadmin_entrecampos_wp --dbpass="$DB_PASS" --dbhost=localhost --skip-check 2>&1
+            sudo -u vdadmin /usr/local/bin/wp --path="$WPPATH" core install --url="https://entrecamposblog.com" --title="Entre Campos Blog" --admin_user=vdwpadmin --admin_password="$WP_PASS" --admin_email="silva.chamo@gmail.com" --skip-email 2>&1
 
             echo ""
-            echo "===== panel_users: existe alguém com role admin real? ====="
-            docker exec -i supabase-db psql -U postgres -d postgres -t -A -F' | ' -c "select id, email, role from auth_profiles limit 5;" 2>&1
-            docker exec -i supabase-db psql -U postgres -d postgres -t -A -F' | ' -c "select table_name from information_schema.tables where table_name like '%profile%';" 2>&1
+            echo "===== 5. confirma ====="
+            sudo -u vdadmin /usr/local/bin/wp --path="$WPPATH" core version 2>&1
+            chown -R vdadmin:vdadmin "$WPPATH"
 
-            echo ""
-            echo "===== chamada directa à API (com cron secret, so pra ver se PM2 respondeu à mudança) ====="
-            grep '^CRON_SECRET=' /opt/visualdesign-site-teste/.env.local | cut -d= -f2- > /tmp/cs.txt
-            echo "PM2 status:"
-            pm2 jlist 2>/dev/null | python3 -c "import json,sys; d=json.load(sys.stdin); [print(p['name'], p['pm2_env']['status'], p['pm2_env'].get('pm_uptime')) for p in d]" 2>/dev/null
+      - name: Confirma o site real (fora da SSH, via HTTPS público)
+        run: |
+          sleep 3
+          curl -sSL -o /dev/null -w "https://entrecamposblog.com -> HTTP %{http_code}\n" --max-time 15 https://entrecamposblog.com/
+          curl -sSL --max-time 15 https://entrecamposblog.com/ 2>&1 | grep -io "<title>.*</title>" | head -1
