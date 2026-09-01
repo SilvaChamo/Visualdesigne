@@ -1,4 +1,4 @@
-name: "Ops - Fase 79. Repoe plugins limpos a partir das fontes oficiais"
+name: "Ops - Fase 80. Activa os restantes plugins um a um"
 
 on:
   workflow_dispatch:
@@ -14,7 +14,7 @@ jobs:
           echo "${{ secrets.HETZNER_SSH_KEY }}" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
           ssh-keyscan -p "${{ secrets.HETZNER_PORT }}" "${{ secrets.HETZNER_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
-      - name: Repoe plugins
+      - name: Activa um a um
         uses: appleboy/ssh-action@v1.2.5
         with:
           host: ${{ secrets.HETZNER_HOST }}
@@ -27,25 +27,17 @@ jobs:
             ROOT=/home/admin/domains/aamihe.com/public_html
             WP="/usr/local/bin/wp --allow-root --path=$ROOT"
 
-            echo "===== plugins do WordPress.org (fonte oficial, download fresco) ====="
-            for slug in elementor ocean-extra redis-cache translatepress-multilingual wp-optimize loginpress honeypot icon-element auto-image-download-button automatic-translate-addon-for-translatepress drag-and-drop-file-upload-for-elementor-forms; do
-              echo "--- $slug ---"
-              $WP plugin install "$slug" --force 2>&1
+            for slug in translatepress-multilingual wp-optimize loginpress honeypot icon-element auto-image-download-button automatic-translate-addon-for-translatepress drag-and-drop-file-upload-for-elementor-forms pro-elements; do
+              echo "--- activa $slug ---"
+              $WP plugin activate "$slug" 2>&1 | tail -3
             done
 
             echo ""
-            echo "===== pro-elements (fonte oficial confirmada: github.com/proelements/proelements) ====="
-            $WP plugin install "https://github.com/proelements/proelements/releases/download/v4.2.2/pro-elements.zip" --force 2>&1
-
-            echo ""
-            echo "===== estado final de todos os plugins ====="
+            echo "===== estado final ====="
             $WP plugin list 2>&1
 
             echo ""
-            echo "===== reactiva os que sao seguros reactivar (nao inclui jet-engine/jet-elements/loginpress-pro, precisam de licenca propria) ====="
-            $WP plugin activate elementor ocean-extra redis-cache translatepress-multilingual wp-optimize loginpress honeypot icon-element auto-image-download-button automatic-translate-addon-for-translatepress drag-and-drop-file-upload-for-elementor-forms pro-elements amazon-s3-and-cloudfront 2>&1
-
-            echo ""
-            echo "===== confirma homepage continua bem ====="
-            curl -sS -o /tmp/check2.html --max-time 15 https://aamihe.com/ 2>&1
-            echo "tamanho: $(wc -c < /tmp/check2.html) bytes"
+            echo "===== confirma homepage ====="
+            curl -sS -o /tmp/check3.html --max-time 15 https://aamihe.com/ 2>&1
+            echo "tamanho: $(wc -c < /tmp/check3.html) bytes"
+            grep -io "<title>.*</title>" /tmp/check3.html | head -1
