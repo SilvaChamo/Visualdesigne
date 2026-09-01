@@ -424,7 +424,12 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ success: false, error: 'Domínio fora do seu painel.' }, { status: 403 });
           }
           const { executeServerCommand } = await import('@/lib/server-ssh-exec');
-          const sitePath = `/home/${owner}/domains/${domain}`;
+          // O Hestia guarda os sites em .../web/<dominio>, nao .../domains/<dominio>
+          // (so o DirectAdmin usa esse padrao) — sem isto, o espaco em disco de
+          // uma conta Hestia aparecia sempre como "—" (pasta errada, vazia).
+          const { getProviderByUsername } = await import('@/lib/hosting-provider');
+          const siteProvider = await getProviderByUsername(owner);
+          const sitePath = `/home/${owner}/${siteProvider === 'hestia' ? 'web' : 'domains'}/${domain}`;
           const output = await executeServerCommand(
             `du -sh ${sitePath} 2>/dev/null | awk '{print $1}'`,
           );
@@ -523,10 +528,17 @@ export async function POST(req: NextRequest) {
         if (auth.user.role !== 'admin' && !(await assertPathsOwnedByCaller([`/home/${mirrorOwner}/`], auth.user.id))) {
           return NextResponse.json({ success: false, error: 'Domínio fora do seu painel.' }, { status: 403 });
         }
+        // O Hestia guarda os sites em .../web/<dominio>/public_html, nao
+        // .../domains/<dominio>/public_html (so o DirectAdmin usa esse padrao)
+        // — sem isto, o Gestor de Ficheiros apontava sempre para uma pasta
+        // inexistente numa conta Hestia.
+        const { getProviderByUsername } = await import('@/lib/hosting-provider');
+        const siteProvider = await getProviderByUsername(mirrorOwner);
+        const rootDir = siteProvider === 'hestia' ? 'web' : 'domains';
         return NextResponse.json({
           success: true,
           data: {
-            path: `/home/${mirrorOwner}/domains/${targetDomain}/public_html`,
+            path: `/home/${mirrorOwner}/${rootDir}/${targetDomain}/public_html`,
             owner: mirrorOwner,
           },
         });

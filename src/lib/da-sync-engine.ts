@@ -249,7 +249,12 @@ export async function runDaFullSync(): Promise<DaSyncResult> {
     if (!site.domain) continue;
     liveDomains.add(site.domain);
     const owner = site.owner || 'admin';
-    const disk_usage = await resolveSiteDiskUsageMb(owner, site.domain);
+    // Este motor de sync só conhece o caminho de pastas do DirectAdmin
+    // (.../domains/<dominio>) — para uma conta já migrada para Hestia
+    // (site ainda visível aqui por herança da conta antiga no DirectAdmin),
+    // esse caminho está sempre errado; não vale tentar (só produziria "0"
+    // de qualquer forma, mas via um comando remoto desnecessário).
+    const disk_usage = (await isHestiaAccount(owner)) ? '0' : await resolveSiteDiskUsageMb(owner, site.domain);
     const site_type = wpDomains.has(site.domain)
       ? 'wordpress'
       : site.siteType || existingSiteTypeByDomain.get(site.domain) || 'empty';

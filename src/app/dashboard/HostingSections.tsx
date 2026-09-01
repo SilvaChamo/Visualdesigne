@@ -8316,6 +8316,30 @@ export function FileManagerSection({ domain, sites, isActive = false }: {
       })
       const data = await res.json()
       if (!res.ok || !data.success) {
+        // A pasta "adivinhada" (padrão DirectAdmin, .../domains/<domínio>) pode
+        // estar errada para uma conta Hestia (guarda os sites noutro sítio,
+        // .../web/<domínio>) — se falhar logo na pasta inicial do site,
+        // confirma o caminho real no servidor antes de desistir, em vez de
+        // mostrar sempre "pasta não encontrada" para essas contas.
+        if (res.status === 404 && currentPath === siteRoot && selectedDomain) {
+          try {
+            const resolveRes = await fetch('/api/server-exec', {
+              method: 'POST',
+              credentials: 'include',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ action: 'resolveSitePath', params: { domain: selectedDomain } }),
+            })
+            const resolveData = await resolveRes.json()
+            const realPath = resolveData?.data?.path as string | undefined
+            if (resolveRes.ok && resolveData.success && realPath && realPath !== currentPath) {
+              setSiteRoot(realPath)
+              setPath(realPath)
+              return
+            }
+          } catch {
+            /* segue para o erro normal abaixo */
+          }
+        }
         if (!hadCache) {
           setError(data.error || 'Não foi possível listar ficheiros.')
           setFiles([])
