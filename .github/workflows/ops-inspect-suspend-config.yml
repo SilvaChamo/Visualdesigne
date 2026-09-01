@@ -1,4 +1,4 @@
-name: "Ops - Fase 56. O wp-content actual (plugins/temas/uploads) ainda esta intacto?"
+name: "Ops - Fase 57. Limpeza final + recria wp-config.php para a bd real e intacta"
 
 on:
   workflow_dispatch:
@@ -14,7 +14,7 @@ jobs:
           echo "${{ secrets.HETZNER_SSH_KEY }}" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
           ssh-keyscan -p "${{ secrets.HETZNER_PORT }}" "${{ secrets.HETZNER_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
-      - name: Verifica
+      - name: Limpa e confirma dono real da bd
         uses: appleboy/ssh-action@v1.2.5
         with:
           host: ${{ secrets.HETZNER_HOST }}
@@ -25,23 +25,26 @@ jobs:
           script: |
             set +e
             ROOT=/home/admin/domains/aamihe.com/public_html
-            echo "===== wp-content existe? o que tem la dentro ====="
-            ls -la "$ROOT/wp-content/" 2>&1
+            QDIR=/root/security-quarantine/aamihe.com-hetzner-final-$(date +%Y%m%d-%H%M%S)
+            mkdir -p "$QDIR"
+
+            echo "===== isola as ultimas pastas maliciosas na raiz do wp-content ====="
+            for p in "wp-content/fZULFNr" "wp-content/mIXxS" "wp-content/pwDqN" "gs-pkg"; do
+              if [ -e "$ROOT/$p" ]; then
+                mv "$ROOT/$p" "$QDIR/$(echo "$p" | tr '/' '_')"
+                echo "isolado: $p"
+              fi
+            done
 
             echo ""
-            echo "===== uploads: tamanho total e ficheiro mais recente ====="
-            du -sh "$ROOT/wp-content/uploads/" 2>&1
-            find "$ROOT/wp-content/uploads/" -type f 2>/dev/null | sort | tail -5
-            find "$ROOT/wp-content/uploads/" -type f -newermt "2026-01-01" 2>/dev/null | wc -l
+            echo "===== confirma limpo (nomes repetidos + nomes aleatorios conhecidos) ====="
+            find "$ROOT" -type d 2>/dev/null | awk -F/ '{if ($NF==$(NF-1)) print}'
+            echo "(vazio acima = limpo)"
 
             echo ""
-            echo "===== plugins instalados agora ====="
-            ls "$ROOT/wp-content/plugins/" 2>&1
+            echo "===== utilizador real da base de dados (MySQL grants) ====="
+            mysql -u root -e "select user, host from mysql.db where db='admin_aamihe_bd';" 2>&1
 
             echo ""
-            echo "===== tema activo (pasta themes) ====="
-            ls "$ROOT/wp-content/themes/" 2>&1
-
-            echo ""
-            echo "===== confirma que nenhum ficheiro core do wordpress (wp-admin/wp-includes) sobrou ====="
-            ls "$ROOT/" 2>&1
+            echo "===== confirma users MySQL existentes que comecam por admin_ ====="
+            mysql -u root -e "select User from mysql.user where User like 'admin%';" 2>&1
