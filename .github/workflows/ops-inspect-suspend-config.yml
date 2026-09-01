@@ -1,4 +1,4 @@
-name: "Ops - Fase 34. Porque entrecamposblog.com desapareceu da lista de sites"
+name: "Ops - Fase 35. Repoe entrecamposblog.com no espelho do painel"
 
 on:
   workflow_dispatch:
@@ -14,7 +14,7 @@ jobs:
           echo "${{ secrets.CONTABO_SSH_KEY }}" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
           ssh-keyscan "${{ secrets.CONTABO_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
-      - name: Investiga
+      - name: Repoe via sync + confirma
         uses: appleboy/ssh-action@v1.2.5
         with:
           host: ${{ secrets.CONTABO_HOST }}
@@ -23,13 +23,16 @@ jobs:
           command_timeout: 3m
           script: |
             set +e
-            echo "===== entrecamposblog.com ainda existe no Hestia? ====="
-            /usr/local/hestia/bin/v-list-web-domain vdadmin entrecamposblog.com 2>&1
+            CRON_SECRET_VALUE=$(grep '^CRON_SECRET=' /opt/visualdesign-site-teste/.env.local | cut -d= -f2-)
+            echo "::add-mask::$CRON_SECRET_VALUE"
+
+            echo "===== dispara hestia-sync ====="
+            curl -sS -w "\nHTTP_STATUS:%{http_code}\n" --max-time 60 -H "Host: teste.visualdesignmoz.com" -H "Authorization: Bearer ${CRON_SECRET_VALUE}" http://127.0.0.1:3002/api/cron/hestia-sync
 
             echo ""
-            echo "===== linha em panel_sites ====="
-            docker exec -i supabase-db psql -U postgres -d postgres -t -A -F' | ' -c "select domain, owner, status, site_type, updated_at from panel_sites where domain = 'entrecamposblog.com';"
+            echo "===== confirma entrecamposblog.com de volta ====="
+            docker exec -i supabase-db psql -U postgres -d postgres -t -A -F' | ' -c "select domain, owner, status, updated_at from panel_sites where domain = 'entrecamposblog.com';"
 
             echo ""
-            echo "===== (se vazio acima, procura em maiúsculas/variações) ====="
-            docker exec -i supabase-db psql -U postgres -d postgres -t -A -F' | ' -c "select domain, owner, status from panel_sites where domain ilike '%entrecampos%';"
+            echo "===== todos os sites do vdadmin, para conferir mais nada desapareceu ====="
+            docker exec -i supabase-db psql -U postgres -d postgres -t -A -F' | ' -c "select domain, owner, status from panel_sites where owner = 'vdadmin' order by domain;"
