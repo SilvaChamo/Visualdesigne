@@ -1,22 +1,41 @@
-name: "Ops - Fase 108. Testa oshercollective.com a partir de maquina limpa e neutra"
+name: "Ops - Fase 109. Verifica versao/cifra TLS usada pelo oshercollective.com"
 
 on:
   workflow_dispatch:
 
 jobs:
-  teste-limpo:
-    name: teste-limpo
+  hetzner:
+    name: hetzner
     runs-on: ubuntu-latest
     steps:
-      - name: Testa tal como um visitante real veria
+      - name: Setup SSH key
         run: |
-          echo "===== resolucao dns real, deste ponto neutro ====="
-          getent hosts oshercollective.com
+          mkdir -p ~/.ssh
+          echo "${{ secrets.HETZNER_SSH_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -p "${{ secrets.HETZNER_PORT }}" "${{ secrets.HETZNER_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
+      - name: Investiga TLS
+        uses: appleboy/ssh-action@v1.2.5
+        with:
+          host: ${{ secrets.HETZNER_HOST }}
+          port: ${{ secrets.HETZNER_PORT }}
+          username: ${{ secrets.HETZNER_USER }}
+          key: ${{ secrets.HETZNER_SSH_KEY }}
+          command_timeout: 2m
+          script: |
+            set +e
+            echo "===== que SSLProtocol/SSLCipherSuite esta definido globalmente ====="
+            grep -rn "SSLProtocol\|SSLCipherSuite\|SSLHonorCipherOrder" /etc/httpd/conf/extra/httpd-ssl.conf 2>&1
+            grep -rn "SSLProtocol\|SSLCipherSuite" /usr/local/directadmin/data/users/oshercollective/httpd.conf 2>&1
 
-          echo ""
-          echo "===== pedido https normal, sem truques ====="
-          curl -v --max-time 15 "https://oshercollective.com/" -o /dev/null 2>&1 | grep -iE "Trying|Connected to|subject:|SSL certificate|HTTP/|< location"
+            echo ""
+            echo "===== versao TLS minima que o apache aceita, testando cada uma ====="
+            for v in tls1 tls1_1 tls1_2 tls1_3; do
+              echo "--- $v ---"
+              echo | timeout 5 openssl s_client -connect oshercollective.com:443 -servername oshercollective.com -$v 2>&1 | grep -iE "Protocol|Cipher|error|refused" | head -3
+            done
 
-          echo ""
-          echo "===== o mesmo, mas seguindo redireccionamentos, ate 5 ====="
-          curl -sSIL --max-time 20 --max-redirs 5 "https://oshercollective.com/" 2>&1 | grep -iE "^HTTP|^location"
+            echo ""
+            echo "===== versao do openssl/apache neste servidor ====="
+            httpd -v 2>&1
+            openssl version 2>&1
