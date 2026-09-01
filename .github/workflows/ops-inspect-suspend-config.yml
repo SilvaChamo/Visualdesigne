@@ -1,4 +1,4 @@
-name: "Ops - Fase 13a. Estado real de entrecamposorg.com (so leitura)"
+name: "Ops - Fase 13b. Estado real de entrecamposorg.com (so leitura, corrige aspas)"
 
 on:
   workflow_dispatch:
@@ -23,15 +23,19 @@ jobs:
           key: ${{ secrets.CONTABO_SSH_KEY }}
           command_timeout: 2m
           script: |
-            PG="docker exec -i supabase-db psql -U postgres -d postgres -t -A -F' | '"
+            SQL() { docker exec -i supabase-db psql -U postgres -d postgres -t -A -c "$1"; }
 
-            echo "===== domain_renewals: entrecamposorg.com ====="
-            $PG -c "select id, user_id, domain_name, status, dns_status, registration_date, expiration_date, notes from domain_renewals where domain_name ilike '%entrecamposorg%';"
-
-            echo ""
-            echo "===== payment_proofs / pagamentos pendentes relacionados (se existir a tabela) ====="
-            $PG -c "select table_name from information_schema.tables where table_schema='public' and table_name ilike '%payment%' or table_name ilike '%pagamento%' or table_name ilike '%comprovativo%';"
+            echo "===== domain_renewals: qualquer coisa com 'entrecampos' ====="
+            SQL "select id, user_id, domain_name, status, dns_status, created_at, expiration_date, notes from domain_renewals where domain_name ilike '%entrecampos%' order by created_at desc nulls last;"
 
             echo ""
-            echo "===== carrinho/checkout: procurar por 'entrecampos' em tabelas relevantes ====="
-            $PG -c "select table_name from information_schema.tables where table_schema='public' and (table_name ilike '%cart%' or table_name ilike '%checkout%' or table_name ilike '%carrinho%' or table_name ilike '%pedido%' or table_name ilike '%order%');"
+            echo "===== domain_renewals: 5 mais recentes (qualquer dominio) ====="
+            SQL "select domain_name, status, dns_status, created_at from domain_renewals order by created_at desc nulls last limit 5;"
+
+            echo ""
+            echo "===== checkout_sessions: mais recentes com 'entrecampos' ====="
+            SQL "select id, status, created_at, items::text from checkout_sessions where items::text ilike '%entrecampos%' order by created_at desc limit 5;"
+
+            echo ""
+            echo "===== pagamentos: mais recentes com 'entrecampos' ====="
+            SQL "select id, status, created_at, descricao from pagamentos where descricao ilike '%entrecampos%' order by created_at desc limit 5;"
