@@ -1,58 +1,31 @@
-name: "Ops - Fase 52. Aumenta limite de upload do Supabase Storage (Contabo) temporariamente"
+name: "Ops - Fase 53. Leva os ficheiros do Contabo para o Hetzner (relay pelo runner)"
 
 on:
   workflow_dispatch:
 
 jobs:
-  contabo:
-    name: contabo
+  relay:
+    name: relay
     runs-on: ubuntu-latest
     steps:
-      - name: Setup SSH key
+      - name: Setup SSH keys (Contabo + Hetzner)
         run: |
           mkdir -p ~/.ssh
-          echo "${{ secrets.CONTABO_SSH_KEY }}" > ~/.ssh/deploy_key
-          chmod 600 ~/.ssh/deploy_key
+          echo "${{ secrets.CONTABO_SSH_KEY }}" > ~/.ssh/contabo_key
+          echo "${{ secrets.HETZNER_SSH_KEY }}" > ~/.ssh/hetzner_key
+          chmod 600 ~/.ssh/contabo_key ~/.ssh/hetzner_key
           ssh-keyscan "${{ secrets.CONTABO_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
-      - name: Aumenta limite e reinicia
-        uses: appleboy/ssh-action@v1.2.5
-        with:
-          host: ${{ secrets.CONTABO_HOST }}
-          username: root
-          key: ${{ secrets.CONTABO_SSH_KEY }}
-          command_timeout: 3m
-          script: |
-            set +e
-            echo "===== localiza o .env da stack supabase ====="
-            ENVFILE=$(find /opt -maxdepth 3 -path "*supabase*/docker/.env" 2>/dev/null | head -1)
-            echo "$ENVFILE"
+          ssh-keyscan -p "${{ secrets.HETZNER_PORT }}" "${{ secrets.HETZNER_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
 
-            echo ""
-            echo "===== valor actual ====="
-            grep "FILE_SIZE_LIMIT" "$ENVFILE"
+      - name: Descarrega do Contabo para o runner
+        run: |
+          scp -i ~/.ssh/contabo_key root@${{ secrets.CONTABO_HOST }}:/root/aamihe-restore/db.sql ./db.sql
+          scp -i ~/.ssh/contabo_key root@${{ secrets.CONTABO_HOST }}:/root/aamihe-restore/uploads.zip ./uploads.zip
+          ls -la db.sql uploads.zip
 
-            echo ""
-            echo "===== aumenta para 500MB (era so 50MB, a linha nem existia no .env) ====="
-            if grep -q "^FILE_SIZE_LIMIT=" "$ENVFILE"; then
-              sed -i "s|^FILE_SIZE_LIMIT=.*|FILE_SIZE_LIMIT=524288000|" "$ENVFILE"
-            else
-              echo "FILE_SIZE_LIMIT=524288000" >> "$ENVFILE"
-            fi
-            grep "FILE_SIZE_LIMIT" "$ENVFILE"
-
-            echo ""
-            echo "===== o valor esta fixo directamente no docker-compose.yml, nao le do .env ====="
-            COMPOSEFILE="$(dirname "$ENVFILE")/docker-compose.yml"
-            grep -n "FILE_SIZE_LIMIT" "$COMPOSEFILE" 2>&1
-            sed -i "s|FILE_SIZE_LIMIT: 52428800|FILE_SIZE_LIMIT: 524288000|" "$COMPOSEFILE"
-            grep -n "FILE_SIZE_LIMIT" "$COMPOSEFILE" 2>&1
-
-            echo ""
-            echo "===== reinicia o container de storage ====="
-            COMPOSE_DIR=$(dirname "$ENVFILE")
-            cd "$COMPOSE_DIR" && docker compose up -d storage 2>&1
-
-            echo ""
-            sleep 3
-            echo "===== confirma no container ====="
-            docker inspect supabase-storage --format '{{range .Config.Env}}{{println .}}{{end}}' 2>&1 | grep FILE_SIZE
+      - name: Envia do runner para o Hetzner
+        run: |
+          ssh -i ~/.ssh/hetzner_key -p ${{ secrets.HETZNER_PORT }} ${{ secrets.HETZNER_USER }}@${{ secrets.HETZNER_HOST }} "mkdir -p /root/aamihe-restore"
+          scp -i ~/.ssh/hetzner_key -P ${{ secrets.HETZNER_PORT }} ./db.sql ${{ secrets.HETZNER_USER }}@${{ secrets.HETZNER_HOST }}:/root/aamihe-restore/db.sql
+          scp -i ~/.ssh/hetzner_key -P ${{ secrets.HETZNER_PORT }} ./uploads.zip ${{ secrets.HETZNER_USER }}@${{ secrets.HETZNER_HOST }}:/root/aamihe-restore/uploads.zip
+          ssh -i ~/.ssh/hetzner_key -p ${{ secrets.HETZNER_PORT }} ${{ secrets.HETZNER_USER }}@${{ secrets.HETZNER_HOST }} "ls -la /root/aamihe-restore/"
