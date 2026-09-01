@@ -1,11 +1,35 @@
-name: "Ops - Fase 36. Repoe entrecamposblog.com outra vez, ja com o fix a caminho"
+name: "Ops - Fase 37. Investiga tela branca do aamihe.com - qual servidor esta a servir"
 
 on:
   workflow_dispatch:
 
 jobs:
+  cloudflare:
+    name: cloudflare
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verifica origem real no DNS
+        run: |
+          set +e
+          EMAIL="${{ secrets.CLOUDFLARE_EMAIL }}"
+          GKEY="${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}"
+          HETZNER_IP="${{ secrets.HETZNER_HOST }}"
+          CONTABO_IP="${{ secrets.CONTABO_HOST }}"
+
+          ZONE=$(curl -sS -H "X-Auth-Email: $EMAIL" -H "X-Auth-Key: $GKEY" -H "Content-Type: application/json" \
+            "https://api.cloudflare.com/client/v4/zones?name=aamihe.com")
+          echo "$ZONE" > /tmp/zone.json
+          ZONE_ID=$(python3 -c "import json; print(json.load(open('/tmp/zone.json'))['result'][0]['id'])" 2>/dev/null)
+          echo "zone_id: $ZONE_ID"
+
+          curl -sS -H "X-Auth-Email: $EMAIL" -H "X-Auth-Key: $GKEY" -H "Content-Type: application/json" \
+            "https://api.cloudflare.com/client/v4/zones/$ZONE_ID/dns_records?type=A&per_page=100" > /tmp/records.json
+
+          HETZNER_IP="$HETZNER_IP" CONTABO_IP="$CONTABO_IP" python3 -c "import json,os; d=json.load(open('/tmp/records.json')); h=os.environ['HETZNER_IP']; c=os.environ['CONTABO_IP']; [print(r.get('name'),'->',r.get('content'),'| proxied:',r.get('proxied'),'| origem:', 'HETZNER/DA' if r.get('content')==h else ('CONTABO/HESTIA' if r.get('content')==c else '?')) for r in d.get('result', [])]"
+
   contabo:
     name: contabo
+    needs: cloudflare
     runs-on: ubuntu-latest
     steps:
       - name: Setup SSH key
@@ -14,7 +38,7 @@ jobs:
           echo "${{ secrets.CONTABO_SSH_KEY }}" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
           ssh-keyscan "${{ secrets.CONTABO_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
-      - name: Repoe via sync
+      - name: Testa aamihe.com directo no Contabo + logs
         uses: appleboy/ssh-action@v1.2.5
         with:
           host: ${{ secrets.CONTABO_HOST }}
@@ -23,8 +47,10 @@ jobs:
           command_timeout: 3m
           script: |
             set +e
-            CRON_SECRET_VALUE=$(grep '^CRON_SECRET=' /opt/visualdesign-site-teste/.env.local | cut -d= -f2-)
-            echo "::add-mask::$CRON_SECRET_VALUE"
-            curl -sS -w "\nHTTP_STATUS:%{http_code}\n" --max-time 60 -H "Host: teste.visualdesignmoz.com" -H "Authorization: Bearer ${CRON_SECRET_VALUE}" http://127.0.0.1:3002/api/cron/hestia-sync
+            echo "===== conteudo servido localmente (bypassa cloudflare) ====="
+            curl -sS --max-time 8 -H "Host: aamihe.com" http://127.0.0.1/ 2>&1 | head -c 2000
             echo ""
-            docker exec -i supabase-db psql -U postgres -d postgres -t -A -F' | ' -c "select domain, owner, status from panel_sites where owner = 'vdadmin' order by domain;"
+            echo "===== ultimas linhas do error log php/apache para aamihe.com ====="
+            tail -60 /var/log/apache2/domains/aamihe.com.error.log 2>&1
+            echo ""
+            tail -60 /home/aamihe/web/aamihe.com/logs/aamihe.com.error.log 2>&1
