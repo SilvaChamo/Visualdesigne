@@ -1,11 +1,63 @@
-name: "Ops - Fase 41. Estado real da firewall no Contabo + aamihe la tem a mesma infeccao"
+name: "Ops - Fase 42. Isola todo o malware do aamihe.com nos dois servidores"
 
 on:
   workflow_dispatch:
 
 jobs:
+  hetzner:
+    name: hetzner
+    runs-on: ubuntu-latest
+    steps:
+      - name: Setup SSH key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.HETZNER_SSH_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -p "${{ secrets.HETZNER_PORT }}" "${{ secrets.HETZNER_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
+      - name: Isola tudo (Hetzner - site ao vivo)
+        uses: appleboy/ssh-action@v1.2.5
+        with:
+          host: ${{ secrets.HETZNER_HOST }}
+          port: ${{ secrets.HETZNER_PORT }}
+          username: ${{ secrets.HETZNER_USER }}
+          key: ${{ secrets.HETZNER_SSH_KEY }}
+          command_timeout: 3m
+          script: |
+            set +e
+            ROOT=/home/admin/domains/aamihe.com/public_html
+            QDIR=/root/security-quarantine/aamihe.com-hetzner-$(date +%Y%m%d-%H%M%S)
+            mkdir -p "$QDIR"
+
+            for p in \
+              "wp-includes/php-ai-client/src/Providers/Providers" \
+              "image/.b26_sed_bak" \
+              "wp-admin/spLlo" \
+              "wp-admin/includes/includes" \
+              "wp-content/plugins/pro-elements/core/app/modules/import-export-customization/assets/js/utils/utils" \
+              "05a0wp"
+            do
+              if [ -e "$ROOT/$p" ]; then
+                DEST="$QDIR/$(echo "$p" | tr '/' '_')"
+                mv "$ROOT/$p" "$DEST"
+                echo "isolado: $p"
+              else
+                echo "ja nao existe: $p"
+              fi
+            done
+
+            echo ""
+            echo "===== confirma que nao sobrou nada com o mesmo padrao ====="
+            find "$ROOT" -type d \( -iname "*.b26_sed_bak*" -o -iname "spLlo" -o -iname "Providers" -o -iname "05a0wp" \) 2>/dev/null
+            echo "(vazio acima = limpo)"
+
+      - name: Confirma o site depois da limpeza
+        run: |
+          sleep 2
+          curl -sSL -o /dev/null -w "HTTP %{http_code}\n" --max-time 15 https://aamihe.com/ 2>&1
+
   contabo:
     name: contabo
+    needs: hetzner
     runs-on: ubuntu-latest
     steps:
       - name: Setup SSH key
@@ -14,7 +66,7 @@ jobs:
           echo "${{ secrets.CONTABO_SSH_KEY }}" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
           ssh-keyscan "${{ secrets.CONTABO_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
-      - name: Verifica firewall e conta aamihe
+      - name: Isola tudo (Contabo - copia ainda offline)
         uses: appleboy/ssh-action@v1.2.5
         with:
           host: ${{ secrets.CONTABO_HOST }}
@@ -23,27 +75,32 @@ jobs:
           command_timeout: 3m
           script: |
             set +e
-            echo "===== firewall do sistema (iptables/ufw) ====="
-            ufw status verbose 2>&1
-            echo "--- iptables ---"
-            iptables -L -n 2>&1 | head -30
+            ROOT=/home/aamihe/web/aamihe.com/public_html
+            QDIR=/root/security-quarantine/aamihe.com-contabo-$(date +%Y%m%d-%H%M%S)
+            mkdir -p "$QDIR"
+
+            for p in \
+              "wp-includes/php-ai-client/src/Providers/Providers" \
+              "image/.b26_sed_bak" \
+              "wp-admin/spLlo" \
+              "wp-admin/includes/includes" \
+              "wp-content/plugins/pro-elements/core/app/modules/import-export-customization/assets/js/utils/utils" \
+              "05a0wp"
+            do
+              if [ -e "$ROOT/$p" ]; then
+                DEST="$QDIR/$(echo "$p" | tr '/' '_')"
+                mv "$ROOT/$p" "$DEST"
+                echo "isolado: $p"
+              else
+                echo "ja nao existe: $p"
+              fi
+            done
 
             echo ""
-            echo "===== firewall do Hestia (o proprio painel) ====="
-            /usr/local/hestia/bin/v-list-firewall plain 2>&1 | head -20
-            echo "(vazio acima = sem nenhuma regra configurada no Hestia)"
+            echo "===== confirma que nao sobrou nada com o mesmo padrao ====="
+            find "$ROOT" -type d \( -iname "*.b26_sed_bak*" -o -iname "spLlo" -o -iname "Providers" -o -iname "05a0wp" \) 2>/dev/null
+            echo "(vazio acima = limpo)"
 
             echo ""
-            echo "===== fail2ban a correr? ====="
-            systemctl is-active fail2ban 2>&1
-            fail2ban-client status 2>&1
-
-            echo ""
-            echo "===== a conta aamihe existe aqui, tem sites? ====="
-            /usr/local/hestia/bin/v-list-web-domains aamihe plain 2>&1
-
-            echo ""
-            echo "===== aamihe.com tem a mesma infeccao aqui no Contabo? ====="
-            find /home/aamihe/web/aamihe.com/public_html/ -iname "05a0wp" -o -iname "*.b26_sed_bak*" -o -path "*spLlo*" 2>/dev/null
-            echo "(vazio acima = nao tem esta infeccao aqui)"
-            ls -la /home/aamihe/web/ 2>&1
+            echo "===== varrimento geral: outras pastas com nome repetido no caminho (mesmo padrao do malware) ====="
+            find "$ROOT" -type d 2>/dev/null | awk -F/ '{if ($NF==$(NF-1)) print}'
