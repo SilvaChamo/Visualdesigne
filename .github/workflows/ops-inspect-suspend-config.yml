@@ -1,62 +1,22 @@
-name: "Ops - Fase 107. SO LEITURA - elimservicos.com e shalomdeco.com sao wordpress?"
+name: "Ops - Fase 108. Testa oshercollective.com a partir de maquina limpa e neutra"
 
 on:
   workflow_dispatch:
 
 jobs:
-  hetzner:
-    name: hetzner
+  teste-limpo:
+    name: teste-limpo
     runs-on: ubuntu-latest
     steps:
-      - name: Setup SSH key
+      - name: Testa tal como um visitante real veria
         run: |
-          mkdir -p ~/.ssh
-          echo "${{ secrets.HETZNER_SSH_KEY }}" > ~/.ssh/deploy_key
-          chmod 600 ~/.ssh/deploy_key
-          ssh-keyscan -p "${{ secrets.HETZNER_PORT }}" "${{ secrets.HETZNER_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
-      - name: Investiga (so leitura)
-        uses: appleboy/ssh-action@v1.2.5
-        with:
-          host: ${{ secrets.HETZNER_HOST }}
-          port: ${{ secrets.HETZNER_PORT }}
-          username: ${{ secrets.HETZNER_USER }}
-          key: ${{ secrets.HETZNER_SSH_KEY }}
-          command_timeout: 2m
-          script: |
-            set +e
-            echo "===== conteudo completo da pasta do elimservicos.com no hetzner ====="
-            ls -la /home/oshercollective/domains/elimservicos.com/public_html/ 2>&1
+          echo "===== resolucao dns real, deste ponto neutro ====="
+          getent hosts oshercollective.com
 
-            echo ""
-            echo "===== e no Contabo, elimservicos.com tem wp-content? ====="
-            echo "(vamos ver isso a seguir no job contabo)"
+          echo ""
+          echo "===== pedido https normal, sem truques ====="
+          curl -v --max-time 15 "https://oshercollective.com/" -o /dev/null 2>&1 | grep -iE "Trying|Connected to|subject:|SSL certificate|HTTP/|< location"
 
-            echo ""
-            echo "===== ha alguma base de dados que mencione elim ====="
-            mysql -e "SHOW DATABASES;" 2>&1 | grep -i "elim"
-
-  contabo:
-    name: contabo
-    runs-on: ubuntu-latest
-    steps:
-      - name: Setup SSH key
-        run: |
-          mkdir -p ~/.ssh
-          echo "${{ secrets.CONTABO_SSH_KEY }}" > ~/.ssh/deploy_key
-          chmod 600 ~/.ssh/deploy_key
-          ssh-keyscan "${{ secrets.CONTABO_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
-      - name: Investiga no Contabo (so leitura)
-        uses: appleboy/ssh-action@v1.2.5
-        with:
-          host: ${{ secrets.CONTABO_HOST }}
-          username: root
-          key: ${{ secrets.CONTABO_SSH_KEY }}
-          command_timeout: 2m
-          script: |
-            set +e
-            echo "===== elimservicos.com no Contabo ====="
-            ls -la /home/oshercollective/web/elimservicos.com/public_html/ 2>&1 | head -15
-
-            echo ""
-            echo "===== shalomdeco.com no Contabo ====="
-            ls -la /home/oshercollective/web/shalomdeco.com/public_html/ 2>&1 | head -15
+          echo ""
+          echo "===== o mesmo, mas seguindo redireccionamentos, ate 5 ====="
+          curl -sSIL --max-time 20 --max-redirs 5 "https://oshercollective.com/" 2>&1 | grep -iE "^HTTP|^location"
