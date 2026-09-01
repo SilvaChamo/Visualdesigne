@@ -1,4 +1,4 @@
-name: "Ops - Fase 57. Limpeza final + recria wp-config.php para a bd real e intacta"
+name: "Ops - Fase 58. Recria wp-config.php do aamihe.com para a base de dados real"
 
 on:
   workflow_dispatch:
@@ -14,7 +14,7 @@ jobs:
           echo "${{ secrets.HETZNER_SSH_KEY }}" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
           ssh-keyscan -p "${{ secrets.HETZNER_PORT }}" "${{ secrets.HETZNER_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
-      - name: Limpa e confirma dono real da bd
+      - name: Recria wp-config.php e reinicia password da bd
         uses: appleboy/ssh-action@v1.2.5
         with:
           host: ${{ secrets.HETZNER_HOST }}
@@ -25,26 +25,33 @@ jobs:
           script: |
             set +e
             ROOT=/home/admin/domains/aamihe.com/public_html
-            QDIR=/root/security-quarantine/aamihe.com-hetzner-final-$(date +%Y%m%d-%H%M%S)
-            mkdir -p "$QDIR"
+            NEWDBPASS=$(openssl rand -base64 24 | tr -dc 'a-zA-Z0-9' | head -c 24)
+            echo "::add-mask::$NEWDBPASS"
 
-            echo "===== isola as ultimas pastas maliciosas na raiz do wp-content ====="
-            for p in "wp-content/fZULFNr" "wp-content/mIXxS" "wp-content/pwDqN" "gs-pkg"; do
-              if [ -e "$ROOT/$p" ]; then
-                mv "$ROOT/$p" "$QDIR/$(echo "$p" | tr '/' '_')"
-                echo "isolado: $p"
-              fi
-            done
+            echo "===== 1. nova password para o utilizador real da bd ====="
+            mysql -u root -e "ALTER USER 'admin_aamihe_user'@'localhost' IDENTIFIED BY '$NEWDBPASS'; FLUSH PRIVILEGES;" 2>&1
+            echo "exit: $?"
 
             echo ""
-            echo "===== confirma limpo (nomes repetidos + nomes aleatorios conhecidos) ====="
-            find "$ROOT" -type d 2>/dev/null | awk -F/ '{if ($NF==$(NF-1)) print}'
-            echo "(vazio acima = limpo)"
+            echo "===== 2. gera wp-config.php com wp-cli (se existir) ou manualmente ====="
+            command -v wp >/dev/null 2>&1 || curl -sS -o /usr/local/bin/wp https://raw.githubusercontent.com/wp-cli/builds/gh-pages/phar/wp-cli.phar && chmod +x /usr/local/bin/wp
+            /usr/local/bin/wp --allow-root --path="$ROOT" config create \
+              --dbname=admin_aamihe_bd --dbuser=admin_aamihe_user --dbpass="$NEWDBPASS" \
+              --dbhost=localhost --dbprefix=Aimes_ --skip-check --force 2>&1
+            chown admin:admin "$ROOT/wp-config.php"
+            chmod 640 "$ROOT/wp-config.php"
 
             echo ""
-            echo "===== utilizador real da base de dados (MySQL grants) ====="
-            mysql -u root -e "select user, host from mysql.db where db='admin_aamihe_bd';" 2>&1
+            echo "===== 3. confirma que liga mesmo a base de dados real ====="
+            /usr/local/bin/wp --allow-root --path="$ROOT" db check 2>&1
 
             echo ""
-            echo "===== confirma users MySQL existentes que comecam por admin_ ====="
-            mysql -u root -e "select User from mysql.user where User like 'admin%';" 2>&1
+            echo "===== 4. confirma dados reais (titulo do site, contagem de posts) ====="
+            /usr/local/bin/wp --allow-root --path="$ROOT" option get blogname 2>&1
+            /usr/local/bin/wp --allow-root --path="$ROOT" post list --post_status=publish --format=count 2>&1
+
+      - name: Confirma o site ao vivo
+        run: |
+          sleep 3
+          curl -sSL --max-time 15 https://aamihe.com/ 2>&1 | grep -io "<title>.*</title>" | head -1
+          curl -sSL -o /dev/null -w "HTTP %{http_code}\n" --max-time 15 https://aamihe.com/
