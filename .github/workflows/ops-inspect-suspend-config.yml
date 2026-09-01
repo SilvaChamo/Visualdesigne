@@ -1,4 +1,4 @@
-name: "Ops - Fase 46. Verifica se a base de dados actual do aamihe.com foi alterada"
+name: "Ops - Fase 47. Verifica os backups admin_backups (hoje) e user_backups"
 
 on:
   workflow_dispatch:
@@ -14,7 +14,7 @@ jobs:
           echo "${{ secrets.HETZNER_SSH_KEY }}" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
           ssh-keyscan -p "${{ secrets.HETZNER_PORT }}" "${{ secrets.HETZNER_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
-      - name: Verifica DB actual + procura outros backups
+      - name: Inspecciona
         uses: appleboy/ssh-action@v1.2.5
         with:
           host: ${{ secrets.HETZNER_HOST }}
@@ -24,30 +24,20 @@ jobs:
           command_timeout: 3m
           script: |
             set +e
-            WPPATH=/home/admin/domains/aamihe.com/public_html
-            DBNAME=$(grep "DB_NAME" "$WPPATH/wp-config.php" | sed -E "s/.*'DB_NAME', *'([^']+)'.*/\1/")
-            DBUSER=$(grep "DB_USER" "$WPPATH/wp-config.php" | sed -E "s/.*'DB_USER', *'([^']+)'.*/\1/")
-            DBPASS=$(grep "DB_PASSWORD" "$WPPATH/wp-config.php" | sed -E "s/.*'DB_PASSWORD', *'([^']+)'.*/\1/")
-            echo "::add-mask::$DBPASS"
-            echo "db name: $DBNAME | db user: $DBUSER"
+            echo "===== admin_backups (hoje 05:00) ====="
+            ls -la /home/admin/admin_backups/ 2>&1
+            find /home/admin/admin_backups/ -iname "*aamihe*" 2>&1
 
             echo ""
-            echo "===== utilizadores administradores reais na base de dados actual ====="
-            mysql -u"$DBUSER" -p"$DBPASS" "$DBNAME" -e "select u.ID, u.user_login, u.user_email, u.user_registered from wp_users u inner join wp_usermeta m on m.user_id=u.ID and m.meta_key='wp_capabilities' and m.meta_value like '%administrator%' order by u.user_registered desc;" 2>&1
+            echo "===== user_backups ====="
+            ls -la /home/admin/user_backups/ 2>&1
+            find /home/admin/user_backups/ -iname "*aamihe*" 2>&1
 
             echo ""
-            echo "===== plugins activos agora ====="
-            mysql -u"$DBUSER" -p"$DBPASS" "$DBNAME" -e "select option_value from wp_options where option_name='active_plugins';" 2>&1
+            echo "===== procura wp-config.php em qualquer sitio dentro dos backups do servidor ====="
+            find /home/admin/admin_backups/ /home/admin/user_backups/ /home/admin/backups/ -iname "wp-config.php" 2>&1 | head -10
 
             echo ""
-            echo "===== opcoes suspeitas (ligadas a temas/plugins desconhecidos, criadas ou mudadas ha pouco) ====="
-            mysql -u"$DBUSER" -p"$DBPASS" "$DBNAME" -e "select option_name from wp_options where option_name like '%wp_ffl_%' or option_name like '%_transient_%backdoor%' or option_name like '%eval%' limit 20;" 2>&1
-
-            echo ""
-            echo "===== data mais recente de artigos/paginas (para comparar com o que os visitantes viam) ====="
-            mysql -u"$DBUSER" -p"$DBPASS" "$DBNAME" -e "select ID, post_title, post_type, post_status, post_modified from wp_posts where post_type in ('post','page') order by post_modified desc limit 10;" 2>&1
-
-            echo ""
-            echo "===== procura por MAIS backups nativos (nao so o de 23 junho) ====="
-            find / -maxdepth 5 -path "*/backups/*" -newer /home/admin/backups/backup -iname "*aamihe*" 2>/dev/null
-            ls -la /home/admin/ 2>&1 | grep -i backup
+            echo "===== docroot actual, confirma mesmo que falta o wp-config.php ====="
+            ls -la /home/admin/domains/aamihe.com/public_html/ | head -5
+            test -f /home/admin/domains/aamihe.com/public_html/wp-config.php && echo "existe" || echo "NAO EXISTE"
