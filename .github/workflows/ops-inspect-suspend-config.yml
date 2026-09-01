@@ -1,29 +1,66 @@
-name: "Ops - Fase 99. Ve prefixo das tabelas em cada site (so leitura no Contabo)"
+name: "Ops - Fase 100. Repoe os 3 sites osher no Hetzner (extrai + config + testa)"
 
 on:
   workflow_dispatch:
 
 jobs:
-  contabo:
-    name: contabo
+  hetzner:
+    name: hetzner
     runs-on: ubuntu-latest
     steps:
       - name: Setup SSH key
         run: |
           mkdir -p ~/.ssh
-          echo "${{ secrets.CONTABO_SSH_KEY }}" > ~/.ssh/deploy_key
+          echo "${{ secrets.HETZNER_SSH_KEY }}" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
-          ssh-keyscan "${{ secrets.CONTABO_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
-      - name: Ve prefixo (so leitura)
+          ssh-keyscan -p "${{ secrets.HETZNER_PORT }}" "${{ secrets.HETZNER_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
+      - name: Repoe os 3 sites
         uses: appleboy/ssh-action@v1.2.5
         with:
-          host: ${{ secrets.CONTABO_HOST }}
-          username: root
-          key: ${{ secrets.CONTABO_SSH_KEY }}
-          command_timeout: 2m
+          host: ${{ secrets.HETZNER_HOST }}
+          port: ${{ secrets.HETZNER_PORT }}
+          username: ${{ secrets.HETZNER_USER }}
+          key: ${{ secrets.HETZNER_SSH_KEY }}
+          command_timeout: 4m
           script: |
             set +e
-            for d in oshercollective.com msdn-moz.org lirandzojewelry.com; do
-              echo "--- $d ---"
-              grep "table_prefix" "/home/oshercollective/web/$d/public_html/wp-config.php" 2>&1
-            done
+            WP="/usr/local/bin/wp --allow-root"
+
+            restore_site() {
+              DOMAIN="$1"
+              DBNAME="$2"
+              DBUSER="$3"
+              ROOT="/home/oshercollective/domains/$DOMAIN/public_html"
+
+              echo "===== $DOMAIN ====="
+
+              echo "-- extrai wp-content --"
+              tar xzf "/tmp/wpcontent-$DOMAIN.tar.gz" -C "$ROOT"
+
+              echo "-- baixa core oficial do wordpress (nao mexe no wp-content que acabou de chegar) --"
+              $WP core download --force --skip-content --path="$ROOT" 2>&1 | tail -5
+
+              echo "-- gera password nova para a base de dados --"
+              NEWPASS=$(openssl rand -base64 24 | tr -dc 'A-Za-z0-9' | head -c 20)
+              echo "::add-mask::$NEWPASS"
+              mysql -e "ALTER USER '$DBUSER'@'localhost' IDENTIFIED BY '$NEWPASS'; FLUSH PRIVILEGES;" 2>&1
+
+              echo "-- cria wp-config.php --"
+              rm -f "$ROOT/wp-config.php"
+              $WP config create --path="$ROOT" --dbname="$DBNAME" --dbuser="$DBUSER" --dbpass="$NEWPASS" --dbhost="localhost" --dbprefix="wp_" --skip-check --force 2>&1
+
+              echo "-- permissoes --"
+              chown -R oshercollective:oshercollective "$ROOT"
+
+              echo "-- testa --"
+              sleep 1
+              curl -sSI --max-time 10 "https://$DOMAIN/" 2>&1 | head -3
+              echo ""
+            }
+
+            restore_site "oshercollective.com" "oshercollective_wp_oshercollective_com" "oshercollective_wp_oshercollective_com"
+            restore_site "msdn-moz.org" "oshercollective_wp_msdn-moz_org" "oshercollective_wp_msdn-moz_org"
+            restore_site "lirandzojewelry.com" "oshercollective_wp_lirandzojewelry_com" "oshercollective_wp_lirandzojewelry_com"
+
+            echo "===== limpa os pacotes temporarios ====="
+            rm -f /tmp/wpcontent-*.tar.gz
