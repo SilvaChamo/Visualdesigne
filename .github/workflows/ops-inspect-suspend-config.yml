@@ -1,4 +1,4 @@
-name: "Ops - Fase 47. Verifica os backups admin_backups (hoje) e user_backups"
+name: "Ops - Fase 48. Confirma se o DirectAdmin tem backup automatico semanal configurado"
 
 on:
   workflow_dispatch:
@@ -14,7 +14,7 @@ jobs:
           echo "${{ secrets.HETZNER_SSH_KEY }}" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
           ssh-keyscan -p "${{ secrets.HETZNER_PORT }}" "${{ secrets.HETZNER_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
-      - name: Inspecciona
+      - name: Verifica agendamento e todas as copias existentes
         uses: appleboy/ssh-action@v1.2.5
         with:
           host: ${{ secrets.HETZNER_HOST }}
@@ -24,20 +24,24 @@ jobs:
           command_timeout: 3m
           script: |
             set +e
-            echo "===== admin_backups (hoje 05:00) ====="
-            ls -la /home/admin/admin_backups/ 2>&1
-            find /home/admin/admin_backups/ -iname "*aamihe*" 2>&1
+            echo "===== ha algum backup automatico agendado no DirectAdmin (admin level)? ====="
+            cat /usr/local/directadmin/data/admin/backup.conf 2>&1
+            cat /usr/local/directadmin/data/users/admin/backup.conf 2>&1
 
             echo ""
-            echo "===== user_backups ====="
-            ls -la /home/admin/user_backups/ 2>&1
-            find /home/admin/user_backups/ -iname "*aamihe*" 2>&1
+            echo "===== crontab do sistema/root - procura tarefas de backup ====="
+            crontab -l 2>&1
+            cat /etc/cron.d/* 2>&1 | grep -i backup
 
             echo ""
-            echo "===== procura wp-config.php em qualquer sitio dentro dos backups do servidor ====="
-            find /home/admin/admin_backups/ /home/admin/user_backups/ /home/admin/backups/ -iname "wp-config.php" 2>&1 | head -10
+            echo "===== fila de tarefas do DirectAdmin - historico recente de backups ====="
+            grep -il "backup" /usr/local/directadmin/data/task.queue.* 2>/dev/null
+            ls -la /usr/local/directadmin/data/admin/ 2>&1 | grep -i backup
 
             echo ""
-            echo "===== docroot actual, confirma mesmo que falta o wp-config.php ====="
-            ls -la /home/admin/domains/aamihe.com/public_html/ | head -5
-            test -f /home/admin/domains/aamihe.com/public_html/wp-config.php && echo "existe" || echo "NAO EXISTE"
+            echo "===== procura QUALQUER coisa no servidor todo que pareça um backup completo (ficheiros, nao so BD) do aamihe, ultimos 90 dias ====="
+            find / -xdev -maxdepth 6 \( -iname "*aamihe*.tar*" -o -iname "*aamihe*.zip" -o -iname "*aamihe*backup*" \) 2>/dev/null
+
+            echo ""
+            echo "===== opcoes de backup deste utilizador reseller/admin no proprio DA ====="
+            find /usr/local/directadmin/data -iname "*.conf" 2>/dev/null | xargs grep -l "aamihe" 2>/dev/null | head -10
