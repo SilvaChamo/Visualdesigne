@@ -1,74 +1,44 @@
-name: "Ops - Fase 15f. Corrige de vez o Google OAuth no Contabo (nomes certos + descomenta compose)"
+name: "Ops - Fase 16a. Historico completo de entrecamposblog.com (so leitura)"
 
 on:
   workflow_dispatch:
 
 jobs:
-  fix:
-    name: corrige google oauth
+  verify:
+    name: consulta
     runs-on: ubuntu-latest
     steps:
-      - name: Setup SSH keys
+      - name: Setup SSH key
         run: |
           mkdir -p ~/.ssh
-          echo "${{ secrets.HETZNER_SSH_KEY }}" > ~/.ssh/hetzner_key
-          echo "${{ secrets.CONTABO_SSH_KEY }}" > ~/.ssh/contabo_key
-          chmod 600 ~/.ssh/hetzner_key ~/.ssh/contabo_key
-          ssh-keyscan -p "${{ secrets.HETZNER_PORT }}" "${{ secrets.HETZNER_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
+          echo "${{ secrets.CONTABO_SSH_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
           ssh-keyscan "${{ secrets.CONTABO_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
+      - name: Consulta
+        uses: appleboy/ssh-action@v1.2.5
+        with:
+          host: ${{ secrets.CONTABO_HOST }}
+          username: root
+          key: ${{ secrets.CONTABO_SSH_KEY }}
+          command_timeout: 2m
+          script: |
+            SQL() { docker exec -i supabase-db psql -U postgres -d postgres -t -A -c "$1"; }
 
-      - name: Corrige (valores nunca impressos no log)
-        env:
-          HETZNER_HOST: ${{ secrets.HETZNER_HOST }}
-          HETZNER_PORT: ${{ secrets.HETZNER_PORT }}
-          HETZNER_USER: ${{ secrets.HETZNER_USER }}
-          CONTABO_HOST: ${{ secrets.CONTABO_HOST }}
-        run: |
-          set -euo pipefail
+            echo "===== todos os checkout_sessions com entrecampos (qualquer status) ====="
+            SQL "select id, status, created_at, updated_at, fulfilled_at, items::text from checkout_sessions where items::text ilike '%entrecampos%' order by created_at;"
 
-          CLIENT_ID=$(ssh -i ~/.ssh/hetzner_key -p "$HETZNER_PORT" "$HETZNER_USER@$HETZNER_HOST" "docker inspect supabase-auth --format '{{range .Config.Env}}{{println .}}{{end}}' | grep '^GOTRUE_EXTERNAL_GOOGLE_CLIENT_ID=' | cut -d= -f2-")
-          CLIENT_SECRET=$(ssh -i ~/.ssh/hetzner_key -p "$HETZNER_PORT" "$HETZNER_USER@$HETZNER_HOST" "docker inspect supabase-auth --format '{{range .Config.Env}}{{println .}}{{end}}' | grep '^GOTRUE_EXTERNAL_GOOGLE_SECRET=' | cut -d= -f2-")
+            echo ""
+            echo "===== domain_renewals: qualquer coisa com entrecampos (repete, so para confirmar) ====="
+            SQL "select id, domain_name, status, created_at from domain_renewals where domain_name ilike '%entrecampos%';"
 
-          echo "::add-mask::$CLIENT_ID"
-          echo "::add-mask::$CLIENT_SECRET"
+            echo ""
+            echo "===== panel_dns / mirror: registos DNS guardados para entrecamposblog.com ====="
+            SQL "select domain, name, type, value, created_at from panel_dns where domain ilike '%entrecamposblog%' order by created_at;"
 
-          if [ -z "$CLIENT_ID" ] || [ -z "$CLIENT_SECRET" ]; then
-            echo "ERRO: nao consegui ler client id/secret do Hetzner"
-            exit 1
-          fi
-          echo "Lido do Hetzner com sucesso (valores ocultos)."
+            echo ""
+            echo "===== panel_sites: existe site para entrecamposblog.com? ====="
+            SQL "select domain, owner, status, site_type from panel_sites where domain ilike '%entrecamposblog%';"
 
-          REMOTE_SCRIPT='set -e
-          CLIENT_ID="$1"
-          CLIENT_SECRET="$2"
-          COMPOSE_FILE=/opt/supabase-contabo/docker/docker-compose.yml
-          ENV_FILE=/opt/supabase-contabo/docker/.env
-
-          cp "$COMPOSE_FILE" "$COMPOSE_FILE.bak-google-$(date +%s)"
-          cp "$ENV_FILE" "$ENV_FILE.bak-google-$(date +%s)"
-
-          sed -i \
-            -e "s|# GOTRUE_EXTERNAL_GOOGLE_ENABLED: \${GOOGLE_ENABLED}|GOTRUE_EXTERNAL_GOOGLE_ENABLED: \${GOOGLE_ENABLED}|" \
-            -e "s|# GOTRUE_EXTERNAL_GOOGLE_CLIENT_ID: \${GOOGLE_CLIENT_ID}|GOTRUE_EXTERNAL_GOOGLE_CLIENT_ID: \${GOOGLE_CLIENT_ID}|" \
-            -e "s|# GOTRUE_EXTERNAL_GOOGLE_SECRET: \${GOOGLE_SECRET}|GOTRUE_EXTERNAL_GOOGLE_SECRET: \${GOOGLE_SECRET}|" \
-            -e "s|# GOTRUE_EXTERNAL_GOOGLE_REDIRECT_URI: \${API_EXTERNAL_URL}/callback|GOTRUE_EXTERNAL_GOOGLE_REDIRECT_URI: \${API_EXTERNAL_URL}/callback|" \
-            "$COMPOSE_FILE"
-
-          sed -i "/^GOTRUE_EXTERNAL_GOOGLE_/d; /^GOOGLE_ENABLED=/d; /^GOOGLE_CLIENT_ID=/d; /^GOOGLE_SECRET=/d" "$ENV_FILE"
-          {
-            echo "GOOGLE_ENABLED=true"
-            echo "GOOGLE_CLIENT_ID=$CLIENT_ID"
-            echo "GOOGLE_SECRET=$CLIENT_SECRET"
-          } >> "$ENV_FILE"
-
-          cd /opt/supabase-contabo/docker
-          docker compose up -d auth
-          sleep 5
-
-          echo "Confirmacao (so nomes, sem valores):"
-          docker inspect supabase-auth --format "{{range .Config.Env}}{{println .}}{{end}}" | grep "GOTRUE_EXTERNAL_GOOGLE_" | sed -E "s/=.*$/=<definido>/"
-          '
-
-          ssh -i ~/.ssh/contabo_key root@"$CONTABO_HOST" bash -s -- "$CLIENT_ID" "$CLIENT_SECRET" <<< "$REMOTE_SCRIPT"
-
-          echo "Concluido."
+            echo ""
+            echo "===== notifications: qualquer coisa sobre entrecampos ====="
+            SQL "select title, message, type, created_at from notifications where message ilike '%entrecampos%' or title ilike '%entrecampos%' order by created_at desc limit 10;"
