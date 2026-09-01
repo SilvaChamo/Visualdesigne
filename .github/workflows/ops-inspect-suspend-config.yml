@@ -1,56 +1,44 @@
-name: "Ops - Fase 37. Investiga tela branca do aamihe.com - qual servidor esta a servir"
+name: "Ops - Fase 38. Le logs reais do aamihe.com no Hetzner (so leitura)"
 
 on:
   workflow_dispatch:
 
 jobs:
-  cloudflare:
-    name: cloudflare
-    runs-on: ubuntu-latest
-    steps:
-      - name: Verifica origem real no DNS
-        run: |
-          set +e
-          EMAIL="${{ secrets.CLOUDFLARE_EMAIL }}"
-          GKEY="${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}"
-          HETZNER_IP="${{ secrets.HETZNER_HOST }}"
-          CONTABO_IP="${{ secrets.CONTABO_HOST }}"
-
-          ZONE=$(curl -sS -H "X-Auth-Email: $EMAIL" -H "X-Auth-Key: $GKEY" -H "Content-Type: application/json" \
-            "https://api.cloudflare.com/client/v4/zones?name=aamihe.com")
-          echo "$ZONE" > /tmp/zone.json
-          ZONE_ID=$(python3 -c "import json; print(json.load(open('/tmp/zone.json'))['result'][0]['id'])" 2>/dev/null)
-          echo "zone_id: $ZONE_ID"
-
-          curl -sS -H "X-Auth-Email: $EMAIL" -H "X-Auth-Key: $GKEY" -H "Content-Type: application/json" \
-            "https://api.cloudflare.com/client/v4/zones/$ZONE_ID/dns_records?type=A&per_page=100" > /tmp/records.json
-
-          HETZNER_IP="$HETZNER_IP" CONTABO_IP="$CONTABO_IP" python3 -c "import json,os; d=json.load(open('/tmp/records.json')); h=os.environ['HETZNER_IP']; c=os.environ['CONTABO_IP']; [print(r.get('name'),'->',r.get('content'),'| proxied:',r.get('proxied'),'| origem:', 'HETZNER/DA' if r.get('content')==h else ('CONTABO/HESTIA' if r.get('content')==c else '?')) for r in d.get('result', [])]"
-
-  contabo:
-    name: contabo
-    needs: cloudflare
+  hetzner:
+    name: hetzner
     runs-on: ubuntu-latest
     steps:
       - name: Setup SSH key
         run: |
           mkdir -p ~/.ssh
-          echo "${{ secrets.CONTABO_SSH_KEY }}" > ~/.ssh/deploy_key
+          echo "${{ secrets.HETZNER_SSH_KEY }}" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
-          ssh-keyscan "${{ secrets.CONTABO_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
-      - name: Testa aamihe.com directo no Contabo + logs
+          ssh-keyscan -p "${{ secrets.HETZNER_PORT }}" "${{ secrets.HETZNER_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
+      - name: Le logs (so leitura)
         uses: appleboy/ssh-action@v1.2.5
         with:
-          host: ${{ secrets.CONTABO_HOST }}
-          username: root
-          key: ${{ secrets.CONTABO_SSH_KEY }}
+          host: ${{ secrets.HETZNER_HOST }}
+          port: ${{ secrets.HETZNER_PORT }}
+          username: ${{ secrets.HETZNER_USER }}
+          key: ${{ secrets.HETZNER_SSH_KEY }}
           command_timeout: 3m
           script: |
             set +e
-            echo "===== conteudo servido localmente (bypassa cloudflare) ====="
-            curl -sS --max-time 8 -H "Host: aamihe.com" http://127.0.0.1/ 2>&1 | head -c 2000
+            echo "===== conteudo real servido agora (bypassa cloudflare) ====="
+            curl -sS --max-time 8 -H "Host: aamihe.com" http://127.0.0.1/ 2>&1 | head -c 3000
+
             echo ""
-            echo "===== ultimas linhas do error log php/apache para aamihe.com ====="
-            tail -60 /var/log/apache2/domains/aamihe.com.error.log 2>&1
             echo ""
-            tail -60 /home/aamihe/web/aamihe.com/logs/aamihe.com.error.log 2>&1
+            echo "===== onde vive o site aamihe.com (pasta owner) ====="
+            find /home -maxdepth 3 -iname "aamihe.com" 2>/dev/null
+
+            echo ""
+            echo "===== ultimas linhas do error log (varias localizacoes possiveis) ====="
+            tail -80 /var/log/httpd/domains/aamihe.com.error.log 2>&1
+            tail -80 /home/*/domains/aamihe.com/private/error.log 2>&1
+            find /home -maxdepth 5 -iname "*aamihe.com*error*" 2>/dev/null
+
+            echo ""
+            echo "===== php error log do sistema (ultimas 40 linhas com aamihe) ====="
+            find /var/log -iname "php*" -maxdepth 2 2>/dev/null
+            grep -i "aamihe" /var/log/php*/error.log 2>/dev/null | tail -40
