@@ -1,4 +1,4 @@
-name: "Ops - Fase 83. Investiga logotipo e imagens partidas"
+name: "Ops - Fase 84. Ve se as imagens ainda existem no S3 e configuracao AWS"
 
 on:
   workflow_dispatch:
@@ -14,7 +14,7 @@ jobs:
           echo "${{ secrets.HETZNER_SSH_KEY }}" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
           ssh-keyscan -p "${{ secrets.HETZNER_PORT }}" "${{ secrets.HETZNER_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
-      - name: Investiga
+      - name: Investiga S3
         uses: appleboy/ssh-action@v1.2.5
         with:
           host: ${{ secrets.HETZNER_HOST }}
@@ -27,29 +27,21 @@ jobs:
             ROOT=/home/admin/domains/aamihe.com/public_html
             WP="/usr/local/bin/wp --allow-root --path=$ROOT"
 
-            echo "===== urls de imagens reais que a homepage esta a pedir ====="
-            curl -sSL --max-time 15 https://aamihe.com/ 2>&1 > /tmp/home.html
-            grep -oE '(src|href)="[^"]*\.(jpg|jpeg|png|webp|svg)[^"]*"' /tmp/home.html | head -10
+            echo "===== configuracao completa do plugin amazon s3 ====="
+            $WP option get tantan_wordpress_s3 --format=json 2>&1
 
             echo ""
-            echo "===== testa uma imagem real directamente (o logo, se conseguir encontrar) ====="
-            grep -oE 'https?://[^"]*logo[^"]*\.(png|jpg|jpeg|svg|webp)' /tmp/home.html | head -3
+            echo "===== ha credenciais aws definidas no wp-config.php? ====="
+            grep -i "AS3CF\|AWS_ACCESS\|AWS_SECRET" "$ROOT/wp-config.php" 2>&1
 
             echo ""
-            echo "===== estado do plugin amazon s3 (offload media) - onde diz que estao as imagens ====="
-            $WP option get tantan_wordpress_s3 2>&1 | head -30
-            $WP option get wpos3_settings 2>&1 | head -30
+            echo "===== 5 anexos recentes, para ver se tem metadados de s3 (bucket/key) ====="
+            $WP db query "SELECT post_id, meta_key, LEFT(meta_value,300) FROM Aimes_postmeta WHERE meta_key='amazonS3_info' ORDER BY post_id DESC LIMIT 5" 2>&1
 
             echo ""
-            echo "===== testa se o bucket S3 responde ====="
-            firstimg=$(grep -oE 'https?://[a-zA-Z0-9.-]*\.(s3[.-][a-zA-Z0-9-]*\.amazonaws\.com|cloudfront\.net)[^"]*\.(jpg|jpeg|png|webp)' /tmp/home.html | head -1)
-            echo "primeira imagem s3 encontrada: $firstimg"
-            if [ -n "$firstimg" ]; then curl -sSI --max-time 10 "$firstimg" 2>&1 | head -5; fi
+            echo "===== confirma prefixo real da tabela (Aimes_ ou outro) ====="
+            $WP db prefix 2>&1
 
             echo ""
-            echo "===== quantos ficheiros reais existem em uploads (local) ====="
-            find "$ROOT/wp-content/uploads" -type f \( -iname "*.jpg" -o -iname "*.png" -o -iname "*.webp" \) 2>/dev/null | wc -l
-
-            echo ""
-            echo "===== logo do site definido no customizer/tema ====="
-            $WP option get theme_mods_oceanwp 2>&1 | grep -i "logo" | head -5
+            echo "===== quantos anexos (attachments) existem na base de dados no total ====="
+            $WP post list --post_type=attachment --format=count 2>&1
