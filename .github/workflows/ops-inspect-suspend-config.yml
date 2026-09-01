@@ -1,4 +1,4 @@
-name: "Ops - Fase 44. Inspecciona o backup de 23 junho (antes da infeccao)"
+name: "Ops - Fase 45. Confirma conteudo real do backup aamihe.com (23 junho)"
 
 on:
   workflow_dispatch:
@@ -24,16 +24,21 @@ jobs:
           command_timeout: 3m
           script: |
             set +e
-            echo "===== conteudo da pasta de backup ====="
-            ls -la /home/admin/backups/backup/ 2>&1
+            echo "===== estrutura da pasta aamihe.com dentro do backup ====="
+            find /home/admin/backups/backup/aamihe.com/ -maxdepth 4 2>&1
 
             echo ""
-            echo "===== procura ficheiros com aamihe no nome, em qualquer lado dessa pasta ====="
-            find /home/admin/backups/backup/ -iname "*aamihe*" 2>&1
-
-            echo ""
-            echo "===== se for so um ficheiro tar/tar.gz por dominio, lista o conteudo de qualquer um relacionado com aamihe ====="
-            for f in /home/admin/backups/backup/*aamihe*; do
+            echo "===== se houver um .tar.gz dos ficheiros, ve o conteudo ====="
+            find /home/admin/backups/backup/aamihe.com/ -iname "*.tar.gz" 2>&1 | while read -r f; do
               echo "--- $f ---"
-              tar -tzf "$f" 2>&1 | head -20
+              tar -tzf "$f" 2>&1 | head -30
+              echo "total de ficheiros no tar:"
+              tar -tzf "$f" 2>&1 | wc -l
             done
+
+            echo ""
+            echo "===== confirma que o dump sql tem mesmo dados reais (nao esta vazio/corrompido) ====="
+            head -c 500 /home/admin/backups/backup/admin_aamihe_bd.sql
+            echo ""
+            echo "..."
+            grep -c "INSERT INTO" /home/admin/backups/backup/admin_aamihe_bd.sql
