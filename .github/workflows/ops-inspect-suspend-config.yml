@@ -1,4 +1,4 @@
-name: "Ops - Fase 42. Isola todo o malware do aamihe.com nos dois servidores"
+name: "Ops - Fase 43. Isola o resto no Hetzner + procura backup real do aamihe.com"
 
 on:
   workflow_dispatch:
@@ -14,7 +14,7 @@ jobs:
           echo "${{ secrets.HETZNER_SSH_KEY }}" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
           ssh-keyscan -p "${{ secrets.HETZNER_PORT }}" "${{ secrets.HETZNER_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
-      - name: Isola tudo (Hetzner - site ao vivo)
+      - name: Varre e isola tudo (Hetzner)
         uses: appleboy/ssh-action@v1.2.5
         with:
           host: ${{ secrets.HETZNER_HOST }}
@@ -25,82 +25,66 @@ jobs:
           script: |
             set +e
             ROOT=/home/admin/domains/aamihe.com/public_html
-            QDIR=/root/security-quarantine/aamihe.com-hetzner-$(date +%Y%m%d-%H%M%S)
+            QDIR=/root/security-quarantine/aamihe.com-hetzner-round2-$(date +%Y%m%d-%H%M%S)
             mkdir -p "$QDIR"
 
-            for p in \
-              "wp-includes/php-ai-client/src/Providers/Providers" \
-              "image/.b26_sed_bak" \
-              "wp-admin/spLlo" \
-              "wp-admin/includes/includes" \
-              "wp-content/plugins/pro-elements/core/app/modules/import-export-customization/assets/js/utils/utils" \
-              "05a0wp"
-            do
-              if [ -e "$ROOT/$p" ]; then
-                DEST="$QDIR/$(echo "$p" | tr '/' '_')"
-                mv "$ROOT/$p" "$DEST"
-                echo "isolado: $p"
-              else
-                echo "ja nao existe: $p"
+            echo "===== todas as pastas com o mesmo nome do pai (padrao do virus) ====="
+            find "$ROOT" -type d 2>/dev/null | awk -F/ '{if ($NF==$(NF-1)) print}' > /tmp/matches.txt
+            cat /tmp/matches.txt
+
+            echo ""
+            echo "===== isola cada uma (a mais externa, remove as copias internas juntas) ====="
+            # Ordena por profundidade (menos barras primeiro) e isola so as que ainda existem
+            # (isolar a pasta de fora já leva as copias aninhadas lá dentro junto).
+            sort -t/ -k1 /tmp/matches.txt | awk -F/ '{print NF, $0}' | sort -n | cut -d' ' -f2- | while read -r p; do
+              if [ -e "$p" ]; then
+                REL=$(echo "$p" | sed "s|$ROOT/||" | tr '/' '_')
+                mv "$p" "$QDIR/$REL" 2>/dev/null && echo "isolado: $p"
               fi
             done
 
             echo ""
-            echo "===== confirma que nao sobrou nada com o mesmo padrao ====="
-            find "$ROOT" -type d \( -iname "*.b26_sed_bak*" -o -iname "spLlo" -o -iname "Providers" -o -iname "05a0wp" \) 2>/dev/null
+            echo "===== confirma limpo ====="
+            find "$ROOT" -type d 2>/dev/null | awk -F/ '{if ($NF==$(NF-1)) print}'
             echo "(vazio acima = limpo)"
 
-      - name: Confirma o site depois da limpeza
+            echo ""
+            echo "===== backups nativos do DirectAdmin para esta conta ====="
+            ls -la /home/admin/backups/ 2>&1 | head -20
+            find / -maxdepth 4 -iname "*aamihe*backup*" -o -iname "*backup*aamihe*" 2>/dev/null | head -20
+
+      - name: Confirma o site
         run: |
           sleep 2
           curl -sSL -o /dev/null -w "HTTP %{http_code}\n" --max-time 15 https://aamihe.com/ 2>&1
 
-  contabo:
-    name: contabo
-    needs: hetzner
+  backup-bucket:
+    name: backup-bucket
     runs-on: ubuntu-latest
     steps:
       - name: Setup SSH key
         run: |
           mkdir -p ~/.ssh
-          echo "${{ secrets.CONTABO_SSH_KEY }}" > ~/.ssh/deploy_key
+          echo "${{ secrets.HETZNER_SSH_KEY }}" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
-          ssh-keyscan "${{ secrets.CONTABO_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
-      - name: Isola tudo (Contabo - copia ainda offline)
+          ssh-keyscan -p "${{ secrets.HETZNER_PORT }}" "${{ secrets.HETZNER_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
+      - name: Verifica bucket aamihe-backups no Supabase (Hetzner)
         uses: appleboy/ssh-action@v1.2.5
         with:
-          host: ${{ secrets.CONTABO_HOST }}
-          username: root
-          key: ${{ secrets.CONTABO_SSH_KEY }}
+          host: ${{ secrets.HETZNER_HOST }}
+          port: ${{ secrets.HETZNER_PORT }}
+          username: ${{ secrets.HETZNER_USER }}
+          key: ${{ secrets.HETZNER_SSH_KEY }}
           command_timeout: 3m
           script: |
             set +e
-            ROOT=/home/aamihe/web/aamihe.com/public_html
-            QDIR=/root/security-quarantine/aamihe.com-contabo-$(date +%Y%m%d-%H%M%S)
-            mkdir -p "$QDIR"
-
-            for p in \
-              "wp-includes/php-ai-client/src/Providers/Providers" \
-              "image/.b26_sed_bak" \
-              "wp-admin/spLlo" \
-              "wp-admin/includes/includes" \
-              "wp-content/plugins/pro-elements/core/app/modules/import-export-customization/assets/js/utils/utils" \
-              "05a0wp"
-            do
-              if [ -e "$ROOT/$p" ]; then
-                DEST="$QDIR/$(echo "$p" | tr '/' '_')"
-                mv "$ROOT/$p" "$DEST"
-                echo "isolado: $p"
-              else
-                echo "ja nao existe: $p"
-              fi
-            done
+            echo "===== conteudo do bucket aamihe-backups ====="
+            docker exec -i supabase-db psql -U postgres -d postgres -t -A -F' | ' -c "select id, name, metadata->>'size' as size, created_at from storage.objects where bucket_id = 'aamihe-backups' order by created_at desc limit 30;"
 
             echo ""
-            echo "===== confirma que nao sobrou nada com o mesmo padrao ====="
-            find "$ROOT" -type d \( -iname "*.b26_sed_bak*" -o -iname "spLlo" -o -iname "Providers" -o -iname "05a0wp" \) 2>/dev/null
-            echo "(vazio acima = limpo)"
+            echo "===== outros buckets, procura por 'aamihe' no nome do objecto ====="
+            docker exec -i supabase-db psql -U postgres -d postgres -t -A -F' | ' -c "select bucket_id, name, created_at from storage.objects where name ilike '%aamihe%' order by created_at desc limit 30;"
 
             echo ""
-            echo "===== varrimento geral: outras pastas com nome repetido no caminho (mesmo padrao do malware) ====="
-            find "$ROOT" -type d 2>/dev/null | awk -F/ '{if ($NF==$(NF-1)) print}'
+            echo "===== tabela panel_backups (espelho), se existir, para aamihe ====="
+            docker exec -i supabase-db psql -U postgres -d postgres -t -A -F' | ' -c "select table_name from information_schema.tables where table_name ilike '%backup%';"
