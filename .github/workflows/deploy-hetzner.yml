@@ -94,19 +94,25 @@ jobs:
             # sem isto nenhum dos dois corre sozinho (ficavam dependentes de um
             # admin clicar manualmente no painel). Idempotente: substitui só as
             # linhas marcadas com a própria tag, nunca mexe no resto do crontab.
+            #
+            # NOTA (confirmado ao vivo 1 set): 'src/proxy.ts' redirecciona (308)
+            # qualquer pedido feito a 127.0.0.1 para 'localhost' — sem o cabeçalho
+            # Host correcto abaixo, estes curls nunca executam a lógica, só levam
+            # o redirect e ficam silenciosamente sem fazer nada (era o caso de
+            # dns-retry e da-sync antes desta correcção).
             CRON_SECRET_VALUE=$(grep '^CRON_SECRET=' .env.local | cut -d= -f2-)
             (crontab -l 2>/dev/null | grep -v '# visualdesign-renewal-check'; \
-              echo "*/30 * * * * curl -fsS \"http://127.0.0.1:3003/api/cron/renewal-check?secret=${CRON_SECRET_VALUE}\" >> /var/log/visualdesign-cron.log 2>&1 # visualdesign-renewal-check") | crontab -
+              echo "*/30 * * * * curl -fsS -H \"Host: visualdesignmoz.com\" \"http://127.0.0.1:3003/api/cron/renewal-check?secret=${CRON_SECRET_VALUE}\" >> /var/log/visualdesign-cron.log 2>&1 # visualdesign-renewal-check") | crontab -
             (crontab -l 2>/dev/null | grep -v '# visualdesign-da-sync'; \
-              echo "*/20 * * * * curl -fsS -H \"Authorization: Bearer ${CRON_SECRET_VALUE}\" http://127.0.0.1:3003/api/cron/da-sync >> /var/log/visualdesign-cron.log 2>&1 # visualdesign-da-sync") | crontab -
+              echo "*/20 * * * * curl -fsS -H \"Host: visualdesignmoz.com\" -H \"Authorization: Bearer ${CRON_SECRET_VALUE}\" http://127.0.0.1:3003/api/cron/da-sync >> /var/log/visualdesign-cron.log 2>&1 # visualdesign-da-sync") | crontab -
             # Reprocessa domínios comprados cujo DNS (zona Cloudflare + nameservers)
             # ficou por concluir (dns_status='pending') — antes só recuperava com um
             # admin a carregar manualmente em "Reprocessar Configuração DNS".
             (crontab -l 2>/dev/null | grep -v '# visualdesign-dns-retry'; \
-              echo "*/30 * * * * curl -fsS -H \"Authorization: Bearer ${CRON_SECRET_VALUE}\" http://127.0.0.1:3003/api/cron/dns-retry >> /var/log/visualdesign-cron.log 2>&1 # visualdesign-dns-retry") | crontab -
+              echo "*/30 * * * * curl -fsS -H \"Host: visualdesignmoz.com\" -H \"Authorization: Bearer ${CRON_SECRET_VALUE}\" http://127.0.0.1:3003/api/cron/dns-retry >> /var/log/visualdesign-cron.log 2>&1 # visualdesign-dns-retry") | crontab -
             # Reprocessa domínios cujo DNS já está confirmado mas cuja autenticação
             # na Brevo ainda não foi confirmada (a Brevo pode demorar até 48h a
             # confirmar propagação) — antes disto só ficava resolvido se alguém
             # fosse ao site da Brevo carregar manualmente em "Autenticar".
             (crontab -l 2>/dev/null | grep -v '# visualdesign-brevo-retry'; \
-              echo "*/30 * * * * curl -fsS -H \"Authorization: Bearer ${CRON_SECRET_VALUE}\" http://127.0.0.1:3003/api/cron/brevo-retry >> /var/log/visualdesign-cron.log 2>&1 # visualdesign-brevo-retry") | crontab -
+              echo "*/30 * * * * curl -fsS -H \"Host: visualdesignmoz.com\" -H \"Authorization: Bearer ${CRON_SECRET_VALUE}\" http://127.0.0.1:3003/api/cron/brevo-retry >> /var/log/visualdesign-cron.log 2>&1 # visualdesign-brevo-retry") | crontab -
