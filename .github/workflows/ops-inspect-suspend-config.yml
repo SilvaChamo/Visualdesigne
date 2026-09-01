@@ -1,4 +1,4 @@
-name: "Ops - Fase 33. Porque a lista Sites continua vazia mesmo apos a correcao"
+name: "Ops - Fase 34. Porque entrecamposblog.com desapareceu da lista de sites"
 
 on:
   workflow_dispatch:
@@ -23,21 +23,13 @@ jobs:
           command_timeout: 3m
           script: |
             set +e
-            echo "===== o build publicado tem mesmo a correcao? ====="
-            grep -rl "O admin gere contas em mais" /opt/visualdesign-site-teste/.next/server/ 2>/dev/null
-            echo "(vazio acima = a correcao NAO esta no build publicado)"
+            echo "===== entrecamposblog.com ainda existe no Hestia? ====="
+            /usr/local/hestia/bin/v-list-web-domain vdadmin entrecamposblog.com 2>&1
 
             echo ""
-            echo "===== data/hora do build actual ====="
-            date -r /opt/visualdesign-site-teste/.next/BUILD_ID 2>&1
-            cat /opt/visualdesign-site-teste/.next/BUILD_ID 2>&1
-            echo ""
-            date
+            echo "===== linha em panel_sites ====="
+            docker exec -i supabase-db psql -U postgres -d postgres -t -A -F' | ' -c "select domain, owner, status, site_type, updated_at from panel_sites where domain = 'entrecamposblog.com';"
 
             echo ""
-            echo "===== panel_sites completo (todos os dominios e donos) ====="
-            docker exec -i supabase-db psql -U postgres -d postgres -t -A -F' | ' -c "select domain, owner, status from panel_sites order by domain;"
-
-            echo ""
-            echo "===== logs recentes do pm2 - procura por erros no wp-update ====="
-            pm2 logs visualdesign-site-teste --lines 500 --nostream 2>&1 | grep -i "wp-update\|Conta de revenda\|panel-mirror\|listWebsites\|Erro ao listar\|resolvePanelWpScope\|role" | tail -40
+            echo "===== (se vazio acima, procura em maiúsculas/variações) ====="
+            docker exec -i supabase-db psql -U postgres -d postgres -t -A -F' | ' -c "select domain, owner, status from panel_sites where domain ilike '%entrecampos%';"
