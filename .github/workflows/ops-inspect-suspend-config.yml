@@ -1,4 +1,4 @@
-name: "Ops - Fase 21c. Confirma que hestia-sync agora ve os sites do vdadmin"
+name: "Ops - Fase 21d. Investiga por que hestia-sync devolve users:0"
 
 on:
   workflow_dispatch:
@@ -14,7 +14,7 @@ jobs:
           echo "${{ secrets.CONTABO_SSH_KEY }}" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
           ssh-keyscan "${{ secrets.CONTABO_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
-      - name: Confirma
+      - name: Investiga
         uses: appleboy/ssh-action@v1.2.5
         with:
           host: ${{ secrets.CONTABO_HOST }}
@@ -24,12 +24,30 @@ jobs:
           script: |
             set +e
             cd /opt/visualdesign-site-teste
-            CRON_SECRET_VALUE=$(grep '^CRON_SECRET=' .env.local | cut -d= -f2-)
-            echo "::add-mask::$CRON_SECRET_VALUE"
 
-            echo "===== resultado do hestia-sync AGORA (pos-correcao) ====="
-            curl -sS -w "\nHTTP_STATUS:%{http_code}\n" --max-time 60 -H "Host: teste.visualdesignmoz.com" -H "Authorization: Bearer ${CRON_SECRET_VALUE}" http://127.0.0.1:3002/api/cron/hestia-sync
+            echo "===== confirma que o codigo novo esta mesmo no servidor ====="
+            grep -n "liveUsernames.add((process.env.HESTIA_USER" .next/server/chunks/*.js 2>/dev/null | head -3
+            grep -rn "propria conta principal" src/lib/hestia-sync-engine.ts 2>/dev/null
+
+            HOST="teste.visualdesignmoz.com"
+            PORT="8083"
+            USR=$(grep '^HESTIA_USER=' .env.local | cut -d= -f2- | tr -d "'\"")
+            PASS=$(grep '^HESTIA_PASSWORD=' .env.local | cut -d= -f2- | tr -d "'\"")
+            echo "::add-mask::$PASS"
 
             echo ""
-            echo "===== panel_sites: sites do vdadmin agora ====="
-            docker exec -i supabase-db psql -U postgres -d postgres -t -A -F' | ' -c "select domain, owner, status, package, site_type from panel_sites where owner = 'vdadmin' order by domain;"
+            echo "===== testa v-list-users directamente (comando exacto que listUsers() usa) ====="
+            curl -sS -k -w "\nHTTP_STATUS:%{http_code}\n" -X POST "https://${HOST}:${PORT}/api/" \
+              --data-urlencode "user=${USR}" \
+              --data-urlencode "password=${PASS}" \
+              --data-urlencode "cmd=v-list-users" \
+              --data-urlencode "arg1=json"
+
+            echo ""
+            echo "===== testa v-list-web-domains vdadmin directamente ====="
+            curl -sS -k -w "\nHTTP_STATUS:%{http_code}\n" -X POST "https://${HOST}:${PORT}/api/" \
+              --data-urlencode "user=${USR}" \
+              --data-urlencode "password=${PASS}" \
+              --data-urlencode "cmd=v-list-web-domains" \
+              --data-urlencode "arg1=vdadmin" \
+              --data-urlencode "arg2=json"
