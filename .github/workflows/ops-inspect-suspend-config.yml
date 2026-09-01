@@ -1,4 +1,4 @@
-name: "Ops - Fase 77. Volta a trancar o uploads/.htaccess como estava (imutavel)"
+name: "Ops - Fase 78. Procura a prova real de como o virus entrou (logs a serio)"
 
 on:
   workflow_dispatch:
@@ -14,7 +14,7 @@ jobs:
           echo "${{ secrets.HETZNER_SSH_KEY }}" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
           ssh-keyscan -p "${{ secrets.HETZNER_PORT }}" "${{ secrets.HETZNER_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
-      - name: Tranca outra vez
+      - name: Investiga logs reais
         uses: appleboy/ssh-action@v1.2.5
         with:
           host: ${{ secrets.HETZNER_HOST }}
@@ -24,6 +24,27 @@ jobs:
           command_timeout: 3m
           script: |
             set +e
-            F=/home/admin/domains/aamihe.com/public_html/wp-content/uploads/.htaccess
-            chattr +i "$F" 2>&1
-            lsattr "$F" 2>&1
+            ROOT=/home/admin/domains/aamihe.com/public_html
+
+            echo "===== quarentenas ja feitas: onde e quando ficaram guardadas as copias do filefuns.php e do htaccess (datas originais) ====="
+            find /root/security-quarantine -iname "filefuns.php" -exec stat -c '%y %n' {} \; 2>&1
+            find /root/security-quarantine -iname "htaccess-raiz.bak" -exec stat -c '%y %n' {} \; 2>&1
+
+            echo ""
+            echo "===== logs de acesso ainda existem para agosto? (rodam por logrotate, pode ja nao existir) ====="
+            ls -la /var/log/httpd/domains/ 2>&1 | grep -i aamihe
+            zcat /var/log/httpd/domains/aamihe.com.log.*.gz 2>/dev/null | grep -c "."
+            ls -la /var/log/httpd/domains/*.gz 2>&1 | grep -i aamihe
+
+            echo ""
+            echo "===== se ainda houver log de agosto, procura pedidos POST estranhos no dia 12-15 ====="
+            zcat /var/log/httpd/domains/aamihe.com.log.*.gz 2>/dev/null | grep -E "12/Aug|13/Aug|14/Aug|15/Aug" | grep -iE "POST|\.php\?|upload|filefuns|elementor" | head -40
+
+            echo ""
+            echo "===== log de FTP (vsftpd) para ver logins de agosto ====="
+            grep -E "12/Aug|13/Aug|14/Aug|15/Aug|Aug 1[2-5]" /var/log/vsftpd.log 2>&1 | grep -i aamihe | head -20
+            zgrep -E "12/Aug|13/Aug|14/Aug|15/Aug|Aug 1[2-5]" /var/log/vsftpd.log.*.gz 2>/dev/null | grep -i aamihe | head -20
+
+            echo ""
+            echo "===== historico de logins no DirectAdmin para a conta admin, agosto ====="
+            grep -i "aamihe\|admin" /usr/local/directadmin/data/admin/login.history 2>&1 | tail -30
