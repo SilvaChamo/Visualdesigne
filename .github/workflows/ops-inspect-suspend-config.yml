@@ -1,4 +1,4 @@
-name: "Ops - Fase 19d. Corrige password Hestia (testa, aplica se preciso, actualiza .env.local)"
+name: "Ops - Fase 19e. Confirma se o dominio ja foi criado apesar do timeout (so leitura)"
 
 on:
   workflow_dispatch:
@@ -14,7 +14,7 @@ jobs:
           echo "${{ secrets.CONTABO_SSH_KEY }}" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
           ssh-keyscan "${{ secrets.CONTABO_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
-      - name: Corrige
+      - name: Verifica
         uses: appleboy/ssh-action@v1.2.5
         with:
           host: ${{ secrets.CONTABO_HOST }}
@@ -23,52 +23,18 @@ jobs:
           command_timeout: 5m
           script: |
             set +e
-            NEWPASS='Administrador-hest2026'
-            echo "::add-mask::$NEWPASS"
-
-            HOST="teste.visualdesignmoz.com"
-            PORT="8083"
-
-            echo "===== teste 1: esta password ja funciona como esta agora na Hestia? ====="
-            HTTP1=$(curl -sS -k -o /tmp/t1.txt -w "%{http_code}" -X POST "https://${HOST}:${PORT}/api/" \
-              --data-urlencode "user=vdadmin" \
-              --data-urlencode "password=${NEWPASS}" \
-              --data-urlencode "cmd=v-list-user-packages" \
-              --data-urlencode "arg1=json")
-            echo "HTTP=$HTTP1"
-            cat /tmp/t1.txt | head -c 200
-            echo ""
-
-            if [ "$HTTP1" = "200" ]; then
-              echo "JA_FUNCIONA=sim"
-            else
-              echo "JA_FUNCIONA=nao - vou aplicar esta password ao vdadmin na Hestia"
-              /usr/local/hestia/bin/v-change-user-password vdadmin "$NEWPASS" 2>&1
-
-              echo ""
-              echo "===== teste 2: confirma depois de aplicar ====="
-              HTTP2=$(curl -sS -k -o /tmp/t2.txt -w "%{http_code}" -X POST "https://${HOST}:${PORT}/api/" \
-                --data-urlencode "user=vdadmin" \
-                --data-urlencode "password=${NEWPASS}" \
-                --data-urlencode "cmd=v-list-user-packages" \
-                --data-urlencode "arg1=json")
-              echo "HTTP=$HTTP2"
-              cat /tmp/t2.txt | head -c 200
-              echo ""
-            fi
+            echo "===== dominios da conta vdadmin no Hestia ====="
+            /usr/local/hestia/bin/v-list-web-domains vdadmin plain 2>&1
 
             echo ""
-            echo "===== actualiza .env.local para bater certo ====="
-            cd /opt/visualdesign-site-teste
-            if grep -q '^HESTIA_PASSWORD=' .env.local; then
-              sed -i "s|^HESTIA_PASSWORD=.*|HESTIA_PASSWORD=${NEWPASS}|" .env.local
-            else
-              echo "HESTIA_PASSWORD=${NEWPASS}" >> .env.local
-            fi
-            echo "Actualizado .env.local"
+            echo "===== pasta do site (se existir) ====="
+            ls -la /home/vdadmin/web/entrecamposblog.com/ 2>&1
 
             echo ""
-            echo "===== reinicia a app para usar a password nova ====="
-            pm2 restart visualdesign-site-teste
-            sleep 3
-            pm2 jlist | node -e "const d=JSON.parse(require('fs').readFileSync(0,'utf8'));for(const p of d) console.log(p.name,p.pm2_env.status)"
+            echo "===== ultimas linhas do log de sistema do hestia (nginx/apache reload, letsencrypt) ====="
+            tail -60 /var/log/hestia/nginx-error.log 2>&1 | tail -20
+            tail -20 /usr/local/hestia/log/system.log 2>&1
+
+            echo ""
+            echo "===== processos hestia ainda a correr (bloqueados?) ====="
+            ps aux | grep -i "v-add\|letsencrypt\|certbot" | grep -v grep
