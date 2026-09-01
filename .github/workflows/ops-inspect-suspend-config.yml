@@ -1,4 +1,4 @@
-name: "Ops - Fase 22. Google OAuth redirect_uri + DNS entrecamposblog"
+name: "Ops - Fase 23. Confirma NEXT_PUBLIC_SERVER_IP no Contabo + aponta DNS entrecamposblog"
 
 on:
   workflow_dispatch:
@@ -14,53 +14,17 @@ jobs:
           echo "${{ secrets.CONTABO_SSH_KEY }}" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
           ssh-keyscan "${{ secrets.CONTABO_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
-      - name: Inspecciona config Google OAuth + Supabase URL
+      - name: Confirma IP configurado
         uses: appleboy/ssh-action@v1.2.5
         with:
           host: ${{ secrets.CONTABO_HOST }}
           username: root
           key: ${{ secrets.CONTABO_SSH_KEY }}
-          command_timeout: 5m
+          command_timeout: 3m
           script: |
             set +e
-
-            echo "===== NEXT_PUBLIC_SUPABASE_URL usado pelo site teste ====="
-            grep '^NEXT_PUBLIC_SUPABASE_URL=' /opt/visualdesign-site-teste/.env.local
-
+            echo "===== IP público real deste servidor (Contabo) ====="
+            curl -sS --max-time 5 https://api.ipify.org
             echo ""
-            echo "===== Onde está a stack Supabase no Contabo ====="
-            find /opt -maxdepth 2 -iname "*supabase*" 2>/dev/null
-
-            echo ""
-            echo "===== .env do docker-compose da stack Supabase (só chaves não-secretas) ====="
-            for d in /opt/supabase-contabo /opt/supabase; do
-              if [ -f "$d/docker/.env" ]; then
-                echo "--- $d/docker/.env ---"
-                grep -E '^(API_EXTERNAL_URL|SITE_URL|SUPABASE_PUBLIC_URL|ADDITIONAL_REDIRECT_URLS|GOTRUE_URI_ALLOW_LIST|GOTRUE_EXTERNAL_GOOGLE_ENABLED|GOTRUE_EXTERNAL_GOOGLE_REDIRECT_URI)=' "$d/docker/.env"
-              fi
-            done
-
-            echo ""
-            echo "===== Config Google real dentro do container GoTrue (auth) ====="
-            CID=$(docker ps --format '{{.Names}}' | grep -i "auth\|gotrue" | head -1)
-            echo "container: $CID"
-            if [ -n "$CID" ]; then
-              docker inspect "$CID" --format '{{range .Config.Env}}{{println .}}{{end}}' | grep -Ei 'GOOGLE|API_EXTERNAL_URL|SITE_URL|URI_ALLOW_LIST' | sed -E 's/(SECRET|CLIENT_ID)=.*/\1=***MASCARADO***/'
-            fi
-
-            echo ""
-            echo "===== NS reais do entrecamposblog.com (visto do próprio Contabo) ====="
-            dig +short NS entrecamposblog.com
-            echo "--- A record ---"
-            dig +short A entrecamposblog.com
-            echo "--- via resolver publico 1.1.1.1 ---"
-            dig +short NS entrecamposblog.com @1.1.1.1
-            dig +short A entrecamposblog.com @1.1.1.1
-
-      - name: Estado da zona Cloudflare (entrecamposblog.com)
-        run: |
-          set +e
-          TOKEN="${{ secrets.CLOUDFLARE_API_TOKEN_ACCOUNT }}"
-          curl -sS -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
-            "https://api.cloudflare.com/client/v4/zones?name=entrecamposblog.com" > zone.json
-          python3 -c "import json; d = json.load(open('zone.json')); [print('zone id:', z.get('id'), '| status:', z.get('status'), '| cloudflare_ns:', z.get('name_servers'), '| original_ns_no_registador:', z.get('original_name_servers')) for z in d.get('result', [])]"
+            echo "===== NEXT_PUBLIC_SERVER_IP no .env.local ====="
+            grep '^NEXT_PUBLIC_SERVER_IP=' /opt/visualdesign-site-teste/.env.local || echo "(não definido)"
