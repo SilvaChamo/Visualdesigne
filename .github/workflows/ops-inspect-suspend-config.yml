@@ -1,4 +1,4 @@
-name: "Ops - Fase 84. Ve se as imagens ainda existem no S3 e configuracao AWS"
+name: "Ops - Fase 85. Confirma backup de uploads ainda no servidor e repoe imagens"
 
 on:
   workflow_dispatch:
@@ -14,7 +14,7 @@ jobs:
           echo "${{ secrets.HETZNER_SSH_KEY }}" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
           ssh-keyscan -p "${{ secrets.HETZNER_PORT }}" "${{ secrets.HETZNER_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
-      - name: Investiga S3
+      - name: Confirma backup
         uses: appleboy/ssh-action@v1.2.5
         with:
           host: ${{ secrets.HETZNER_HOST }}
@@ -24,24 +24,10 @@ jobs:
           command_timeout: 3m
           script: |
             set +e
-            ROOT=/home/admin/domains/aamihe.com/public_html
-            WP="/usr/local/bin/wp --allow-root --path=$ROOT"
-
-            echo "===== configuracao completa do plugin amazon s3 ====="
-            $WP option get tantan_wordpress_s3 --format=json 2>&1
+            echo "===== ainda existe o backup de uploads que transferi antes? ====="
+            ls -la /root/aamihe-restore/ 2>&1
 
             echo ""
-            echo "===== ha credenciais aws definidas no wp-config.php? ====="
-            grep -i "AS3CF\|AWS_ACCESS\|AWS_SECRET" "$ROOT/wp-config.php" 2>&1
-
-            echo ""
-            echo "===== 5 anexos recentes, para ver se tem metadados de s3 (bucket/key) ====="
-            $WP db query "SELECT post_id, meta_key, LEFT(meta_value,300) FROM Aimes_postmeta WHERE meta_key='amazonS3_info' ORDER BY post_id DESC LIMIT 5" 2>&1
-
-            echo ""
-            echo "===== confirma prefixo real da tabela (Aimes_ ou outro) ====="
-            $WP db prefix 2>&1
-
-            echo ""
-            echo "===== quantos anexos (attachments) existem na base de dados no total ====="
-            $WP post list --post_type=attachment --format=count 2>&1
+            echo "===== o que tem la dentro (sem descompactar ainda) ====="
+            unzip -l /root/aamihe-restore/uploads.zip 2>&1 | head -20
+            unzip -l /root/aamihe-restore/uploads.zip 2>&1 | tail -5
