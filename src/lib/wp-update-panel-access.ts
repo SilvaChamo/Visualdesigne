@@ -71,10 +71,21 @@ export function filterWpInstallsForPanel(
   scope: PanelWpScope,
   allowedDomains: Set<string>,
 ): WpInstallInfo[] {
+  if (scope.role === 'admin') {
+    // O admin gere contas em mais do que um utilizador de sistema (DirectAdmin
+    // 'admin' no Hetzner, mas no Contabo cada conta Hestia tem o seu próprio
+    // username real — 'vdadmin', 'aamihe', 'oshercollective', etc.) — nunca
+    // só um. Comparar install.user com um único valor fixo ('admin') excluía
+    // sempre todos os sites Hestia da lista, mesmo os do próprio admin.
+    // allowedDomains (já calculado a partir do espelho, correcto nos dois
+    // painéis via isAdminPanelSite) é o filtro certo. Confirmado ao vivo 1
+    // set: mltmark.com e aamihe.com (WordPress reais) ficavam invisíveis.
+    return installs.filter((install) => allowedDomains.has(install.domain.toLowerCase()));
+  }
   const daUser = scope.daUsername.toLowerCase();
   return installs.filter((install) => {
     if (install.user.toLowerCase() !== daUser) return false;
-    if (scope.role === 'reseller' && allowedDomains.size > 0) {
+    if (allowedDomains.size > 0) {
       return allowedDomains.has(install.domain.toLowerCase());
     }
     return true;
@@ -94,9 +105,12 @@ export async function assertPanelOwnsWpDomain(
   if (allowed.has(normalized)) return;
 
   if (scope.role === 'admin') {
+    // Mesmo raciocínio de filterWpInstallsForPanel — o admin não está preso a
+    // um único username de sistema, por isso qualquer instalação real
+    // encontrada no servidor chega (o domínio só não estava ainda no espelho).
     const { resolveWpInstall } = await import('@/lib/wp-cli-server');
     const install = await resolveWpInstall(normalized);
-    if (install?.user.toLowerCase() === scope.daUsername.toLowerCase()) return;
+    if (install) return;
   }
 
   throw new Error('Sem permissão para este domínio.');
