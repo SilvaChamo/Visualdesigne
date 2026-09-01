@@ -1,11 +1,11 @@
-name: "Ops - Fase 14c. Procura Internal Server Error nos registos (so leitura)"
+name: "Ops - Fase 14d. Confirma saude pos-restart (so leitura)"
 
 on:
   workflow_dispatch:
 
 jobs:
   verify:
-    name: procura erro recente
+    name: confirma saude
     runs-on: ubuntu-latest
     steps:
       - name: Setup SSH key
@@ -23,13 +23,13 @@ jobs:
           key: ${{ secrets.CONTABO_SSH_KEY }}
           command_timeout: 2m
           script: |
-            echo "===== ultimas 80 linhas de erro do app (visualdesign-site-teste) ====="
-            pm2 logs visualdesign-site-teste --lines 80 --nostream --err 2>&1
+            echo "===== processo: uptime e restarts ====="
+            pm2 describe visualdesign-site-teste 2>&1 | grep -E "status|restarts|uptime"
 
             echo ""
-            echo "===== processo saudavel? ====="
-            pm2 describe visualdesign-site-teste 2>&1 | grep -E "status|restarts"
+            echo "===== erros desde o ultimo restart (manifest / 500 / invariant) ====="
+            pm2 logs visualdesign-site-teste --lines 200 --nostream --err 2>&1 | grep -iE "client reference manifest|invariant|failed to load static" | tail -20 || echo "nenhum encontrado nas ultimas 200 linhas"
 
             echo ""
-            echo "===== auth container: ultimas linhas com 'error' ====="
-            docker logs supabase-auth --tail 100 2>&1 | grep -i error | tail -20
+            echo "===== ultimas 15 linhas de erro (cru, para ver se ha algo novo) ====="
+            pm2 logs visualdesign-site-teste --lines 15 --nostream --err 2>&1
