@@ -1,4 +1,4 @@
-name: "Ops - Fase 63. Repoe o tema oceanwp oficial (falta style.css) e activa"
+name: "Ops - Fase 64. Diagnostica Forbidden 403 no wp-admin do aamihe.com"
 
 on:
   workflow_dispatch:
@@ -14,7 +14,7 @@ jobs:
           echo "${{ secrets.HETZNER_SSH_KEY }}" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
           ssh-keyscan -p "${{ secrets.HETZNER_PORT }}" "${{ secrets.HETZNER_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
-      - name: Repoe e activa
+      - name: Diagnostica
         uses: appleboy/ssh-action@v1.2.5
         with:
           host: ${{ secrets.HETZNER_HOST }}
@@ -25,22 +25,39 @@ jobs:
           script: |
             set +e
             ROOT=/home/admin/domains/aamihe.com/public_html
-            echo "===== o que resta do tema oceanwp agora ====="
-            ls -la "$ROOT/wp-content/themes/oceanwp/" 2>&1 | head -20
+
+            echo "===== .htaccess na raiz do site ====="
+            cat "$ROOT/.htaccess" 2>&1
 
             echo ""
-            echo "===== descarrega a versao oficial de novo (nao mexe noutros temas/plugins) ====="
-            /usr/local/bin/wp --allow-root --path="$ROOT" theme install oceanwp --force 2>&1
-            chown -R admin:admin "$ROOT/wp-content/themes/oceanwp"
+            echo "===== .htaccess dentro de wp-admin (se existir) ====="
+            cat "$ROOT/wp-admin/.htaccess" 2>&1
 
             echo ""
-            echo "===== activa ====="
-            /usr/local/bin/wp --allow-root --path="$ROOT" theme activate oceanwp 2>&1
-            /usr/local/bin/wp --allow-root --path="$ROOT" theme list --status=active 2>&1
+            echo "===== permissoes da pasta wp-admin e ficheiros chave ====="
+            ls -la "$ROOT/" | head -5
+            ls -la "$ROOT/wp-admin/" | head -10
+            ls -la "$ROOT/wp-admin/index.php" "$ROOT/wp-login.php" 2>&1
 
-      - name: Confirma a homepage a serio
-        run: |
-          sleep 3
-          curl -sSL -o /tmp/check.html --max-time 15 https://aamihe.com/
-          echo "tamanho: $(wc -c < /tmp/check.html) bytes"
-          grep -io "<title>.*</title>" /tmp/check.html | head -1
+            echo ""
+            echo "===== dono/grupo esperado (outros ficheiros da raiz) ====="
+            stat -c '%U:%G %a %n' "$ROOT/wp-config.php" "$ROOT/wp-admin" "$ROOT/wp-admin/index.php" 2>&1
+
+            echo ""
+            echo "===== vhost apache deste dominio (procura Deny/Require/Location wp-admin) ====="
+            grep -ril "aamihe" /etc/httpd/conf/extra/*.conf /usr/local/directadmin/data/users/admin/httpd.conf /usr/local/directadmin/data/users/admin/*.conf 2>/dev/null
+            find / -maxdepth 6 -iname "*aamihe*httpd*" -o -iname "*aamihe*apache*" 2>/dev/null | head -20
+
+            echo ""
+            echo "===== teste directo local ao wp-admin (via curl, ve o header/corpo exacto) ====="
+            curl -sSI --max-time 10 https://aamihe.com/wp-admin/ 2>&1
+            echo "---corpo---"
+            curl -sS --max-time 10 https://aamihe.com/wp-admin/ 2>&1 | head -30
+
+            echo ""
+            echo "===== plugins de seguranca instalados que possam bloquear (ithemes/wordfence/sucuri/loginpress) ====="
+            ls "$ROOT/wp-content/plugins/" 2>&1 | grep -Ei "security|wordfence|sucuri|loginpress|firewall|limit-login|ithemes"
+
+            echo ""
+            echo "===== log de erros apache recente para aamihe (ultimas linhas com 403/forbidden) ====="
+            tail -n 300 /var/log/httpd/domains/aamihe.com.error.log 2>&1 | grep -i "forbidden\|denied\|wp-admin" | tail -30
