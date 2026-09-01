@@ -1,4 +1,4 @@
-name: "Ops - Fase 43. Isola o resto no Hetzner + procura backup real do aamihe.com"
+name: "Ops - Fase 44. Inspecciona o backup de 23 junho (antes da infeccao)"
 
 on:
   workflow_dispatch:
@@ -14,7 +14,7 @@ jobs:
           echo "${{ secrets.HETZNER_SSH_KEY }}" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
           ssh-keyscan -p "${{ secrets.HETZNER_PORT }}" "${{ secrets.HETZNER_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
-      - name: Varre e isola tudo (Hetzner)
+      - name: Inspecciona
         uses: appleboy/ssh-action@v1.2.5
         with:
           host: ${{ secrets.HETZNER_HOST }}
@@ -24,67 +24,16 @@ jobs:
           command_timeout: 3m
           script: |
             set +e
-            ROOT=/home/admin/domains/aamihe.com/public_html
-            QDIR=/root/security-quarantine/aamihe.com-hetzner-round2-$(date +%Y%m%d-%H%M%S)
-            mkdir -p "$QDIR"
-
-            echo "===== todas as pastas com o mesmo nome do pai (padrao do virus) ====="
-            find "$ROOT" -type d 2>/dev/null | awk -F/ '{if ($NF==$(NF-1)) print}' > /tmp/matches.txt
-            cat /tmp/matches.txt
+            echo "===== conteudo da pasta de backup ====="
+            ls -la /home/admin/backups/backup/ 2>&1
 
             echo ""
-            echo "===== isola cada uma (a mais externa, remove as copias internas juntas) ====="
-            # Ordena por profundidade (menos barras primeiro) e isola so as que ainda existem
-            # (isolar a pasta de fora já leva as copias aninhadas lá dentro junto).
-            sort -t/ -k1 /tmp/matches.txt | awk -F/ '{print NF, $0}' | sort -n | cut -d' ' -f2- | while read -r p; do
-              if [ -e "$p" ]; then
-                REL=$(echo "$p" | sed "s|$ROOT/||" | tr '/' '_')
-                mv "$p" "$QDIR/$REL" 2>/dev/null && echo "isolado: $p"
-              fi
+            echo "===== procura ficheiros com aamihe no nome, em qualquer lado dessa pasta ====="
+            find /home/admin/backups/backup/ -iname "*aamihe*" 2>&1
+
+            echo ""
+            echo "===== se for so um ficheiro tar/tar.gz por dominio, lista o conteudo de qualquer um relacionado com aamihe ====="
+            for f in /home/admin/backups/backup/*aamihe*; do
+              echo "--- $f ---"
+              tar -tzf "$f" 2>&1 | head -20
             done
-
-            echo ""
-            echo "===== confirma limpo ====="
-            find "$ROOT" -type d 2>/dev/null | awk -F/ '{if ($NF==$(NF-1)) print}'
-            echo "(vazio acima = limpo)"
-
-            echo ""
-            echo "===== backups nativos do DirectAdmin para esta conta ====="
-            ls -la /home/admin/backups/ 2>&1 | head -20
-            find / -maxdepth 4 -iname "*aamihe*backup*" -o -iname "*backup*aamihe*" 2>/dev/null | head -20
-
-      - name: Confirma o site
-        run: |
-          sleep 2
-          curl -sSL -o /dev/null -w "HTTP %{http_code}\n" --max-time 15 https://aamihe.com/ 2>&1
-
-  backup-bucket:
-    name: backup-bucket
-    runs-on: ubuntu-latest
-    steps:
-      - name: Setup SSH key
-        run: |
-          mkdir -p ~/.ssh
-          echo "${{ secrets.HETZNER_SSH_KEY }}" > ~/.ssh/deploy_key
-          chmod 600 ~/.ssh/deploy_key
-          ssh-keyscan -p "${{ secrets.HETZNER_PORT }}" "${{ secrets.HETZNER_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
-      - name: Verifica bucket aamihe-backups no Supabase (Hetzner)
-        uses: appleboy/ssh-action@v1.2.5
-        with:
-          host: ${{ secrets.HETZNER_HOST }}
-          port: ${{ secrets.HETZNER_PORT }}
-          username: ${{ secrets.HETZNER_USER }}
-          key: ${{ secrets.HETZNER_SSH_KEY }}
-          command_timeout: 3m
-          script: |
-            set +e
-            echo "===== conteudo do bucket aamihe-backups ====="
-            docker exec -i supabase-db psql -U postgres -d postgres -t -A -F' | ' -c "select id, name, metadata->>'size' as size, created_at from storage.objects where bucket_id = 'aamihe-backups' order by created_at desc limit 30;"
-
-            echo ""
-            echo "===== outros buckets, procura por 'aamihe' no nome do objecto ====="
-            docker exec -i supabase-db psql -U postgres -d postgres -t -A -F' | ' -c "select bucket_id, name, created_at from storage.objects where name ilike '%aamihe%' order by created_at desc limit 30;"
-
-            echo ""
-            echo "===== tabela panel_backups (espelho), se existir, para aamihe ====="
-            docker exec -i supabase-db psql -U postgres -d postgres -t -A -F' | ' -c "select table_name from information_schema.tables where table_name ilike '%backup%';"
