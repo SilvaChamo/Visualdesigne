@@ -1,4 +1,4 @@
-name: "Ops - Fase 31. Instala wp-cli e instala WordPress a serio em entrecamposblog.com"
+name: "Ops - Fase 32. Desfaz a instalacao WordPress de teste em entrecamposblog.com"
 
 on:
   workflow_dispatch:
@@ -14,51 +14,39 @@ jobs:
           echo "${{ secrets.CONTABO_SSH_KEY }}" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
           ssh-keyscan "${{ secrets.CONTABO_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
-      - name: Instala wp-cli e WordPress
+      - name: Limpa tudo
         uses: appleboy/ssh-action@v1.2.5
         with:
           host: ${{ secrets.CONTABO_HOST }}
           username: root
           key: ${{ secrets.CONTABO_SSH_KEY }}
-          command_timeout: 5m
+          command_timeout: 3m
           script: |
             set +e
-            WP_PASS='BIVrY4JrpOWMytn9bp'
-            DB_PASS='cdp8v0rOjtQSno4vx0'
-            echo "::add-mask::$WP_PASS"
-            echo "::add-mask::$DB_PASS"
-
-            echo "===== 1. instala wp-cli (ferramenta oficial wp-cli.org) ====="
-            if [ ! -f /usr/local/bin/wp ]; then
-              curl -sS -o /usr/local/bin/wp https://raw.githubusercontent.com/wp-cli/builds/gh-pages/phar/wp-cli.phar
-              chmod +x /usr/local/bin/wp
-            fi
-            /usr/local/bin/wp --version --allow-root
+            echo "===== bases de dados reais da conta vdadmin ====="
+            /usr/local/hestia/bin/v-list-databases vdadmin plain 2>&1
 
             echo ""
-            echo "===== 2. limpa a página placeholder do Hestia ====="
-            rm -f /home/vdadmin/web/entrecamposblog.com/public_html/index.html
-            rm -f /home/vdadmin/web/entrecamposblog.com/public_html/robots.txt
-
-            echo ""
-            echo "===== 3. cria a base de dados no Hestia ====="
-            /usr/local/hestia/bin/v-add-database vdadmin entrecampos_wp entrecampos_wp "$DB_PASS" mysql 2>&1
+            echo "===== apaga a base de dados de teste ====="
+            /usr/local/hestia/bin/v-delete-database vdadmin vdadmin_entrecampos_wp 2>&1
             echo "exit: $?"
 
             echo ""
-            echo "===== 4. instala o WordPress a sério (wp-cli) ====="
-            WPPATH=/home/vdadmin/web/entrecamposblog.com/public_html
-            sudo -u vdadmin /usr/local/bin/wp --path="$WPPATH" core download --locale=pt_PT 2>&1
-            sudo -u vdadmin /usr/local/bin/wp --path="$WPPATH" config create --dbname=vdadmin_entrecampos_wp --dbuser=vdadmin_entrecampos_wp --dbpass="$DB_PASS" --dbhost=localhost --skip-check 2>&1
-            sudo -u vdadmin /usr/local/bin/wp --path="$WPPATH" core install --url="https://entrecamposblog.com" --title="Entre Campos Blog" --admin_user=vdwpadmin --admin_password="$WP_PASS" --admin_email="silva.chamo@gmail.com" --skip-email 2>&1
+            echo "===== apaga os ficheiros do WordPress ====="
+            rm -rf /home/vdadmin/web/entrecamposblog.com/public_html/*
+            rm -rf /home/vdadmin/web/entrecamposblog.com/public_html/.[!.]*
 
             echo ""
-            echo "===== 5. confirma ====="
-            sudo -u vdadmin /usr/local/bin/wp --path="$WPPATH" core version 2>&1
-            chown -R vdadmin:vdadmin "$WPPATH"
+            echo "===== repõe a página placeholder por omissão do Hestia ====="
+            cp -r /usr/local/hestia/data/templates/web/skel/public_html/. /home/vdadmin/web/entrecamposblog.com/public_html/ 2>&1
+            chown -R vdadmin:vdadmin /home/vdadmin/web/entrecamposblog.com/public_html/
 
-      - name: Confirma o site real (fora da SSH, via HTTPS público)
+            echo ""
+            echo "===== confirma limpo ====="
+            ls -la /home/vdadmin/web/entrecamposblog.com/public_html/
+            test -f /home/vdadmin/web/entrecamposblog.com/public_html/wp-config.php && echo "AINDA TEM wp-config.php!" || echo "limpo, sem wp-config.php"
+
+      - name: Confirma via HTTPS público
         run: |
           sleep 3
-          curl -sSL -o /dev/null -w "https://entrecamposblog.com -> HTTP %{http_code}\n" --max-time 15 https://entrecamposblog.com/
           curl -sSL --max-time 15 https://entrecamposblog.com/ 2>&1 | grep -io "<title>.*</title>" | head -1
