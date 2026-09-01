@@ -1,11 +1,33 @@
-name: "Ops - Fase 16a. Historico completo de entrecamposblog.com (so leitura)"
+name: "Ops - Fase 17a. Adiciona coluna brevo_verified (Hetzner + Contabo)"
 
 on:
   workflow_dispatch:
 
 jobs:
-  verify:
-    name: consulta
+  hetzner:
+    name: hetzner
+    runs-on: ubuntu-latest
+    steps:
+      - name: Setup SSH key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.HETZNER_SSH_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -p "${{ secrets.HETZNER_PORT }}" "${{ secrets.HETZNER_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
+      - name: Migra
+        uses: appleboy/ssh-action@v1.2.5
+        with:
+          host: ${{ secrets.HETZNER_HOST }}
+          port: ${{ secrets.HETZNER_PORT }}
+          username: ${{ secrets.HETZNER_USER }}
+          key: ${{ secrets.HETZNER_SSH_KEY }}
+          command_timeout: 2m
+          script: |
+            docker exec -i supabase-db psql -U postgres -d postgres -c "ALTER TABLE domain_renewals ADD COLUMN IF NOT EXISTS brevo_verified boolean NOT NULL DEFAULT false;"
+            docker exec -i supabase-db psql -U postgres -d postgres -c "\d domain_renewals" | grep brevo_verified
+
+  contabo:
+    name: contabo
     runs-on: ubuntu-latest
     steps:
       - name: Setup SSH key
@@ -14,7 +36,7 @@ jobs:
           echo "${{ secrets.CONTABO_SSH_KEY }}" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
           ssh-keyscan "${{ secrets.CONTABO_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
-      - name: Consulta
+      - name: Migra
         uses: appleboy/ssh-action@v1.2.5
         with:
           host: ${{ secrets.CONTABO_HOST }}
@@ -22,23 +44,5 @@ jobs:
           key: ${{ secrets.CONTABO_SSH_KEY }}
           command_timeout: 2m
           script: |
-            SQL() { docker exec -i supabase-db psql -U postgres -d postgres -t -A -c "$1"; }
-
-            echo "===== todos os checkout_sessions com entrecampos (qualquer status) ====="
-            SQL "select id, status, created_at, updated_at, fulfilled_at, items::text from checkout_sessions where items::text ilike '%entrecampos%' order by created_at;"
-
-            echo ""
-            echo "===== domain_renewals: qualquer coisa com entrecampos (repete, so para confirmar) ====="
-            SQL "select id, domain_name, status, created_at from domain_renewals where domain_name ilike '%entrecampos%';"
-
-            echo ""
-            echo "===== panel_dns / mirror: registos DNS guardados para entrecamposblog.com ====="
-            SQL "select domain, name, type, value, created_at from panel_dns where domain ilike '%entrecamposblog%' order by created_at;"
-
-            echo ""
-            echo "===== panel_sites: existe site para entrecamposblog.com? ====="
-            SQL "select domain, owner, status, site_type from panel_sites where domain ilike '%entrecamposblog%';"
-
-            echo ""
-            echo "===== notifications: qualquer coisa sobre entrecampos ====="
-            SQL "select title, message, type, created_at from notifications where message ilike '%entrecampos%' or title ilike '%entrecampos%' order by created_at desc limit 10;"
+            docker exec -i supabase-db psql -U postgres -d postgres -c "ALTER TABLE domain_renewals ADD COLUMN IF NOT EXISTS brevo_verified boolean NOT NULL DEFAULT false;"
+            docker exec -i supabase-db psql -U postgres -d postgres -c "\d domain_renewals" | grep brevo_verified
