@@ -1,4 +1,4 @@
-name: "Ops - Fase 19e. Confirma se o dominio ja foi criado apesar do timeout (so leitura)"
+name: "Ops - Fase 20a. Testa Dynadot getDomainDetails ao vivo (so leitura)"
 
 on:
   workflow_dispatch:
@@ -14,7 +14,7 @@ jobs:
           echo "${{ secrets.CONTABO_SSH_KEY }}" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
           ssh-keyscan "${{ secrets.CONTABO_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
-      - name: Verifica
+      - name: Testa
         uses: appleboy/ssh-action@v1.2.5
         with:
           host: ${{ secrets.CONTABO_HOST }}
@@ -23,18 +23,51 @@ jobs:
           command_timeout: 5m
           script: |
             set +e
-            echo "===== dominios da conta vdadmin no Hestia ====="
-            /usr/local/hestia/bin/v-list-web-domains vdadmin plain 2>&1
+            cd /opt/visualdesign-site-teste
+            API_KEY=$(grep '^DYNADOT_API_KEY=' .env.local | cut -d= -f2-)
+            SECRET_KEY=$(grep '^DYNADOT_SECRET_KEY=' .env.local | cut -d= -f2-)
+            echo "::add-mask::$API_KEY"
+            echo "::add-mask::$SECRET_KEY"
 
-            echo ""
-            echo "===== pasta do site (se existir) ====="
-            ls -la /home/vdadmin/web/entrecamposblog.com/ 2>&1
+            cat > /tmp/dyntest.js << 'NODE_EOF'
+            const crypto = require('crypto');
+            const apiKey = process.env.DK;
+            const secretKey = process.env.SK;
+            const domains = ['visualdesignmoz.com', 'entrecamposblog.com'];
 
-            echo ""
-            echo "===== ultimas linhas do log de sistema do hestia (nginx/apache reload, letsencrypt) ====="
-            tail -60 /var/log/hestia/nginx-error.log 2>&1 | tail -20
-            tail -20 /usr/local/hestia/log/system.log 2>&1
+            function sign(path, requestId, body) {
+              const stringToSign = `${apiKey}\n${path}\n${requestId}\n${body}`;
+              return crypto.createHmac('sha256', secretKey).update(stringToSign).digest('hex');
+            }
 
-            echo ""
-            echo "===== processos hestia ainda a correr (bloqueados?) ====="
-            ps aux | grep -i "v-add\|letsencrypt\|certbot" | grep -v grep
+            async function run() {
+              for (const domain of domains) {
+                const path = `/restful/v1/domains/${encodeURIComponent(domain)}`;
+                const requestId = crypto.randomUUID();
+                const signature = sign(path, requestId, '');
+                const res = await fetch(`https://api.dynadot.com${path}`, {
+                  headers: {
+                    Accept: 'application/json',
+                    Authorization: `Bearer ${apiKey}`,
+                    'X-Request-ID': requestId,
+                    'X-Signature': signature,
+                  },
+                });
+                const json = await res.json().catch(() => ({}));
+                console.log('=====', domain, '=====');
+                console.log('HTTP', res.status, 'code:', json.code, 'message:', json.message);
+                const info = json.data?.domainInfo?.[0];
+                if (info) {
+                  console.log('status:', info.status, '| locked:', info.locked, '| expiration:', info.expiration, '| registration:', info.registration);
+                  const ns = (info.glueInfo?.name_server_settings?.name_servers || []).map(n => n.server_name);
+                  console.log('nameservers:', JSON.stringify(ns));
+                } else {
+                  console.log('sem domainInfo. resposta completa:', JSON.stringify(json).slice(0, 500));
+                }
+              }
+            }
+            run().catch(e => console.error('ERRO:', e.message));
+            NODE_EOF
+
+            DK="$API_KEY" SK="$SECRET_KEY" node /tmp/dyntest.js
+            rm -f /tmp/dyntest.js
