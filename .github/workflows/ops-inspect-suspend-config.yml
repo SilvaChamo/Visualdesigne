@@ -1,4 +1,4 @@
-name: "Ops - Fase 15b. Copia Google OAuth de Hetzner para Contabo (valores nunca impressos)"
+name: "Ops - Fase 15c. Copia Google OAuth de Hetzner para Contabo (sem heredoc, valores nunca impressos)"
 
 on:
   workflow_dispatch:
@@ -26,10 +26,8 @@ jobs:
         run: |
           set -euo pipefail
 
-          CLIENT_ID=$(ssh -i ~/.ssh/hetzner_key -p "$HETZNER_PORT" "$HETZNER_USER@$HETZNER_HOST" \
-            "docker inspect supabase-auth --format '{{range .Config.Env}}{{println .}}{{end}}' | grep '^GOTRUE_EXTERNAL_GOOGLE_CLIENT_ID=' | cut -d= -f2-")
-          CLIENT_SECRET=$(ssh -i ~/.ssh/hetzner_key -p "$HETZNER_PORT" "$HETZNER_USER@$HETZNER_HOST" \
-            "docker inspect supabase-auth --format '{{range .Config.Env}}{{println .}}{{end}}' | grep '^GOTRUE_EXTERNAL_GOOGLE_SECRET=' | cut -d= -f2-")
+          CLIENT_ID=$(ssh -i ~/.ssh/hetzner_key -p "$HETZNER_PORT" "$HETZNER_USER@$HETZNER_HOST" "docker inspect supabase-auth --format '{{range .Config.Env}}{{println .}}{{end}}' | grep '^GOTRUE_EXTERNAL_GOOGLE_CLIENT_ID=' | cut -d= -f2-")
+          CLIENT_SECRET=$(ssh -i ~/.ssh/hetzner_key -p "$HETZNER_PORT" "$HETZNER_USER@$HETZNER_HOST" "docker inspect supabase-auth --format '{{range .Config.Env}}{{println .}}{{end}}' | grep '^GOTRUE_EXTERNAL_GOOGLE_SECRET=' | cut -d= -f2-")
 
           echo "::add-mask::$CLIENT_ID"
           echo "::add-mask::$CLIENT_SECRET"
@@ -42,25 +40,26 @@ jobs:
 
           REDIRECT_URI="https://supabase-contabo.visualdesignmoz.com/auth/v1/callback"
 
-          ssh -i ~/.ssh/contabo_key root@"$CONTABO_HOST" bash -s -- "$CLIENT_ID" "$CLIENT_SECRET" "$REDIRECT_URI" <<'REMOTE_SCRIPT'
-            set -e
-            CLIENT_ID="$1"
-            CLIENT_SECRET="$2"
-            REDIRECT_URI="$3"
-            ENV_FILE=/opt/supabase-contabo/docker/.env
-            cp "$ENV_FILE" "$ENV_FILE.bak-google-$(date +%s)"
-            sed -i '/^GOTRUE_EXTERNAL_GOOGLE_/d' "$ENV_FILE"
-            {
-              echo "GOTRUE_EXTERNAL_GOOGLE_ENABLED=true"
-              echo "GOTRUE_EXTERNAL_GOOGLE_CLIENT_ID=$CLIENT_ID"
-              echo "GOTRUE_EXTERNAL_GOOGLE_SECRET=$CLIENT_SECRET"
-              echo "GOTRUE_EXTERNAL_GOOGLE_REDIRECT_URI=$REDIRECT_URI"
-            } >> "$ENV_FILE"
-            cd /opt/supabase-contabo/docker
-            docker compose up -d auth
-            sleep 4
-            echo "Confirmacao (so nomes, sem valores):"
-            docker inspect supabase-auth --format '{{range .Config.Env}}{{println .}}{{end}}' | grep "GOTRUE_EXTERNAL_GOOGLE_" | sed -E 's/=.*$/=<definido>/'
-REMOTE_SCRIPT
+          REMOTE_SCRIPT='set -e
+          CLIENT_ID="$1"
+          CLIENT_SECRET="$2"
+          REDIRECT_URI="$3"
+          ENV_FILE=/opt/supabase-contabo/docker/.env
+          cp "$ENV_FILE" "$ENV_FILE.bak-google-$(date +%s)"
+          sed -i "/^GOTRUE_EXTERNAL_GOOGLE_/d" "$ENV_FILE"
+          {
+            echo "GOTRUE_EXTERNAL_GOOGLE_ENABLED=true"
+            echo "GOTRUE_EXTERNAL_GOOGLE_CLIENT_ID=$CLIENT_ID"
+            echo "GOTRUE_EXTERNAL_GOOGLE_SECRET=$CLIENT_SECRET"
+            echo "GOTRUE_EXTERNAL_GOOGLE_REDIRECT_URI=$REDIRECT_URI"
+          } >> "$ENV_FILE"
+          cd /opt/supabase-contabo/docker
+          docker compose up -d auth
+          sleep 4
+          echo "Confirmacao (so nomes, sem valores):"
+          docker inspect supabase-auth --format "{{range .Config.Env}}{{println .}}{{end}}" | grep "GOTRUE_EXTERNAL_GOOGLE_" | sed -E "s/=.*$/=<definido>/"
+          '
+
+          ssh -i ~/.ssh/contabo_key root@"$CONTABO_HOST" bash -s -- "$CLIENT_ID" "$CLIENT_SECRET" "$REDIRECT_URI" <<< "$REMOTE_SCRIPT"
 
           echo "Concluido."
