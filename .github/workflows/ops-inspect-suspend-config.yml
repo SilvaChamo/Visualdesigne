@@ -1,39 +1,9 @@
-name: "Ops - Fase 18d. Investiga bucket real + servidor Hetzner por entrecampos (so leitura)"
+name: "Ops - Fase 18e. Investiga conteudo do backup entrecampos no Hetzner (so leitura)"
 
 on:
   workflow_dispatch:
 
 jobs:
-  contabo:
-    name: contabo
-    runs-on: ubuntu-latest
-    steps:
-      - name: Setup SSH key
-        run: |
-          mkdir -p ~/.ssh
-          echo "${{ secrets.CONTABO_SSH_KEY }}" > ~/.ssh/deploy_key
-          chmod 600 ~/.ssh/deploy_key
-          ssh-keyscan "${{ secrets.CONTABO_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
-      - name: Investiga bucket Contabo
-        uses: appleboy/ssh-action@v1.2.5
-        with:
-          host: ${{ secrets.CONTABO_HOST }}
-          username: root
-          key: ${{ secrets.CONTABO_SSH_KEY }}
-          command_timeout: 5m
-          script: |
-            set +e
-            echo "===== buckets existentes no Contabo ====="
-            docker exec -i supabase-db psql -U postgres -d postgres -t -A -c "select id, name from storage.buckets;"
-
-            echo ""
-            echo "===== objectos no storage com 'entrecampos' no nome ====="
-            docker exec -i supabase-db psql -U postgres -d postgres -t -A -F' | ' -c "select bucket_id, name, created_at from storage.objects where name ilike '%entrecampos%' order by created_at desc;"
-
-            echo ""
-            echo "===== todos os objectos de qualquer bucket de backups (amostra 30) ====="
-            docker exec -i supabase-db psql -U postgres -d postgres -t -A -F' | ' -c "select bucket_id, name from storage.objects where bucket_id ilike '%backup%' order by created_at desc limit 30;"
-
   hetzner:
     name: hetzner
     runs-on: ubuntu-latest
@@ -44,7 +14,7 @@ jobs:
           echo "${{ secrets.HETZNER_SSH_KEY }}" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
           ssh-keyscan -p "${{ secrets.HETZNER_PORT }}" "${{ secrets.HETZNER_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
-      - name: Investiga servidor Hetzner/DA
+      - name: Investiga
         uses: appleboy/ssh-action@v1.2.5
         with:
           host: ${{ secrets.HETZNER_HOST }}
@@ -54,14 +24,26 @@ jobs:
           command_timeout: 5m
           script: |
             set +e
-            echo "===== backup sql em /home/admin/backups ====="
-            ls -la /home/admin/backups/backup/ 2>&1 | grep -i entrecampos
-            find / -maxdepth 6 -iname "*entrecampos*" 2>/dev/null
+            echo "===== conteudo do zip de backup (so lista, nao extrai) ====="
+            unzip -l "/home/admin/.trash/BackUp/backup_2026-04-07-0734_EntreCAMPOS_b412ce975cca-others.zip" 2>&1 | head -40
 
             echo ""
-            echo "===== dominios da conta admin no DirectAdmin ====="
-            ls -la /home/admin/domains/ 2>&1
+            echo "===== tamanho do zip ====="
+            ls -lah "/home/admin/.trash/BackUp/backup_2026-04-07-0734_EntreCAMPOS_b412ce975cca-others.zip"
 
             echo ""
-            echo "===== buckets/objectos no storage do Hetzner com entrecampos ====="
-            docker exec -i supabase-db psql -U postgres -d postgres -t -A -F' | ' -c "select bucket_id, name, created_at from storage.objects where name ilike '%entrecampos%' order by created_at desc;" 2>&1
+            echo "===== pasta entrecampos.co.mz no trash (site em si) ====="
+            ls -la "/home/admin/.trash/files/entrecampos.co.mz.E-JH7wRYwRg" 2>&1 | head -20
+            du -sh "/home/admin/.trash/files/entrecampos.co.mz.E-JH7wRYwRg" 2>&1
+
+            echo ""
+            echo "===== pasta de backup entrecampos.co.mz (a que apareceu no find) ====="
+            ls -la "/home/admin/backups/backup/entrecampos.co.mz/" 2>&1
+
+            echo ""
+            echo "===== primeiras linhas do .conf (site original) ====="
+            cat "/home/admin/backups/backup/admin_wp_entrecampos_co_mz.conf" 2>&1
+
+            echo ""
+            echo "===== outros backups mais recentes do admin (todos, para ver se ha algo mais novo) ====="
+            ls -la /home/admin/backups/backup/ 2>&1
