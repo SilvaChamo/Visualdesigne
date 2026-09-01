@@ -1,11 +1,11 @@
-name: "Ops - Fase 15d. Diagnostica porque google nao aparece no container (so leitura)"
+name: "Ops - Fase 15e. Confirma API_EXTERNAL_URL (so leitura)"
 
 on:
   workflow_dispatch:
 
 jobs:
   verify:
-    name: diagnostica
+    name: verifica
     runs-on: ubuntu-latest
     steps:
       - name: Setup SSH key
@@ -23,22 +23,6 @@ jobs:
           key: ${{ secrets.CONTABO_SSH_KEY }}
           command_timeout: 2m
           script: |
-            echo "===== .env tem as linhas? (so nomes) ====="
-            grep -n "^GOTRUE_EXTERNAL_GOOGLE_" /opt/supabase-contabo/docker/.env | sed -E 's/=.*$/=<definido>/'
-
-            echo ""
-            echo "===== docker-compose.yml: como o servico auth trata GOOGLE ====="
-            grep -n -i "google" /opt/supabase-contabo/docker/docker-compose.yml || echo "nao encontrado no docker-compose.yml"
-
-            echo ""
-            echo "===== docker-compose.yml: o servico auth usa env_file ou environment explicito? ====="
-            sed -n '/^  auth:/,/^  [a-z]/p' /opt/supabase-contabo/docker/docker-compose.yml | grep -E "env_file|environment:|image:" 
-
-            echo ""
-            echo "===== container auth: quando foi criado, esta a correr? ====="
-            docker inspect supabase-auth --format 'Created: {{.Created}} | State: {{.State.Status}} | StartedAt: {{.State.StartedAt}}'
-
-            echo ""
-            echo "===== container auth: TEM mesmo GOTRUE_EXTERNAL_GOOGLE agora? ====="
-            docker inspect supabase-auth --format '{{range .Config.Env}}{{println .}}{{end}}' | grep -c "GOTRUE_EXTERNAL_GOOGLE" || echo "0 - nao tem nenhuma"
-            docker inspect supabase-auth --format '{{range .Config.Env}}{{println .}}{{end}}' | grep "GOTRUE_EXTERNAL_GOOGLE" | sed -E 's/=.*$/=<definido>/'
+            grep "^API_EXTERNAL_URL=" /opt/supabase-contabo/docker/.env
+            echo "---"
+            sed -n '150,190p' /opt/supabase-contabo/docker/docker-compose.yml
