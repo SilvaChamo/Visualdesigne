@@ -1,41 +1,49 @@
-name: "Ops - Fase 65. Isola ficheiros do virus e repoe .htaccess limpo (aamihe/Hetzner)"
+name: "Ops - Fase 66. Mesma limpeza (filefuns.php + htaccess) na copia aamihe do Contabo"
 
 on:
   workflow_dispatch:
 
 jobs:
-  hetzner:
-    name: hetzner
+  contabo:
+    name: contabo
     runs-on: ubuntu-latest
     steps:
       - name: Setup SSH key
         run: |
           mkdir -p ~/.ssh
-          echo "${{ secrets.HETZNER_SSH_KEY }}" > ~/.ssh/deploy_key
+          echo "${{ secrets.CONTABO_SSH_KEY }}" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
-          ssh-keyscan -p "${{ secrets.HETZNER_PORT }}" "${{ secrets.HETZNER_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
-      - name: Isola e repoe
+          ssh-keyscan "${{ secrets.CONTABO_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
+      - name: Localiza, isola e repoe
         uses: appleboy/ssh-action@v1.2.5
         with:
-          host: ${{ secrets.HETZNER_HOST }}
-          port: ${{ secrets.HETZNER_PORT }}
-          username: ${{ secrets.HETZNER_USER }}
-          key: ${{ secrets.HETZNER_SSH_KEY }}
+          host: ${{ secrets.CONTABO_HOST }}
+          username: root
+          key: ${{ secrets.CONTABO_SSH_KEY }}
           command_timeout: 3m
           script: |
             set +e
-            ROOT=/home/admin/domains/aamihe.com/public_html
-            QDIR="/root/security-quarantine/aamihe.com-hetzner-$(date +%Y%m%d-%H%M%S)"
+            echo "===== localiza a pasta do site aamihe.com no Contabo ====="
+            CANDIDATES=$(find /home -maxdepth 4 -type d -iname "aamihe.com" 2>/dev/null)
+            echo "$CANDIDATES"
+            ROOT=""
+            for d in $CANDIDATES; do
+              if [ -d "$d/public_html" ]; then ROOT="$d/public_html"; break; fi
+            done
+            echo "ROOT escolhido: $ROOT"
+            if [ -z "$ROOT" ]; then echo "NAO ENCONTREI a pasta - parar aqui"; exit 0; fi
+
+            QDIR="/root/security-quarantine/aamihe.com-contabo-$(date +%Y%m%d-%H%M%S)"
             mkdir -p "$QDIR"
-            FOUNDLIST=/tmp/aamihe_found_$$.txt
+            FOUNDLIST=/tmp/aamihe_found_c_$$.txt
             rm -f "$FOUNDLIST"
             touch "$FOUNDLIST"
 
-            echo "===== conteudo do filefuns.php na raiz (so para ver, nao executar) ====="
-            head -c 2000 "$ROOT/filefuns.php" 2>&1
-            echo "(...)"
+            echo "===== .htaccess actual na raiz (para ver se e' o mesmo padrao malicioso) ====="
+            head -c 500 "$ROOT/.htaccess" 2>&1
 
-            echo "===== procura outros nomes suspeitos da mesma lista, em todo o site ====="
+            echo ""
+            echo "===== procura os mesmos nomes suspeitos ====="
             NAMES="filefuns.php chtmlfuns.php cjfuns.php classsmtps.php classfuns.php comfunctions.php comdofuns.php connects.php copypaths.php delpaths.php doiconvs.php epinyins.php gdftps.php hinfofuns.php hplfuns.php memberfuns.php moddofuns.php onclickfuns.php phpzipincs.php qfunctions.php qinfofuns.php schallfuns.php tempfuns.php userfuns.php siteheads.php termps.php txets.php thoms.php postnews.php system_log.php inputs.php adminfuns.php"
             for n in $NAMES; do find "$ROOT" -type f -iname "$n" 2>/dev/null >> "$FOUNDLIST"; done
             cat "$FOUNDLIST"
@@ -50,31 +58,31 @@ jobs:
               echo "isolado: $f"
             done < "$FOUNDLIST"
 
-            echo "===== isola os .htaccess maliciosos (raiz e wp-admin) ====="
-            [ -f "$ROOT/.htaccess" ] && cp "$ROOT/.htaccess" "$QDIR/htaccess-raiz.bak"
-            [ -f "$ROOT/wp-admin/.htaccess" ] && mkdir -p "$QDIR/wp-admin" && mv "$ROOT/wp-admin/.htaccess" "$QDIR/wp-admin/.htaccess"
+            echo "===== se o .htaccess tiver o mesmo padrao malicioso (FilesMatch com filefuns/chtmlfuns), substitui por um limpo ====="
+            if grep -q "filefuns\|chtmlfuns\|cjfuns" "$ROOT/.htaccess" 2>/dev/null; then
+              cp "$ROOT/.htaccess" "$QDIR/htaccess-raiz.bak"
+              printf '%s\n' "# BEGIN WordPress" > "$ROOT/.htaccess"
+              printf '%s\n' "<IfModule mod_rewrite.c>" >> "$ROOT/.htaccess"
+              printf '%s\n' "RewriteEngine On" >> "$ROOT/.htaccess"
+              printf '%s\n' "RewriteBase /" >> "$ROOT/.htaccess"
+              printf '%s\n' "RewriteRule ^index\.php$ - [L]" >> "$ROOT/.htaccess"
+              printf '%s\n' "RewriteCond %{REQUEST_FILENAME} !-f" >> "$ROOT/.htaccess"
+              printf '%s\n' "RewriteCond %{REQUEST_FILENAME} !-d" >> "$ROOT/.htaccess"
+              printf '%s\n' "RewriteRule . /index.php [L]" >> "$ROOT/.htaccess"
+              printf '%s\n' "</IfModule>" >> "$ROOT/.htaccess"
+              printf '%s\n' "# END WordPress" >> "$ROOT/.htaccess"
+              chmod 644 "$ROOT/.htaccess"
+              echo "htaccess da raiz substituido"
+            else
+              echo "htaccess da raiz nao tem o padrao malicioso, nao mexi"
+            fi
 
-            echo "===== repoe .htaccess limpo e normal na raiz ====="
-            printf '%s\n' "# BEGIN WordPress" > "$ROOT/.htaccess"
-            printf '%s\n' "<IfModule mod_rewrite.c>" >> "$ROOT/.htaccess"
-            printf '%s\n' "RewriteEngine On" >> "$ROOT/.htaccess"
-            printf '%s\n' "RewriteBase /" >> "$ROOT/.htaccess"
-            printf '%s\n' "RewriteRule ^index\.php$ - [L]" >> "$ROOT/.htaccess"
-            printf '%s\n' "RewriteCond %{REQUEST_FILENAME} !-f" >> "$ROOT/.htaccess"
-            printf '%s\n' "RewriteCond %{REQUEST_FILENAME} !-d" >> "$ROOT/.htaccess"
-            printf '%s\n' "RewriteRule . /index.php [L]" >> "$ROOT/.htaccess"
-            printf '%s\n' "</IfModule>" >> "$ROOT/.htaccess"
-            printf '%s\n' "# END WordPress" >> "$ROOT/.htaccess"
-            chown admin:admin "$ROOT/.htaccess"
-            chmod 644 "$ROOT/.htaccess"
-            cat "$ROOT/.htaccess"
+            if [ -f "$ROOT/wp-admin/.htaccess" ] && grep -q "filefuns\|chtmlfuns\|cjfuns" "$ROOT/wp-admin/.htaccess" 2>/dev/null; then
+              mkdir -p "$QDIR/wp-admin"
+              mv "$ROOT/wp-admin/.htaccess" "$QDIR/wp-admin/.htaccess"
+              echo "wp-admin/.htaccess isolado"
+            fi
 
-            echo "===== confirma o que ficou na quarentena ====="
+            echo "===== confirma quarentena ====="
             find "$QDIR" -type f 2>&1
-
-            echo "===== testa wp-admin de novo ====="
-            sleep 2
-            curl -sSI --max-time 10 https://aamihe.com/wp-admin/ 2>&1 | head -5
-            echo "---login page---"
-            curl -sSI --max-time 10 https://aamihe.com/wp-login.php 2>&1 | head -5
             rm -f "$FOUNDLIST"
