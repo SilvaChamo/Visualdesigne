@@ -80,6 +80,12 @@ jobs:
             set_env_var HESTIA_HOST "${{ secrets.HESTIA_HOST }}"
             set_env_var HESTIA_USER "${{ secrets.HESTIA_USER }}"
             set_env_var HESTIA_PASSWORD "${{ secrets.HESTIA_PASSWORD }}"
+            # getServerHost() lê NEXT_PUBLIC_SERVER_IP; nunca foi definido aqui
+            # — funcionava por coincidência, porque o valor por omissão no
+            # código (DEFAULT_SERVER_IP) já era este IP do Hetzner. Definido
+            # explicitamente para não depender dessa coincidência (achado
+            # ao corrigir o mesmo problema, real, no Contabo — 1 set).
+            set_env_var NEXT_PUBLIC_SERVER_IP "${{ secrets.HETZNER_HOST }}"
             # node_modules já ficou corrompido antes por um deploy anterior ter sido
             # cortado a meio (timeout) — 'npm ci' sozinho não repara isso (ENOTEMPTY
             # ao tentar apagar uma pasta parcialmente removida). Começar sempre do

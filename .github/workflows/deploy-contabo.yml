@@ -171,6 +171,13 @@ jobs:
             set_env_var SERVER_IP "${{ secrets.CONTABO_HOST }}"
             set_env_var SERVER_SSH_USER "root"
             set_env_var SERVER_SSH_PORT "22"
+            # SERVER_IP (acima) é só para SSH interno (imap-host.ts,
+            # ssh-connect-options.ts). getServerHost() (usado para apontar DNS
+            # de sites novos e URLs de webmail) lê NEXT_PUBLIC_SERVER_IP, que
+            # nunca tinha sido definido aqui — caía sempre no valor por
+            # omissão (IP antigo do Hetzner). Confirmado ao vivo 1 set: o
+            # site novo entrecamposblog.com ficou sem DNS por causa disto.
+            set_env_var NEXT_PUBLIC_SERVER_IP "${{ secrets.CONTABO_HOST }}"
             npm ci
             # Build sempre limpo — publicações seguidas em cima da mesma pasta
             # .next (nunca apagada pelo rsync, ver --exclude acima) já causaram
