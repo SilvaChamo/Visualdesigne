@@ -1,4 +1,4 @@
-name: "Ops - Fase 18a. Investiga zona Cloudflare + nameservers entrecamposblog.com (so leitura)"
+name: "Ops - Fase 18b. Investiga backup + conta hestia entrecampos (so leitura)"
 
 on:
   workflow_dispatch:
@@ -23,36 +23,22 @@ jobs:
           command_timeout: 5m
           script: |
             set -e
-            cd /opt/visualdesign-site-teste
-            CF_EMAIL=$(grep '^CLOUDFLARE_EMAIL=' .env.local | cut -d= -f2-)
-            CF_KEY=$(grep '^CLOUDFLARE_GLOBAL_API_KEY=' .env.local | cut -d= -f2-)
-            echo "::add-mask::$CF_KEY"
-            DYN_KEY=$(grep '^DYNADOT_API_KEY=' .env.local | cut -d= -f2-)
-            DYN_SECRET=$(grep '^DYNADOT_SECRET_KEY=' .env.local | cut -d= -f2-)
-            echo "::add-mask::$DYN_KEY"
-            echo "::add-mask::$DYN_SECRET"
-
-            echo "===== ZONA CLOUDFLARE (procura por nome) ====="
-            ZONE_JSON=$(curl -sS -H "X-Auth-Email: $CF_EMAIL" -H "X-Auth-Key: $CF_KEY" -H "Content-Type: application/json" "https://api.cloudflare.com/client/v4/zones?name=entrecamposblog.com")
-            echo "$ZONE_JSON"
-            ZONE_ID=$(echo "$ZONE_JSON" | node -e "let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>{try{const j=JSON.parse(d);console.log(j.result && j.result[0] ? j.result[0].id : '');}catch(e){console.log('');}})")
-            echo ""
-            echo "ZONE_ID=$ZONE_ID"
-
-            if [ -n "$ZONE_ID" ]; then
-              echo ""
-              echo "===== REGISTOS DNS NA ZONA ====="
-              curl -sS -H "X-Auth-Email: $CF_EMAIL" -H "X-Auth-Key: $CF_KEY" -H "Content-Type: application/json" "https://api.cloudflare.com/client/v4/zones/$ZONE_ID/dns_records?per_page=100"
-            fi
+            echo "===== domain_renewals: quem comprou entrecamposblog.com ====="
+            docker exec -i supabase-db psql -U postgres -d postgres -t -A -F' | ' -c "select user_id, domain_name, status, dns_status, brevo_verified, created_at from domain_renewals where domain_name ilike '%entrecampos%';"
 
             echo ""
-            echo ""
-            echo "===== NAMESERVERS REAIS NO DYNADOT (registador) ====="
-            curl -sS "https://api.dynadot.com/restful/v1/domains/entrecamposblog.com/nameservers?key=${DYN_KEY}"
+            echo "===== panel_sites: sites deste dominio ou de 'entrecampos' ====="
+            docker exec -i supabase-db psql -U postgres -d postgres -t -A -F' | ' -c "select owner, domain, provider, status from panel_sites where domain ilike '%entrecampos%';"
 
             echo ""
+            echo "===== panel_backup_files: ficheiros relacionados a entrecampos ====="
+            docker exec -i supabase-db psql -U postgres -d postgres -t -A -F' | ' -c "select owner, domain, filename, scope, source, bucket_path, backup_date from panel_backup_files where domain ilike '%entrecampos%' or filename ilike '%entrecampos%';"
+
             echo ""
-            echo "===== dig NS PUBLICO ====="
-            dig +short NS entrecamposblog.com
-            echo "===== dig A PUBLICO ====="
-            dig +short A entrecamposblog.com
+            echo "===== hestia: lista de contas (v-list-users) ====="
+            /usr/local/hestia/bin/v-list-users plain 2>/dev/null | head -20 || echo "(hestia bin nao encontrado neste caminho)"
+
+            echo ""
+            echo "===== procura dominio em qualquer conta hestia ====="
+            grep -ril "entrecampos" /home/*/conf/web/ 2>/dev/null || echo "(nao encontrado em conf/web)"
+            find /home -maxdepth 4 -iname "*entrecampos*" 2>/dev/null || echo "(nenhuma pasta com esse nome em /home)"
