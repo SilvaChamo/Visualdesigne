@@ -1,4 +1,4 @@
-name: "Ops - Fase 19b. Testa API Hestia diretamente (so leitura + 1 comando inocuo)"
+name: "Ops - Fase 19c. Verifica API/IP allowlist do vdadmin no Hestia (so leitura)"
 
 on:
   workflow_dispatch:
@@ -14,7 +14,7 @@ jobs:
           echo "${{ secrets.CONTABO_SSH_KEY }}" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
           ssh-keyscan "${{ secrets.CONTABO_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
-      - name: Testa
+      - name: Verifica
         uses: appleboy/ssh-action@v1.2.5
         with:
           host: ${{ secrets.CONTABO_HOST }}
@@ -23,37 +23,22 @@ jobs:
           command_timeout: 5m
           script: |
             set +e
+            echo "===== user.conf do vdadmin (sem mostrar hash da password) ====="
+            grep -v -i "^PASSWORD\|^MD5\|^SALT" /usr/local/hestia/data/users/vdadmin/user.conf 2>&1
+
+            echo ""
+            echo "===== procura por API_ALLOWED_IP ou similar em qualquer conf ====="
+            grep -rn "API" /usr/local/hestia/data/users/vdadmin/user.conf 2>&1
+
+            echo ""
+            echo "===== ultimas linhas do log de auth do hestia (sem passwords) ====="
+            tail -30 /usr/local/hestia/log/auth.log 2>&1 | grep -v -i password
+
+            echo ""
+            echo "===== quando foi a ultima alteracao a password do vdadmin (mtime do ficheiro) ====="
+            stat -c '%y %n' /usr/local/hestia/data/users/vdadmin/user.conf 2>&1
+
+            echo ""
+            echo "===== quando foi a ultima escrita do HESTIA_PASSWORD no .env.local (git blame no workflow) ====="
             cd /opt/visualdesign-site-teste
-            HOST=$(grep '^HESTIA_HOST=' .env.local | cut -d= -f2- | tr -d "'\"")
-            PORT=$(grep '^HESTIA_PORT=' .env.local | cut -d= -f2- | tr -d "'\"")
-            PORT=${PORT:-8083}
-            USR=$(grep '^HESTIA_USER=' .env.local | cut -d= -f2- | tr -d "'\"")
-            PASS=$(grep '^HESTIA_PASSWORD=' .env.local | cut -d= -f2- | tr -d "'\"")
-            echo "::add-mask::$PASS"
-            echo "HOST=$HOST PORT=$PORT USER=$USR"
-
-            echo ""
-            echo "===== teste 1: comando de leitura inocuo (v-list-user-packages) ====="
-            curl -sS -k -D - -o /tmp/hestia_test1.txt -X POST "https://${HOST}:${PORT}/api/" \
-              --data-urlencode "user=${USR}" \
-              --data-urlencode "password=${PASS}" \
-              --data-urlencode "cmd=v-list-user-packages" \
-              --data-urlencode "arg1=json" | grep -i "hestia-exit-code\|HTTP/"
-            echo "--- corpo ---"
-            cat /tmp/hestia_test1.txt | head -c 500
-            echo ""
-
-            echo ""
-            echo "===== teste 2: v-add-web-domain com o proprio vdadmin (o que falhou no painel) ====="
-            curl -sS -k -D - -o /tmp/hestia_test2.txt -X POST "https://${HOST}:${PORT}/api/" \
-              --data-urlencode "user=${USR}" \
-              --data-urlencode "password=${PASS}" \
-              --data-urlencode "cmd=v-add-web-domain" \
-              --data-urlencode "arg1=vdadmin" \
-              --data-urlencode "arg2=entrecamposblog.com" | grep -i "hestia-exit-code\|HTTP/"
-            echo "--- corpo ---"
-            cat /tmp/hestia_test2.txt
-
-            echo ""
-            echo "===== confirma se ja existe (para nao duplicar em caso de sucesso) ====="
-            /usr/local/hestia/bin/v-list-web-domains vdadmin plain 2>&1 | grep -i entrecampos
+            date -r .env.local 2>&1
