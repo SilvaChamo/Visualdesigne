@@ -1,4 +1,4 @@
-name: "Ops - Fase 39. Aamihe.com - testa https com SNI certo + php-fpm logs"
+name: "Ops - Fase 40. Isola o ficheiro malicioso do aamihe.com (quarentena, nao apaga)"
 
 on:
   workflow_dispatch:
@@ -14,7 +14,7 @@ jobs:
           echo "${{ secrets.HETZNER_SSH_KEY }}" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
           ssh-keyscan -p "${{ secrets.HETZNER_PORT }}" "${{ secrets.HETZNER_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
-      - name: Testa via HTTPS/SNI certo
+      - name: Isola e procura mais ficheiros suspeitos
         uses: appleboy/ssh-action@v1.2.5
         with:
           host: ${{ secrets.HETZNER_HOST }}
@@ -24,25 +24,28 @@ jobs:
           command_timeout: 3m
           script: |
             set +e
-            echo "===== https directo, com SNI certo ====="
-            curl -sSk --max-time 10 --resolve aamihe.com:443:127.0.0.1 https://aamihe.com/ -o /tmp/body.html -w "HTTP %{http_code} | bytes: %{size_download}\n"
-            echo "--- primeiros 1000 bytes do corpo ---"
-            head -c 1000 /tmp/body.html
-            echo ""
+            QDIR=/root/security-quarantine/aamihe.com-$(date +%Y%m%d-%H%M%S)
+            mkdir -p "$QDIR"
+
+            echo "===== 1. isola a pasta maliciosa 05a0wp (move, nao apaga) ====="
+            if [ -d /home/admin/domains/aamihe.com/public_html/05a0wp ]; then
+              mv /home/admin/domains/aamihe.com/public_html/05a0wp "$QDIR/"
+              echo "movido para $QDIR/05a0wp"
+            else
+              echo "ja nao existe (pode ter sido apagado por outra coisa entretanto)"
+            fi
 
             echo ""
-            echo "===== index real do site (o que existe) ====="
-            ls -la /home/admin/domains/aamihe.com/public_html/ 2>&1 | head -20
+            echo "===== 2. outros ficheiros .php fora dos sitios normais do WordPress, modificados nos ultimos 10 dias ====="
+            find /home/admin/domains/aamihe.com/public_html/ -maxdepth 1 -iname "*.php" -mtime -10 2>/dev/null
+            echo "--- (estes ficam SO listados, nao mexidos, sao os que estao directamente na raiz) ---"
 
             echo ""
-            echo "===== versao do php desta conta ====="
-            cat /home/admin/domains/aamihe.com/private/php_version 2>&1
-            find /etc/php* -maxdepth 1 -type d 2>/dev/null
+            echo "===== 3. ficheiros php modificados nos ultimos 3 dias, em qualquer lado dentro do site ====="
+            find /home/admin/domains/aamihe.com/public_html/ -iname "*.php" -mtime -3 2>/dev/null | grep -v "/wp-content/uploads/" | head -60
 
             echo ""
-            echo "===== erro php mais recente, sem filtro de data ====="
-            tail -n 40 /var/log/httpd/domains/aamihe.com.error.log 2>&1 | tail -15
-
-            echo ""
-            echo "===== teste directo do php-cli para ver o erro real ====="
-            cd /home/admin/domains/aamihe.com/public_html/ && sudo -u admin php index.php 2>&1 | head -c 2000
+            echo "===== 4. confirma que o site volta a responder normalmente ====="
+            sleep 2
+            curl -sSk --max-time 10 --resolve aamihe.com:443:127.0.0.1 https://aamihe.com/ -o /tmp/body2.html -w "HTTP %{http_code} | bytes: %{size_download}\n"
+            head -c 300 /tmp/body2.html
