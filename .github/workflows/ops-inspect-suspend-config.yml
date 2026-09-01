@@ -1,4 +1,4 @@
-name: "Ops - Fase 96. Prepara a copia - tamanhos e credenciais de bd no hetzner"
+name: "Ops - Fase 97. SO LEITURA - tamanhos reais dos 3 sites wordpress no Contabo"
 
 on:
   workflow_dispatch:
@@ -14,7 +14,7 @@ jobs:
           echo "${{ secrets.CONTABO_SSH_KEY }}" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
           ssh-keyscan "${{ secrets.CONTABO_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
-      - name: Tamanhos no Contabo (so leitura)
+      - name: Tamanhos
         uses: appleboy/ssh-action@v1.2.5
         with:
           host: ${{ secrets.CONTABO_HOST }}
@@ -23,35 +23,7 @@ jobs:
           command_timeout: 2m
           script: |
             set +e
-            for d in oshercollective.com msdn-moz.org lirandzojewelry.com elimservicos.com shalomdeco.com; do
+            for d in oshercollective.com msdn-moz.org lirandzojewelry.com; do
               echo "--- $d ---"
-              du -sh "/home/oshercollective/web/$d/public_html/wp-content" 2>&1
+              du -sh "/home/oshercollective/web/$d/public_html/wp-content" 2>&1 || echo "(pasta nao existe ou erro)"
             done
-
-  hetzner:
-    name: hetzner
-    runs-on: ubuntu-latest
-    steps:
-      - name: Setup SSH key
-        run: |
-          mkdir -p ~/.ssh
-          echo "${{ secrets.HETZNER_SSH_KEY }}" > ~/.ssh/deploy_key
-          chmod 600 ~/.ssh/deploy_key
-          ssh-keyscan -p "${{ secrets.HETZNER_PORT }}" "${{ secrets.HETZNER_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
-      - name: Credenciais de bd no Hetzner (so leitura)
-        uses: appleboy/ssh-action@v1.2.5
-        with:
-          host: ${{ secrets.HETZNER_HOST }}
-          port: ${{ secrets.HETZNER_PORT }}
-          username: ${{ secrets.HETZNER_USER }}
-          key: ${{ secrets.HETZNER_SSH_KEY }}
-          command_timeout: 2m
-          script: |
-            set +e
-            echo "===== utilizadores de bd definidos para esta conta ====="
-            find /usr/local/directadmin/data/users/oshercollective -iname "*.conf" 2>&1 | xargs grep -l "db" 2>/dev/null
-            cat /usr/local/directadmin/data/users/oshercollective/mysql.conf 2>&1
-
-            echo ""
-            echo "===== confirma cada base de dados tem um utilizador atribuido (sem mostrar passwords) ====="
-            mysql -e "SELECT User, Db FROM mysql.db WHERE Db LIKE 'oshercollective%';" 2>&1
