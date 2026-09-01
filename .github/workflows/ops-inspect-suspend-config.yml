@@ -1,4 +1,4 @@
-name: "Ops - Fase 104. SO LEITURA - quem trata mesmo da porta 443 no Hetzner"
+name: "Ops - Fase 105. SO LEITURA - procura configuracao duplicada/antiga para estes dominios"
 
 on:
   workflow_dispatch:
@@ -24,19 +24,19 @@ jobs:
           command_timeout: 2m
           script: |
             set +e
-            echo "===== quem ouve na porta 443? ====="
-            ss -tlnp 2>&1 | grep ":443"
+            echo "===== o vhost 'default server' da porta 443, qual certificado usa? ====="
+            sed -n '35,55p' /etc/httpd/conf/extra/httpd-vhosts.conf 2>&1
 
             echo ""
-            echo "===== nginx esta instalado/activo neste servidor? ====="
-            systemctl is-active nginx 2>&1
-            which nginx 2>&1
+            echo "===== procura QUALQUER ficheiro de config que mencione oshercollective.com (fora da pasta normal da conta) ====="
+            grep -rl "oshercollective.com\|msdn-moz.org\|lirandzojewelry.com" /etc/httpd/ 2>/dev/null
+            grep -rl "oshercollective.com\|msdn-moz.org\|lirandzojewelry.com" /usr/local/directadmin/data/users/*/httpd.conf 2>/dev/null
 
             echo ""
-            echo "===== onde esta o certificado host.visualdesignmoz.com definido (para saber quem o esta a usar por defeito) ====="
-            grep -rl "host.visualdesignmoz.com" /usr/local/directadmin/data/users/*/httpd.conf 2>/dev/null
-            find /etc/nginx -iname "*.conf" 2>/dev/null | xargs grep -l "host.visualdesignmoz.com\|SSLCertificate\|ssl_certificate" 2>/dev/null | head -10
+            echo "===== confirma a ordem de inclusao dos ficheiros de vhost no httpd principal ====="
+            grep -n "Include" /etc/httpd/conf/httpd.conf 2>&1 | head -20
+            grep -n "Include" /etc/httpd/conf/extra/httpd-vhosts.conf 2>&1 | head -20
 
             echo ""
-            echo "===== qual e o PRIMEIRO vhost ssl carregado (o que vira o default quando SNI nao bate certo) ====="
-            apachectl -S 2>&1 | grep -B1 "is a NameVirtualHost\|default server" | head -20
+            echo "===== erro/aviso do apache relacionado com ssl na ultima recarga ====="
+            tail -n 60 /var/log/httpd/error_log 2>&1 | grep -i "ssl\|oshercollective\|msdn\|lirandzo" | tail -20
