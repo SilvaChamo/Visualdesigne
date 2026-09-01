@@ -1,22 +1,51 @@
-name: "Ops - Fase 28. Lista todos os registos A da zona entrecamposblog.com"
+name: "Ops - Fase 29. Porque a lista de sites wordpress continua vazia"
 
 on:
   workflow_dispatch:
 
 jobs:
-  check:
-    name: check
+  contabo:
+    name: contabo
     runs-on: ubuntu-latest
     steps:
-      - name: Lista registos
+      - name: Setup SSH key
         run: |
-          set +e
-          EMAIL="${{ secrets.CLOUDFLARE_EMAIL }}"
-          GKEY="${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}"
-          ZONE_ID="c91fd14533ea44b5b5626d37225e039c"
-          CONTABO_IP="${{ secrets.CONTABO_HOST }}"
+          mkdir -p ~/.ssh
+          echo "${{ secrets.CONTABO_SSH_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan "${{ secrets.CONTABO_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
+      - name: Investiga
+        uses: appleboy/ssh-action@v1.2.5
+        with:
+          host: ${{ secrets.CONTABO_HOST }}
+          username: root
+          key: ${{ secrets.CONTABO_SSH_KEY }}
+          command_timeout: 3m
+          script: |
+            set +e
+            echo "===== find real (o mesmo comando do listWpInstalls) ====="
+            find /home -maxdepth 5 \( -path '*/domains/*/public_html/wp-config.php' -o -path '*/web/*/public_html/wp-config.php' \) 2>/dev/null | grep -vi backup | sort
 
-          curl -sS -H "X-Auth-Email: $EMAIL" -H "X-Auth-Key: $GKEY" -H "Content-Type: application/json" \
-            "https://api.cloudflare.com/client/v4/zones/$ZONE_ID/dns_records?per_page=100" > /tmp/records.json
+            echo ""
+            echo "===== wp-cli está instalado no servidor? ====="
+            test -f /usr/local/bin/wp && echo "SIM, existe" || echo "NAO EXISTE"
+            /usr/local/bin/wp --version --allow-root 2>&1
 
-          CONTABO_IP="$CONTABO_IP" python3 -c "import json,os; d=json.load(open('/tmp/records.json')); cip=os.environ['CONTABO_IP']; [print(r.get('type'),'|',r.get('name'),'|',r.get('content'),'| proxied:',r.get('proxied'),'| id:',r.get('id'), '<-- CONTABO' if r.get('content')==cip else '') for r in d.get('result', [])]"
+            echo ""
+            echo "===== mltmark.com tem WordPress a sério instalado? ====="
+            ls -la /home/vdadmin/web/mltmark.com/public_html/ 2>&1 | head -20
+
+            echo ""
+            echo "===== panel_sites: mltmark e aamihe ====="
+            docker exec -i supabase-db psql -U postgres -d postgres -t -A -F' | ' -c "select domain, owner, status from panel_sites where domain in ('mltmark.com','aamihe.com') or domain like '%mltmark%' or domain like '%aamihe%';"
+
+            echo ""
+            echo "===== panel_users: existe alguém com role admin real? ====="
+            docker exec -i supabase-db psql -U postgres -d postgres -t -A -F' | ' -c "select id, email, role from auth_profiles limit 5;" 2>&1
+            docker exec -i supabase-db psql -U postgres -d postgres -t -A -F' | ' -c "select table_name from information_schema.tables where table_name like '%profile%';" 2>&1
+
+            echo ""
+            echo "===== chamada directa à API (com cron secret, so pra ver se PM2 respondeu à mudança) ====="
+            grep '^CRON_SECRET=' /opt/visualdesign-site-teste/.env.local | cut -d= -f2- > /tmp/cs.txt
+            echo "PM2 status:"
+            pm2 jlist 2>/dev/null | python3 -c "import json,sys; d=json.load(sys.stdin); [print(p['name'], p['pm2_env']['status'], p['pm2_env'].get('pm_uptime')) for p in d]" 2>/dev/null
