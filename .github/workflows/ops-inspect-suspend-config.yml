@@ -1,4 +1,4 @@
-name: "Ops - Fase 106. Testa SSL via o IP publico real, nao localhost"
+name: "Ops - Fase 107. SO LEITURA - elimservicos.com e shalomdeco.com sao wordpress?"
 
 on:
   workflow_dispatch:
@@ -14,7 +14,7 @@ jobs:
           echo "${{ secrets.HETZNER_SSH_KEY }}" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
           ssh-keyscan -p "${{ secrets.HETZNER_PORT }}" "${{ secrets.HETZNER_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
-      - name: Testa via IP publico
+      - name: Investiga (so leitura)
         uses: appleboy/ssh-action@v1.2.5
         with:
           host: ${{ secrets.HETZNER_HOST }}
@@ -24,14 +24,39 @@ jobs:
           command_timeout: 2m
           script: |
             set +e
-            MYIP=$(curl -s https://api.ipify.org)
-            echo "IP publico deste servidor confirmado"
-
-            for d in oshercollective.com msdn-moz.org lirandzojewelry.com; do
-              echo "--- $d (via IP publico) ---"
-              echo | openssl s_client -connect "$MYIP:443" -servername "$d" 2>/dev/null | openssl x509 -noout -subject -dates 2>&1
-            done
+            echo "===== conteudo completo da pasta do elimservicos.com no hetzner ====="
+            ls -la /home/oshercollective/domains/elimservicos.com/public_html/ 2>&1
 
             echo ""
-            echo "===== confirma tambem que vhost usa que IP exactamente ====="
-            grep -B2 "ServerName www.oshercollective.com" /usr/local/directadmin/data/users/oshercollective/httpd.conf 2>&1 | head -10
+            echo "===== e no Contabo, elimservicos.com tem wp-content? ====="
+            echo "(vamos ver isso a seguir no job contabo)"
+
+            echo ""
+            echo "===== ha alguma base de dados que mencione elim ====="
+            mysql -e "SHOW DATABASES;" 2>&1 | grep -i "elim"
+
+  contabo:
+    name: contabo
+    runs-on: ubuntu-latest
+    steps:
+      - name: Setup SSH key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.CONTABO_SSH_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan "${{ secrets.CONTABO_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
+      - name: Investiga no Contabo (so leitura)
+        uses: appleboy/ssh-action@v1.2.5
+        with:
+          host: ${{ secrets.CONTABO_HOST }}
+          username: root
+          key: ${{ secrets.CONTABO_SSH_KEY }}
+          command_timeout: 2m
+          script: |
+            set +e
+            echo "===== elimservicos.com no Contabo ====="
+            ls -la /home/oshercollective/web/elimservicos.com/public_html/ 2>&1 | head -15
+
+            echo ""
+            echo "===== shalomdeco.com no Contabo ====="
+            ls -la /home/oshercollective/web/shalomdeco.com/public_html/ 2>&1 | head -15
