@@ -1,4 +1,4 @@
-name: "Ops - Fase 21b. Dispara hestia-sync manualmente e ve o resultado real"
+name: "Ops - Fase 21c. Confirma que hestia-sync agora ve os sites do vdadmin"
 
 on:
   workflow_dispatch:
@@ -14,7 +14,7 @@ jobs:
           echo "${{ secrets.CONTABO_SSH_KEY }}" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
           ssh-keyscan "${{ secrets.CONTABO_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
-      - name: Dispara
+      - name: Confirma
         uses: appleboy/ssh-action@v1.2.5
         with:
           host: ${{ secrets.CONTABO_HOST }}
@@ -27,17 +27,9 @@ jobs:
             CRON_SECRET_VALUE=$(grep '^CRON_SECRET=' .env.local | cut -d= -f2-)
             echo "::add-mask::$CRON_SECRET_VALUE"
 
-            echo "===== resultado do hestia-sync AGORA ====="
+            echo "===== resultado do hestia-sync AGORA (pos-correcao) ====="
             curl -sS -w "\nHTTP_STATUS:%{http_code}\n" --max-time 60 -H "Host: teste.visualdesignmoz.com" -H "Authorization: Bearer ${CRON_SECRET_VALUE}" http://127.0.0.1:3002/api/cron/hestia-sync
 
             echo ""
-            echo "===== panel_sites apos correr o sync ====="
-            docker exec -i supabase-db psql -U postgres -d postgres -t -A -F' | ' -c "select domain, owner, status from panel_sites where owner = 'vdadmin';"
-
-            echo ""
-            echo "===== panel_sites: total de linhas (todos os owners) ====="
-            docker exec -i supabase-db psql -U postgres -d postgres -t -A -c "select owner, count(*) from panel_sites group by owner;"
-
-            echo ""
-            echo "===== crontab actual do hestia-sync (confirma que esta mesmo la) ====="
-            crontab -l | grep hestia-sync
+            echo "===== panel_sites: sites do vdadmin agora ====="
+            docker exec -i supabase-db psql -U postgres -d postgres -t -A -F' | ' -c "select domain, owner, status, package, site_type from panel_sites where owner = 'vdadmin' order by domain;"
