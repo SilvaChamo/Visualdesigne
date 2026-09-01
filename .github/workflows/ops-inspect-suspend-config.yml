@@ -1,4 +1,4 @@
-name: "Ops - Fase 17b. Confirma crontab + saude app + dispara brevo-retry (Contabo)"
+name: "Ops - Fase 17c. Confirma resposta exacta do brevo-retry"
 
 on:
   workflow_dispatch:
@@ -23,30 +23,11 @@ jobs:
           command_timeout: 5m
           script: |
             set -e
-            echo "===== CRONTAB ====="
-            crontab -l | grep -E 'visualdesign|#' || echo "(sem crontab visualdesign)"
-
-            echo ""
-            echo "===== PM2 STATUS ====="
-            pm2 jlist | node -e "
-              const data = JSON.parse(require('fs').readFileSync(0, 'utf8'));
-              for (const p of data) {
-                console.log(p.name, '| status:', p.pm2_env.status, '| restarts:', p.pm2_env.restart_time, '| unstable:', p.pm2_env.unstable_restarts);
-              }
-            " 2>/dev/null || pm2 status
-
-            echo ""
-            echo "===== ULTIMAS LINHAS DO ERROR LOG ====="
-            pm2 logs visualdesign-site-teste --lines 30 --nostream --err 2>/dev/null | tail -40 || echo "(sem log de erro)"
-
-            echo ""
-            echo "===== DISPARA brevo-retry MANUALMENTE ====="
             cd /opt/visualdesign-site-teste
             CRON_SECRET_VALUE=$(grep '^CRON_SECRET=' .env.local | cut -d= -f2-)
             echo "::add-mask::$CRON_SECRET_VALUE"
-            curl -fsS -H "Authorization: Bearer ${CRON_SECRET_VALUE}" http://127.0.0.1:3002/api/cron/brevo-retry
-            echo ""
-
-            echo ""
-            echo "===== ESTADO entrecamposblog.com NA BD ====="
+            echo "RESPOSTA_INICIO"
+            curl -sS -w "\nHTTP_STATUS:%{http_code}\n" -H "Authorization: Bearer ${CRON_SECRET_VALUE}" http://127.0.0.1:3002/api/cron/brevo-retry
+            echo "RESPOSTA_FIM"
+            echo "===== BD APOS RETRY ====="
             docker exec -i supabase-db psql -U postgres -d postgres -t -A -c "select domain_name, dns_status, brevo_verified, updated_at from domain_renewals where domain_name = 'entrecamposblog.com';"
