@@ -1,58 +1,29 @@
-name: "Ops - Fase 98. Copia wp-content dos 3 sites (Contabo -> Hetzner), so leitura no Contabo"
+name: "Ops - Fase 99. Ve prefixo das tabelas em cada site (so leitura no Contabo)"
 
 on:
   workflow_dispatch:
 
 jobs:
-  copia:
-    name: copia
+  contabo:
+    name: contabo
     runs-on: ubuntu-latest
     steps:
-      - name: Setup chaves SSH (Contabo e Hetzner)
+      - name: Setup SSH key
         run: |
           mkdir -p ~/.ssh
-          echo "${{ secrets.CONTABO_SSH_KEY }}" > ~/.ssh/contabo_key
-          chmod 600 ~/.ssh/contabo_key
-          echo "${{ secrets.HETZNER_SSH_KEY }}" > ~/.ssh/hetzner_key
-          chmod 600 ~/.ssh/hetzner_key
+          echo "${{ secrets.CONTABO_SSH_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
           ssh-keyscan "${{ secrets.CONTABO_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
-          ssh-keyscan -p "${{ secrets.HETZNER_PORT }}" "${{ secrets.HETZNER_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
-
-      - name: 1. Empacota wp-content no Contabo (so leitura, nao apaga nem move nada)
-        run: |
-          ssh -i ~/.ssh/contabo_key root@${{ secrets.CONTABO_HOST }} '
-            set -e
-            for d in oshercollective.com msdn-moz.org lirandzojewelry.com; do
-              tar czf /tmp/wpcontent-$d.tar.gz -C /home/oshercollective/web/$d/public_html wp-content
-            done
-            ls -la /tmp/wpcontent-*.tar.gz
-          '
-
-      - name: 2. Descarrega os pacotes do Contabo para aqui (runner temporario)
-        run: |
-          mkdir -p /tmp/osher-transfer
-          for d in oshercollective.com msdn-moz.org lirandzojewelry.com; do
-            scp -i ~/.ssh/contabo_key "root@${{ secrets.CONTABO_HOST }}:/tmp/wpcontent-$d.tar.gz" /tmp/osher-transfer/
-          done
-          ls -la /tmp/osher-transfer/
-
-      - name: 3. Envia os pacotes para o Hetzner
-        run: |
-          for f in /tmp/osher-transfer/*.tar.gz; do
-            scp -i ~/.ssh/hetzner_key -P ${{ secrets.HETZNER_PORT }} "$f" "${{ secrets.HETZNER_USER }}@${{ secrets.HETZNER_HOST }}:/tmp/"
-          done
-
-      - name: 4. Limpa os pacotes temporarios do Contabo (so os .tar.gz temporarios, nada do site)
-        run: |
-          ssh -i ~/.ssh/contabo_key root@${{ secrets.CONTABO_HOST }} 'rm -f /tmp/wpcontent-*.tar.gz'
-
-      - name: 5. Confirma que chegaram bem ao Hetzner
+      - name: Ve prefixo (so leitura)
         uses: appleboy/ssh-action@v1.2.5
         with:
-          host: ${{ secrets.HETZNER_HOST }}
-          port: ${{ secrets.HETZNER_PORT }}
-          username: ${{ secrets.HETZNER_USER }}
-          key: ${{ secrets.HETZNER_SSH_KEY }}
+          host: ${{ secrets.CONTABO_HOST }}
+          username: root
+          key: ${{ secrets.CONTABO_SSH_KEY }}
           command_timeout: 2m
           script: |
-            ls -la /tmp/wpcontent-*.tar.gz
+            set +e
+            for d in oshercollective.com msdn-moz.org lirandzojewelry.com; do
+              echo "--- $d ---"
+              grep "table_prefix" "/home/oshercollective/web/$d/public_html/wp-config.php" 2>&1
+            done
