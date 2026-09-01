@@ -1,4 +1,4 @@
-name: "Ops - Fase 92. Confirma se o Contabo serve bem o oshercollective (antes de mudar DNS)"
+name: "Ops - Fase 93. Ve se o nginx do contabo tem vhost para estes dominios"
 
 on:
   workflow_dispatch:
@@ -14,7 +14,7 @@ jobs:
           echo "${{ secrets.CONTABO_SSH_KEY }}" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
           ssh-keyscan "${{ secrets.CONTABO_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
-      - name: Testa localmente no Contabo
+      - name: Investiga config web
         uses: appleboy/ssh-action@v1.2.5
         with:
           host: ${{ secrets.CONTABO_HOST }}
@@ -23,12 +23,22 @@ jobs:
           command_timeout: 2m
           script: |
             set +e
-            echo "===== testa cada dominio via localhost, forcando o host header (ignora dns) ====="
-            for d in oshercollective.com msdn-moz.org lirandzojewelry.com elimservicos.com shalomdeco.com; do
-              echo "--- $d ---"
-              curl -sSI --max-time 8 -k --resolve "$d:443:127.0.0.1" "https://$d/" 2>&1 | head -4
-            done
+            echo "===== nginx esta mesmo a ouvir na porta 443/80? ====="
+            ss -tlnp 2>&1 | grep -E ":443|:80"
 
             echo ""
-            echo "===== ssl real gerado para estes dominios no contabo (letsencrypt) ====="
-            ls -la /usr/local/hestia/data/users/oshercollective/ssl/ 2>&1 | head -20
+            echo "===== existe vhost nginx para oshercollective.com? ====="
+            find /etc/nginx -iname "*oshercollective*" 2>&1
+            find /usr/local/hestia -iname "*oshercollective.com*" -maxdepth 4 2>&1 | grep -v "/ssl/\|/mail/"
+
+            echo ""
+            echo "===== teste directo via http (porta 80, sem ssl) ====="
+            curl -sSI --max-time 8 --resolve "oshercollective.com:80:127.0.0.1" "http://oshercollective.com/" 2>&1 | head -6
+
+            echo ""
+            echo "===== estado geral da conta no hestia (resumo v-list-user) ====="
+            /usr/local/hestia/bin/v-list-user oshercollective 2>&1 | head -20
+
+            echo ""
+            echo "===== pasta do site existe fisicamente? ====="
+            ls -la /home/oshercollective/web/oshercollective.com/public_html/ 2>&1 | head -10
