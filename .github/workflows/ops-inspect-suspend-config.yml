@@ -1,4 +1,4 @@
-name: "Ops - Fase 17c. Confirma resposta exacta do brevo-retry"
+name: "Ops - Fase 17d. Descobre causa do 308 e testa com Host header"
 
 on:
   workflow_dispatch:
@@ -26,8 +26,18 @@ jobs:
             cd /opt/visualdesign-site-teste
             CRON_SECRET_VALUE=$(grep '^CRON_SECRET=' .env.local | cut -d= -f2-)
             echo "::add-mask::$CRON_SECRET_VALUE"
-            echo "RESPOSTA_INICIO"
-            curl -sS -w "\nHTTP_STATUS:%{http_code}\n" -H "Authorization: Bearer ${CRON_SECRET_VALUE}" http://127.0.0.1:3002/api/cron/brevo-retry
-            echo "RESPOSTA_FIM"
-            echo "===== BD APOS RETRY ====="
+
+            echo "===== SEM Host header (verbose, so cabecalhos) ====="
+            curl -sS -D - -o /tmp/body1.txt -H "Authorization: Bearer ${CRON_SECRET_VALUE}" http://127.0.0.1:3002/api/cron/brevo-retry | head -20
+            echo "--- corpo ---"
+            cat /tmp/body1.txt
+            echo ""
+
+            echo ""
+            echo "===== COM Host: teste.visualdesignmoz.com ====="
+            curl -sS -w "\nHTTP_STATUS:%{http_code}\n" -H "Host: teste.visualdesignmoz.com" -H "Authorization: Bearer ${CRON_SECRET_VALUE}" http://127.0.0.1:3002/api/cron/brevo-retry
+            echo ""
+
+            echo ""
+            echo "===== BD APOS RETRY COM HOST HEADER ====="
             docker exec -i supabase-db psql -U postgres -d postgres -t -A -c "select domain_name, dns_status, brevo_verified, updated_at from domain_renewals where domain_name = 'entrecamposblog.com';"
