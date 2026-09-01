@@ -44,8 +44,16 @@ export async function createAccount(input: {
 
   // SSL best-effort — a conta e o domínio já ficam criados mesmo que o
   // Let's Encrypt falhe (ex.: DNS ainda não propagado); não bloqueia o
-  // resultado da criação da conta em si.
-  await hestiaCall('v-add-letsencrypt-domain', [input.username, input.domain]).catch(() => {});
+  // resultado da criação da conta em si. Correcção 1 set: isto tinha 'await'
+  // apesar do comentário dizer o contrário — quando o domínio ainda não
+  // resolve publicamente (normal logo a seguir à criação), a validação do
+  // Let's Encrypt demora dezenas de segundos a falhar, e isso sozinho já
+  // estourava o timeout de 30s do modal do painel (confirmado ao vivo:
+  // "Timeout" no ecrã com o domínio afinal já criado com sucesso). Sem
+  // 'await' para valer: a criação responde logo, e o certificado fica
+  // pendente até o DNS apontar para cá (sem nenhum retentor automático
+  // ainda — só resolve numa próxima chamada manual a este comando).
+  hestiaCall('v-add-letsencrypt-domain', [input.username, input.domain]).catch(() => {});
 
   // Mesma automação de SPF/DKIM/DMARC/Brevo que já corre ao criar um site no
   // DirectAdmin — sem isto, uma conta nova no Hestia ficava sempre sem
@@ -67,7 +75,8 @@ export async function createAccount(input: {
 export async function addWebDomain(username: string, domain: string): Promise<{ ok: boolean; error?: string }> {
   const result = await hestiaCall('v-add-web-domain', [username, domain]);
   if (!result.ok && !isAlreadyExistsError(result.error)) return { ok: false, error: result.error };
-  await hestiaCall('v-add-letsencrypt-domain', [username, domain]).catch(() => {});
+  // SSL best-effort, sem bloquear a resposta — ver comentário em createAccount().
+  hestiaCall('v-add-letsencrypt-domain', [username, domain]).catch(() => {});
   const { runEmailDnsAutomation } = await import('@/lib/domain-email-auth');
   runEmailDnsAutomation(domain);
   return { ok: true };
