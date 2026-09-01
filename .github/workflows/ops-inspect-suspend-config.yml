@@ -1,43 +1,44 @@
-name: "Ops - Fase 17d. Descobre causa do 308 e testa com Host header"
+name: "Ops - Fase 17e. Verifica se crons do Hetzner sofrem do mesmo 308 (so leitura)"
 
 on:
   workflow_dispatch:
 
 jobs:
-  contabo:
-    name: contabo
+  hetzner:
+    name: hetzner
     runs-on: ubuntu-latest
     steps:
       - name: Setup SSH key
         run: |
           mkdir -p ~/.ssh
-          echo "${{ secrets.CONTABO_SSH_KEY }}" > ~/.ssh/deploy_key
+          echo "${{ secrets.HETZNER_SSH_KEY }}" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
-          ssh-keyscan "${{ secrets.CONTABO_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
+          ssh-keyscan -p "${{ secrets.HETZNER_PORT }}" "${{ secrets.HETZNER_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
       - name: Verifica
         uses: appleboy/ssh-action@v1.2.5
         with:
-          host: ${{ secrets.CONTABO_HOST }}
-          username: root
-          key: ${{ secrets.CONTABO_SSH_KEY }}
+          host: ${{ secrets.HETZNER_HOST }}
+          port: ${{ secrets.HETZNER_PORT }}
+          username: ${{ secrets.HETZNER_USER }}
+          key: ${{ secrets.HETZNER_SSH_KEY }}
           command_timeout: 5m
           script: |
             set -e
-            cd /opt/visualdesign-site-teste
+            echo "===== CRONTAB ACTUAL ====="
+            crontab -l | grep visualdesign || echo "(nenhuma)"
+
+            cd /opt/visualdesign-site
             CRON_SECRET_VALUE=$(grep '^CRON_SECRET=' .env.local | cut -d= -f2-)
             echo "::add-mask::$CRON_SECRET_VALUE"
 
-            echo "===== SEM Host header (verbose, so cabecalhos) ====="
-            curl -sS -D - -o /tmp/body1.txt -H "Authorization: Bearer ${CRON_SECRET_VALUE}" http://127.0.0.1:3002/api/cron/brevo-retry | head -20
-            echo "--- corpo ---"
-            cat /tmp/body1.txt
             echo ""
+            echo "===== dns-retry SEM Host header ====="
+            curl -sS -w "\nHTTP_STATUS:%{http_code}\n" -H "Authorization: Bearer ${CRON_SECRET_VALUE}" http://127.0.0.1:3003/api/cron/dns-retry
 
             echo ""
-            echo "===== COM Host: teste.visualdesignmoz.com ====="
-            curl -sS -w "\nHTTP_STATUS:%{http_code}\n" -H "Host: teste.visualdesignmoz.com" -H "Authorization: Bearer ${CRON_SECRET_VALUE}" http://127.0.0.1:3002/api/cron/brevo-retry
-            echo ""
+            echo "===== renewal-check SEM Host header ====="
+            curl -sS -w "\nHTTP_STATUS:%{http_code}\n" "http://127.0.0.1:3003/api/cron/renewal-check?secret=${CRON_SECRET_VALUE}"
 
             echo ""
-            echo "===== BD APOS RETRY COM HOST HEADER ====="
-            docker exec -i supabase-db psql -U postgres -d postgres -t -A -c "select domain_name, dns_status, brevo_verified, updated_at from domain_renewals where domain_name = 'entrecamposblog.com';"
+            echo "===== da-sync SEM Host header ====="
+            curl -sS -w "\nHTTP_STATUS:%{http_code}\n" -H "Authorization: Bearer ${CRON_SECRET_VALUE}" http://127.0.0.1:3003/api/cron/da-sync
