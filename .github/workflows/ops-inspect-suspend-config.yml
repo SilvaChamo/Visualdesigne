@@ -1,31 +1,51 @@
-name: "Ops - Fase 53. Leva os ficheiros do Contabo para o Hetzner (relay pelo runner)"
+name: "Ops - Fase 54. A base de dados actual (mesmo sem wp-config.php) ainda existe e esta boa?"
 
 on:
   workflow_dispatch:
 
 jobs:
-  relay:
-    name: relay
+  hetzner:
+    name: hetzner
     runs-on: ubuntu-latest
     steps:
-      - name: Setup SSH keys (Contabo + Hetzner)
+      - name: Setup SSH key
         run: |
           mkdir -p ~/.ssh
-          echo "${{ secrets.CONTABO_SSH_KEY }}" > ~/.ssh/contabo_key
-          echo "${{ secrets.HETZNER_SSH_KEY }}" > ~/.ssh/hetzner_key
-          chmod 600 ~/.ssh/contabo_key ~/.ssh/hetzner_key
-          ssh-keyscan "${{ secrets.CONTABO_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
+          echo "${{ secrets.HETZNER_SSH_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
           ssh-keyscan -p "${{ secrets.HETZNER_PORT }}" "${{ secrets.HETZNER_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
+      - name: Verifica bases de dados existentes
+        uses: appleboy/ssh-action@v1.2.5
+        with:
+          host: ${{ secrets.HETZNER_HOST }}
+          port: ${{ secrets.HETZNER_PORT }}
+          username: ${{ secrets.HETZNER_USER }}
+          key: ${{ secrets.HETZNER_SSH_KEY }}
+          command_timeout: 3m
+          script: |
+            set +e
+            MYSQL="mysql -u root"
+            mysql -u root -e "select 1;" >/dev/null 2>&1
+            if [ $? -ne 0 ]; then
+              MYSQL="mysql --defaults-file=/usr/local/directadmin/conf/my.cnf"
+              $MYSQL -e "select 1;" >/dev/null 2>&1 || MYSQL="mysql --defaults-file=/etc/mysql/debian.cnf"
+            fi
+            echo "usando: $MYSQL"
 
-      - name: Descarrega do Contabo para o runner
-        run: |
-          scp -i ~/.ssh/contabo_key root@${{ secrets.CONTABO_HOST }}:/root/aamihe-restore/db.sql ./db.sql
-          scp -i ~/.ssh/contabo_key root@${{ secrets.CONTABO_HOST }}:/root/aamihe-restore/uploads.zip ./uploads.zip
-          ls -la db.sql uploads.zip
+            echo "===== bases de dados da conta admin relacionadas com aamihe ====="
+            $MYSQL -e "show databases like '%aamihe%';" 2>&1
 
-      - name: Envia do runner para o Hetzner
-        run: |
-          ssh -i ~/.ssh/hetzner_key -p ${{ secrets.HETZNER_PORT }} ${{ secrets.HETZNER_USER }}@${{ secrets.HETZNER_HOST }} "mkdir -p /root/aamihe-restore"
-          scp -i ~/.ssh/hetzner_key -P ${{ secrets.HETZNER_PORT }} ./db.sql ${{ secrets.HETZNER_USER }}@${{ secrets.HETZNER_HOST }}:/root/aamihe-restore/db.sql
-          scp -i ~/.ssh/hetzner_key -P ${{ secrets.HETZNER_PORT }} ./uploads.zip ${{ secrets.HETZNER_USER }}@${{ secrets.HETZNER_HOST }}:/root/aamihe-restore/uploads.zip
-          ssh -i ~/.ssh/hetzner_key -p ${{ secrets.HETZNER_PORT }} ${{ secrets.HETZNER_USER }}@${{ secrets.HETZNER_HOST }} "ls -la /root/aamihe-restore/"
+            echo ""
+            echo "===== estrutura/tabelas da base actual (se existir) ====="
+            mysql -u root -e "select table_schema, count(*) as tabelas from information_schema.tables where table_schema like '%aamihe%' group by table_schema;" 2>&1
+
+            echo ""
+            echo "===== se existir admin_aamihe_bd, quantos posts/users tem, e a data mais recente ====="
+            mysql -u root admin_aamihe_bd -e "select count(*) as total_users from wp_users;" 2>&1
+            mysql -u root admin_aamihe_bd -e "select count(*) as total_posts from wp_posts where post_type='post' and post_status='publish';" 2>&1
+            mysql -u root admin_aamihe_bd -e "select max(post_modified) as mais_recente from wp_posts;" 2>&1
+            mysql -u root admin_aamihe_bd -e "show tables like 'wp%';" 2>&1 | head -10
+
+            echo ""
+            echo "===== confirma credenciais reais desta base (na config do DA) ====="
+            cat /usr/local/directadmin/data/users/admin/domains/aamihe.com.conf 2>&1 | grep -i "db\|sql"
