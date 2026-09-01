@@ -1,4 +1,4 @@
-name: "Ops - Fase 87. Investiga secoes vazias na pagina conferencia"
+name: "Ops - Fase 88. Porque as noticias/blog nao aparecem + estado real do jet-engine"
 
 on:
   workflow_dispatch:
@@ -27,19 +27,26 @@ jobs:
             ROOT=/home/admin/domains/aamihe.com/public_html
             WP="/usr/local/bin/wp --allow-root --path=$ROOT"
 
-            echo "===== estado actual dos plugins jet (o utilizador instalou agora) ====="
-            $WP plugin list 2>&1 | grep -i "jet"
+            echo "===== estado REAL do jet-engine/jet-elements agora (pastas no disco) ====="
+            ls -la "$ROOT/wp-content/plugins/" 2>&1 | grep -i jet
+            find "$ROOT/wp-content/plugins/jet-engine" -maxdepth 1 -iname "*.php" 2>&1
+            find "$ROOT/wp-content/plugins/jet-elements" -maxdepth 1 -iname "*.php" 2>&1
 
             echo ""
-            echo "===== id e dados basicos da pagina conferencia ====="
-            $WP post list --name=conferencia --post_type=page --fields=ID,post_title,post_status 2>&1
+            echo "===== todos os plugins reconhecidos pelo wordpress agora ====="
+            $WP plugin list 2>&1
 
             echo ""
-            echo "===== erros php recentes (ultimos 2 min, deve apanhar o carregamento desta pagina) ====="
-            tail -n 60 /var/log/httpd/domains/aamihe.com.error.log 2>&1 | grep -i "fatal\|jet-engine\|jet-elements\|conferencia" | tail -20
+            echo "===== quantas noticias/posts existem, e com que estado ====="
+            $WP post list --post_type=post --format=count 2>&1
+            $WP post list --post_type=post --fields=ID,post_title,post_status,post_date --format=table 2>&1 | head -15
 
             echo ""
-            echo "===== widgets usados nessa pagina (que tipo de conteudo e) ====="
-            PAGEID=$($WP post list --name=conferencia --post_type=page --field=ID 2>&1 | head -1)
-            echo "page id: $PAGEID"
-            $WP post meta get "$PAGEID" _elementor_data 2>&1 | grep -oE '"widgetType":"[^"]*"' | sort -u | head -20
+            echo "===== testa a pagina de blog directamente ====="
+            curl -sSL --max-time 15 https://aamihe.com/blog/ -o /tmp/blog.html 2>&1
+            echo "tamanho: $(wc -c < /tmp/blog.html) bytes"
+            grep -c "post-" /tmp/blog.html 2>&1
+
+            echo ""
+            echo "===== erro php ao carregar a pagina de blog agora ====="
+            tail -n 30 /var/log/httpd/domains/aamihe.com.error.log 2>&1 | tail -20
