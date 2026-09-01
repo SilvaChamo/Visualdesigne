@@ -1,36 +1,46 @@
-name: "Ops - Fase 24. Aponta DNS do entrecamposblog.com para o Contabo (site ja criado)"
+name: "Ops - Fase 25. Porque entrecamposblog.com mostra Coming Soon em vez do WordPress"
 
 on:
   workflow_dispatch:
 
 jobs:
-  fix-dns:
-    name: fix-dns
+  contabo:
+    name: contabo
     runs-on: ubuntu-latest
     steps:
-      - name: Cria registos A (@ e www) na Cloudflare
+      - name: Setup SSH key
         run: |
-          set +e
-          EMAIL="${{ secrets.CLOUDFLARE_EMAIL }}"
-          GKEY="${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}"
-          IP="${{ secrets.CONTABO_HOST }}"
-          ZONE_ID="c91fd14533ea44b5b5626d37225e039c"
+          mkdir -p ~/.ssh
+          echo "${{ secrets.CONTABO_SSH_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan "${{ secrets.CONTABO_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
+      - name: Inspecciona docroot real e vhost
+        uses: appleboy/ssh-action@v1.2.5
+        with:
+          host: ${{ secrets.CONTABO_HOST }}
+          username: root
+          key: ${{ secrets.CONTABO_SSH_KEY }}
+          command_timeout: 3m
+          script: |
+            set +e
+            echo "===== conteúdo real do docroot ====="
+            ls -la /home/vdadmin/web/entrecamposblog.com/public_html/ 2>&1
 
-          for NAME in "entrecamposblog.com" "www.entrecamposblog.com"; do
-            echo "===== $NAME -> $IP ====="
-            curl -sS -X POST \
-              -H "X-Auth-Email: $EMAIL" \
-              -H "X-Auth-Key: $GKEY" \
-              -H "Content-Type: application/json" \
-              "https://api.cloudflare.com/client/v4/zones/$ZONE_ID/dns_records" \
-              --data "{\"type\":\"A\",\"name\":\"$NAME\",\"content\":\"$IP\",\"ttl\":1,\"proxied\":false}" \
-              > /tmp/resp.json 2>&1
-            python3 -c "import json,sys; d=json.load(open('/tmp/resp.json')); print('success:', d.get('success'), '| errors:', d.get('errors'))" 2>/dev/null || cat /tmp/resp.json
-          done
+            echo ""
+            echo "===== wp-config.php existe? ====="
+            test -f /home/vdadmin/web/entrecamposblog.com/public_html/wp-config.php && echo "SIM" || echo "NAO"
 
-      - name: Confirma DNS a resolver
-        run: |
-          sleep 5
-          echo "===== dig via 1.1.1.1 ====="
-          dig +short A entrecamposblog.com @1.1.1.1
-          dig +short A www.entrecamposblog.com @1.1.1.1
+            echo ""
+            echo "===== vhost nginx configurado para este domínio ====="
+            grep -rl "entrecamposblog.com" /etc/nginx/conf.d/domains/ 2>/dev/null
+            cat /etc/nginx/conf.d/domains/entrecamposblog.com.conf 2>/dev/null | head -40
+
+            echo ""
+            echo "===== onde está o texto 'Coming Soon' no servidor ====="
+            grep -rl "Coming Soon" /home/vdadmin/web/entrecamposblog.com/ 2>/dev/null
+            grep -rl "Coming Soon" /var/www/ 2>/dev/null | head -5
+            grep -rl "Coming Soon" /usr/local/hestia/data/templates/web/ 2>/dev/null | head -5
+
+            echo ""
+            echo "===== teste directo local no servidor (127.0.0.1 com Host correcto) ====="
+            curl -sS -o /dev/null -w "HTTP %{http_code}\n" --max-time 5 -H "Host: entrecamposblog.com" http://127.0.0.1/
