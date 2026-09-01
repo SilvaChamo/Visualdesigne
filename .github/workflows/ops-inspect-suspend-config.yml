@@ -1,4 +1,4 @@
-name: "Ops - Fase 86. Repoe as imagens/uploads a partir do backup de junho 2025"
+name: "Ops - Fase 87. Investiga secoes vazias na pagina conferencia"
 
 on:
   workflow_dispatch:
@@ -14,7 +14,7 @@ jobs:
           echo "${{ secrets.HETZNER_SSH_KEY }}" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
           ssh-keyscan -p "${{ secrets.HETZNER_PORT }}" "${{ secrets.HETZNER_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
-      - name: Repoe uploads
+      - name: Investiga
         uses: appleboy/ssh-action@v1.2.5
         with:
           host: ${{ secrets.HETZNER_HOST }}
@@ -25,33 +25,21 @@ jobs:
           script: |
             set +e
             ROOT=/home/admin/domains/aamihe.com/public_html
-            TMPDIR=/root/aamihe-restore/extract
+            WP="/usr/local/bin/wp --allow-root --path=$ROOT"
 
-            echo "===== descompacta para pasta temporaria primeiro (nao mexe em nada ainda) ====="
-            mkdir -p "$TMPDIR"
-            unzip -oq /root/aamihe-restore/uploads.zip -d "$TMPDIR" 2>&1
-            echo "extraido, total de ficheiros:"
-            find "$TMPDIR" -type f | wc -l
+            echo "===== estado actual dos plugins jet (o utilizador instalou agora) ====="
+            $WP plugin list 2>&1 | grep -i "jet"
 
             echo ""
-            echo "===== confirma se o logo esta la dentro ====="
-            find "$TMPDIR" -iname "*logo*" 2>&1 | head -10
+            echo "===== id e dados basicos da pagina conferencia ====="
+            $WP post list --name=conferencia --post_type=page --fields=ID,post_title,post_status 2>&1
 
             echo ""
-            echo "===== copia para dentro do site, sem apagar nada que ja exista (so acrescenta o que falta) ====="
-            cp -rn "$TMPDIR/uploads/." "$ROOT/wp-content/uploads/" 2>&1
-            chown -R admin:admin "$ROOT/wp-content/uploads"
-            find "$ROOT/wp-content/uploads" -type d -exec chmod 755 {} \;
-            find "$ROOT/wp-content/uploads" -type f -exec chmod 644 {} \;
+            echo "===== erros php recentes (ultimos 2 min, deve apanhar o carregamento desta pagina) ====="
+            tail -n 60 /var/log/httpd/domains/aamihe.com.error.log 2>&1 | grep -i "fatal\|jet-engine\|jet-elements\|conferencia" | tail -20
 
             echo ""
-            echo "===== confirma quantos ficheiros de imagem existem agora ====="
-            find "$ROOT/wp-content/uploads" -type f \( -iname "*.jpg" -o -iname "*.png" -o -iname "*.webp" \) 2>/dev/null | wc -l
-
-            echo ""
-            echo "===== testa o logo directamente ====="
-            curl -sSI --max-time 10 "https://aamihe.com/wp-content/uploads/2021/09/Logo-Small.png" 2>&1 | head -3
-
-            echo ""
-            echo "===== limpa a pasta temporaria ====="
-            rm -rf "$TMPDIR"
+            echo "===== widgets usados nessa pagina (que tipo de conteudo e) ====="
+            PAGEID=$($WP post list --name=conferencia --post_type=page --field=ID 2>&1 | head -1)
+            echo "page id: $PAGEID"
+            $WP post meta get "$PAGEID" _elementor_data 2>&1 | grep -oE '"widgetType":"[^"]*"' | sort -u | head -20
