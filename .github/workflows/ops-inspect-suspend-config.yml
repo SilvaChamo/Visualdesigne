@@ -1,45 +1,22 @@
-name: "Ops - Fase 27. Porque o SSL emitido nao esta a servir (cert errado)"
+name: "Ops - Fase 28. Lista todos os registos A da zona entrecamposblog.com"
 
 on:
   workflow_dispatch:
 
 jobs:
-  contabo:
-    name: contabo
+  check:
+    name: check
     runs-on: ubuntu-latest
     steps:
-      - name: Setup SSH key
+      - name: Lista registos
         run: |
-          mkdir -p ~/.ssh
-          echo "${{ secrets.CONTABO_SSH_KEY }}" > ~/.ssh/deploy_key
-          chmod 600 ~/.ssh/deploy_key
-          ssh-keyscan "${{ secrets.CONTABO_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
-      - name: Investiga e corrige
-        uses: appleboy/ssh-action@v1.2.5
-        with:
-          host: ${{ secrets.CONTABO_HOST }}
-          username: root
-          key: ${{ secrets.CONTABO_SSH_KEY }}
-          command_timeout: 3m
-          script: |
-            set +e
-            echo "===== certificado real emitido (ficheiro) ====="
-            ls -la /home/vdadmin/conf/web/entrecamposblog.com/ 2>&1
-            echo ""
-            echo "===== validade/domínios do cert ssl.pem ====="
-            openssl x509 -in /home/vdadmin/conf/web/entrecamposblog.com/ssl/entrecamposblog.com.crt -noout -subject -dates -ext subjectAltName 2>&1
+          set +e
+          EMAIL="${{ secrets.CLOUDFLARE_EMAIL }}"
+          GKEY="${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}"
+          ZONE_ID="c91fd14533ea44b5b5626d37225e039c"
+          CONTABO_IP="${{ secrets.CONTABO_HOST }}"
 
-            echo ""
-            echo "===== nginx.forcessl.conf (o que o vhost usa mesmo) ====="
-            cat /home/vdadmin/conf/web/entrecamposblog.com/nginx.forcessl.conf* 2>&1 | head -30
+          curl -sS -H "X-Auth-Email: $EMAIL" -H "X-Auth-Key: $GKEY" -H "Content-Type: application/json" \
+            "https://api.cloudflare.com/client/v4/zones/$ZONE_ID/dns_records?per_page=100" > /tmp/records.json
 
-            echo ""
-            echo "===== testa nginx config e recarrega ====="
-            nginx -t 2>&1
-            systemctl reload nginx 2>&1
-            echo "reload exit: $?"
-
-            echo ""
-            echo "===== confirma via SNI directo à IP ====="
-            sleep 2
-            curl -sSk -o /dev/null -w "HTTP %{http_code}\n" --max-time 8 --resolve entrecamposblog.com:443:127.0.0.1 https://entrecamposblog.com/ -v 2>&1 | grep -i "subject\|issuer\|HTTP"
+          CONTABO_IP="$CONTABO_IP" python3 -c "import json,os; d=json.load(open('/tmp/records.json')); cip=os.environ['CONTABO_IP']; [print(r.get('type'),'|',r.get('name'),'|',r.get('content'),'| proxied:',r.get('proxied'),'| id:',r.get('id'), '<-- CONTABO' if r.get('content')==cip else '') for r in d.get('result', [])]"
