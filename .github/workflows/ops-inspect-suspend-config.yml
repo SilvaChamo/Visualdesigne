@@ -1,11 +1,11 @@
-name: "Ops - Fase 13c. Detalhe do checkout pendente entrecamposblog.com (so leitura)"
+name: "Ops - Fase 14a. Verifica config Google OAuth no Supabase Contabo (so leitura)"
 
 on:
   workflow_dispatch:
 
 jobs:
   verify:
-    name: consulta supabase contabo
+    name: verifica gotrue google oauth
     runs-on: ubuntu-latest
     steps:
       - name: Setup SSH key
@@ -15,7 +15,7 @@ jobs:
           chmod 600 ~/.ssh/deploy_key
           ssh-keyscan "${{ secrets.CONTABO_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
 
-      - name: Consulta
+      - name: Verifica
         uses: appleboy/ssh-action@v1.2.5
         with:
           host: ${{ secrets.CONTABO_HOST }}
@@ -23,19 +23,21 @@ jobs:
           key: ${{ secrets.CONTABO_SSH_KEY }}
           command_timeout: 2m
           script: |
-            SQL() { docker exec -i supabase-db psql -U postgres -d postgres -t -A -c "$1"; }
-
-            echo "===== colunas de checkout_sessions ====="
-            SQL "select column_name, data_type from information_schema.columns where table_name='checkout_sessions' order by ordinal_position;"
-
-            echo ""
-            echo "===== a sessao inteira (entrecamposblog.com) ====="
-            SQL "select row_to_json(t) from (select * from checkout_sessions where id = '56b560c0-eb8c-4205-b008-22f3d5bf531b') t;"
-
-            echo ""
-            echo "===== renewal_payment_requests ligados a este user (se houver) ====="
-            SQL "select rpr.* from renewal_payment_requests rpr, checkout_sessions cs where cs.id = '56b560c0-eb8c-4205-b008-22f3d5bf531b' and rpr.user_id = cs.user_id order by rpr.created_at desc limit 5;"
+            ENV_FILE=/opt/supabase-contabo/docker/.env
+            echo "===== variaveis GOTRUE_EXTERNAL_GOOGLE_* (so nomes + presente/vazio, nunca valores) ====="
+            if [ -f "$ENV_FILE" ]; then
+              grep -E "^GOTRUE_EXTERNAL_GOOGLE_" "$ENV_FILE" | sed -E 's/=.*/=<definido>/; s/^([A-Z_]+)=<definido>$/\1=<definido>/' | while IFS='=' read -r k v; do
+                val=$(grep "^$k=" "$ENV_FILE" | cut -d'=' -f2-)
+                if [ -z "$val" ]; then echo "$k = (vazio)"; else echo "$k = (tem valor, ${#val} caracteres)"; fi
+              done
+            else
+              echo "ficheiro .env nao encontrado em $ENV_FILE"
+            fi
 
             echo ""
-            echo "===== pagamentos deste user (5 mais recentes) ====="
-            SQL "select p.* from pagamentos p, checkout_sessions cs where cs.id = '56b560c0-eb8c-4205-b008-22f3d5bf531b' and p.user_id = cs.user_id order by p.created_at desc limit 5;"
+            echo "===== container auth: variaveis de ambiente reais a correr (so nomes) ====="
+            docker inspect supabase-auth --format '{{range .Config.Env}}{{println .}}{{end}}' 2>/dev/null | grep -i google | sed -E 's/=.*/=<oculto>/'
+
+            echo ""
+            echo "===== outros providers externos activos, para comparar ====="
+            grep -E "^GOTRUE_EXTERNAL_[A-Z]+_ENABLED=" "$ENV_FILE" 2>/dev/null
