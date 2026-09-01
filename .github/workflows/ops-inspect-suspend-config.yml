@@ -1,4 +1,4 @@
-name: "Ops - Fase 58. Recria wp-config.php do aamihe.com para a base de dados real"
+name: "Ops - Fase 59. Confirma utilizadores admin reais + visual final do site"
 
 on:
   workflow_dispatch:
@@ -14,7 +14,7 @@ jobs:
           echo "${{ secrets.HETZNER_SSH_KEY }}" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
           ssh-keyscan -p "${{ secrets.HETZNER_PORT }}" "${{ secrets.HETZNER_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
-      - name: Recria wp-config.php e reinicia password da bd
+      - name: Confirma utilizadores admin
         uses: appleboy/ssh-action@v1.2.5
         with:
           host: ${{ secrets.HETZNER_HOST }}
@@ -25,42 +25,17 @@ jobs:
           script: |
             set +e
             ROOT=/home/admin/domains/aamihe.com/public_html
-            NEWDBPASS=$(openssl rand -base64 24 | tr -dc 'a-zA-Z0-9' | head -c 24)
-            echo "::add-mask::$NEWDBPASS"
-
-            echo "===== 1. nova password para o utilizador real da bd ====="
-            mysql -u root -e "ALTER USER 'admin_aamihe_user'@'localhost' IDENTIFIED BY '$NEWDBPASS'; FLUSH PRIVILEGES;" 2>&1
-            echo "exit: $?"
+            echo "===== todos os administradores reais do site ====="
+            /usr/local/bin/wp --allow-root --path="$ROOT" user list --role=administrator --fields=ID,user_login,user_email,user_registered 2>&1
 
             echo ""
-            echo "===== 1b. faltam os ficheiros soltos do core (wp-load.php, wp-settings.php, etc) - so isso, wp-admin/wp-includes/wp-content ja la estao ====="
-            ls "$ROOT"/wp-load.php "$ROOT"/wp-settings.php "$ROOT"/wp-config-sample.php 2>&1
+            echo "===== plugins activos agora (confirma que nada estranho ficou activo) ====="
+            /usr/local/bin/wp --allow-root --path="$ROOT" plugin list --status=active --fields=name,version,update 2>&1
 
             echo ""
-            echo "===== 2. repoe so os ficheiros soltos do core oficial (nao mexe no wp-content) ====="
-            command -v wp >/dev/null 2>&1 || curl -sS -o /usr/local/bin/wp https://raw.githubusercontent.com/wp-cli/builds/gh-pages/phar/wp-cli.phar && chmod +x /usr/local/bin/wp
-            /usr/local/bin/wp --allow-root --path="$ROOT" core download --force --skip-content 2>&1
-            chown -R admin:admin "$ROOT"
+            echo "===== confirma se ha algum utilizador criado nos ultimos 30 dias (suspeito) ====="
+            /usr/local/bin/wp --allow-root --path="$ROOT" user list --fields=ID,user_login,user_registered --format=csv 2>&1 | awk -F, 'NR==1 || $3 > "2026-08-01"'
 
             echo ""
-            echo "===== gera wp-config.php ====="
-            /usr/local/bin/wp --allow-root --path="$ROOT" config create \
-              --dbname=admin_aamihe_bd --dbuser=admin_aamihe_user --dbpass="$NEWDBPASS" \
-              --dbhost=localhost --dbprefix=Aimes_ --skip-check --force 2>&1
-            chown admin:admin "$ROOT/wp-config.php"
-            chmod 640 "$ROOT/wp-config.php"
-
-            echo ""
-            echo "===== 3. confirma que liga mesmo a base de dados real ====="
-            /usr/local/bin/wp --allow-root --path="$ROOT" db check 2>&1
-
-            echo ""
-            echo "===== 4. confirma dados reais (titulo do site, contagem de posts) ====="
-            /usr/local/bin/wp --allow-root --path="$ROOT" option get blogname 2>&1
-            /usr/local/bin/wp --allow-root --path="$ROOT" post list --post_status=publish --format=count 2>&1
-
-      - name: Confirma o site ao vivo
-        run: |
-          sleep 3
-          curl -sSL --max-time 15 https://aamihe.com/ 2>&1 | grep -io "<title>.*</title>" | head -1
-          curl -sSL -o /dev/null -w "HTTP %{http_code}\n" --max-time 15 https://aamihe.com/
+            echo "===== estado geral: erros php recentes ====="
+            /usr/local/bin/wp --allow-root --path="$ROOT" core verify-checksums 2>&1 | head -20
