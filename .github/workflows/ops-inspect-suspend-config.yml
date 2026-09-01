@@ -1,4 +1,4 @@
-name: "Ops - Fase 49. Inspecciona o backup semanal automatico da-backup-to-s3"
+name: "Ops - Fase 50. O backup mensal admin (todos os dominios, hoje 05h) completou?"
 
 on:
   workflow_dispatch:
@@ -14,7 +14,7 @@ jobs:
           echo "${{ secrets.HETZNER_SSH_KEY }}" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
           ssh-keyscan -p "${{ secrets.HETZNER_PORT }}" "${{ secrets.HETZNER_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
-      - name: Inspecciona o script e o destino
+      - name: Verifica estado do backup mensal admin
         uses: appleboy/ssh-action@v1.2.5
         with:
           host: ${{ secrets.HETZNER_HOST }}
@@ -24,18 +24,19 @@ jobs:
           command_timeout: 3m
           script: |
             set +e
-            SCRIPT=$(find / -maxdepth 4 -iname "da-backup-to-s3.sh" 2>/dev/null | head -1)
-            echo "===== onde esta o script ====="
-            echo "$SCRIPT"
+            echo "===== conteudo actual e fresco de admin_backups ====="
+            ls -la /home/admin/admin_backups/ 2>&1
 
             echo ""
-            echo "===== conteudo do script (sem mostrar chaves/segredos) ====="
-            cat "$SCRIPT" 2>&1 | grep -v -i "key\|secret\|password\|token"
+            echo "===== algum processo de backup do DA ainda a correr agora? ====="
+            ps aux 2>&1 | grep -i "backup\|dataskq" | grep -v grep
 
             echo ""
-            echo "===== ultimas linhas do log deste backup ====="
-            tail -60 /var/log/da-backup-s3.log 2>&1
+            echo "===== fila de tarefas do DirectAdmin - tarefas de hoje ====="
+            ls -la /usr/local/directadmin/data/task.queue* 2>&1
+            grep -i "backup\|aamihe" /usr/local/directadmin/data/task.queue 2>&1 | head -20
 
             echo ""
-            echo "===== backup_crons.list (o que esta agendado a nivel admin) ====="
-            cat /usr/local/directadmin/data/admin/backup_crons.list 2>&1
+            echo "===== log geral do directadmin, procura por 'backup' nas ultimas horas ====="
+            tail -300 /var/log/directadmin/errortaskq.log 2>&1 | grep -i "backup\|aamihe" | tail -40
+            tail -300 /var/log/directadmin/task.log 2>&1 | grep -i "backup\|aamihe" | tail -40
