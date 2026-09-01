@@ -1,4 +1,4 @@
-name: "Ops - Fase 81. Encontra o gancho dos avisos do WP Armour para os calar"
+name: "Ops - Fase 82. Ve o que falta no jet-engine/jet-elements + cala avisos honeypot"
 
 on:
   workflow_dispatch:
@@ -14,7 +14,7 @@ jobs:
           echo "${{ secrets.HETZNER_SSH_KEY }}" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
           ssh-keyscan -p "${{ secrets.HETZNER_PORT }}" "${{ secrets.HETZNER_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
-      - name: Investiga o gancho
+      - name: Investiga e corrige o que der
         uses: appleboy/ssh-action@v1.2.5
         with:
           host: ${{ secrets.HETZNER_HOST }}
@@ -24,11 +24,31 @@ jobs:
           command_timeout: 3m
           script: |
             set +e
-            PLUG=/home/admin/domains/aamihe.com/public_html/wp-content/plugins/honeypot
+            ROOT=/home/admin/domains/aamihe.com/public_html
+            PLUGDIR="$ROOT/wp-content/plugins"
 
-            echo "===== onde regista os avisos admin_notices ====="
-            grep -rn "admin_notices\|admin_footer_text\|donation\|rating" "$PLUG" --include="*.php" 2>/dev/null | grep -i "add_action\|add_filter" | head -20
+            echo "===== o que resta de jet-engine ====="
+            ls -la "$PLUGDIR/jet-engine/" 2>&1 | head -20
+            find "$PLUGDIR/jet-engine" -maxdepth 1 -iname "jet-engine.php" 2>&1
 
             echo ""
-            echo "===== nome da classe/funcao principal do plugin (para o remove_action apontar certo) ====="
-            grep -rn "class .*Honeypot\|class .*WP_Armour\|class .*wp_armour" "$PLUG" --include="*.php" 2>/dev/null | head -5
+            echo "===== o que resta de jet-elements ====="
+            ls -la "$PLUGDIR/jet-elements/" 2>&1 | head -20
+            find "$PLUGDIR/jet-elements" -maxdepth 1 -iname "jet-elements.php" 2>&1
+
+            echo ""
+            echo "===== erro real que o site esta a dar agora (php errors recentes) ====="
+            tail -n 40 /var/log/httpd/domains/aamihe.com.error.log 2>&1 | grep -i "fatal\|error" | tail -15
+
+            echo ""
+            echo "===== mu-plugins existe? cria e cala o aviso do wp armour ====="
+            mkdir -p "$ROOT/wp-content/mu-plugins"
+            F="$ROOT/wp-content/mu-plugins/silence-notices.php"
+            printf '%s\n' "<?php" > "$F"
+            printf '%s\n' "/* Silencia avisos promocionais do WP Armour (honeypot) sem desligar a proteccao real */" >> "$F"
+            printf '%s\n' "add_action('admin_notices', function () {" >> "$F"
+            printf '%s\n' "    remove_action('admin_notices', 'wpa_admin_notices');" >> "$F"
+            printf '%s\n' "}, 1);" >> "$F"
+            chown admin:admin "$F"
+            chmod 644 "$F"
+            cat "$F"
