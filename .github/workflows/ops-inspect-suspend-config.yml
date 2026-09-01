@@ -1,4 +1,4 @@
-name: "Ops - Fase 69. Ve o bloco completo do Directory/FilesMatch no vhost do aamihe"
+name: "Ops - Fase 70. Procura mais fundo onde o wp-da-sso esta a ser negado"
 
 on:
   workflow_dispatch:
@@ -14,7 +14,7 @@ jobs:
           echo "${{ secrets.HETZNER_SSH_KEY }}" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
           ssh-keyscan -p "${{ secrets.HETZNER_PORT }}" "${{ secrets.HETZNER_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
-      - name: Ve bloco completo
+      - name: Procura mais fundo
         uses: appleboy/ssh-action@v1.2.5
         with:
           host: ${{ secrets.HETZNER_HOST }}
@@ -24,14 +24,35 @@ jobs:
           command_timeout: 3m
           script: |
             set +e
-            echo "===== linhas 240 a 280 do httpd.conf (primeiro vhost aamihe) ====="
-            sed -n '240,280p' /usr/local/directadmin/data/users/admin/httpd.conf 2>&1
+            echo "===== .htaccess em pastas pai de public_html ====="
+            cat /home/admin/domains/aamihe.com/.htaccess 2>&1
+            echo "---"
+            cat /home/admin/domains/.htaccess 2>&1
+            echo "---"
+            cat /home/admin/.htaccess 2>&1
 
             echo ""
-            echo "===== procura o ficheiro de configuracao custom por dominio (DA custom httpd) ====="
-            find /usr/local/directadmin/data/users/admin -iname "*httpd*aamihe*" -o -iname "*custom*aamihe*" 2>/dev/null
-            ls -la /usr/local/directadmin/data/users/admin/domains/ 2>&1 | grep -i aamihe
+            echo "===== primeiro bloco Directory completo (SSL, linhas antes da 240) ====="
+            sed -n '200,245p' /usr/local/directadmin/data/users/admin/httpd.conf 2>&1
 
             echo ""
-            echo "===== conteudo de um eventual ficheiro custom_httpd.conf para aamihe ====="
-            find /usr/local/directadmin -iname "*aamihe*" 2>/dev/null | grep -i "conf\|custom"
+            echo "===== procura 'sso' ou regras genericas contra nomes aleatorios em todo o /etc/httpd ====="
+            grep -ril "sso\|Deny from all" /etc/httpd/conf /etc/httpd/conf.d /etc/httpd/conf/extra 2>/dev/null
+
+            echo ""
+            echo "===== csf / configserver instalado, com regra para aamihe? ====="
+            which csf 2>&1
+            grep -ri "aamihe" /etc/csf/*.conf /etc/csf/*.deny 2>/dev/null
+
+            echo ""
+            echo "===== algum script de 'limpeza automatica' da directadmin corre nesta pasta (cron)? ====="
+            crontab -l -u admin 2>&1
+            crontab -l -u root 2>&1 | grep -i "aamihe\|clean\|malware\|scan"
+
+            echo ""
+            echo "===== confirma outra vez, ver se o proprio .htaccess da raiz continua limpo AGORA ====="
+            cat /home/admin/domains/aamihe.com/public_html/.htaccess 2>&1
+
+            echo ""
+            echo "===== apachectl -t com dump da config final para este vhost (resolvido) ====="
+            apachectl -S 2>&1 | grep -i -A2 aamihe
