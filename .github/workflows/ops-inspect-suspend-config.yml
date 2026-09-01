@@ -1,4 +1,4 @@
-name: "Ops - Fase 109. Verifica versao/cifra TLS usada pelo oshercollective.com"
+name: "Ops - Fase 110. Reinicio completo do Apache (nao so recarregar) e testa"
 
 on:
   workflow_dispatch:
@@ -14,7 +14,7 @@ jobs:
           echo "${{ secrets.HETZNER_SSH_KEY }}" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
           ssh-keyscan -p "${{ secrets.HETZNER_PORT }}" "${{ secrets.HETZNER_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
-      - name: Investiga TLS
+      - name: Reinicia e testa
         uses: appleboy/ssh-action@v1.2.5
         with:
           host: ${{ secrets.HETZNER_HOST }}
@@ -24,18 +24,29 @@ jobs:
           command_timeout: 2m
           script: |
             set +e
-            echo "===== que SSLProtocol/SSLCipherSuite esta definido globalmente ====="
-            grep -rn "SSLProtocol\|SSLCipherSuite\|SSLHonorCipherOrder" /etc/httpd/conf/extra/httpd-ssl.conf 2>&1
-            grep -rn "SSLProtocol\|SSLCipherSuite" /usr/local/directadmin/data/users/oshercollective/httpd.conf 2>&1
+            echo "===== confirma processos httpd antigos (antes) ====="
+            ps -eo pid,lstart,cmd | grep "[h]ttpd" | wc -l
 
             echo ""
-            echo "===== versao TLS minima que o apache aceita, testando cada uma ====="
-            for v in tls1 tls1_1 tls1_2 tls1_3; do
-              echo "--- $v ---"
-              echo | timeout 5 openssl s_client -connect oshercollective.com:443 -servername oshercollective.com -$v 2>&1 | grep -iE "Protocol|Cipher|error|refused" | head -3
+            echo "===== testa a configuracao ====="
+            apachectl -t 2>&1
+
+            echo ""
+            echo "===== reinicio completo (nao graceful) ====="
+            systemctl restart httpd 2>&1
+            echo "resultado: $?"
+            sleep 3
+
+            echo ""
+            echo "===== confirma que so ha processos novos agora ====="
+            ps -eo pid,lstart,cmd | grep "[h]ttpd" | wc -l
+            systemctl is-active httpd 2>&1
+
+            echo ""
+            echo "===== testa os 3 dominios varias vezes seguidas, para apanhar qualquer inconsistencia ====="
+            for i in 1 2 3 4 5; do
+              for d in oshercollective.com msdn-moz.org lirandzojewelry.com; do
+                cert=$(echo | timeout 5 openssl s_client -connect "$d:443" -servername "$d" 2>/dev/null | openssl x509 -noout -subject 2>&1)
+                echo "tentativa $i - $d - $cert"
+              done
             done
-
-            echo ""
-            echo "===== versao do openssl/apache neste servidor ====="
-            httpd -v 2>&1
-            openssl version 2>&1
