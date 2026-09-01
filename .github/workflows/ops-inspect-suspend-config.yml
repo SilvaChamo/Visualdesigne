@@ -1,4 +1,4 @@
-name: "Ops - Fase 64. Diagnostica Forbidden 403 no wp-admin do aamihe.com"
+name: "Ops - Fase 65. Isola ficheiros do virus e repoe .htaccess limpo (aamihe/Hetzner)"
 
 on:
   workflow_dispatch:
@@ -14,7 +14,7 @@ jobs:
           echo "${{ secrets.HETZNER_SSH_KEY }}" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
           ssh-keyscan -p "${{ secrets.HETZNER_PORT }}" "${{ secrets.HETZNER_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
-      - name: Diagnostica
+      - name: Isola e repoe
         uses: appleboy/ssh-action@v1.2.5
         with:
           host: ${{ secrets.HETZNER_HOST }}
@@ -25,39 +25,56 @@ jobs:
           script: |
             set +e
             ROOT=/home/admin/domains/aamihe.com/public_html
+            QDIR="/root/security-quarantine/aamihe.com-hetzner-$(date +%Y%m%d-%H%M%S)"
+            mkdir -p "$QDIR"
+            FOUNDLIST=/tmp/aamihe_found_$$.txt
+            rm -f "$FOUNDLIST"
+            touch "$FOUNDLIST"
 
-            echo "===== .htaccess na raiz do site ====="
-            cat "$ROOT/.htaccess" 2>&1
+            echo "===== conteudo do filefuns.php na raiz (so para ver, nao executar) ====="
+            head -c 2000 "$ROOT/filefuns.php" 2>&1
+            echo "(...)"
 
-            echo ""
-            echo "===== .htaccess dentro de wp-admin (se existir) ====="
-            cat "$ROOT/wp-admin/.htaccess" 2>&1
+            echo "===== procura outros nomes suspeitos da mesma lista, em todo o site ====="
+            NAMES="filefuns.php chtmlfuns.php cjfuns.php classsmtps.php classfuns.php comfunctions.php comdofuns.php connects.php copypaths.php delpaths.php doiconvs.php epinyins.php gdftps.php hinfofuns.php hplfuns.php memberfuns.php moddofuns.php onclickfuns.php phpzipincs.php qfunctions.php qinfofuns.php schallfuns.php tempfuns.php userfuns.php siteheads.php termps.php txets.php thoms.php postnews.php system_log.php inputs.php adminfuns.php"
+            for n in $NAMES; do find "$ROOT" -type f -iname "$n" 2>/dev/null >> "$FOUNDLIST"; done
+            cat "$FOUNDLIST"
 
-            echo ""
-            echo "===== permissoes da pasta wp-admin e ficheiros chave ====="
-            ls -la "$ROOT/" | head -5
-            ls -la "$ROOT/wp-admin/" | head -10
-            ls -la "$ROOT/wp-admin/index.php" "$ROOT/wp-login.php" 2>&1
+            echo "===== isola os ficheiros encontrados ====="
+            while IFS= read -r f; do
+              [ -z "$f" ] && continue
+              rel=$(echo "$f" | sed "s#^$ROOT/##")
+              destdir="$QDIR/$(dirname "$rel")"
+              mkdir -p "$destdir"
+              mv "$f" "$QDIR/$rel"
+              echo "isolado: $f"
+            done < "$FOUNDLIST"
 
-            echo ""
-            echo "===== dono/grupo esperado (outros ficheiros da raiz) ====="
-            stat -c '%U:%G %a %n' "$ROOT/wp-config.php" "$ROOT/wp-admin" "$ROOT/wp-admin/index.php" 2>&1
+            echo "===== isola os .htaccess maliciosos (raiz e wp-admin) ====="
+            [ -f "$ROOT/.htaccess" ] && cp "$ROOT/.htaccess" "$QDIR/htaccess-raiz.bak"
+            [ -f "$ROOT/wp-admin/.htaccess" ] && mkdir -p "$QDIR/wp-admin" && mv "$ROOT/wp-admin/.htaccess" "$QDIR/wp-admin/.htaccess"
 
-            echo ""
-            echo "===== vhost apache deste dominio (procura Deny/Require/Location wp-admin) ====="
-            grep -ril "aamihe" /etc/httpd/conf/extra/*.conf /usr/local/directadmin/data/users/admin/httpd.conf /usr/local/directadmin/data/users/admin/*.conf 2>/dev/null
-            find / -maxdepth 6 -iname "*aamihe*httpd*" -o -iname "*aamihe*apache*" 2>/dev/null | head -20
+            echo "===== repoe .htaccess limpo e normal na raiz ====="
+            printf '%s\n' "# BEGIN WordPress" > "$ROOT/.htaccess"
+            printf '%s\n' "<IfModule mod_rewrite.c>" >> "$ROOT/.htaccess"
+            printf '%s\n' "RewriteEngine On" >> "$ROOT/.htaccess"
+            printf '%s\n' "RewriteBase /" >> "$ROOT/.htaccess"
+            printf '%s\n' "RewriteRule ^index\.php$ - [L]" >> "$ROOT/.htaccess"
+            printf '%s\n' "RewriteCond %{REQUEST_FILENAME} !-f" >> "$ROOT/.htaccess"
+            printf '%s\n' "RewriteCond %{REQUEST_FILENAME} !-d" >> "$ROOT/.htaccess"
+            printf '%s\n' "RewriteRule . /index.php [L]" >> "$ROOT/.htaccess"
+            printf '%s\n' "</IfModule>" >> "$ROOT/.htaccess"
+            printf '%s\n' "# END WordPress" >> "$ROOT/.htaccess"
+            chown admin:admin "$ROOT/.htaccess"
+            chmod 644 "$ROOT/.htaccess"
+            cat "$ROOT/.htaccess"
 
-            echo ""
-            echo "===== teste directo local ao wp-admin (via curl, ve o header/corpo exacto) ====="
-            curl -sSI --max-time 10 https://aamihe.com/wp-admin/ 2>&1
-            echo "---corpo---"
-            curl -sS --max-time 10 https://aamihe.com/wp-admin/ 2>&1 | head -30
+            echo "===== confirma o que ficou na quarentena ====="
+            find "$QDIR" -type f 2>&1
 
-            echo ""
-            echo "===== plugins de seguranca instalados que possam bloquear (ithemes/wordfence/sucuri/loginpress) ====="
-            ls "$ROOT/wp-content/plugins/" 2>&1 | grep -Ei "security|wordfence|sucuri|loginpress|firewall|limit-login|ithemes"
-
-            echo ""
-            echo "===== log de erros apache recente para aamihe (ultimas linhas com 403/forbidden) ====="
-            tail -n 300 /var/log/httpd/domains/aamihe.com.error.log 2>&1 | grep -i "forbidden\|denied\|wp-admin" | tail -30
+            echo "===== testa wp-admin de novo ====="
+            sleep 2
+            curl -sSI --max-time 10 https://aamihe.com/wp-admin/ 2>&1 | head -5
+            echo "---login page---"
+            curl -sSI --max-time 10 https://aamihe.com/wp-login.php 2>&1 | head -5
+            rm -f "$FOUNDLIST"
