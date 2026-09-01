@@ -1,4 +1,4 @@
-name: "Ops - Fase 17f. Corrige crontabs (Host header) nos dois servidores"
+name: "Ops - Fase 18a. Investiga zona Cloudflare + nameservers entrecamposblog.com (so leitura)"
 
 on:
   workflow_dispatch:
@@ -14,7 +14,7 @@ jobs:
           echo "${{ secrets.CONTABO_SSH_KEY }}" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
           ssh-keyscan "${{ secrets.CONTABO_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
-      - name: Corrige e testa
+      - name: Investiga
         uses: appleboy/ssh-action@v1.2.5
         with:
           host: ${{ secrets.CONTABO_HOST }}
@@ -24,66 +24,35 @@ jobs:
           script: |
             set -e
             cd /opt/visualdesign-site-teste
-            CRON_SECRET_VALUE=$(grep '^CRON_SECRET=' .env.local | cut -d= -f2-)
-            echo "::add-mask::$CRON_SECRET_VALUE"
+            CF_EMAIL=$(grep '^CLOUDFLARE_EMAIL=' .env.local | cut -d= -f2-)
+            CF_KEY=$(grep '^CLOUDFLARE_GLOBAL_API_KEY=' .env.local | cut -d= -f2-)
+            echo "::add-mask::$CF_KEY"
+            DYN_KEY=$(grep '^DYNADOT_API_KEY=' .env.local | cut -d= -f2-)
+            DYN_SECRET=$(grep '^DYNADOT_SECRET_KEY=' .env.local | cut -d= -f2-)
+            echo "::add-mask::$DYN_KEY"
+            echo "::add-mask::$DYN_SECRET"
 
-            (crontab -l 2>/dev/null | grep -v '# visualdesign-dns-retry'; \
-              echo "*/30 * * * * curl -fsS -H \"Host: teste.visualdesignmoz.com\" -H \"Authorization: Bearer ${CRON_SECRET_VALUE}\" http://127.0.0.1:3002/api/cron/dns-retry >> /var/log/visualdesign-cron.log 2>&1 # visualdesign-dns-retry") | crontab -
-            (crontab -l 2>/dev/null | grep -v '# visualdesign-brevo-retry'; \
-              echo "*/30 * * * * curl -fsS -H \"Host: teste.visualdesignmoz.com\" -H \"Authorization: Bearer ${CRON_SECRET_VALUE}\" http://127.0.0.1:3002/api/cron/brevo-retry >> /var/log/visualdesign-cron.log 2>&1 # visualdesign-brevo-retry") | crontab -
+            echo "===== ZONA CLOUDFLARE (procura por nome) ====="
+            ZONE_JSON=$(curl -sS -H "X-Auth-Email: $CF_EMAIL" -H "X-Auth-Key: $CF_KEY" -H "Content-Type: application/json" "https://api.cloudflare.com/client/v4/zones?name=entrecamposblog.com")
+            echo "$ZONE_JSON"
+            ZONE_ID=$(echo "$ZONE_JSON" | node -e "let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>{try{const j=JSON.parse(d);console.log(j.result && j.result[0] ? j.result[0].id : '');}catch(e){console.log('');}})")
+            echo ""
+            echo "ZONE_ID=$ZONE_ID"
 
-            echo "===== CRONTAB CORRIGIDA ====="
-            crontab -l | grep visualdesign
+            if [ -n "$ZONE_ID" ]; then
+              echo ""
+              echo "===== REGISTOS DNS NA ZONA ====="
+              curl -sS -H "X-Auth-Email: $CF_EMAIL" -H "X-Auth-Key: $CF_KEY" -H "Content-Type: application/json" "https://api.cloudflare.com/client/v4/zones/$ZONE_ID/dns_records?per_page=100"
+            fi
 
             echo ""
-            echo "===== TESTE dns-retry ====="
-            curl -sS -w "\nHTTP_STATUS:%{http_code}\n" -H "Host: teste.visualdesignmoz.com" -H "Authorization: Bearer ${CRON_SECRET_VALUE}" http://127.0.0.1:3002/api/cron/dns-retry
             echo ""
-            echo "===== TESTE brevo-retry ====="
-            curl -sS -w "\nHTTP_STATUS:%{http_code}\n" -H "Host: teste.visualdesignmoz.com" -H "Authorization: Bearer ${CRON_SECRET_VALUE}" http://127.0.0.1:3002/api/cron/brevo-retry
-
-  hetzner:
-    name: hetzner
-    runs-on: ubuntu-latest
-    steps:
-      - name: Setup SSH key
-        run: |
-          mkdir -p ~/.ssh
-          echo "${{ secrets.HETZNER_SSH_KEY }}" > ~/.ssh/deploy_key
-          chmod 600 ~/.ssh/deploy_key
-          ssh-keyscan -p "${{ secrets.HETZNER_PORT }}" "${{ secrets.HETZNER_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
-      - name: Corrige e testa
-        uses: appleboy/ssh-action@v1.2.5
-        with:
-          host: ${{ secrets.HETZNER_HOST }}
-          port: ${{ secrets.HETZNER_PORT }}
-          username: ${{ secrets.HETZNER_USER }}
-          key: ${{ secrets.HETZNER_SSH_KEY }}
-          command_timeout: 5m
-          script: |
-            set -e
-            cd /opt/visualdesign-site
-            CRON_SECRET_VALUE=$(grep '^CRON_SECRET=' .env.local | cut -d= -f2-)
-            echo "::add-mask::$CRON_SECRET_VALUE"
-
-            (crontab -l 2>/dev/null | grep -v '# visualdesign-renewal-check'; \
-              echo "*/30 * * * * curl -fsS -H \"Host: visualdesignmoz.com\" \"http://127.0.0.1:3003/api/cron/renewal-check?secret=${CRON_SECRET_VALUE}\" >> /var/log/visualdesign-cron.log 2>&1 # visualdesign-renewal-check") | crontab -
-            (crontab -l 2>/dev/null | grep -v '# visualdesign-da-sync'; \
-              echo "*/20 * * * * curl -fsS -H \"Host: visualdesignmoz.com\" -H \"Authorization: Bearer ${CRON_SECRET_VALUE}\" http://127.0.0.1:3003/api/cron/da-sync >> /var/log/visualdesign-cron.log 2>&1 # visualdesign-da-sync") | crontab -
-            (crontab -l 2>/dev/null | grep -v '# visualdesign-dns-retry'; \
-              echo "*/30 * * * * curl -fsS -H \"Host: visualdesignmoz.com\" -H \"Authorization: Bearer ${CRON_SECRET_VALUE}\" http://127.0.0.1:3003/api/cron/dns-retry >> /var/log/visualdesign-cron.log 2>&1 # visualdesign-dns-retry") | crontab -
-            (crontab -l 2>/dev/null | grep -v '# visualdesign-brevo-retry'; \
-              echo "*/30 * * * * curl -fsS -H \"Host: visualdesignmoz.com\" -H \"Authorization: Bearer ${CRON_SECRET_VALUE}\" http://127.0.0.1:3003/api/cron/brevo-retry >> /var/log/visualdesign-cron.log 2>&1 # visualdesign-brevo-retry") | crontab -
-
-            echo "===== CRONTAB CORRIGIDA (tags visualdesign, exclui a legacy das 6h) ====="
-            crontab -l | grep '# visualdesign'
+            echo "===== NAMESERVERS REAIS NO DYNADOT (registador) ====="
+            curl -sS "https://api.dynadot.com/restful/v1/domains/entrecamposblog.com/nameservers?key=${DYN_KEY}"
 
             echo ""
-            echo "===== TESTE dns-retry ====="
-            curl -sS -w "\nHTTP_STATUS:%{http_code}\n" -H "Host: visualdesignmoz.com" -H "Authorization: Bearer ${CRON_SECRET_VALUE}" http://127.0.0.1:3003/api/cron/dns-retry
             echo ""
-            echo "===== TESTE da-sync ====="
-            curl -sS -w "\nHTTP_STATUS:%{http_code}\n" -H "Host: visualdesignmoz.com" -H "Authorization: Bearer ${CRON_SECRET_VALUE}" http://127.0.0.1:3003/api/cron/da-sync
-            echo ""
-            echo "===== TESTE renewal-check ====="
-            curl -sS -w "\nHTTP_STATUS:%{http_code}\n" -H "Host: visualdesignmoz.com" "http://127.0.0.1:3003/api/cron/renewal-check?secret=${CRON_SECRET_VALUE}"
+            echo "===== dig NS PUBLICO ====="
+            dig +short NS entrecamposblog.com
+            echo "===== dig A PUBLICO ====="
+            dig +short A entrecamposblog.com
