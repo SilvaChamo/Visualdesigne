@@ -1,38 +1,9 @@
-name: "Ops - Fase 91. Compara IPs sem os mostrar (mascarados como segredo)"
+name: "Ops - Fase 92. Confirma se o Contabo serve bem o oshercollective (antes de mudar DNS)"
 
 on:
   workflow_dispatch:
 
 jobs:
-  hetzner:
-    name: hetzner
-    runs-on: ubuntu-latest
-    steps:
-      - name: Setup SSH key
-        run: |
-          mkdir -p ~/.ssh
-          echo "${{ secrets.HETZNER_SSH_KEY }}" > ~/.ssh/deploy_key
-          chmod 600 ~/.ssh/deploy_key
-          ssh-keyscan -p "${{ secrets.HETZNER_PORT }}" "${{ secrets.HETZNER_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
-      - name: Compara IP do Hetzner
-        uses: appleboy/ssh-action@v1.2.5
-        with:
-          host: ${{ secrets.HETZNER_HOST }}
-          port: ${{ secrets.HETZNER_PORT }}
-          username: ${{ secrets.HETZNER_USER }}
-          key: ${{ secrets.HETZNER_SSH_KEY }}
-          command_timeout: 2m
-          script: |
-            MYIP=$(curl -s https://api.ipify.org)
-            if [ "$MYIP" = "37.27.17.25" ]; then
-              echo "RESULTADO: este servidor (Hetzner) TEM o IP 37.27.17.25"
-            else
-              echo "RESULTADO: este servidor (Hetzner) NAO tem o IP 37.27.17.25"
-            fi
-            echo "---"
-            echo "===== dns real de oshercollective.com apontado deste lado ====="
-            getent hosts oshercollective.com 2>&1
-
   contabo:
     name: contabo
     runs-on: ubuntu-latest
@@ -43,7 +14,7 @@ jobs:
           echo "${{ secrets.CONTABO_SSH_KEY }}" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
           ssh-keyscan "${{ secrets.CONTABO_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
-      - name: Compara IP do Contabo
+      - name: Testa localmente no Contabo
         uses: appleboy/ssh-action@v1.2.5
         with:
           host: ${{ secrets.CONTABO_HOST }}
@@ -51,12 +22,13 @@ jobs:
           key: ${{ secrets.CONTABO_SSH_KEY }}
           command_timeout: 2m
           script: |
-            MYIP=$(curl -s https://api.ipify.org)
-            if [ "$MYIP" = "37.27.17.25" ]; then
-              echo "RESULTADO: este servidor (Contabo) TEM o IP 37.27.17.25"
-            else
-              echo "RESULTADO: este servidor (Contabo) NAO tem o IP 37.27.17.25"
-            fi
-            echo "---"
-            echo "===== ficheiro de config web do oshercollective (ips/ssl reais) ====="
-            grep -E "^IP=|^SSL=|^LETSENCRYPT=" /usr/local/hestia/data/users/oshercollective/web.conf 2>&1 | head -20
+            set +e
+            echo "===== testa cada dominio via localhost, forcando o host header (ignora dns) ====="
+            for d in oshercollective.com msdn-moz.org lirandzojewelry.com elimservicos.com shalomdeco.com; do
+              echo "--- $d ---"
+              curl -sSI --max-time 8 -k --resolve "$d:443:127.0.0.1" "https://$d/" 2>&1 | head -4
+            done
+
+            echo ""
+            echo "===== ssl real gerado para estes dominios no contabo (letsencrypt) ====="
+            ls -la /usr/local/hestia/data/users/oshercollective/ssl/ 2>&1 | head -20
