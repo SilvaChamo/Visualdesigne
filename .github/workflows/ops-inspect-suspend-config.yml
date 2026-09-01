@@ -1,4 +1,4 @@
-name: "Ops - Fase 62. Reactiva o tema real (oceanwp) e confirma a homepage"
+name: "Ops - Fase 63. Repoe o tema oceanwp oficial (falta style.css) e activa"
 
 on:
   workflow_dispatch:
@@ -14,7 +14,7 @@ jobs:
           echo "${{ secrets.HETZNER_SSH_KEY }}" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
           ssh-keyscan -p "${{ secrets.HETZNER_PORT }}" "${{ secrets.HETZNER_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
-      - name: Reactiva
+      - name: Repoe e activa
         uses: appleboy/ssh-action@v1.2.5
         with:
           host: ${{ secrets.HETZNER_HOST }}
@@ -25,20 +25,20 @@ jobs:
           script: |
             set +e
             ROOT=/home/admin/domains/aamihe.com/public_html
-            echo "===== estado actual (antes) ====="
-            /usr/local/bin/wp --allow-root --path="$ROOT" option get template 2>&1
-            /usr/local/bin/wp --allow-root --path="$ROOT" option get stylesheet 2>&1
-            /usr/local/bin/wp --allow-root --path="$ROOT" theme list 2>&1
+            echo "===== o que resta do tema oceanwp agora ====="
+            ls -la "$ROOT/wp-content/themes/oceanwp/" 2>&1 | head -20
 
             echo ""
-            echo "===== activa oceanwp (o tema real do site) ====="
+            echo "===== descarrega a versao oficial de novo (nao mexe noutros temas/plugins) ====="
+            /usr/local/bin/wp --allow-root --path="$ROOT" theme install oceanwp --force 2>&1
+            chown -R admin:admin "$ROOT/wp-content/themes/oceanwp"
+
+            echo ""
+            echo "===== activa ====="
             /usr/local/bin/wp --allow-root --path="$ROOT" theme activate oceanwp 2>&1
-
-            echo ""
-            echo "===== confirma ====="
             /usr/local/bin/wp --allow-root --path="$ROOT" theme list --status=active 2>&1
 
-      - name: Confirma a homepage a sério
+      - name: Confirma a homepage a serio
         run: |
           sleep 3
           curl -sSL -o /tmp/check.html --max-time 15 https://aamihe.com/
