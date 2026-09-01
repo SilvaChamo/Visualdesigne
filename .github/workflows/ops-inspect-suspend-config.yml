@@ -1,4 +1,4 @@
-name: "Ops - Fase 103. Recarrega o Apache (le os certificados corretos) e testa"
+name: "Ops - Fase 104. SO LEITURA - quem trata mesmo da porta 443 no Hetzner"
 
 on:
   workflow_dispatch:
@@ -14,7 +14,7 @@ jobs:
           echo "${{ secrets.HETZNER_SSH_KEY }}" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
           ssh-keyscan -p "${{ secrets.HETZNER_PORT }}" "${{ secrets.HETZNER_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
-      - name: Recarrega e testa
+      - name: Investiga
         uses: appleboy/ssh-action@v1.2.5
         with:
           host: ${{ secrets.HETZNER_HOST }}
@@ -24,18 +24,19 @@ jobs:
           command_timeout: 2m
           script: |
             set +e
-            echo "===== testa a configuracao antes de recarregar (nao aplica nada se tiver erro) ====="
-            apachectl -t 2>&1
+            echo "===== quem ouve na porta 443? ====="
+            ss -tlnp 2>&1 | grep ":443"
 
             echo ""
-            echo "===== recarrega ====="
-            systemctl reload httpd 2>&1
-            echo "resultado: $?"
+            echo "===== nginx esta instalado/activo neste servidor? ====="
+            systemctl is-active nginx 2>&1
+            which nginx 2>&1
 
             echo ""
-            sleep 2
-            echo "===== testa outra vez qual certificado cada dominio mostra agora ====="
-            for d in oshercollective.com msdn-moz.org lirandzojewelry.com; do
-              echo "--- $d ---"
-              echo | openssl s_client -connect 127.0.0.1:443 -servername "$d" 2>/dev/null | openssl x509 -noout -subject -dates 2>&1
-            done
+            echo "===== onde esta o certificado host.visualdesignmoz.com definido (para saber quem o esta a usar por defeito) ====="
+            grep -rl "host.visualdesignmoz.com" /usr/local/directadmin/data/users/*/httpd.conf 2>/dev/null
+            find /etc/nginx -iname "*.conf" 2>/dev/null | xargs grep -l "host.visualdesignmoz.com\|SSLCertificate\|ssl_certificate" 2>/dev/null | head -10
+
+            echo ""
+            echo "===== qual e o PRIMEIRO vhost ssl carregado (o que vira o default quando SNI nao bate certo) ====="
+            apachectl -S 2>&1 | grep -B1 "is a NameVirtualHost\|default server" | head -20
