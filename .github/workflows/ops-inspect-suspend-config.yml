@@ -1,9 +1,35 @@
-name: "Ops - Fase 89. Verifica porque a oshercollective parece offline"
+name: "Ops - Fase 90. Confirma os IPs reais dos dois servidores"
 
 on:
   workflow_dispatch:
 
 jobs:
+  hetzner:
+    name: hetzner
+    runs-on: ubuntu-latest
+    steps:
+      - name: Setup SSH key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.HETZNER_SSH_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -p "${{ secrets.HETZNER_PORT }}" "${{ secrets.HETZNER_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
+      - name: IP do Hetzner
+        uses: appleboy/ssh-action@v1.2.5
+        with:
+          host: ${{ secrets.HETZNER_HOST }}
+          port: ${{ secrets.HETZNER_PORT }}
+          username: ${{ secrets.HETZNER_USER }}
+          key: ${{ secrets.HETZNER_SSH_KEY }}
+          command_timeout: 2m
+          script: |
+            echo "HETZNER_HOST configurado como: ${{ secrets.HETZNER_HOST }}"
+            hostname -I 2>&1
+            curl -s https://api.ipify.org 2>&1
+            echo ""
+            echo "--- vhosts que respondem a oshercollective neste servidor ---"
+            grep -ril "oshercollective" /usr/local/directadmin/data/users/*/httpd.conf 2>/dev/null
+
   contabo:
     name: contabo
     runs-on: ubuntu-latest
@@ -14,35 +40,17 @@ jobs:
           echo "${{ secrets.CONTABO_SSH_KEY }}" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
           ssh-keyscan "${{ secrets.CONTABO_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
-      - name: Investiga
+      - name: IP do Contabo
         uses: appleboy/ssh-action@v1.2.5
         with:
           host: ${{ secrets.CONTABO_HOST }}
           username: root
           key: ${{ secrets.CONTABO_SSH_KEY }}
-          command_timeout: 3m
+          command_timeout: 2m
           script: |
-            set +e
-            echo "===== conta oshercollective existe no hestia? estado? ====="
-            v-list-user oshercollective 2>&1
-
+            echo "CONTABO_HOST configurado como: ${{ secrets.CONTABO_HOST }}"
+            hostname -I 2>&1
+            curl -s https://api.ipify.org 2>&1
             echo ""
-            echo "===== dominios desta conta ====="
-            v-list-web-domains oshercollective 2>&1
-
-            echo ""
-            echo "===== a conta esta suspensa? ====="
-            grep -i "SUSPENDED" /usr/local/hestia/data/users/oshercollective/user.conf 2>&1
-
-            echo ""
-            echo "===== nginx/apache deste utilizador esta a correr? ====="
-            systemctl is-active nginx 2>&1
-            systemctl is-active httpd 2>&1
-            systemctl is-active apache2 2>&1
-
-            echo ""
-            echo "===== teste directo aos dominios (se conseguir adivinhar pelo nome) ====="
-            for d in oshercollective.com oshercollective.co.mz osher.co.mz; do
-              echo "--- $d ---"
-              curl -sSI --max-time 8 "https://$d/" 2>&1 | head -3
-            done
+            echo "--- dominios reais desta conta oshercollective ---"
+            cat /usr/local/hestia/data/users/oshercollective/web.conf 2>&1 | grep -oE "DOMAIN='[^']*'"
