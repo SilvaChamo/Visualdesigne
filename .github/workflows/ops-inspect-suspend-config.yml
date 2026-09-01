@@ -1,31 +1,9 @@
-name: "Ops - Fase 17a. Adiciona coluna brevo_verified (Hetzner + Contabo)"
+name: "Ops - Fase 17b. Confirma crontab + saude app + dispara brevo-retry (Contabo)"
 
 on:
   workflow_dispatch:
 
 jobs:
-  hetzner:
-    name: hetzner
-    runs-on: ubuntu-latest
-    steps:
-      - name: Setup SSH key
-        run: |
-          mkdir -p ~/.ssh
-          echo "${{ secrets.HETZNER_SSH_KEY }}" > ~/.ssh/deploy_key
-          chmod 600 ~/.ssh/deploy_key
-          ssh-keyscan -p "${{ secrets.HETZNER_PORT }}" "${{ secrets.HETZNER_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
-      - name: Migra
-        uses: appleboy/ssh-action@v1.2.5
-        with:
-          host: ${{ secrets.HETZNER_HOST }}
-          port: ${{ secrets.HETZNER_PORT }}
-          username: ${{ secrets.HETZNER_USER }}
-          key: ${{ secrets.HETZNER_SSH_KEY }}
-          command_timeout: 2m
-          script: |
-            docker exec -i supabase-db psql -U postgres -d postgres -c "ALTER TABLE domain_renewals ADD COLUMN IF NOT EXISTS brevo_verified boolean NOT NULL DEFAULT false;"
-            docker exec -i supabase-db psql -U postgres -d postgres -c "\d domain_renewals" | grep brevo_verified
-
   contabo:
     name: contabo
     runs-on: ubuntu-latest
@@ -36,13 +14,39 @@ jobs:
           echo "${{ secrets.CONTABO_SSH_KEY }}" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
           ssh-keyscan "${{ secrets.CONTABO_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
-      - name: Migra
+      - name: Verifica
         uses: appleboy/ssh-action@v1.2.5
         with:
           host: ${{ secrets.CONTABO_HOST }}
           username: root
           key: ${{ secrets.CONTABO_SSH_KEY }}
-          command_timeout: 2m
+          command_timeout: 5m
           script: |
-            docker exec -i supabase-db psql -U postgres -d postgres -c "ALTER TABLE domain_renewals ADD COLUMN IF NOT EXISTS brevo_verified boolean NOT NULL DEFAULT false;"
-            docker exec -i supabase-db psql -U postgres -d postgres -c "\d domain_renewals" | grep brevo_verified
+            set -e
+            echo "===== CRONTAB ====="
+            crontab -l | grep -E 'visualdesign|#' || echo "(sem crontab visualdesign)"
+
+            echo ""
+            echo "===== PM2 STATUS ====="
+            pm2 jlist | node -e "
+              const data = JSON.parse(require('fs').readFileSync(0, 'utf8'));
+              for (const p of data) {
+                console.log(p.name, '| status:', p.pm2_env.status, '| restarts:', p.pm2_env.restart_time, '| unstable:', p.pm2_env.unstable_restarts);
+              }
+            " 2>/dev/null || pm2 status
+
+            echo ""
+            echo "===== ULTIMAS LINHAS DO ERROR LOG ====="
+            pm2 logs visualdesign-site-teste --lines 30 --nostream --err 2>/dev/null | tail -40 || echo "(sem log de erro)"
+
+            echo ""
+            echo "===== DISPARA brevo-retry MANUALMENTE ====="
+            cd /opt/visualdesign-site-teste
+            CRON_SECRET_VALUE=$(grep '^CRON_SECRET=' .env.local | cut -d= -f2-)
+            echo "::add-mask::$CRON_SECRET_VALUE"
+            curl -fsS -H "Authorization: Bearer ${CRON_SECRET_VALUE}" http://127.0.0.1:3002/api/cron/brevo-retry
+            echo ""
+
+            echo ""
+            echo "===== ESTADO entrecamposblog.com NA BD ====="
+            docker exec -i supabase-db psql -U postgres -d postgres -t -A -c "select domain_name, dns_status, brevo_verified, updated_at from domain_renewals where domain_name = 'entrecamposblog.com';"
