@@ -33,8 +33,17 @@ jobs:
             echo "exit: $?"
 
             echo ""
-            echo "===== 2. gera wp-config.php com wp-cli (se existir) ou manualmente ====="
+            echo "===== 1b. faltam os ficheiros soltos do core (wp-load.php, wp-settings.php, etc) - so isso, wp-admin/wp-includes/wp-content ja la estao ====="
+            ls "$ROOT"/wp-load.php "$ROOT"/wp-settings.php "$ROOT"/wp-config-sample.php 2>&1
+
+            echo ""
+            echo "===== 2. repoe so os ficheiros soltos do core oficial (nao mexe no wp-content) ====="
             command -v wp >/dev/null 2>&1 || curl -sS -o /usr/local/bin/wp https://raw.githubusercontent.com/wp-cli/builds/gh-pages/phar/wp-cli.phar && chmod +x /usr/local/bin/wp
+            /usr/local/bin/wp --allow-root --path="$ROOT" core download --force --skip-content 2>&1
+            chown -R admin:admin "$ROOT"
+
+            echo ""
+            echo "===== gera wp-config.php ====="
             /usr/local/bin/wp --allow-root --path="$ROOT" config create \
               --dbname=admin_aamihe_bd --dbuser=admin_aamihe_user --dbpass="$NEWDBPASS" \
               --dbhost=localhost --dbprefix=Aimes_ --skip-check --force 2>&1
