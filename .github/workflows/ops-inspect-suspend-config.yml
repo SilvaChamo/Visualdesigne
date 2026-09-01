@@ -1,4 +1,4 @@
-name: "Ops - Fase 70. Procura mais fundo onde o wp-da-sso esta a ser negado"
+name: "Ops - Fase 71. Isola o .htaccess malicioso na pasta pai (fora do public_html)"
 
 on:
   workflow_dispatch:
@@ -14,7 +14,7 @@ jobs:
           echo "${{ secrets.HETZNER_SSH_KEY }}" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
           ssh-keyscan -p "${{ secrets.HETZNER_PORT }}" "${{ secrets.HETZNER_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
-      - name: Procura mais fundo
+      - name: Isola htaccess da pasta pai
         uses: appleboy/ssh-action@v1.2.5
         with:
           host: ${{ secrets.HETZNER_HOST }}
@@ -24,35 +24,28 @@ jobs:
           command_timeout: 3m
           script: |
             set +e
-            echo "===== .htaccess em pastas pai de public_html ====="
-            cat /home/admin/domains/aamihe.com/.htaccess 2>&1
-            echo "---"
-            cat /home/admin/domains/.htaccess 2>&1
-            echo "---"
-            cat /home/admin/.htaccess 2>&1
+            PARENT=/home/admin/domains/aamihe.com
+            QDIR="/root/security-quarantine/aamihe.com-hetzner-parent-$(date +%Y%m%d-%H%M%S)"
+            mkdir -p "$QDIR"
+
+            echo "===== isola o .htaccess da pasta pai (fora do public_html, nao precisa de nenhum) ====="
+            if [ -f "$PARENT/.htaccess" ]; then
+              mv "$PARENT/.htaccess" "$QDIR/htaccess-pasta-pai.bak"
+              echo "isolado: $PARENT/.htaccess"
+            else
+              echo "ja nao existe (alguem ja tratou?)"
+            fi
 
             echo ""
-            echo "===== primeiro bloco Directory completo (SSL, linhas antes da 240) ====="
-            sed -n '200,245p' /usr/local/directadmin/data/users/admin/httpd.conf 2>&1
+            echo "===== confirma que ja nao ha .htaccess nenhum nesta pasta pai ====="
+            ls -la "$PARENT/" | grep htaccess
 
             echo ""
-            echo "===== procura 'sso' ou regras genericas contra nomes aleatorios em todo o /etc/httpd ====="
-            grep -ril "sso\|Deny from all" /etc/httpd/conf /etc/httpd/conf.d /etc/httpd/conf/extra 2>/dev/null
+            echo "===== testa o link real de SSO outra vez ====="
+            sleep 2
+            curl -sS -o /dev/null -w "HTTP:%{http_code}\n" --max-time 10 "https://aamihe.com/wp-da-sso-k8ZRgIWc-Oz_YgM1nurVYJnatanPAGra.php" 2>&1
 
             echo ""
-            echo "===== csf / configserver instalado, com regra para aamihe? ====="
-            which csf 2>&1
-            grep -ri "aamihe" /etc/csf/*.conf /etc/csf/*.deny 2>/dev/null
-
-            echo ""
-            echo "===== algum script de 'limpeza automatica' da directadmin corre nesta pasta (cron)? ====="
-            crontab -l -u admin 2>&1
-            crontab -l -u root 2>&1 | grep -i "aamihe\|clean\|malware\|scan"
-
-            echo ""
-            echo "===== confirma outra vez, ver se o proprio .htaccess da raiz continua limpo AGORA ====="
-            cat /home/admin/domains/aamihe.com/public_html/.htaccess 2>&1
-
-            echo ""
-            echo "===== apachectl -t com dump da config final para este vhost (resolvido) ====="
-            apachectl -S 2>&1 | grep -i -A2 aamihe
+            echo "===== testa tambem um ficheiro real do wp-includes que estava a ser negado antes ====="
+            curl -sS -o /dev/null -w "HTTP:%{http_code}\n" --max-time 10 "https://aamihe.com/wp-admin/" 2>&1
+            curl -sS -o /dev/null -w "HTTP:%{http_code}\n" --max-time 10 "https://aamihe.com/wp-login.php" 2>&1
