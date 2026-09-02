@@ -299,6 +299,14 @@ export function ClientesDaSection({
 
   useEffect(() => { load(); }, [load]);
 
+  // Popup flutuante (mesmo padrão do Webmail) em vez do aviso fixo no fluxo
+  // da página — desaparece sozinho ao fim de 4s, sem precisar de container.
+  useEffect(() => {
+    if (!msg) return;
+    const timer = window.setTimeout(() => setMsg(''), 4000);
+    return () => window.clearTimeout(timer);
+  }, [msg]);
+
   useEffect(() => {
     if (!isActive || view !== 'list' || users.length === 0) return;
     const pending = consumeHostingAccountEdit();
@@ -660,9 +668,21 @@ export function ClientesDaSection({
       </div>
 
       {msg ? (
-        <p className={`text-sm p-2 rounded ${msg.includes('✅') || msg.includes('criada') ? 'bg-green-50 text-green-800' : 'bg-red-50 text-red-700'}`}>
-          {msg}
-        </p>
+        <div
+          className={`fixed top-4 right-4 z-50 flex items-center gap-3 rounded-lg border-l-4 px-4 py-3 text-sm font-medium shadow-lg transition-all ${
+            msg.includes('❌') ? 'border-red-500 bg-red-50 text-red-700' : 'border-green-500 bg-green-50 text-green-700'
+          }`}
+        >
+          <span>{msg.replace(/^[✅❌]\s*/, '')}</span>
+          <button
+            type="button"
+            onClick={() => setMsg('')}
+            aria-label="Fechar"
+            className="text-current opacity-60 transition-opacity hover:opacity-100"
+          >
+            <X size={16} />
+          </button>
+        </div>
       ) : null}
 
       <div className="overflow-x-auto rounded border border-gray-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
