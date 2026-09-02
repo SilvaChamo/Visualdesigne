@@ -1,4 +1,4 @@
-name: "Ops - Fase 112. SO LEITURA - confirma se as contas hestia tem pacote atribuido"
+name: "Ops - Fase 113. SO LEITURA - disco real no Contabo (hestia) vs mostrado no painel"
 
 on:
   workflow_dispatch:
@@ -14,7 +14,7 @@ jobs:
           echo "${{ secrets.CONTABO_SSH_KEY }}" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
           ssh-keyscan "${{ secrets.CONTABO_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
-      - name: Confirma pacotes (so leitura)
+      - name: Confirma disco real e o que a Hestia guarda
         uses: appleboy/ssh-action@v1.2.5
         with:
           host: ${{ secrets.CONTABO_HOST }}
@@ -23,10 +23,19 @@ jobs:
           command_timeout: 2m
           script: |
             set +e
-            echo "===== lista de utilizadores reais no hestia, com o pacote atribuido ====="
-            /usr/local/hestia/bin/v-list-users json 2>&1 | head -c 4000
+            for u in aamihe oshercollective provisualcorporate; do
+              echo "===== $u - disco real agora (du -sh de toda a conta) ====="
+              du -sh /home/$u 2>&1 | tail -1
+              du -sh /home/$u/web/*/public_html 2>&1
+              echo ""
+            done
+
+            echo "===== U_DISK guardado no hestia agora, para as 3 contas ====="
+            /usr/local/hestia/bin/v-list-users json > /tmp/hu.json 2>&1
+            python3 -c "import json; d=json.load(open('/tmp/hu.json')); [print(u, '-> U_DISK:', d[u].get('U_DISK'), 'PACKAGE:', d[u].get('PACKAGE'), 'DISK_QUOTA:', d[u].get('DISK_QUOTA')) for u in ['aamihe','oshercollective','provisualcorporate'] if u in d]"
 
             echo ""
-            echo ""
-            echo "===== lista de pacotes disponiveis ====="
-            /usr/local/hestia/bin/v-list-user-packages 2>&1
+            echo "===== ha um cron a recalcular disco, e com que frequencia? ====="
+            grep -ril "disk" /etc/cron.d/hestia* 2>&1
+            cat /etc/cron.d/hestia* 2>&1 | grep -i "disk\|restart\|v-update"
+            crontab -l -u admin 2>&1 | grep -i "disk\|update"
