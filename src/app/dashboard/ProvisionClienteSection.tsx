@@ -527,14 +527,35 @@ export function ProvisionClienteSection({
             onChange={(e) => setDomain(e.target.value)}
             className={inputCls}
           />
-          {isEdit && hasHostingPackage && selectedPackage ? (
-            <p className="text-xs text-gray-500">
-              Pacote <strong>{selectedPackageName}</strong> · Disco {formatPackageLimit(selectedPackage.diskSpace, 'MB')} · BW{' '}
-              {formatPackageLimit(selectedPackage.bandwidth, 'MB')} · Emails {formatPackageLimit(selectedPackage.emailAccounts)} ·
-              Domínios {formatPackageLimit(selectedPackage.allowedDomains)}
-            </p>
-          ) : null}
         </div>
+        {isEdit ? (
+          <div className="space-y-1 sm:col-span-2">
+            <label className="text-xs font-medium text-zinc-500">Pacote de hospedagem</label>
+            <select
+              value={selectedPackageName}
+              onChange={(e) => setPackageName(e.target.value)}
+              className={inputCls}
+            >
+              <option value="">Conta simples (sem hospedagem)</option>
+              {packageOptions.map((p) => (
+                <option key={p.packageName} value={p.packageName}>
+                  {p.packageName}
+                </option>
+              ))}
+            </select>
+            {hasHostingPackage && selectedPackage ? (
+              <p className="text-xs text-gray-500">
+                Disco {formatPackageLimit(selectedPackage.diskSpace, 'MB')} · BW{' '}
+                {formatPackageLimit(selectedPackage.bandwidth, 'MB')} · Emails {formatPackageLimit(selectedPackage.emailAccounts)} ·
+                Domínios {formatPackageLimit(selectedPackage.allowedDomains)}
+              </p>
+            ) : hasHostingPackage ? (
+              <p className="text-xs text-amber-700">
+                Pacote actual «{selectedPackageName}» não está na lista de pacotes disponíveis — ao gravar, é aplicado à mesma.
+              </p>
+            ) : null}
+          </div>
+        ) : null}
         {!isEdit && panelScope === 'admin' && accountType !== 'client' ? (
           <div className="space-y-1 sm:col-span-2">
             <label className="text-xs font-medium text-zinc-500">Hospedagem</label>
