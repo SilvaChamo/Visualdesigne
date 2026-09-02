@@ -1,4 +1,4 @@
-name: "Ops - Fase 110. Reinicio completo do Apache (nao so recarregar) e testa"
+name: "Ops - Fase 111. SO LEITURA - investigacao a fundo do oshercollective.com"
 
 on:
   workflow_dispatch:
@@ -14,39 +14,36 @@ jobs:
           echo "${{ secrets.HETZNER_SSH_KEY }}" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
           ssh-keyscan -p "${{ secrets.HETZNER_PORT }}" "${{ secrets.HETZNER_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
-      - name: Reinicia e testa
+      - name: Investiga a fundo
         uses: appleboy/ssh-action@v1.2.5
         with:
           host: ${{ secrets.HETZNER_HOST }}
           port: ${{ secrets.HETZNER_PORT }}
           username: ${{ secrets.HETZNER_USER }}
           key: ${{ secrets.HETZNER_SSH_KEY }}
-          command_timeout: 2m
+          command_timeout: 3m
           script: |
             set +e
-            echo "===== confirma processos httpd antigos (antes) ====="
-            ps -eo pid,lstart,cmd | grep "[h]ttpd" | wc -l
+            WP="/usr/local/bin/wp --allow-root"
+            ROOT="/home/oshercollective/domains/oshercollective.com/public_html"
+
+            echo "===== ha processos httpd antigos (de antes do reinicio)? ====="
+            date
+            ps -eo pid,etimes,cmd 2>&1 | grep "[h]ttpd"
 
             echo ""
-            echo "===== testa a configuracao ====="
-            apachectl -t 2>&1
+            echo "===== siteurl e home no wordpress ====="
+            $WP option get siteurl --path="$ROOT" 2>&1
+            $WP option get home --path="$ROOT" 2>&1
 
             echo ""
-            echo "===== reinicio completo (nao graceful) ====="
-            systemctl restart httpd 2>&1
-            echo "resultado: $?"
-            sleep 3
+            echo "===== .htaccess na raiz deste site ====="
+            cat "$ROOT/.htaccess" 2>&1
 
             echo ""
-            echo "===== confirma que so ha processos novos agora ====="
-            ps -eo pid,lstart,cmd | grep "[h]ttpd" | wc -l
-            systemctl is-active httpd 2>&1
+            echo "===== plugins activos neste site (podem ter vindo do contabo com configuracao diferente) ====="
+            $WP plugin list --status=active --path="$ROOT" 2>&1
 
             echo ""
-            echo "===== testa os 3 dominios varias vezes seguidas, para apanhar qualquer inconsistencia ====="
-            for i in 1 2 3 4 5; do
-              for d in oshercollective.com msdn-moz.org lirandzojewelry.com; do
-                cert=$(echo | timeout 5 openssl s_client -connect "$d:443" -servername "$d" 2>/dev/null | openssl x509 -noout -subject 2>&1)
-                echo "tentativa $i - $d - $cert"
-              done
-            done
+            echo "===== teste com verbose completo, ve a cadeia toda de redireccionamentos ====="
+            curl -vL --max-time 15 --max-redirs 8 "https://oshercollective.com/" -o /dev/null 2>&1 | grep -iE "> GET|> Host|< HTTP|< location|Trying|Connected"
