@@ -1,4 +1,4 @@
-name: "Ops - Fase 116. SO LEITURA - elimservicos e conta hestia real separada, ou so resto no painel?"
+name: "Ops - Fase 117. Remove so a entrada elimservicos do panel_users (sem tocar no site)"
 
 on:
   workflow_dispatch:
@@ -14,7 +14,7 @@ jobs:
           echo "${{ secrets.CONTABO_SSH_KEY }}" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
           ssh-keyscan "${{ secrets.CONTABO_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
-      - name: Investiga (so leitura)
+      - name: Verifica login associado e remove
         uses: appleboy/ssh-action@v1.2.5
         with:
           host: ${{ secrets.CONTABO_HOST }}
@@ -23,21 +23,19 @@ jobs:
           command_timeout: 2m
           script: |
             set +e
-            echo "===== 'elimservicos' existe como utilizador real do hestia? ====="
-            /usr/local/hestia/bin/v-list-users 2>&1 | grep -i "elimservicos\|USER"
+            echo "===== tem login real associado (auth_user_id)? confirma provider guardado ====="
+            docker exec supabase-db psql -U postgres -d postgres -c "SELECT username, auth_user_id, hosting_provider, acl FROM panel_users WHERE username='elimservicos';" 2>&1
+            docker exec supabase-db psql -U postgres -d postgres -c "SELECT da_username, provider FROM panel_auth_accounts WHERE da_username='elimservicos';" 2>&1
 
             echo ""
-            echo "===== se existir, que dominios tem essa conta (deve estar vazia) ====="
-            /usr/local/hestia/bin/v-list-web-domains elimservicos 2>&1
+            echo "===== remove SO a entrada de conta (panel_users) - nao mexe em panel_sites nem no servidor ====="
+            docker exec supabase-db psql -U postgres -d postgres -c "DELETE FROM panel_users WHERE username='elimservicos';" 2>&1
+            docker exec supabase-db psql -U postgres -d postgres -c "DELETE FROM panel_auth_accounts WHERE da_username='elimservicos';" 2>&1
 
             echo ""
-            echo "===== confirma que elimservicos.com esta mesmo dentro da conta oshercollective ====="
-            /usr/local/hestia/bin/v-list-web-domains oshercollective 2>&1 | grep -i "DOMAIN\|elimservicos"
+            echo "===== confirma: elimservicos.com continua no panel_sites, dono oshercollective ====="
+            docker exec supabase-db psql -U postgres -d postgres -c "SELECT domain, owner FROM panel_sites WHERE domain ILIKE '%elimservicos%';" 2>&1
 
             echo ""
-            echo "===== o que a tabela panel_users guarda para 'elimservicos' (o resto no painel) ====="
-            docker exec supabase-db psql -U postgres -d postgres -c "SELECT username, email, acl, status, package_name FROM panel_users WHERE username='elimservicos';" 2>&1
-
-            echo ""
-            echo "===== 'elimservicos.com' aparece como site separado em panel_sites, com que dono? ====="
-            docker exec supabase-db psql -U postgres -d postgres -c "SELECT domain, owner, package FROM panel_sites WHERE domain ILIKE '%elimservicos%';" 2>&1
+            echo "===== confirma: o site continua a responder normalmente ====="
+            curl -sSI --max-time 10 https://elimservicos.com/ 2>&1 | head -3
