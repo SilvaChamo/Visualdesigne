@@ -315,18 +315,21 @@ jobs:
                    ('public-assets','noticias/images_1788472667794.jpeg'),
                    ('public-assets','noticias/images__1__1788473533503.jpeg')"
 
-          echo "--- confirma mais uma vez que não existem já no Contabo ---"
+          echo "--- estado actual no Contabo (idempotente: só faz o que ainda falta) ---"
           EXIST=$(ssh -i ~/.ssh/contabo_key "root@$CONTABO_HOST" "docker exec supabase-db psql -U postgres -d postgres -t -A -c \"SELECT count(*) FROM storage.objects WHERE (bucket_id,name) IN ($VALUES)\"")
-          echo "já existentes no Contabo (deve ser 0): $EXIST"
-          if [ "$EXIST" != "0" ]; then echo "ABORTAR: já existem, não escrevo nada"; exit 1; fi
+          echo "já existentes no Contabo: $EXIST (esperado 0 ou 6)"
 
-          echo "--- extrai do Hetzner ---"
-          REMOTE_SQL="COPY (SELECT $STORAGE_COLS FROM storage.objects WHERE (bucket_id,name) IN ($VALUES)) TO STDOUT"
-          ssh -i ~/.ssh/hetzner_key -p "$HETZNER_PORT" "$HETZNER_USER@$HETZNER_HOST" "docker exec supabase-db psql -U postgres -d postgres -c \"$REMOTE_SQL\"" > /tmp/transfer/storage_objects.copy
-          echo "linhas extraídas: $(wc -l < /tmp/transfer/storage_objects.copy)"
-
-          echo "--- insere no Contabo ---"
-          cat /tmp/transfer/storage_objects.copy | ssh -i ~/.ssh/contabo_key "root@$CONTABO_HOST" "docker exec -i supabase-db psql -U postgres -d postgres -c \"COPY storage.objects ($STORAGE_COLS) FROM STDIN\""
+          if [ "$EXIST" = "0" ]; then
+            echo "--- extrai e insere (ainda não existem no Contabo) ---"
+            REMOTE_SQL="COPY (SELECT $STORAGE_COLS FROM storage.objects WHERE (bucket_id,name) IN ($VALUES)) TO STDOUT"
+            ssh -i ~/.ssh/hetzner_key -p "$HETZNER_PORT" "$HETZNER_USER@$HETZNER_HOST" "docker exec supabase-db psql -U postgres -d postgres -c \"$REMOTE_SQL\"" > /tmp/transfer/storage_objects.copy
+            echo "linhas extraídas: $(wc -l < /tmp/transfer/storage_objects.copy)"
+            cat /tmp/transfer/storage_objects.copy | ssh -i ~/.ssh/contabo_key "root@$CONTABO_HOST" "docker exec -i supabase-db psql -U postgres -d postgres -c \"COPY storage.objects ($STORAGE_COLS) FROM STDIN\""
+          elif [ "$EXIST" = "6" ]; then
+            echo "as 6 linhas já foram inseridas numa tentativa anterior — não repito."
+          else
+            echo "ABORTAR: contagem inesperada ($EXIST), não mexo em nada"; exit 1
+          fi
 
           echo "--- confirma o resultado ---"
           ssh -i ~/.ssh/contabo_key "root@$CONTABO_HOST" "docker exec supabase-db psql -U postgres -d postgres -t -A -c \"SELECT bucket_id||'/'||name FROM storage.objects WHERE (bucket_id,name) IN ($VALUES) ORDER BY 1\""
