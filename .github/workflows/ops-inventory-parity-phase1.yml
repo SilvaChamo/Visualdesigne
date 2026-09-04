@@ -129,6 +129,10 @@ jobs:
                 SELECT string_agg(column_name, ',' ORDER BY ordinal_position)
                 FROM information_schema.columns
                 WHERE table_schema||'.'||table_name = '$t';" 2>&1
+              echo "--- colunas GERADAS (não podem ir na lista de COPY/INSERT) ---"
+              docker exec supabase-db psql -U postgres -d postgres -t -A -c "
+                SELECT column_name FROM information_schema.columns
+                WHERE table_schema||'.'||table_name = '$t' AND is_generated = 'ALWAYS';" 2>&1
             done
 
   localiza-ficheiros:
@@ -159,3 +163,139 @@ jobs:
             echo ""
             echo "=== localiza os 7 ficheiros específicos ==="
             find /opt/supabase-aamihe/docker/volumes/storage -iname "*FACIm_2026*" -o -iname "*postgres-2026-09-01*" 2>&1
+
+  copia-dados-em-falta:
+    name: copia-dados-em-falta
+    runs-on: ubuntu-latest
+    steps:
+      - name: Prepara chaves SSH para os dois servidores
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.HETZNER_SSH_KEY }}" > ~/.ssh/hetzner_key
+          chmod 600 ~/.ssh/hetzner_key
+          ssh-keyscan -p "${{ secrets.HETZNER_PORT }}" "${{ secrets.HETZNER_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
+          echo "${{ secrets.CONTABO_SSH_KEY }}" > ~/.ssh/contabo_key
+          chmod 600 ~/.ssh/contabo_key
+          ssh-keyscan "${{ secrets.CONTABO_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
+          mkdir -p /tmp/transfer
+
+      - name: Copia os 7 ficheiros do balde que só existem no Hetzner
+        env:
+          HETZNER_HOST: ${{ secrets.HETZNER_HOST }}
+          HETZNER_PORT: ${{ secrets.HETZNER_PORT }}
+          HETZNER_USER: ${{ secrets.HETZNER_USER }}
+          CONTABO_HOST: ${{ secrets.CONTABO_HOST }}
+        run: |
+          set -e
+          BASE="visualdesign-storage/stub"
+          echo "--- confirma que a mesma estrutura de pastas existe no Contabo ---"
+          ssh -i ~/.ssh/contabo_key "root@$CONTABO_HOST" "test -d /opt/supabase-contabo/docker/volumes/storage/$BASE && echo OK_ESTRUTURA_IGUAL || echo FALTA_ESTRUTURA"
+
+          FILES=(
+            "db-backups/postgres-2026-09-01_030002.sql.gz"
+            "public-assets/noticias/Ave-de-estimacao-na-gaiola-confortavel-dentro-de-casa_1788259948273.avif"
+            "public-assets/noticias/FACIm_2026_1788247873233.jpeg"
+            "public-assets/noticias/FAcim2026_1788261208812.jpeg"
+            "public-assets/noticias/IIAM_1788259001124.jpeg"
+            "public-assets/noticias/images_1788472667794.jpeg"
+            "public-assets/noticias/images__1__1788473533503.jpeg"
+          )
+          for f in "${FILES[@]}"; do
+            mkdir -p "/tmp/transfer/$(dirname "$f")"
+            scp -i ~/.ssh/hetzner_key -P "$HETZNER_PORT" \
+              "$HETZNER_USER@$HETZNER_HOST:/opt/supabase-aamihe/docker/volumes/storage/$BASE/$f" \
+              "/tmp/transfer/$f"
+          done
+          echo "--- ficheiros trazidos para o runner ---"
+          find /tmp/transfer -type f -exec ls -la {} \;
+
+          echo "--- confirma que ainda NÃO existem no Contabo antes de escrever ---"
+          for f in "${FILES[@]}"; do
+            EXISTS=$(ssh -i ~/.ssh/contabo_key "root@$CONTABO_HOST" "test -f /opt/supabase-contabo/docker/volumes/storage/$BASE/$f && echo SIM || echo NAO")
+            echo "$f -> já existe? $EXISTS"
+            if [ "$EXISTS" = "SIM" ]; then echo "ABORTAR: $f já existe no Contabo, não mexo"; exit 1; fi
+          done
+
+          echo "--- envia para o Contabo (ficheiros novos, não mexe em mais nada) ---"
+          for f in "${FILES[@]}"; do
+            ssh -i ~/.ssh/contabo_key "root@$CONTABO_HOST" "mkdir -p /opt/supabase-contabo/docker/volumes/storage/$BASE/$(dirname "$f")"
+            scp -i ~/.ssh/contabo_key "/tmp/transfer/$f" "root@$CONTABO_HOST:/opt/supabase-contabo/docker/volumes/storage/$BASE/$f"
+          done
+          echo "--- confirma no Contabo depois de copiar ---"
+          ssh -i ~/.ssh/contabo_key "root@$CONTABO_HOST" "find /opt/supabase-contabo/docker/volumes/storage/$BASE/public-assets/noticias /opt/supabase-contabo/docker/volumes/storage/$BASE/db-backups -type f -exec ls -la {} \;"
+
+      - name: Copia as 3 contas de login (auth.users + auth.identities) que só existem no Hetzner
+        env:
+          HETZNER_HOST: ${{ secrets.HETZNER_HOST }}
+          HETZNER_PORT: ${{ secrets.HETZNER_PORT }}
+          HETZNER_USER: ${{ secrets.HETZNER_USER }}
+          CONTABO_HOST: ${{ secrets.CONTABO_HOST }}
+        run: |
+          set -e
+          EMAILS="'duducahamatavele@gmail.com','media@oshercollective.com','merci.chamo@gmail.com'"
+          USERS_COLS="instance_id,id,aud,role,email,encrypted_password,email_confirmed_at,invited_at,confirmation_token,confirmation_sent_at,recovery_token,recovery_sent_at,email_change_token_new,email_change,email_change_sent_at,last_sign_in_at,raw_app_meta_data,raw_user_meta_data,is_super_admin,created_at,updated_at,phone,phone_confirmed_at,phone_change,phone_change_token,phone_change_sent_at,confirmed_at,email_change_token_current,email_change_confirm_status,banned_until,reauthentication_token,reauthentication_sent_at,is_sso_user,deleted_at,is_anonymous"
+          IDENT_COLS="provider_id,user_id,identity_data,provider,last_sign_in_at,created_at,updated_at,email,id"
+
+          echo "--- confirma mais uma vez que não existem já no Contabo ---"
+          EXIST=$(ssh -i ~/.ssh/contabo_key "root@$CONTABO_HOST" "docker exec supabase-db psql -U postgres -d postgres -t -A -c \"SELECT count(*) FROM auth.users WHERE email IN ($EMAILS)\"")
+          echo "já existentes no Contabo (deve ser 0): $EXIST"
+          if [ "$EXIST" != "0" ]; then echo "ABORTAR: já existem, não escrevo nada"; exit 1; fi
+
+          echo "--- extrai do Hetzner ---"
+          REMOTE_SQL_USERS="COPY (SELECT $USERS_COLS FROM auth.users WHERE email IN ($EMAILS)) TO STDOUT"
+          ssh -i ~/.ssh/hetzner_key -p "$HETZNER_PORT" "$HETZNER_USER@$HETZNER_HOST" "docker exec supabase-db psql -U postgres -d postgres -c \"$REMOTE_SQL_USERS\"" > /tmp/transfer/auth_users.copy
+          REMOTE_SQL_IDENT="COPY (SELECT $IDENT_COLS FROM auth.identities WHERE email IN ($EMAILS)) TO STDOUT"
+          ssh -i ~/.ssh/hetzner_key -p "$HETZNER_PORT" "$HETZNER_USER@$HETZNER_HOST" "docker exec supabase-db psql -U postgres -d postgres -c \"$REMOTE_SQL_IDENT\"" > /tmp/transfer/auth_identities.copy
+          echo "linhas extraídas: users=$(wc -l < /tmp/transfer/auth_users.copy) identities=$(wc -l < /tmp/transfer/auth_identities.copy)"
+
+          echo "--- insere no Contabo ---"
+          cat /tmp/transfer/auth_users.copy | ssh -i ~/.ssh/contabo_key "root@$CONTABO_HOST" "docker exec -i supabase-db psql -U postgres -d postgres -c \"COPY auth.users ($USERS_COLS) FROM STDIN\""
+          cat /tmp/transfer/auth_identities.copy | ssh -i ~/.ssh/contabo_key "root@$CONTABO_HOST" "docker exec -i supabase-db psql -U postgres -d postgres -c \"COPY auth.identities ($IDENT_COLS) FROM STDIN\""
+
+          echo "--- confirma o resultado ---"
+          ssh -i ~/.ssh/contabo_key "root@$CONTABO_HOST" "docker exec supabase-db psql -U postgres -d postgres -t -A -c \"SELECT email FROM auth.users WHERE email IN ($EMAILS) ORDER BY email\""
+
+      - name: Copia as 7 linhas de storage.objects que só existem no Hetzner
+        env:
+          HETZNER_HOST: ${{ secrets.HETZNER_HOST }}
+          HETZNER_PORT: ${{ secrets.HETZNER_PORT }}
+          HETZNER_USER: ${{ secrets.HETZNER_USER }}
+          CONTABO_HOST: ${{ secrets.CONTABO_HOST }}
+        run: |
+          set -e
+          STORAGE_COLS="id,bucket_id,name,owner,created_at,updated_at,last_accessed_at,metadata,version,owner_id,user_metadata"
+          VALUES="('db-backups','postgres-2026-09-01_030002.sql.gz'),
+                   ('public-assets','noticias/Ave-de-estimacao-na-gaiola-confortavel-dentro-de-casa_1788259948273.avif'),
+                   ('public-assets','noticias/FACIm_2026_1788247873233.jpeg'),
+                   ('public-assets','noticias/FAcim2026_1788261208812.jpeg'),
+                   ('public-assets','noticias/IIAM_1788259001124.jpeg'),
+                   ('public-assets','noticias/images_1788472667794.jpeg'),
+                   ('public-assets','noticias/images__1__1788473533503.jpeg')"
+
+          echo "--- confirma mais uma vez que não existem já no Contabo ---"
+          EXIST=$(ssh -i ~/.ssh/contabo_key "root@$CONTABO_HOST" "docker exec supabase-db psql -U postgres -d postgres -t -A -c \"SELECT count(*) FROM storage.objects WHERE (bucket_id,name) IN ($VALUES)\"")
+          echo "já existentes no Contabo (deve ser 0): $EXIST"
+          if [ "$EXIST" != "0" ]; then echo "ABORTAR: já existem, não escrevo nada"; exit 1; fi
+
+          echo "--- extrai do Hetzner ---"
+          REMOTE_SQL="COPY (SELECT $STORAGE_COLS FROM storage.objects WHERE (bucket_id,name) IN ($VALUES)) TO STDOUT"
+          ssh -i ~/.ssh/hetzner_key -p "$HETZNER_PORT" "$HETZNER_USER@$HETZNER_HOST" "docker exec supabase-db psql -U postgres -d postgres -c \"$REMOTE_SQL\"" > /tmp/transfer/storage_objects.copy
+          echo "linhas extraídas: $(wc -l < /tmp/transfer/storage_objects.copy)"
+
+          echo "--- insere no Contabo ---"
+          cat /tmp/transfer/storage_objects.copy | ssh -i ~/.ssh/contabo_key "root@$CONTABO_HOST" "docker exec -i supabase-db psql -U postgres -d postgres -c \"COPY storage.objects ($STORAGE_COLS) FROM STDIN\""
+
+          echo "--- confirma o resultado ---"
+          ssh -i ~/.ssh/contabo_key "root@$CONTABO_HOST" "docker exec supabase-db psql -U postgres -d postgres -t -A -c \"SELECT bucket_id||'/'||name FROM storage.objects WHERE (bucket_id,name) IN ($VALUES) ORDER BY 1\""
+
+      - name: Confirma que o Hetzner não foi tocado (contagens iguais às de antes)
+        env:
+          HETZNER_HOST: ${{ secrets.HETZNER_HOST }}
+          HETZNER_PORT: ${{ secrets.HETZNER_PORT }}
+          HETZNER_USER: ${{ secrets.HETZNER_USER }}
+        run: |
+          set -e
+          for t in auth.users auth.identities storage.objects panel_sites panel_users panel_auth_accounts; do
+            echo -n "$t: "
+            ssh -i ~/.ssh/hetzner_key -p "$HETZNER_PORT" "$HETZNER_USER@$HETZNER_HOST" "docker exec supabase-db psql -U postgres -d postgres -t -A -c \"SELECT count(*) FROM $t\""
+          done
