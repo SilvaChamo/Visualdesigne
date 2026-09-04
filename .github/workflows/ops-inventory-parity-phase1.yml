@@ -191,8 +191,12 @@ jobs:
           echo "--- confirma que a mesma estrutura de pastas existe no Contabo ---"
           ssh -i ~/.ssh/contabo_key "root@$CONTABO_HOST" "test -d /opt/supabase-contabo/docker/volumes/storage/$BASE && echo OK_ESTRUTURA_IGUAL || echo FALTA_ESTRUTURA"
 
+          # Nota (4 set, 2ª tentativa): "db-backups/postgres-2026-09-01_030002.sql.gz"
+          # foi removido desta lista — já não existe no disco do Hetzner (uma rotina
+          # própria do servidor substituiu-o por um backup mais recente entre a
+          # verificação e esta escrita). É só a cópia de segurança interna do Hetzner,
+          # não é conteúdo do utilizador — fora de âmbito, não voltar a incluir aqui.
           FILES=(
-            "db-backups/postgres-2026-09-01_030002.sql.gz"
             "public-assets/noticias/Ave-de-estimacao-na-gaiola-confortavel-dentro-de-casa_1788259948273.avif"
             "public-assets/noticias/FACIm_2026_1788247873233.jpeg"
             "public-assets/noticias/FAcim2026_1788261208812.jpeg"
@@ -200,29 +204,36 @@ jobs:
             "public-assets/noticias/images_1788472667794.jpeg"
             "public-assets/noticias/images__1__1788473533503.jpeg"
           )
+          COPIED=()
           for f in "${FILES[@]}"; do
+            REMOTE_EXISTS=$(ssh -i ~/.ssh/hetzner_key -p "$HETZNER_PORT" "$HETZNER_USER@$HETZNER_HOST" "test -f /opt/supabase-aamihe/docker/volumes/storage/$BASE/$f && echo SIM || echo NAO")
+            if [ "$REMOTE_EXISTS" != "SIM" ]; then
+              echo "AVISO: $f já não existe no Hetzner (mudou entretanto) — a saltar, não é erro fatal."
+              continue
+            fi
             mkdir -p "/tmp/transfer/$(dirname "$f")"
             scp -i ~/.ssh/hetzner_key -P "$HETZNER_PORT" \
               "$HETZNER_USER@$HETZNER_HOST:/opt/supabase-aamihe/docker/volumes/storage/$BASE/$f" \
               "/tmp/transfer/$f"
+            COPIED+=("$f")
           done
           echo "--- ficheiros trazidos para o runner ---"
           find /tmp/transfer -type f -exec ls -la {} \;
 
           echo "--- confirma que ainda NÃO existem no Contabo antes de escrever ---"
-          for f in "${FILES[@]}"; do
+          for f in "${COPIED[@]}"; do
             EXISTS=$(ssh -i ~/.ssh/contabo_key "root@$CONTABO_HOST" "test -f /opt/supabase-contabo/docker/volumes/storage/$BASE/$f && echo SIM || echo NAO")
             echo "$f -> já existe? $EXISTS"
             if [ "$EXISTS" = "SIM" ]; then echo "ABORTAR: $f já existe no Contabo, não mexo"; exit 1; fi
           done
 
           echo "--- envia para o Contabo (ficheiros novos, não mexe em mais nada) ---"
-          for f in "${FILES[@]}"; do
+          for f in "${COPIED[@]}"; do
             ssh -i ~/.ssh/contabo_key "root@$CONTABO_HOST" "mkdir -p /opt/supabase-contabo/docker/volumes/storage/$BASE/$(dirname "$f")"
             scp -i ~/.ssh/contabo_key "/tmp/transfer/$f" "root@$CONTABO_HOST:/opt/supabase-contabo/docker/volumes/storage/$BASE/$f"
           done
           echo "--- confirma no Contabo depois de copiar ---"
-          ssh -i ~/.ssh/contabo_key "root@$CONTABO_HOST" "find /opt/supabase-contabo/docker/volumes/storage/$BASE/public-assets/noticias /opt/supabase-contabo/docker/volumes/storage/$BASE/db-backups -type f -exec ls -la {} \;"
+          ssh -i ~/.ssh/contabo_key "root@$CONTABO_HOST" "find /opt/supabase-contabo/docker/volumes/storage/$BASE/public-assets/noticias -type f -exec ls -la {} \;"
 
       - name: Copia as 3 contas de login (auth.users + auth.identities) que só existem no Hetzner
         env:
@@ -264,8 +275,9 @@ jobs:
         run: |
           set -e
           STORAGE_COLS="id,bucket_id,name,owner,created_at,updated_at,last_accessed_at,metadata,version,owner_id,user_metadata"
-          VALUES="('db-backups','postgres-2026-09-01_030002.sql.gz'),
-                   ('public-assets','noticias/Ave-de-estimacao-na-gaiola-confortavel-dentro-de-casa_1788259948273.avif'),
+          # db-backups/postgres-2026-09-01_030002.sql.gz excluído de propósito (ver
+          # nota no passo anterior — ficheiro já não existe no Hetzner, rotacionado).
+          VALUES="('public-assets','noticias/Ave-de-estimacao-na-gaiola-confortavel-dentro-de-casa_1788259948273.avif'),
                    ('public-assets','noticias/FACIm_2026_1788247873233.jpeg'),
                    ('public-assets','noticias/FAcim2026_1788261208812.jpeg'),
                    ('public-assets','noticias/IIAM_1788259001124.jpeg'),
