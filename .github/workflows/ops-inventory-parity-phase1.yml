@@ -130,3 +130,32 @@ jobs:
                 FROM information_schema.columns
                 WHERE table_schema||'.'||table_name = '$t';" 2>&1
             done
+
+  localiza-ficheiros:
+    name: localiza-ficheiros
+    runs-on: ubuntu-latest
+    steps:
+      - name: Setup SSH key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.HETZNER_SSH_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -p "${{ secrets.HETZNER_PORT }}" "${{ secrets.HETZNER_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
+      - name: Localiza no disco os 7 ficheiros em falta + estrutura do volume storage
+        uses: appleboy/ssh-action@v1.2.5
+        with:
+          host: ${{ secrets.HETZNER_HOST }}
+          port: ${{ secrets.HETZNER_PORT }}
+          username: ${{ secrets.HETZNER_USER }}
+          key: ${{ secrets.HETZNER_SSH_KEY }}
+          command_timeout: 3m
+          script: |
+            set +e
+            echo "=== onde fica o volume de storage (docker inspect) ==="
+            docker inspect supabase-storage --format '{{range .Mounts}}{{.Source}} -> {{.Destination}}{{"\n"}}{{end}}' 2>&1
+            echo ""
+            echo "=== estrutura de pastas (2 níveis) ==="
+            find /opt/supabase-aamihe/docker/volumes/storage -maxdepth 3 2>&1 | head -30
+            echo ""
+            echo "=== localiza os 7 ficheiros específicos ==="
+            find /opt/supabase-aamihe/docker/volumes/storage -iname "*FACIm_2026*" -o -iname "*postgres-2026-09-01*" 2>&1
