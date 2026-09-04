@@ -343,6 +343,16 @@ jobs:
             ssh -i ~/.ssh/hetzner_key -p "$HETZNER_PORT" "$HETZNER_USER@$HETZNER_HOST" "docker exec supabase-db psql -U postgres -d postgres -t -A -c \"SELECT count(*) FROM $t\""
           done
 
+      - name: Contagens finais no Contabo, depois de todas as escritas
+        env:
+          CONTABO_HOST: ${{ secrets.CONTABO_HOST }}
+        run: |
+          set -e
+          for t in auth.users auth.identities storage.objects panel_sites panel_users panel_auth_accounts; do
+            echo -n "$t: "
+            ssh -i ~/.ssh/contabo_key "root@$CONTABO_HOST" "docker exec supabase-db psql -U postgres -d postgres -t -A -c \"SELECT count(*) FROM $t\""
+          done
+
   verifica-noticias:
     name: verifica-noticias
     runs-on: ubuntu-latest
