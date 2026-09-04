@@ -166,10 +166,6 @@ jobs:
 
   copia-dados-em-falta:
     name: copia-dados-em-falta
-    # Desactivado temporariamente (4 set) até confirmar isoladamente se as 6
-    # imagens de notícias existem mesmo ou não no Hetzner — ver job
-    # verifica-noticias. Reactivar (remover este 'if') depois de confirmado.
-    if: false
     runs-on: ubuntu-latest
     steps:
       - name: Prepara chaves SSH para os dois servidores
@@ -208,17 +204,23 @@ jobs:
             "public-assets/noticias/images_1788472667794.jpeg"
             "public-assets/noticias/images__1__1788473533503.jpeg"
           )
+          # Descoberta (4 set, 3ª tentativa): o backend de storage do Supabase guarda
+          # cada objecto como uma PASTA com o nome do objecto (ex.: ".../FACIm_2026_...jpeg/"),
+          # com o ficheiro real (nome UUID) lá dentro — confirmado com `stat` isolado
+          # (job verifica-noticias) e visível na listagem já existente no Contabo
+          # (".../Arroz_...webp/bfa617d1-...", mesmo padrão). Por isso: test -d (não -f),
+          # e rsync recursivo do conteúdo da pasta (não scp de um ficheiro).
           COPIED=()
           for f in "${FILES[@]}"; do
-            REMOTE_EXISTS=$(ssh -i ~/.ssh/hetzner_key -p "$HETZNER_PORT" "$HETZNER_USER@$HETZNER_HOST" "test -f /opt/supabase-aamihe/docker/volumes/storage/$BASE/$f && echo SIM || echo NAO")
+            REMOTE_EXISTS=$(ssh -i ~/.ssh/hetzner_key -p "$HETZNER_PORT" "$HETZNER_USER@$HETZNER_HOST" "test -d /opt/supabase-aamihe/docker/volumes/storage/$BASE/$f && echo SIM || echo NAO")
             if [ "$REMOTE_EXISTS" != "SIM" ]; then
               echo "AVISO: $f já não existe no Hetzner (mudou entretanto) — a saltar, não é erro fatal."
               continue
             fi
-            mkdir -p "/tmp/transfer/$(dirname "$f")"
-            scp -i ~/.ssh/hetzner_key -P "$HETZNER_PORT" \
-              "$HETZNER_USER@$HETZNER_HOST:/opt/supabase-aamihe/docker/volumes/storage/$BASE/$f" \
-              "/tmp/transfer/$f"
+            mkdir -p "/tmp/transfer/$f"
+            rsync -a -e "ssh -i ~/.ssh/hetzner_key -p $HETZNER_PORT" \
+              "$HETZNER_USER@$HETZNER_HOST:/opt/supabase-aamihe/docker/volumes/storage/$BASE/$f/" \
+              "/tmp/transfer/$f/"
             COPIED+=("$f")
           done
           echo "--- ficheiros trazidos para o runner ---"
@@ -226,18 +228,20 @@ jobs:
 
           echo "--- confirma que ainda NÃO existem no Contabo antes de escrever ---"
           for f in "${COPIED[@]}"; do
-            EXISTS=$(ssh -i ~/.ssh/contabo_key "root@$CONTABO_HOST" "test -f /opt/supabase-contabo/docker/volumes/storage/$BASE/$f && echo SIM || echo NAO")
+            EXISTS=$(ssh -i ~/.ssh/contabo_key "root@$CONTABO_HOST" "test -d /opt/supabase-contabo/docker/volumes/storage/$BASE/$f && echo SIM || echo NAO")
             echo "$f -> já existe? $EXISTS"
             if [ "$EXISTS" = "SIM" ]; then echo "ABORTAR: $f já existe no Contabo, não mexo"; exit 1; fi
           done
 
-          echo "--- envia para o Contabo (ficheiros novos, não mexe em mais nada) ---"
+          echo "--- envia para o Contabo (pastas novas, não mexe em mais nada) ---"
           for f in "${COPIED[@]}"; do
-            ssh -i ~/.ssh/contabo_key "root@$CONTABO_HOST" "mkdir -p /opt/supabase-contabo/docker/volumes/storage/$BASE/$(dirname "$f")"
-            scp -i ~/.ssh/contabo_key "/tmp/transfer/$f" "root@$CONTABO_HOST:/opt/supabase-contabo/docker/volumes/storage/$BASE/$f"
+            ssh -i ~/.ssh/contabo_key "root@$CONTABO_HOST" "mkdir -p /opt/supabase-contabo/docker/volumes/storage/$BASE/$f"
+            rsync -a -e "ssh -i ~/.ssh/contabo_key" \
+              "/tmp/transfer/$f/" \
+              "root@$CONTABO_HOST:/opt/supabase-contabo/docker/volumes/storage/$BASE/$f/"
           done
           echo "--- confirma no Contabo depois de copiar ---"
-          ssh -i ~/.ssh/contabo_key "root@$CONTABO_HOST" "find /opt/supabase-contabo/docker/volumes/storage/$BASE/public-assets/noticias -type f -exec ls -la {} \;"
+          ssh -i ~/.ssh/contabo_key "root@$CONTABO_HOST" "find /opt/supabase-contabo/docker/volumes/storage/$BASE/public-assets/noticias -mindepth 2 -type f -exec ls -la {} \;"
 
       - name: Copia as 3 contas de login (auth.users + auth.identities) que só existem no Hetzner
         env:
