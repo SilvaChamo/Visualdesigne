@@ -244,7 +244,11 @@ jobs:
         run: |
           set -e
           EMAILS="'duducahamatavele@gmail.com','media@oshercollective.com','merci.chamo@gmail.com'"
-          USERS_COLS="instance_id,id,aud,role,email,encrypted_password,email_confirmed_at,invited_at,confirmation_token,confirmation_sent_at,recovery_token,recovery_sent_at,email_change_token_new,email_change,email_change_sent_at,last_sign_in_at,raw_app_meta_data,raw_user_meta_data,is_super_admin,created_at,updated_at,phone,phone_confirmed_at,phone_change,phone_change_token,phone_change_sent_at,confirmed_at,email_change_token_current,email_change_confirm_status,banned_until,reauthentication_token,reauthentication_sent_at,is_sso_user,deleted_at,is_anonymous"
+          # confirmed_at excluída (2ª tentativa, 4 set): é GENERATED ALWAYS AS
+          # (LEAST(email_confirmed_at, phone_confirmed_at)) STORED — Postgres
+          # recusa-a em COPY/INSERT. Recalcula-se sozinha a partir das outras
+          # duas colunas, que já vão na lista.
+          USERS_COLS="instance_id,id,aud,role,email,encrypted_password,email_confirmed_at,invited_at,confirmation_token,confirmation_sent_at,recovery_token,recovery_sent_at,email_change_token_new,email_change,email_change_sent_at,last_sign_in_at,raw_app_meta_data,raw_user_meta_data,is_super_admin,created_at,updated_at,phone,phone_confirmed_at,phone_change,phone_change_token,phone_change_sent_at,email_change_token_current,email_change_confirm_status,banned_until,reauthentication_token,reauthentication_sent_at,is_sso_user,deleted_at,is_anonymous"
           IDENT_COLS="provider_id,user_id,identity_data,provider,last_sign_in_at,created_at,updated_at,email,id"
 
           echo "--- confirma mais uma vez que não existem já no Contabo ---"
@@ -311,3 +315,33 @@ jobs:
             echo -n "$t: "
             ssh -i ~/.ssh/hetzner_key -p "$HETZNER_PORT" "$HETZNER_USER@$HETZNER_HOST" "docker exec supabase-db psql -U postgres -d postgres -t -A -c \"SELECT count(*) FROM $t\""
           done
+
+  verifica-noticias:
+    name: verifica-noticias
+    runs-on: ubuntu-latest
+    steps:
+      - name: Setup SSH key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.HETZNER_SSH_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -p "${{ secrets.HETZNER_PORT }}" "${{ secrets.HETZNER_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
+      - name: Confirma isoladamente, com stat, se as 6 imagens ainda existem (só leitura)
+        uses: appleboy/ssh-action@v1.2.5
+        with:
+          host: ${{ secrets.HETZNER_HOST }}
+          port: ${{ secrets.HETZNER_PORT }}
+          username: ${{ secrets.HETZNER_USER }}
+          key: ${{ secrets.HETZNER_SSH_KEY }}
+          command_timeout: 3m
+          script: |
+            set +e
+            BASE=/opt/supabase-aamihe/docker/volumes/storage/visualdesign-storage/stub/public-assets/noticias
+            echo "=== ls -la da pasta noticias agora ==="
+            ls -la "$BASE" 2>&1
+            echo ""
+            echo "=== stat individual de cada um dos 6 ==="
+            for f in "Ave-de-estimacao-na-gaiola-confortavel-dentro-de-casa_1788259948273.avif" "FACIm_2026_1788247873233.jpeg" "FAcim2026_1788261208812.jpeg" "IIAM_1788259001124.jpeg" "images_1788472667794.jpeg" "images__1__1788473533503.jpeg"; do
+              echo "--- $f ---"
+              stat "$BASE/$f" 2>&1
+            done
