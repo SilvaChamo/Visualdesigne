@@ -226,15 +226,20 @@ jobs:
           echo "--- ficheiros trazidos para o runner ---"
           find /tmp/transfer -type f -exec ls -la {} \;
 
-          echo "--- confirma que ainda NÃO existem no Contabo antes de escrever ---"
+          echo "--- confirma o que já existe no Contabo (idempotente: salta o que já lá está) ---"
+          TO_SEND=()
           for f in "${COPIED[@]}"; do
             EXISTS=$(ssh -i ~/.ssh/contabo_key "root@$CONTABO_HOST" "test -d /opt/supabase-contabo/docker/volumes/storage/$BASE/$f && echo SIM || echo NAO")
-            echo "$f -> já existe? $EXISTS"
-            if [ "$EXISTS" = "SIM" ]; then echo "ABORTAR: $f já existe no Contabo, não mexo"; exit 1; fi
+            echo "$f -> já existe no Contabo? $EXISTS"
+            if [ "$EXISTS" = "SIM" ]; then
+              echo "  já copiado numa tentativa anterior, não repito."
+            else
+              TO_SEND+=("$f")
+            fi
           done
 
-          echo "--- envia para o Contabo (pastas novas, não mexe em mais nada) ---"
-          for f in "${COPIED[@]}"; do
+          echo "--- envia para o Contabo (só as pastas que ainda faltam) ---"
+          for f in "${TO_SEND[@]}"; do
             ssh -i ~/.ssh/contabo_key "root@$CONTABO_HOST" "mkdir -p /opt/supabase-contabo/docker/volumes/storage/$BASE/$f"
             rsync -a -e "ssh -i ~/.ssh/contabo_key" \
               "/tmp/transfer/$f/" \
@@ -257,23 +262,37 @@ jobs:
           # recusa-a em COPY/INSERT. Recalcula-se sozinha a partir das outras
           # duas colunas, que já vão na lista.
           USERS_COLS="instance_id,id,aud,role,email,encrypted_password,email_confirmed_at,invited_at,confirmation_token,confirmation_sent_at,recovery_token,recovery_sent_at,email_change_token_new,email_change,email_change_sent_at,last_sign_in_at,raw_app_meta_data,raw_user_meta_data,is_super_admin,created_at,updated_at,phone,phone_confirmed_at,phone_change,phone_change_token,phone_change_sent_at,email_change_token_current,email_change_confirm_status,banned_until,reauthentication_token,reauthentication_sent_at,is_sso_user,deleted_at,is_anonymous"
-          IDENT_COLS="provider_id,user_id,identity_data,provider,last_sign_in_at,created_at,updated_at,email,id"
+          # email excluída (3ª tentativa, 4 set): GENERATED ALWAYS AS
+          # (lower(identity_data->>'email')) STORED em auth.identities — recalcula-se
+          # sozinha a partir de identity_data, que já vai na lista.
+          IDENT_COLS="provider_id,user_id,identity_data,provider,last_sign_in_at,created_at,updated_at,id"
 
-          echo "--- confirma mais uma vez que não existem já no Contabo ---"
-          EXIST=$(ssh -i ~/.ssh/contabo_key "root@$CONTABO_HOST" "docker exec supabase-db psql -U postgres -d postgres -t -A -c \"SELECT count(*) FROM auth.users WHERE email IN ($EMAILS)\"")
-          echo "já existentes no Contabo (deve ser 0): $EXIST"
-          if [ "$EXIST" != "0" ]; then echo "ABORTAR: já existem, não escrevo nada"; exit 1; fi
+          echo "--- estado actual no Contabo (idempotente: só faz o que ainda falta) ---"
+          USERS_EXIST=$(ssh -i ~/.ssh/contabo_key "root@$CONTABO_HOST" "docker exec supabase-db psql -U postgres -d postgres -t -A -c \"SELECT count(*) FROM auth.users WHERE email IN ($EMAILS)\"")
+          IDENT_EXIST=$(ssh -i ~/.ssh/contabo_key "root@$CONTABO_HOST" "docker exec supabase-db psql -U postgres -d postgres -t -A -c \"SELECT count(*) FROM auth.identities WHERE email IN ($EMAILS)\"")
+          echo "auth.users já existentes: $USERS_EXIST (esperado 0 ou 3) | auth.identities já existentes: $IDENT_EXIST (esperado 0 ou 3)"
 
-          echo "--- extrai do Hetzner ---"
-          REMOTE_SQL_USERS="COPY (SELECT $USERS_COLS FROM auth.users WHERE email IN ($EMAILS)) TO STDOUT"
-          ssh -i ~/.ssh/hetzner_key -p "$HETZNER_PORT" "$HETZNER_USER@$HETZNER_HOST" "docker exec supabase-db psql -U postgres -d postgres -c \"$REMOTE_SQL_USERS\"" > /tmp/transfer/auth_users.copy
-          REMOTE_SQL_IDENT="COPY (SELECT $IDENT_COLS FROM auth.identities WHERE email IN ($EMAILS)) TO STDOUT"
-          ssh -i ~/.ssh/hetzner_key -p "$HETZNER_PORT" "$HETZNER_USER@$HETZNER_HOST" "docker exec supabase-db psql -U postgres -d postgres -c \"$REMOTE_SQL_IDENT\"" > /tmp/transfer/auth_identities.copy
-          echo "linhas extraídas: users=$(wc -l < /tmp/transfer/auth_users.copy) identities=$(wc -l < /tmp/transfer/auth_identities.copy)"
+          if [ "$USERS_EXIST" = "0" ]; then
+            echo "--- extrai e insere auth.users (ainda não existem no Contabo) ---"
+            REMOTE_SQL_USERS="COPY (SELECT $USERS_COLS FROM auth.users WHERE email IN ($EMAILS)) TO STDOUT"
+            ssh -i ~/.ssh/hetzner_key -p "$HETZNER_PORT" "$HETZNER_USER@$HETZNER_HOST" "docker exec supabase-db psql -U postgres -d postgres -c \"$REMOTE_SQL_USERS\"" > /tmp/transfer/auth_users.copy
+            cat /tmp/transfer/auth_users.copy | ssh -i ~/.ssh/contabo_key "root@$CONTABO_HOST" "docker exec -i supabase-db psql -U postgres -d postgres -c \"COPY auth.users ($USERS_COLS) FROM STDIN\""
+          elif [ "$USERS_EXIST" = "3" ]; then
+            echo "auth.users: as 3 contas já foram inseridas numa tentativa anterior — não repito."
+          else
+            echo "ABORTAR: contagem inesperada em auth.users ($USERS_EXIST), não mexo em nada"; exit 1
+          fi
 
-          echo "--- insere no Contabo ---"
-          cat /tmp/transfer/auth_users.copy | ssh -i ~/.ssh/contabo_key "root@$CONTABO_HOST" "docker exec -i supabase-db psql -U postgres -d postgres -c \"COPY auth.users ($USERS_COLS) FROM STDIN\""
-          cat /tmp/transfer/auth_identities.copy | ssh -i ~/.ssh/contabo_key "root@$CONTABO_HOST" "docker exec -i supabase-db psql -U postgres -d postgres -c \"COPY auth.identities ($IDENT_COLS) FROM STDIN\""
+          if [ "$IDENT_EXIST" = "0" ]; then
+            echo "--- extrai e insere auth.identities (ainda não existem no Contabo) ---"
+            REMOTE_SQL_IDENT="COPY (SELECT $IDENT_COLS FROM auth.identities WHERE email IN ($EMAILS)) TO STDOUT"
+            ssh -i ~/.ssh/hetzner_key -p "$HETZNER_PORT" "$HETZNER_USER@$HETZNER_HOST" "docker exec supabase-db psql -U postgres -d postgres -c \"$REMOTE_SQL_IDENT\"" > /tmp/transfer/auth_identities.copy
+            cat /tmp/transfer/auth_identities.copy | ssh -i ~/.ssh/contabo_key "root@$CONTABO_HOST" "docker exec -i supabase-db psql -U postgres -d postgres -c \"COPY auth.identities ($IDENT_COLS) FROM STDIN\""
+          elif [ "$IDENT_EXIST" = "3" ]; then
+            echo "auth.identities: as 3 já foram inseridas numa tentativa anterior — não repito."
+          else
+            echo "ABORTAR: contagem inesperada em auth.identities ($IDENT_EXIST), não mexo em nada"; exit 1
+          fi
 
           echo "--- confirma o resultado ---"
           ssh -i ~/.ssh/contabo_key "root@$CONTABO_HOST" "docker exec supabase-db psql -U postgres -d postgres -t -A -c \"SELECT email FROM auth.users WHERE email IN ($EMAILS) ORDER BY email\""
