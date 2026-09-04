@@ -385,3 +385,59 @@ jobs:
               echo "--- $f ---"
               stat "$BASE/$f" 2>&1
             done
+
+  # ===========================================================================
+  # FASE 3 (5 set) — trazer o basededadosagro.com (código + base de dados
+  # própria) para o Contabo, sem tocar no original no Hetzner nem mexer em DNS.
+  # ===========================================================================
+  investiga-basededadosagro:
+    name: investiga-basededadosagro
+    runs-on: ubuntu-latest
+    steps:
+      - name: Setup SSH key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.HETZNER_SSH_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -p "${{ secrets.HETZNER_PORT }}" "${{ secrets.HETZNER_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
+      - name: Investiga a app (só leitura; NUNCA imprime valores de segredos, só nomes)
+        uses: appleboy/ssh-action@v1.2.5
+        with:
+          host: ${{ secrets.HETZNER_HOST }}
+          port: ${{ secrets.HETZNER_PORT }}
+          username: ${{ secrets.HETZNER_USER }}
+          key: ${{ secrets.HETZNER_SSH_KEY }}
+          command_timeout: 3m
+          script: |
+            set +e
+            APP=/opt/basededadosagro-site
+            echo "=== tamanho do código (sem node_modules/.next) ==="
+            du -sh --exclude=node_modules --exclude=.next "$APP" 2>&1
+            echo ""
+            echo "=== package.json (nome, versão, scripts, engines) ==="
+            cat "$APP/package.json" 2>&1 | head -60
+            echo ""
+            echo "=== ficheiros .env* existentes (só nomes de ficheiro) ==="
+            ls -la "$APP"/.env* 2>&1
+            echo ""
+            echo "=== NOMES das variáveis de ambiente usadas (nunca os valores) ==="
+            for f in "$APP"/.env.local "$APP"/.env "$APP"/.env.production; do
+              if [ -f "$f" ]; then
+                echo "--- $f ---"
+                grep -oE '^[A-Za-z_][A-Za-z0-9_]*=' "$f" 2>/dev/null
+              fi
+            done
+            echo ""
+            echo "=== configuração pm2 (nome do processo, script de arranque, porta se visível) ==="
+            pm2 describe basededadosagro-site 2>&1 | grep -iE "script path|exec cwd|port|args|namespace|status|uptime|restarts"
+            echo ""
+            echo "=== proxy nginx do domínio (porta local para onde aponta) ==="
+            grep -rn "proxy_pass" /usr/local/directadmin/data/users/admin/nginx*/basededadosagro.com* 2>/dev/null
+            find /etc/nginx -iname "*basededadosagro*" 2>/dev/null
+            grep -rn "proxy_pass" $(find /etc/nginx /usr/local/directadmin -iname "*basededadosagro*" 2>/dev/null) 2>/dev/null
+            echo ""
+            echo "=== portas em uso agora (para não colidir no Contabo depois) ==="
+            ss -tlnp 2>&1 | grep -i node
+            echo ""
+            echo "=== confirma estado actual do processo (baseline antes de mexer em qualquer coisa) ==="
+            pm2 jlist 2>&1 | grep -A3 '"name":"basededadosagro-site"' | grep -E "pid|uptime|restart_time|status"
