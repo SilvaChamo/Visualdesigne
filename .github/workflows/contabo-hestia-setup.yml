@@ -14,8 +14,44 @@ on:
           - test-hestia-api
           - inspect-api-ip-restriction
           - test-hestia-api-from-server
+          - backup-diagnostics
 
 jobs:
+  backup-diagnostics:
+    if: ${{ inputs.stage == 'backup-diagnostics' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Measure sizes of everything a manual full backup would need (read-only)
+        uses: appleboy/ssh-action@v1.2.5
+        with:
+          host: ${{ secrets.CONTABO_HOST }}
+          username: root
+          password: ${{ secrets.CONTABO_ROOT_PASSWORD }}
+          command_timeout: 10m
+          script: |
+            echo "=== espaço livre no disco (total) ==="
+            df -h /
+            echo ""
+            echo "=== site de teste (código, sem node_modules/.next) ==="
+            du -sh --exclude=node_modules --exclude=.next /opt/visualdesign-site-teste 2>/dev/null
+            echo ""
+            echo "=== stack Supabase própria (Docker: base de dados + storage) ==="
+            du -sh /opt/supabase-contabo 2>/dev/null
+            du -sh /opt/supabase-contabo/docker/volumes/db/data 2>/dev/null
+            du -sh /opt/supabase-contabo/docker/volumes/storage 2>/dev/null
+            echo ""
+            echo "=== contas Hestia (sites, emails, bases de dados dos clientes) ==="
+            du -sh /home/*/web 2>/dev/null
+            du -sh /home/*/mail 2>/dev/null
+            du -sh /var/lib/mysql 2>/dev/null
+            echo ""
+            echo "=== backups Hestia já existentes, se houver ==="
+            ls -lh /home/*/backup 2>/dev/null || echo "(nenhum encontrado)"
+            echo ""
+            echo "=== total geral (tudo o que interessaria copiar) ==="
+            du -sh /opt/visualdesign-site-teste /opt/supabase-contabo /home/*/web /home/*/mail 2>/dev/null | tail -1
+            du -csh /opt/visualdesign-site-teste --exclude=node_modules --exclude=.next /opt/supabase-contabo/docker/volumes 2>/dev/null
+
   test-hestia-api-from-server:
     if: ${{ inputs.stage == 'test-hestia-api-from-server' }}
     runs-on: ubuntu-latest
