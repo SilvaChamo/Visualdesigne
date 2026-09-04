@@ -109,3 +109,24 @@ jobs:
             docker exec supabase-db psql -U postgres -d postgres -t -A -c "SELECT email FROM auth.users ORDER BY email;" 2>&1
             echo "--- storage.objects (bucket_id/name) ---"
             docker exec supabase-db psql -U postgres -d postgres -t -A -c "SELECT bucket_id || '/' || name FROM storage.objects ORDER BY 1;" 2>&1
+
+  colunas:
+    name: colunas
+    runs-on: ubuntu-latest
+    steps:
+      - name: Lista colunas exactas de auth.users, auth.identities, storage.objects
+        uses: appleboy/ssh-action@v1.2.5
+        with:
+          host: ${{ secrets.CONTABO_HOST }}
+          username: root
+          password: ${{ secrets.CONTABO_ROOT_PASSWORD }}
+          command_timeout: 3m
+          script: |
+            set +e
+            for t in auth.users auth.identities storage.objects; do
+              echo "=== $t ==="
+              docker exec supabase-db psql -U postgres -d postgres -t -A -c "
+                SELECT string_agg(column_name, ',' ORDER BY ordinal_position)
+                FROM information_schema.columns
+                WHERE table_schema||'.'||table_name = '$t';" 2>&1
+            done
