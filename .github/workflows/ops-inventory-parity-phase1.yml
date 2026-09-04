@@ -166,6 +166,10 @@ jobs:
 
   copia-dados-em-falta:
     name: copia-dados-em-falta
+    # Desactivado temporariamente (4 set) até confirmar isoladamente se as 6
+    # imagens de notícias existem mesmo ou não no Hetzner — ver job
+    # verifica-noticias. Reactivar (remover este 'if') depois de confirmado.
+    if: false
     runs-on: ubuntu-latest
     steps:
       - name: Prepara chaves SSH para os dois servidores
