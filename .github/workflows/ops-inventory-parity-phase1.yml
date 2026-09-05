@@ -1055,3 +1055,30 @@ jobs:
               grep -rl "from(['\"]$t['\"])" "$APP" --include="*.ts" --include="*.tsx" 2>/dev/null | wc -l
               echo ""
             done
+
+  confirma-produtos-publico:
+    name: confirma-produtos-publico
+    runs-on: ubuntu-latest
+    steps:
+      - name: Setup SSH key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.HETZNER_SSH_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -p "${{ secrets.HETZNER_PORT }}" "${{ secrets.HETZNER_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
+      - name: Existe alguma página pública que leia produtos/stores? (só leitura)
+        uses: appleboy/ssh-action@v1.2.5
+        with:
+          host: ${{ secrets.HETZNER_HOST }}
+          port: ${{ secrets.HETZNER_PORT }}
+          username: ${{ secrets.HETZNER_USER }}
+          key: ${{ secrets.HETZNER_SSH_KEY }}
+          command_timeout: 2m
+          script: |
+            set +e
+            APP=/opt/basededadosagro-site
+            echo "=== qualquer menção a 'produtos' ou 'stores' fora de node_modules/.next ==="
+            grep -rn "produtos\|['\"]stores['\"]" "$APP" --include="*.ts" --include="*.tsx" --exclude-dir=node_modules --exclude-dir=.next
+            echo ""
+            echo "=== ProductForm.tsx é usado a partir de onde? (rota pública ou /admin?) ==="
+            grep -rn "ProductForm" "$APP/app" 2>/dev/null
