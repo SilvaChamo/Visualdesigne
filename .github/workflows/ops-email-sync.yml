@@ -3,21 +3,21 @@ name: "Ops - Copiador de email Hetzner -> Contabo (append-only)"
 # ============================================================================
 # Copia mensagens de email do Hetzner (fonte de verdade) para o Contabo.
 # - NUNCA apaga no destino (sem --delete). So acrescenta o que e novo.
-# - O runner do GitHub e o intermediario (ja tem os dois acessos nos secrets):
-#   rsync Hetzner -> runner -> Contabo. Nao instala chaves servidor-a-servidor.
-# - Reconstroi o indice no Contabo (doveadm force-resync) por causa das versoes
-#   diferentes de Dovecot (2.4 no Hetzner, 2.3 no Contabo).
-# - workflow_dispatch com first_pass=true: cria primeiro as caixas em falta.
-#   schedule (cada 20 min): so sincroniza o conteudo.
+# - Runner do GitHub como intermediario: rsync Hetzner -> runner -> Contabo.
+# - Reconstroi indice no Contabo (doveadm force-resync); versoes de Dovecot
+#   diferentes (2.4 Hetzner / 2.3 Contabo).
+# - A lista de caixas e DESCOBERTA no Hetzner. first_pass=true cria no Hestia
+#   os dominios/contas que faltarem antes de sincronizar.
+# - Loop le a lista pelo FD 3 e todo o ssh/rsync leva </dev/null, senao o ssh
+#   consome a lista e o loop para na 1a linha (bug da 1a versao).
 # Parar a sincronizacao continua: desactivar este workflow no separador Actions.
-# Ver conversa 2026-09-05.
 # ============================================================================
 
 on:
   workflow_dispatch:
     inputs:
       first_pass:
-        description: "Criar as caixas em falta no Contabo antes de sincronizar"
+        description: "Criar dominios/contas em falta no Contabo antes de sincronizar"
         type: boolean
         default: false
   schedule:
@@ -37,12 +37,11 @@ jobs:
           sudo apt-get update -qq
           sudo apt-get install -y -qq rsync sshpass
 
-      - name: Preparar acessos SSH
+      - name: Preparar acessos
         env:
           HETZNER_SSH_KEY: ${{ secrets.HETZNER_SSH_KEY }}
           HETZNER_PORT: ${{ secrets.HETZNER_PORT }}
           HETZNER_HOST: ${{ secrets.HETZNER_HOST }}
-          HETZNER_USER: ${{ secrets.HETZNER_USER }}
           CONTABO_HOST: ${{ secrets.CONTABO_HOST }}
           CONTABO_ROOT_PASSWORD: ${{ secrets.CONTABO_ROOT_PASSWORD }}
         run: |
@@ -54,50 +53,6 @@ jobs:
           ssh-keyscan -p "$HETZNER_PORT" "$HETZNER_HOST" >> ~/.ssh/known_hosts 2>/dev/null
           ssh-keyscan "$CONTABO_HOST" >> ~/.ssh/known_hosts 2>/dev/null
 
-      - name: "(first_pass) Criar caixas em falta no Contabo/Hestia"
-        if: ${{ github.event_name == 'workflow_dispatch' && inputs.first_pass }}
-        env:
-          CONTABO_HOST: ${{ secrets.CONTABO_HOST }}
-        run: |
-          set -u
-          HB=/usr/local/hestia/bin
-          co() { sshpass -f ~/.contabo_pw ssh -o StrictHostKeyChecking=accept-new "root@$CONTABO_HOST" "$@"; }
-          : > map.txt
-          printf '%s\n' \
-            "visualdesignmoz.com|vdadmin|admin dulcematavele geral info mailmarketing noreply silva.chamo suporte" \
-            "files.visualdesignmoz.com|vdadmin|admin" \
-            "mltmark.com|vdadmin|admin geral" \
-            "basededadosagro.com|vdadmin|admin" \
-            "aamihe.com|aamihe|admin geral noreply" \
-            "provisualcorporate.co.mz|provisualcorporate|admin edwina edy geral info joana luisa silva.chamo" \
-            "shalomdeco.com|oshercollective|oshercollective" > map.txt
-          while IFS='|' read -r DOMAIN HU ACCTS; do
-            [ -z "$DOMAIN" ] && continue
-            echo "==== $DOMAIN (conta $HU) ===="
-            if co "$HB/v-list-mail-domain $HU $DOMAIN" >/dev/null 2>&1; then
-              echo "  mail domain ja existe"
-            else
-              echo "  + criar mail domain"
-              co "$HB/v-add-mail-domain $HU $DOMAIN" 2>&1 || echo "  (falhou add-mail-domain)"
-            fi
-            for A in $ACCTS; do
-              if co "$HB/v-list-mail-account $HU $DOMAIN $A" >/dev/null 2>&1; then
-                echo "  = $A@$DOMAIN ja existe"
-              else
-                PW=$(head -c 18 /dev/urandom | base64 | tr -d '/+=' | cut -c1-20)
-                echo "  + criar $A@$DOMAIN (password temporaria)"
-                co "$HB/v-add-mail-account $HU $DOMAIN $A '$PW'" 2>&1 || echo "  (falhou add-mail-account $A)"
-              fi
-            done
-          done < map.txt
-          echo "==== reencaminhar admin@ dos outros dominios -> admin@visualdesignmoz.com ===="
-          for D in aamihe.com mltmark.com basededadosagro.com files.visualdesignmoz.com provisualcorporate.co.mz; do
-            HU=vdadmin
-            [ "$D" = "aamihe.com" ] && HU=aamihe
-            [ "$D" = "provisualcorporate.co.mz" ] && HU=provisualcorporate
-            co "$HB/v-add-mail-account-forward $HU $D admin admin@visualdesignmoz.com" 2>&1 || true
-          done
-
       - name: "Descobrir caixas no Hetzner"
         env:
           HETZNER_PORT: ${{ secrets.HETZNER_PORT }}
@@ -105,11 +60,83 @@ jobs:
           HETZNER_USER: ${{ secrets.HETZNER_USER }}
         run: |
           set -u
-          ssh -i ~/.ssh/hetzner -p "$HETZNER_PORT" -o StrictHostKeyChecking=accept-new "$HETZNER_USER@$HETZNER_HOST" \
+          ssh -n -i ~/.ssh/hetzner -p "$HETZNER_PORT" -o StrictHostKeyChecking=accept-new "$HETZNER_USER@$HETZNER_HOST" \
             'find /home/admin/imap /home/oshercollective/imap -maxdepth 3 -type d -name Maildir 2>/dev/null; for b in /home/admin/Maildir /home/oshercollective/Maildir; do [ -d "$b" ] && echo "$b"; done' \
-            > hetzner_maildirs.txt
+            | sort > hetzner_maildirs.txt
           echo "Encontradas $(wc -l < hetzner_maildirs.txt) caixas:"
           cat hetzner_maildirs.txt
+
+      - name: "Resolver dominio/conta/hestia-user de cada caixa"
+        run: |
+          set -u
+          hu_for_domain() {
+            case "$1" in
+              visualdesignmoz.com|files.visualdesignmoz.com|mltmark.com|basededadosagro.com) echo vdadmin;;
+              aamihe.com) echo aamihe;;
+              provisualcorporate.co.mz) echo provisualcorporate;;
+              oshercollective.com|lirandzojewelry.com|msdn-moz.org|elimservicos.com|shalomdeco.com) echo oshercollective;;
+              *) echo "";;
+            esac
+          }
+          : > plan.txt   # linhas: SRC|DOMAIN|ACCT|HU
+          while read -r SRC <&3; do
+            [ -z "$SRC" ] && continue
+            case "$SRC" in
+              */imap/*)
+                DOMAIN=$(printf '%s' "$SRC" | sed -E 's#.*/imap/([^/]+)/[^/]+/Maildir#\1#')
+                ACCT=$(printf '%s' "$SRC" | sed -E 's#.*/imap/[^/]+/([^/]+)/Maildir#\1#') ;;
+              /home/admin/Maildir)          DOMAIN=visualdesignmoz.com; ACCT=admin ;;
+              /home/oshercollective/Maildir) DOMAIN=shalomdeco.com;      ACCT=oshercollective ;;
+              *) echo "?? ignoro $SRC"; continue ;;
+            esac
+            HU=$(hu_for_domain "$DOMAIN")
+            if [ -z "$HU" ]; then echo "?? sem hestia-user para $DOMAIN"; continue; fi
+            printf '%s|%s|%s|%s\n' "$SRC" "$DOMAIN" "$ACCT" "$HU" >> plan.txt
+          done 3< hetzner_maildirs.txt
+          echo "Plano ($(wc -l < plan.txt) caixas):"
+          cat plan.txt
+
+      - name: "(first_pass) Criar dominios/contas em falta no Contabo"
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.first_pass }}
+        env:
+          CONTABO_HOST: ${{ secrets.CONTABO_HOST }}
+        run: |
+          set -u
+          HB=/usr/local/hestia/bin
+          co() { sshpass -f ~/.contabo_pw ssh -n -o StrictHostKeyChecking=accept-new "root@$CONTABO_HOST" "$@" </dev/null; }
+          SEEN_DOM=""
+          while IFS='|' read -r SRC DOMAIN ACCT HU <&3; do
+            [ -z "${DOMAIN:-}" ] && continue
+            case " $SEEN_DOM " in
+              *" $DOMAIN "*) : ;;
+              *)
+                SEEN_DOM="$SEEN_DOM $DOMAIN"
+                if co "$HB/v-list-mail-domain $HU $DOMAIN" >/dev/null 2>&1; then
+                  echo "dominio $DOMAIN (=$HU) ja existe"
+                else
+                  echo "+ criar mail domain $DOMAIN (=$HU)"
+                  co "$HB/v-add-mail-domain $HU $DOMAIN" 2>&1 || echo "  (falhou)"
+                fi ;;
+            esac
+            if co "$HB/v-list-mail-account $HU $DOMAIN $ACCT" >/dev/null 2>&1; then
+              echo "  = $ACCT@$DOMAIN ja existe"
+            else
+              PW=$(head -c 18 /dev/urandom | base64 | tr -d '/+=' | cut -c1-20)
+              echo "  + criar $ACCT@$DOMAIN (password temporaria)"
+              co "$HB/v-add-mail-account $HU $DOMAIN $ACCT '$PW'" 2>&1 || echo "  (falhou)"
+            fi
+          done 3< plan.txt
+          echo "==== admin@ dos dominios sem caixa propria -> forward para admin@visualdesignmoz.com ===="
+          for D in aamihe.com mltmark.com basededadosagro.com files.visualdesignmoz.com provisualcorporate.co.mz; do
+            HU=vdadmin
+            [ "$D" = "aamihe.com" ] && HU=aamihe
+            [ "$D" = "provisualcorporate.co.mz" ] && HU=provisualcorporate
+            co "$HB/v-list-mail-domain $HU $D" >/dev/null 2>&1 || co "$HB/v-add-mail-domain $HU $D" 2>&1 || true
+            if ! co "$HB/v-list-mail-account $HU $D admin" >/dev/null 2>&1; then
+              co "$HB/v-add-mail-account $HU $D admin '$(head -c 15 /dev/urandom | base64 | tr -d '/+=' | cut -c1-18)'" 2>&1 || true
+            fi
+            co "$HB/v-add-mail-account-forward $HU $D admin admin@visualdesignmoz.com" 2>&1 || true
+          done
 
       - name: "Sincronizar caixa a caixa (append-only + force-resync)"
         env:
@@ -120,49 +147,32 @@ jobs:
         run: |
           set -u
           EXCL="--exclude=tmp/ --exclude=dovecot-uidlist --exclude=dovecot.index* --exclude=dovecot.list.index* --exclude=dovecot-keywords --exclude=dovecot.mailbox.log"
-          HE_SSH="ssh -i $HOME/.ssh/hetzner -p $HETZNER_PORT -o StrictHostKeyChecking=accept-new"
-          co() { sshpass -f ~/.contabo_pw ssh -o StrictHostKeyChecking=accept-new "root@$CONTABO_HOST" "$@"; }
-          hu_for_domain() {
-            case "$1" in
-              visualdesignmoz.com|files.visualdesignmoz.com|mltmark.com|basededadosagro.com) echo vdadmin;;
-              aamihe.com) echo aamihe;;
-              provisualcorporate.co.mz) echo provisualcorporate;;
-              oshercollective.com|lirandzojewelry.com|msdn-moz.org|elimservicos.com|shalomdeco.com) echo oshercollective;;
-              *) echo "";;
-            esac
-          }
+          co() { sshpass -f ~/.contabo_pw ssh -n -o StrictHostKeyChecking=accept-new "root@$CONTABO_HOST" "$@" </dev/null; }
           OK=0; SKIP=0; FAIL=0
-          while read -r SRC; do
-            [ -z "$SRC" ] && continue
-            case "$SRC" in
-              */imap/*)
-                DOMAIN=$(echo "$SRC" | sed -E 's#.*/imap/([^/]+)/[^/]+/Maildir#\1#')
-                ACCT=$(echo "$SRC" | sed -E 's#.*/imap/[^/]+/([^/]+)/Maildir#\1#') ;;
-              /home/admin/Maildir)          DOMAIN=visualdesignmoz.com; ACCT=admin ;;
-              /home/oshercollective/Maildir) DOMAIN=shalomdeco.com;      ACCT=oshercollective ;;
-              *) echo "?? nao reconheco $SRC"; SKIP=$((SKIP+1)); continue ;;
-            esac
-            HU=$(hu_for_domain "$DOMAIN")
-            if [ -z "$HU" ]; then echo "?? sem conta hestia para $DOMAIN"; SKIP=$((SKIP+1)); continue; fi
+          while IFS='|' read -r SRC DOMAIN ACCT HU <&3; do
+            [ -z "${SRC:-}" ] && continue
             DST="/home/$HU/mail/$DOMAIN/$ACCT"
             LOCAL="work/$DOMAIN/$ACCT"; mkdir -p "$LOCAL"
             echo "---- $ACCT@$DOMAIN ----"
-            if ! rsync -a --timeout=180 $EXCL -e "$HE_SSH" \
-                 "$HETZNER_USER@$HETZNER_HOST:$SRC/" "$LOCAL/"; then
+            if ! rsync -a --timeout=180 $EXCL \
+                 -e "ssh -n -i $HOME/.ssh/hetzner -p $HETZNER_PORT -o StrictHostKeyChecking=accept-new" \
+                 "$HETZNER_USER@$HETZNER_HOST:$SRC/" "$LOCAL/" </dev/null; then
               echo "  FALHOU rsync do Hetzner"; FAIL=$((FAIL+1)); continue
             fi
             co "mkdir -p $DST/cur $DST/new $DST/tmp" >/dev/null 2>&1 || true
             if ! sshpass -f ~/.contabo_pw rsync -a --timeout=180 $EXCL \
                  -e "ssh -o StrictHostKeyChecking=accept-new" \
-                 "$LOCAL/" "root@$CONTABO_HOST:$DST/"; then
+                 "$LOCAL/" "root@$CONTABO_HOST:$DST/" </dev/null; then
               echo "  FALHOU rsync para o Contabo"; FAIL=$((FAIL+1)); continue
             fi
-            co "chown -R $HU:mail /home/$HU/mail/$DOMAIN/$ACCT && doveadm force-resync -u $ACCT@$DOMAIN '*'" 2>&1 | tail -2 || true
-            N=$(co "doveadm mailbox status -u $ACCT@$DOMAIN messages INBOX 2>/dev/null" 2>/dev/null || true)
-            echo "  OK ($N)"
-            OK=$((OK+1))
+            RES=$(co "chown -R $HU:mail /home/$HU/mail/$DOMAIN/$ACCT && doveadm force-resync -u $ACCT@$DOMAIN '*' 2>&1 | tail -2")
+            N=$(co "doveadm mailbox status -u $ACCT@$DOMAIN messages INBOX 2>/dev/null || true")
+            case "$RES" in
+              *"doesn't exist"*|*"Error"*) echo "  SKIP (conta ainda nao existe no Contabo? $RES)"; SKIP=$((SKIP+1)) ;;
+              *) echo "  OK ($N) $RES"; OK=$((OK+1)) ;;
+            esac
             rm -rf "$LOCAL"
-          done < hetzner_maildirs.txt
+          done 3< plan.txt
           echo "======================================="
           echo "OK=$OK  SKIP=$SKIP  FAIL=$FAIL"
           [ "$FAIL" -eq 0 ]
