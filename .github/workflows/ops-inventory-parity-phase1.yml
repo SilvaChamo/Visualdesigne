@@ -492,18 +492,29 @@ jobs:
           CONTABO_HOST: ${{ secrets.CONTABO_HOST }}
         run: |
           set -e
-          echo "--- confirma se o schema já existe no Contabo (idempotente) ---"
-          EXISTS=$(ssh -i ~/.ssh/contabo_key "root@$CONTABO_HOST" "docker exec supabase-db psql -U postgres -d postgres -t -A -c \"SELECT count(*) FROM information_schema.schemata WHERE schema_name='basededados'\"")
-          if [ "$EXISTS" = "1" ]; then
-            echo "schema basededados já existe no Contabo — não repito o dump."
+          echo "--- confirma estado actual no Contabo (idempotente: tem de ter as 52 tabelas, senão está incompleto) ---"
+          TABLE_COUNT=$(ssh -i ~/.ssh/contabo_key "root@$CONTABO_HOST" "docker exec supabase-db psql -U postgres -d postgres -t -A -c \"SELECT count(*) FROM pg_tables WHERE schemaname='basededados'\"")
+          echo "tabelas já existentes em basededados no Contabo: $TABLE_COUNT (esperado 52)"
+          if [ "$TABLE_COUNT" = "52" ]; then
+            echo "schema basededados já está completo no Contabo — não repito o dump."
           else
+            if [ "$TABLE_COUNT" != "0" ]; then
+              echo "--- cópia anterior ficou incompleta (tentativa que falhou a meio) — limpa antes de repetir ---"
+              ssh -i ~/.ssh/contabo_key "root@$CONTABO_HOST" "docker exec supabase-db psql -U postgres -d postgres -c 'DROP SCHEMA IF EXISTS basededados CASCADE'"
+            fi
             echo "--- pg_dump do schema no Hetzner (estrutura + dados, sem dono/privilégios) ---"
             ssh -i ~/.ssh/hetzner_key -p "$HETZNER_PORT" "$HETZNER_USER@$HETZNER_HOST" \
               "docker exec supabase-db pg_dump -U postgres -d postgres --schema=basededados --no-owner --no-privileges" \
               > /tmp/agro/basededados.sql
             echo "tamanho do dump: $(du -h /tmp/agro/basededados.sql | cut -f1)"
             echo "--- restaura no Contabo ---"
-            cat /tmp/agro/basededados.sql | ssh -i ~/.ssh/contabo_key "root@$CONTABO_HOST" "docker exec -i supabase-db psql -U postgres -d postgres -v ON_ERROR_STOP=1"
+            # session_replication_role=replica desliga a validação de chaves
+            # estrangeiras durante a carga — necessário porque os dados REAIS do
+            # Hetzner já têm uma inconsistência antiga (payment_transactions com
+            # user_id de um utilizador entretanto apagado). Não estamos a corrigir
+            # nada, só a replicar fielmente o estado real tal como está lá.
+            { echo "SET session_replication_role = replica;"; cat /tmp/agro/basededados.sql; echo "SET session_replication_role = DEFAULT;"; } \
+              | ssh -i ~/.ssh/contabo_key "root@$CONTABO_HOST" "docker exec -i supabase-db psql -U postgres -d postgres -v ON_ERROR_STOP=1"
             echo "--- confirma ---"
             ssh -i ~/.ssh/contabo_key "root@$CONTABO_HOST" "docker exec supabase-db psql -U postgres -d postgres -t -A -c \"SELECT count(*) FROM pg_tables WHERE schemaname='basededados'\""
           fi
