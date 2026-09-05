@@ -1082,3 +1082,74 @@ jobs:
             echo ""
             echo "=== ProductForm.tsx é usado a partir de onde? (rota pública ou /admin?) ==="
             grep -rn "ProductForm" "$APP/app" 2>/dev/null
+
+  corrige-rls-hetzner:
+    name: corrige-rls-hetzner
+    runs-on: ubuntu-latest
+    steps:
+      - name: Setup SSH key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.HETZNER_SSH_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -p "${{ secrets.HETZNER_PORT }}" "${{ secrets.HETZNER_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
+      - name: Activa RLS nas 14 tabelas (13 sem uso nenhum + produtos com política p/ authenticated)
+        uses: appleboy/ssh-action@v1.2.5
+        with:
+          host: ${{ secrets.HETZNER_HOST }}
+          port: ${{ secrets.HETZNER_PORT }}
+          username: ${{ secrets.HETZNER_USER }}
+          key: ${{ secrets.HETZNER_SSH_KEY }}
+          command_timeout: 2m
+          script: |
+            set -e
+            docker exec -i supabase-db psql -U postgres -d postgres -v ON_ERROR_STOP=1 <<'SQL'
+            -- 13 tabelas confirmadas sem NENHUMA referência no código da app
+            -- (grep exaustivo a .from('tabela') em toda a aplicação) — activar
+            -- RLS sem políticas bloqueia anon/authenticated por completo, sem
+            -- nenhum impacto funcional (nada as usa hoje). service_role
+            -- (usado só no backend/admin) continua a ignorar RLS sempre.
+            ALTER TABLE basededados.roles ENABLE ROW LEVEL SECURITY;
+            ALTER TABLE basededados.role_redirects ENABLE ROW LEVEL SECURITY;
+            ALTER TABLE basededados.role_capabilities ENABLE ROW LEVEL SECURITY;
+            ALTER TABLE basededados.capabilities ENABLE ROW LEVEL SECURITY;
+            ALTER TABLE basededados.role_menu_visibility ENABLE ROW LEVEL SECURITY;
+            ALTER TABLE basededados.news ENABLE ROW LEVEL SECURITY;
+            ALTER TABLE basededados.baseagrodata_news ENABLE ROW LEVEL SECURITY;
+            ALTER TABLE basededados.entrecampos_news ENABLE ROW LEVEL SECURITY;
+            ALTER TABLE basededados.plant_collection ENABLE ROW LEVEL SECURITY;
+            ALTER TABLE basededados.category_site_mapping ENABLE ROW LEVEL SECURITY;
+            ALTER TABLE basededados.video_ads ENABLE ROW LEVEL SECURITY;
+            ALTER TABLE basededados.plans ENABLE ROW LEVEL SECURITY;
+            ALTER TABLE basededados.stores ENABLE ROW LEVEL SECURITY;
+
+            -- produtos: única com uso real confirmado, e só dentro do formulário
+            -- de administração (rota /admin, atrás de login). Mantém acesso
+            -- total para quem já está autenticado (nada muda para o admin),
+            -- fecha só o acesso anónimo (que nada legítimo usa).
+            ALTER TABLE basededados.produtos ENABLE ROW LEVEL SECURITY;
+            DROP POLICY IF EXISTS produtos_authenticated_full_access ON basededados.produtos;
+            CREATE POLICY produtos_authenticated_full_access ON basededados.produtos
+              FOR ALL TO authenticated USING (true) WITH CHECK (true);
+            SQL
+            echo "--- confirma: todas as 14 agora com RLS activo ---"
+            docker exec supabase-db psql -U postgres -d postgres -t -A -c "
+              SELECT tablename FROM pg_tables
+              WHERE schemaname='basededados' AND tablename IN
+              ('roles','role_redirects','role_capabilities','capabilities','role_menu_visibility','news','baseagrodata_news','entrecampos_news','plant_collection','category_site_mapping','video_ads','plans','stores','produtos')
+              AND NOT rowsecurity;"
+            echo "(lista vazia acima = todas as 14 já têm RLS activo)"
+            echo ""
+            echo "--- diz ao PostgREST do Hetzner para reler (mesma peça que faltou no Contabo) ---"
+            docker exec supabase-db psql -U postgres -d postgres -c "NOTIFY pgrst, 'reload schema';"
+
+      - name: Confirma que o site real continua a funcionar (só leitura)
+        env:
+          HETZNER_HOST: ${{ secrets.HETZNER_HOST }}
+        run: |
+          set +e
+          sleep 2
+          for path in / /pt/produtos /pt/mercado /pt/artigos; do
+            echo -n "$path: "
+            curl -sSI --max-time 10 "https://basededadosagro.com$path" | head -1
+          done
