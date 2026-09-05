@@ -155,7 +155,7 @@ jobs:
             LOCAL="work/$DOMAIN/$ACCT"; mkdir -p "$LOCAL"
             echo "---- $ACCT@$DOMAIN ----"
             if ! rsync -a --timeout=180 $EXCL \
-                 -e "ssh -n -i $HOME/.ssh/hetzner -p $HETZNER_PORT -o StrictHostKeyChecking=accept-new" \
+                 -e "ssh -i $HOME/.ssh/hetzner -p $HETZNER_PORT -o StrictHostKeyChecking=accept-new -o BatchMode=yes" \
                  "$HETZNER_USER@$HETZNER_HOST:$SRC/" "$LOCAL/" </dev/null; then
               echo "  FALHOU rsync do Hetzner"; FAIL=$((FAIL+1)); continue
             fi
