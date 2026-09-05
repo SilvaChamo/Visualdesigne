@@ -462,27 +462,43 @@ jobs:
           CONTABO_HOST: ${{ secrets.CONTABO_HOST }}
         run: |
           set -e
-          echo "--- valor actual de PGRST_DB_SCHEMAS no Contabo ---"
+          echo "--- valor no ficheiro .env vs. valor REALMENTE a correr no contentor ---"
           ssh -i ~/.ssh/contabo_key "root@$CONTABO_HOST" "grep '^PGRST_DB_SCHEMAS=' /opt/supabase-contabo/docker/.env || echo '(não definido, usa o default do Supabase)'"
-          echo "--- adiciona basededados, só se ainda não lá estiver ---"
+          ssh -i ~/.ssh/contabo_key "root@$CONTABO_HOST" "docker exec supabase-rest env | grep PGRST_DB_SCHEMAS || echo '(não definido no contentor)'"
+          echo "--- garante que o ficheiro tem basededados, e que o CONTENTOR também já o está a usar ---"
+          # Descoberta (5 set, 2ª tentativa): 'docker compose restart' NÃO relê o
+          # .env — só reinicia o processo dentro do MESMO contentor já criado com
+          # o valor antigo. O ficheiro ficou actualizado na 1ª tentativa, mas o
+          # contentor continuou com o valor velho (confirmado: app real recebeu
+          # "Invalid schema: basededados — only public, graphql_public exposed").
+          # 'docker compose up -d' recria o contentor com o .env actual — é o
+          # comando certo para isto, idempotente (não faz nada se já estiver
+          # tudo igual).
           ssh -i ~/.ssh/contabo_key "root@$CONTABO_HOST" '
             set -e
             cd /opt/supabase-contabo/docker
             CURRENT=$(grep "^PGRST_DB_SCHEMAS=" .env | cut -d= -f2-)
-            if echo "$CURRENT" | grep -q "basededados"; then
-              echo "já incluído, não mexo: $CURRENT"
-            else
+            if ! echo "$CURRENT" | grep -q "basededados"; then
               NEW="${CURRENT},basededados"
               grep -v "^PGRST_DB_SCHEMAS=" .env > .env.tmp
               mv .env.tmp .env
               echo "PGRST_DB_SCHEMAS=${NEW}" >> .env
-              echo "actualizado: ${CURRENT} -> ${NEW}"
-              docker compose restart rest
-              sleep 3
+              echo "ficheiro actualizado: ${CURRENT} -> ${NEW}"
+            else
+              echo "ficheiro já tinha basededados: ${CURRENT}"
+            fi
+            LIVE=$(docker exec supabase-rest env | grep "^PGRST_DB_SCHEMAS=" | cut -d= -f2- || echo "")
+            if echo "$LIVE" | grep -q "basededados"; then
+              echo "contentor já está a correr com basededados incluído — não recria."
+            else
+              echo "contentor ainda com valor velho (${LIVE}) — recria com up -d"
+              docker compose up -d rest
+              sleep 5
             fi
           '
-          echo "--- confirma que o serviço voltou (health check) ---"
+          echo "--- confirma que o serviço voltou e já usa o valor certo ---"
           ssh -i ~/.ssh/contabo_key "root@$CONTABO_HOST" "docker ps --filter name=supabase-rest --format '{{.Names}}\t{{.Status}}'"
+          ssh -i ~/.ssh/contabo_key "root@$CONTABO_HOST" "docker exec supabase-rest env | grep PGRST_DB_SCHEMAS"
 
       - name: 2. Copia o schema basededados (dump isolado, do Hetzner para o Contabo)
         env:
@@ -677,8 +693,12 @@ jobs:
             cd /opt/basededadosagro-site
             node --version
             npm --version
-            if [ -f package-lock.json ]; then npm ci; else npm install; fi
-            npm run build
+            if [ -d .next ]; then
+              echo "já existe uma build (.next) — não repito npm ci/build (demora ~14min)."
+            else
+              if [ -f package-lock.json ]; then npm ci; else npm install; fi
+              npm run build
+            fi
           '
 
       - name: 7. Confirma porta livre e arranca via pm2 (processo novo, não mexe nos existentes)
