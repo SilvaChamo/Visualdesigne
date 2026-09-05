@@ -541,7 +541,12 @@ jobs:
           # propósito os grants antigos, que nem fariam sentido aqui). RLS
           # (já definida nas migrations do próprio projecto) continua a decidir
           # QUE LINHAS cada papel vê - isto só abre a porta do schema/tabela.
-          ssh -i ~/.ssh/contabo_key "root@$CONTABO_HOST" "docker exec supabase-db psql -U postgres -d postgres -v ON_ERROR_STOP=1" <<'SQL'
+          # -i em falta aqui (2ª tentativa, 5 set) é o motivo real de "permission
+          # denied" ter persistido: sem -i, docker exec não liga o stdin do
+          # heredoc ao psql lá dentro — psql corria sem receber nada, "sucesso"
+          # sem fazer nada. Confirmado directamente: USAGE ficou 'f' para os 3
+          # papéis mesmo depois deste passo reportar sucesso.
+          ssh -i ~/.ssh/contabo_key "root@$CONTABO_HOST" "docker exec -i supabase-db psql -U postgres -d postgres -v ON_ERROR_STOP=1" <<'SQL'
           GRANT USAGE ON SCHEMA basededados TO anon, authenticated, service_role;
           GRANT ALL ON ALL TABLES IN SCHEMA basededados TO anon, authenticated, service_role;
           GRANT ALL ON ALL SEQUENCES IN SCHEMA basededados TO anon, authenticated, service_role;
