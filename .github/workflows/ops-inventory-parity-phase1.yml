@@ -1023,3 +1023,35 @@ jobs:
             echo ""
             echo "=== confirma alguns números reais na página (grep por texto de empresas/artigos) ==="
             curl -sS http://127.0.0.1:3010/pt | grep -oE "companies|articles|erro|error" | sort | uniq -c
+
+  investiga-uso-tabelas-sem-rls:
+    name: investiga-uso-tabelas-sem-rls
+    runs-on: ubuntu-latest
+    steps:
+      - name: Setup SSH key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.HETZNER_SSH_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -p "${{ secrets.HETZNER_PORT }}" "${{ secrets.HETZNER_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
+      - name: Como cada tabela sem RLS é usada no código real (só leitura)
+        uses: appleboy/ssh-action@v1.2.5
+        with:
+          host: ${{ secrets.HETZNER_HOST }}
+          port: ${{ secrets.HETZNER_PORT }}
+          username: ${{ secrets.HETZNER_USER }}
+          key: ${{ secrets.HETZNER_SSH_KEY }}
+          command_timeout: 3m
+          script: |
+            set +e
+            APP=/opt/basededadosagro-site
+            for t in roles role_redirects role_capabilities capabilities role_menu_visibility news baseagrodata_news entrecampos_news plant_collection category_site_mapping video_ads plans stores produtos; do
+              echo "=== $t ==="
+              echo "--- ficheiros que usam .from('$t') (client/server, não admin) ---"
+              grep -rn "from(['\"]$t['\"])" "$APP/app" "$APP/components" "$APP/lib" "$APP/utils" 2>/dev/null | grep -v "admin\.ts\|createAdminClient"
+              echo "--- ficheiros que usam via admin (service_role, sempre passa RLS) ---"
+              grep -rln "from(['\"]$t['\"])" "$APP" --include="*.ts" --include="*.tsx" 2>/dev/null | xargs grep -l "createAdminClient\|SUPABASE_SERVICE_ROLE" 2>/dev/null
+              echo "--- linhas de contagem: quantos ficheiros ao todo referenciam esta tabela ---"
+              grep -rl "from(['\"]$t['\"])" "$APP" --include="*.ts" --include="*.tsx" 2>/dev/null | wc -l
+              echo ""
+            done
