@@ -444,6 +444,10 @@ jobs:
 
   deploy-basededadosagro-contabo:
     name: deploy-basededadosagro-contabo
+    # Desactivado temporariamente (5 set) só para o dispatch de verificação
+    # final rápida — já correu com sucesso, não precisa de repetir. Reverter
+    # (remover este if) da próxima vez que for preciso reconstruir a sério.
+    if: false
     runs-on: ubuntu-latest
     steps:
       - name: Prepara chaves SSH
@@ -995,3 +999,31 @@ jobs:
             APP=/opt/basededadosagro-site
             echo "=== primeiras 35 linhas de app/[locale]/page.tsx ==="
             sed -n '1,35p' "$APP/app/[locale]/page.tsx"
+
+  verificacao-final-limpa:
+    name: verificacao-final-limpa
+    runs-on: ubuntu-latest
+    # Sem needs de propósito: quero verificar o processo JÁ a correr da
+    # tentativa anterior (já reconstruído correctamente), não disparar mais
+    # um dispatch completo que reconstruiria tudo outra vez (~14min à toa).
+    steps:
+      - name: Limpa registos antigos, faz pedido fresco, confirma resultado (só leitura)
+        uses: appleboy/ssh-action@v1.2.5
+        with:
+          host: ${{ secrets.CONTABO_HOST }}
+          username: root
+          password: ${{ secrets.CONTABO_ROOT_PASSWORD }}
+          command_timeout: 2m
+          script: |
+            set +e
+            echo "=== limpa registos antigos ==="
+            pm2 flush basededadosagro-site-teste
+            sleep 1
+            echo "=== pedido fresco à página inicial ==="
+            curl -sS -o /dev/null -w "HTTP_STATUS:%{http_code}\n" http://127.0.0.1:3010/
+            sleep 2
+            echo "=== registo de erros DEPOIS de limpar (só o que aconteceu agora) ==="
+            pm2 logs basededadosagro-site-teste --lines 30 --nostream --err
+            echo ""
+            echo "=== confirma alguns números reais na página (grep por texto de empresas/artigos) ==="
+            curl -sS http://127.0.0.1:3010/pt | grep -oE "companies|articles|erro|error" | sort | uniq -c
