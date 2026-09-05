@@ -148,9 +148,9 @@ jobs:
         run: |
           set +e
           EXCL="--exclude=tmp/ --exclude=dovecot-uidlist --exclude=dovecot.index* --exclude=dovecot.list.index* --exclude=dovecot-keywords --exclude=dovecot.mailbox.log"
-          COMMON="-o StrictHostKeyChecking=accept-new -o BatchMode=yes -o ConnectTimeout=20 -o ServerAliveInterval=15 -o ServerAliveCountMax=3"
+          COMMON="-o StrictHostKeyChecking=accept-new -o ConnectTimeout=20 -o ServerAliveInterval=15 -o ServerAliveCountMax=3"
           CM="-o ControlMaster=auto -o ControlPath=$HOME/.ssh/cm-%C -o ControlPersist=180"
-          HE_E="ssh -i $HOME/.ssh/hetzner -p $HETZNER_PORT $COMMON $CM"
+          HE_E="ssh -i $HOME/.ssh/hetzner -p $HETZNER_PORT $COMMON $CM -o BatchMode=yes"
           CO_E="ssh $COMMON $CM"
           co() { timeout 150 sshpass -f ~/.contabo_pw ssh $COMMON $CM -n "root@$CONTABO_HOST" "$@" </dev/null; }
           OK=0; SKIP=0; FAIL=0; NOCHG=0
