@@ -623,3 +623,106 @@ jobs:
               cat "$APP/$f" 2>&1
               echo ""
             done
+
+  configura-e-arranca-basededadosagro:
+    name: configura-e-arranca-basededadosagro
+    runs-on: ubuntu-latest
+    steps:
+      - name: 5. Escreve .env.local no Contabo (credenciais próprias do Contabo; M-Pesa/SMTP em branco de propósito)
+        env:
+          CONTABO_HOST: ${{ secrets.CONTABO_HOST }}
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.CONTABO_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_CONTABO_ANON_KEY }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_CONTABO_SERVICE_ROLE_KEY }}
+        run: |
+          set -e
+          mkdir -p ~/.ssh
+          echo "${{ secrets.CONTABO_SSH_KEY }}" > ~/.ssh/contabo_key
+          chmod 600 ~/.ssh/contabo_key
+          ssh-keyscan "$CONTABO_HOST" >> ~/.ssh/known_hosts 2>/dev/null
+          # CRON_SECRET é gerado DENTRO do servidor (nunca passa por aqui, nunca
+          # aparece neste registo) — repositório é público, nunca imprimir segredos.
+          ssh -i ~/.ssh/contabo_key "root@$CONTABO_HOST" \
+            "NEXT_PUBLIC_SUPABASE_URL='$NEXT_PUBLIC_SUPABASE_URL' NEXT_PUBLIC_SUPABASE_ANON_KEY='$NEXT_PUBLIC_SUPABASE_ANON_KEY' SUPABASE_SERVICE_ROLE_KEY='$SUPABASE_SERVICE_ROLE_KEY' bash -s" <<'REMOTE'
+            set -e
+            cd /opt/basededadosagro-site
+            CRON_SECRET_VALUE=$(openssl rand -hex 32)
+            cat > .env.local <<EOF
+NEXT_PUBLIC_SUPABASE_URL=${NEXT_PUBLIC_SUPABASE_URL}
+NEXT_PUBLIC_SUPABASE_ANON_KEY=${NEXT_PUBLIC_SUPABASE_ANON_KEY}
+SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY}
+CRON_SECRET=${CRON_SECRET_VALUE}
+SMS_DRY_RUN=true
+MPESA_CONSUMER_KEY=
+MPESA_CONSUMER_SECRET=
+MPESA_SHORTCODE=
+MPESA_PASSKEY=
+MPESA_CALLBACK_URL=
+SMTP_HOST=
+SMTP_PORT=
+SMTP_USER=
+SMTP_PASS=
+EOF
+            chmod 600 .env.local
+            echo "escrito .env.local ($(wc -l < .env.local) linhas) — valores nunca impressos"
+REMOTE
+
+      - name: 6. npm ci + build no Contabo (pode demorar alguns minutos)
+        env:
+          CONTABO_HOST: ${{ secrets.CONTABO_HOST }}
+        run: |
+          set -e
+          ssh -i ~/.ssh/contabo_key "root@$CONTABO_HOST" '
+            set -e
+            cd /opt/basededadosagro-site
+            node --version
+            npm --version
+            if [ -f package-lock.json ]; then npm ci; else npm install; fi
+            npm run build
+          '
+
+      - name: 7. Confirma porta livre e arranca via pm2 (processo novo, não mexe nos existentes)
+        env:
+          CONTABO_HOST: ${{ secrets.CONTABO_HOST }}
+        run: |
+          set -e
+          echo "--- porta 3010 já em uso no Contabo? ---"
+          BUSY=$(ssh -i ~/.ssh/contabo_key "root@$CONTABO_HOST" "ss -tln | grep -c ':3010 ' || true")
+          if [ "$BUSY" != "0" ]; then
+            echo "ABORTAR: porta 3010 já ocupada no Contabo — escolher outra porta manualmente."
+            exit 1
+          fi
+          echo "livre, avança."
+          echo "--- (re)inicia só este processo, idempotente ---"
+          ssh -i ~/.ssh/contabo_key "root@$CONTABO_HOST" '
+            cd /opt/basededadosagro-site
+            pm2 describe basededadosagro-site-teste > /dev/null 2>&1 && pm2 restart basededadosagro-site-teste || pm2 start npm --name "basededadosagro-site-teste" -- run start -- -p 3010
+            pm2 save
+          '
+          sleep 5
+          echo "--- estado do processo ---"
+          ssh -i ~/.ssh/contabo_key "root@$CONTABO_HOST" "pm2 describe basededadosagro-site-teste | grep -iE 'status|restarts|uptime|script args'"
+
+      - name: 8. Verifica resposta real (compara com o site ao vivo no Hetzner)
+        env:
+          CONTABO_HOST: ${{ secrets.CONTABO_HOST }}
+        run: |
+          set +e
+          echo "--- Contabo (cópia nova, só localhost:3010) ---"
+          ssh -i ~/.ssh/contabo_key "root@$CONTABO_HOST" "curl -sSI --max-time 10 http://127.0.0.1:3010/ | head -5"
+          echo ""
+          echo "--- Hetzner (site real, para comparar) ---"
+          curl -sSI --max-time 10 https://basededadosagro.com/ | head -5
+          echo ""
+          echo "--- logs recentes do processo novo (últimas 20 linhas, para ver erros) ---"
+          ssh -i ~/.ssh/contabo_key "root@$CONTABO_HOST" "pm2 logs basededadosagro-site-teste --lines 20 --nostream 2>&1"
+
+      - name: 9. Confirma que nada mais foi afectado
+        env:
+          CONTABO_HOST: ${{ secrets.CONTABO_HOST }}
+        run: |
+          set +e
+          echo "--- site de teste principal do Contabo continua bem? ---"
+          ssh -i ~/.ssh/contabo_key "root@$CONTABO_HOST" "curl -sSI --max-time 10 -H 'Host: teste.visualdesignmoz.com' http://127.0.0.1:3002/ | head -3"
+          echo "--- todos os processos pm2 no Contabo agora ---"
+          ssh -i ~/.ssh/contabo_key "root@$CONTABO_HOST" "pm2 list"
