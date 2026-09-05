@@ -603,3 +603,23 @@ jobs:
             echo ""
             echo "=== ficheiros supabase.ts/js prováveis ==="
             find "$APP" -iname "*supabase*" -not -path "*/node_modules/*" -not -path "*/.next/*" 2>/dev/null
+
+  investiga-supabase-clients:
+    name: investiga-supabase-clients
+    runs-on: ubuntu-latest
+    steps:
+      - name: Conteúdo dos ficheiros que configuram o cliente Supabase (só leitura)
+        uses: appleboy/ssh-action@v1.2.5
+        with:
+          host: ${{ secrets.CONTABO_HOST }}
+          username: root
+          password: ${{ secrets.CONTABO_ROOT_PASSWORD }}
+          command_timeout: 2m
+          script: |
+            set +e
+            APP=/opt/basededadosagro-site
+            for f in utils/supabase/client.ts utils/supabase/server.ts utils/supabase/admin.ts utils/supabase/middleware.ts lib/supabaseClient.ts; do
+              echo "=== $f ==="
+              cat "$APP/$f" 2>&1
+              echo ""
+            done
