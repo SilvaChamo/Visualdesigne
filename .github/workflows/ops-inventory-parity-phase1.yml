@@ -555,6 +555,15 @@ jobs:
           ALTER DEFAULT PRIVILEGES IN SCHEMA basededados GRANT ALL ON SEQUENCES TO anon, authenticated, service_role;
           ALTER DEFAULT PRIVILEGES IN SCHEMA basededados GRANT ALL ON ROUTINES TO anon, authenticated, service_role;
           SQL
+          echo "--- diz ao PostgREST já a correr para reler o schema/permissões (sem reiniciar) ---"
+          # Peça final: o -i estava a impedir os GRANTs de chegar (corrigido acima),
+          # mas mesmo com os GRANTs a resultar, a app continuou a receber
+          # "permission denied" — o PostgREST guarda em memória a estrutura/
+          # permissões vistas quando arrancou (o passo 1 recriou o contentor
+          # ANTES destes GRANTs existirem). NOTIFY pgrst avisa-o para reler,
+          # sem precisar de mais um reinício.
+          ssh -i ~/.ssh/contabo_key "root@$CONTABO_HOST" "docker exec supabase-db psql -U postgres -d postgres -c \"NOTIFY pgrst, 'reload schema';\""
+          sleep 2
 
       - name: 3. Copia o código (tar do Hetzner, extrai numa pasta nova no Contabo)
         env:
