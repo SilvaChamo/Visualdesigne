@@ -1103,7 +1103,10 @@ jobs:
           command_timeout: 2m
           script: |
             set -e
-            docker exec -i supabase-db psql -U postgres -d postgres -v ON_ERROR_STOP=1 <<'SQL'
+            # postgres NÃO é superuser aqui (confirmado: rolsuper=false) — quem é
+            # dono de tudo em basededados é supabase_admin (rolsuper=true). Liga
+            # como esse em vez de postgres só para este ALTER TABLE/CREATE POLICY.
+            docker exec -i supabase-db psql -U supabase_admin -d postgres -v ON_ERROR_STOP=1 <<'SQL'
             -- 13 tabelas confirmadas sem NENHUMA referência no código da app
             -- (grep exaustivo a .from('tabela') em toda a aplicação) — activar
             -- RLS sem políticas bloqueia anon/authenticated por completo, sem
