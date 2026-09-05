@@ -911,3 +911,27 @@ jobs:
             docker exec supabase-db psql -U postgres -d postgres -t -A -c "
               SELECT count(DISTINCT table_name) FROM information_schema.table_privileges
               WHERE table_schema='basededados' AND grantee='anon';"
+
+  testa-postgrest-http:
+    name: testa-postgrest-http
+    runs-on: ubuntu-latest
+    needs: deploy-basededadosagro-contabo
+    steps:
+      - name: Chama o PostgREST directamente por HTTP (contorna a app Next.js) - nunca imprime a chave
+        env:
+          CONTABO_SUPABASE_URL: ${{ secrets.CONTABO_SUPABASE_URL }}
+          ANON_KEY: ${{ secrets.SUPABASE_CONTABO_ANON_KEY }}
+        run: |
+          set +e
+          echo "=== GET /companies com Accept-Profile: basededados ==="
+          curl -sS -w "\nHTTP_STATUS:%{http_code}\n" \
+            -H "apikey: $ANON_KEY" \
+            -H "Authorization: Bearer $ANON_KEY" \
+            -H "Accept-Profile: basededados" \
+            "$CONTABO_SUPABASE_URL/rest/v1/companies?select=*&limit=1"
+          echo ""
+          echo "=== GET /companies SEM Accept-Profile (deve dar erro de tabela não encontrada em public) ==="
+          curl -sS -w "\nHTTP_STATUS:%{http_code}\n" \
+            -H "apikey: $ANON_KEY" \
+            -H "Authorization: Bearer $ANON_KEY" \
+            "$CONTABO_SUPABASE_URL/rest/v1/companies?select=*&limit=1"
