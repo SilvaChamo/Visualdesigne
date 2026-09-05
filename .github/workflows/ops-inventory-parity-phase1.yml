@@ -768,3 +768,47 @@ jobs:
           ssh -i ~/.ssh/contabo_key "root@$CONTABO_HOST" "curl -sSI --max-time 10 -H 'Host: teste.visualdesignmoz.com' http://127.0.0.1:3002/ | head -3"
           echo "--- todos os processos pm2 no Contabo agora ---"
           ssh -i ~/.ssh/contabo_key "root@$CONTABO_HOST" "pm2 list"
+
+  investiga-grants-hetzner:
+    name: investiga-grants-hetzner
+    runs-on: ubuntu-latest
+    steps:
+      - name: Setup SSH key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.HETZNER_SSH_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -p "${{ secrets.HETZNER_PORT }}" "${{ secrets.HETZNER_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
+      - name: Grants reais + estado de RLS do schema basededados no Hetzner (só leitura)
+        uses: appleboy/ssh-action@v1.2.5
+        with:
+          host: ${{ secrets.HETZNER_HOST }}
+          port: ${{ secrets.HETZNER_PORT }}
+          username: ${{ secrets.HETZNER_USER }}
+          key: ${{ secrets.HETZNER_SSH_KEY }}
+          command_timeout: 2m
+          script: |
+            set +e
+            echo "=== privilégios de anon/authenticated/service_role por tabela ==="
+            docker exec supabase-db psql -U postgres -d postgres -t -A -F'|' -c "
+              SELECT grantee, table_name, string_agg(privilege_type, ',' ORDER BY privilege_type)
+              FROM information_schema.table_privileges
+              WHERE table_schema='basededados' AND grantee IN ('anon','authenticated','service_role')
+              GROUP BY grantee, table_name ORDER BY grantee, table_name;"
+            echo ""
+            echo "=== USAGE no schema em si ==="
+            docker exec supabase-db psql -U postgres -d postgres -t -A -c "
+              SELECT grantee, privilege_type FROM information_schema.usage_privileges
+              WHERE object_schema='basededados' AND grantee IN ('anon','authenticated','service_role');" 2>&1
+            docker exec supabase-db psql -U postgres -d postgres -t -A -c "
+              SELECT nspname, r.rolname, has_schema_privilege(r.rolname, nspname, 'USAGE')
+              FROM pg_namespace, pg_roles r WHERE nspname='basededados' AND r.rolname IN ('anon','authenticated','service_role');"
+            echo ""
+            echo "=== quantas tabelas têm RLS activo/forçado ==="
+            docker exec supabase-db psql -U postgres -d postgres -t -A -c "
+              SELECT count(*) FILTER (WHERE rowsecurity), count(*) FILTER (WHERE forcerowsecurity), count(*)
+              FROM pg_tables WHERE schemaname='basededados';"
+            echo ""
+            echo "=== tabelas SEM RLS activo (se houver) ==="
+            docker exec supabase-db psql -U postgres -d postgres -t -A -c "
+              SELECT tablename FROM pg_tables WHERE schemaname='basededados' AND NOT rowsecurity;"
