@@ -444,10 +444,6 @@ jobs:
 
   deploy-basededadosagro-contabo:
     name: deploy-basededadosagro-contabo
-    # Desactivado temporariamente (5 set) só para o dispatch de verificação
-    # final rápida — já correu com sucesso, não precisa de repetir. Reverter
-    # (remover este if) da próxima vez que for preciso reconstruir a sério.
-    if: false
     runs-on: ubuntu-latest
     steps:
       - name: Prepara chaves SSH
