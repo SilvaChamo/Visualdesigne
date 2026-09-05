@@ -577,3 +577,29 @@ jobs:
             echo ""
             echo "=== ficheiros que mencionam 'basededados' como string no código ==="
             grep -rln "basededados" "$APP/src" 2>/dev/null | head -10
+
+  investiga-schema-selection2:
+    name: investiga-schema-selection2
+    runs-on: ubuntu-latest
+    steps:
+      - name: Estrutura real de pastas + procura sem assumir 'src' (só leitura)
+        uses: appleboy/ssh-action@v1.2.5
+        with:
+          host: ${{ secrets.CONTABO_HOST }}
+          username: root
+          password: ${{ secrets.CONTABO_ROOT_PASSWORD }}
+          command_timeout: 2m
+          script: |
+            set +e
+            APP=/opt/basededadosagro-site
+            echo "=== estrutura de topo ==="
+            ls -la "$APP"
+            echo ""
+            echo "=== createClient em toda a app (excepto node_modules/.next) ==="
+            grep -rln "createClient" "$APP" --exclude-dir=node_modules --exclude-dir=.next 2>/dev/null
+            echo ""
+            echo "=== 'basededados' como string em toda a app ==="
+            grep -rln "basededados" "$APP" --exclude-dir=node_modules --exclude-dir=.next 2>/dev/null
+            echo ""
+            echo "=== ficheiros supabase.ts/js prováveis ==="
+            find "$APP" -iname "*supabase*" -not -path "*/node_modules/*" -not -path "*/.next/*" 2>/dev/null
