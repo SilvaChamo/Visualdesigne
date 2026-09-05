@@ -873,3 +873,41 @@ jobs:
             echo "=== teste directo: consulta a market_prices como o papel anon veria ==="
             docker exec supabase-db psql -U postgres -d postgres -t -A -c "
               SET ROLE anon; SELECT count(*) FROM basededados.market_prices;" 2>&1
+
+  compara-grants-completo:
+    name: compara-grants-completo
+    runs-on: ubuntu-latest
+    needs: deploy-basededadosagro-contabo
+    steps:
+      - name: Lista TODAS as permissões actuais no Contabo, tabela a tabela (só leitura)
+        uses: appleboy/ssh-action@v1.2.5
+        with:
+          host: ${{ secrets.CONTABO_HOST }}
+          username: root
+          password: ${{ secrets.CONTABO_ROOT_PASSWORD }}
+          command_timeout: 2m
+          script: |
+            set +e
+            echo "=== privilégios actuais por tabela no Contabo ==="
+            docker exec supabase-db psql -U postgres -d postgres -t -A -F'|' -c "
+              SELECT grantee, table_name, string_agg(privilege_type, ',' ORDER BY privilege_type)
+              FROM information_schema.table_privileges
+              WHERE table_schema='basededados' AND grantee IN ('anon','authenticated','service_role')
+              GROUP BY grantee, table_name ORDER BY grantee, table_name;"
+            echo ""
+            echo "=== teste directo às tabelas que a app relata com erro ==="
+            for t in companies articles market_prices agricultural_stats; do
+              echo -n "$t: "
+              docker exec supabase-db psql -U postgres -d postgres -t -A -c "SET ROLE anon; SELECT count(*) FROM basededados.$t;" 2>&1
+            done
+            echo ""
+            echo "=== é view ou tabela normal? ==="
+            docker exec supabase-db psql -U postgres -d postgres -t -A -c "
+              SELECT tablename, 'table' FROM pg_tables WHERE schemaname='basededados' AND tablename IN ('companies','articles')
+              UNION ALL
+              SELECT viewname, 'view' FROM pg_views WHERE schemaname='basededados' AND viewname IN ('companies','articles');"
+            echo ""
+            echo "=== quantas tabelas ao todo têm grant para anon agora? (esperado 52) ==="
+            docker exec supabase-db psql -U postgres -d postgres -t -A -c "
+              SELECT count(DISTINCT table_name) FROM information_schema.table_privileges
+              WHERE table_schema='basededados' AND grantee='anon';"
