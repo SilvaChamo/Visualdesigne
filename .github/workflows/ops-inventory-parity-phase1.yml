@@ -648,24 +648,24 @@ jobs:
             cd /opt/basededadosagro-site
             CRON_SECRET_VALUE=$(openssl rand -hex 32)
             cat > .env.local <<EOF
-NEXT_PUBLIC_SUPABASE_URL=${NEXT_PUBLIC_SUPABASE_URL}
-NEXT_PUBLIC_SUPABASE_ANON_KEY=${NEXT_PUBLIC_SUPABASE_ANON_KEY}
-SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY}
-CRON_SECRET=${CRON_SECRET_VALUE}
-SMS_DRY_RUN=true
-MPESA_CONSUMER_KEY=
-MPESA_CONSUMER_SECRET=
-MPESA_SHORTCODE=
-MPESA_PASSKEY=
-MPESA_CALLBACK_URL=
-SMTP_HOST=
-SMTP_PORT=
-SMTP_USER=
-SMTP_PASS=
-EOF
+          NEXT_PUBLIC_SUPABASE_URL=${NEXT_PUBLIC_SUPABASE_URL}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY=${NEXT_PUBLIC_SUPABASE_ANON_KEY}
+          SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY}
+          CRON_SECRET=${CRON_SECRET_VALUE}
+          SMS_DRY_RUN=true
+          MPESA_CONSUMER_KEY=
+          MPESA_CONSUMER_SECRET=
+          MPESA_SHORTCODE=
+          MPESA_PASSKEY=
+          MPESA_CALLBACK_URL=
+          SMTP_HOST=
+          SMTP_PORT=
+          SMTP_USER=
+          SMTP_PASS=
+          EOF
             chmod 600 .env.local
             echo "escrito .env.local ($(wc -l < .env.local) linhas) — valores nunca impressos"
-REMOTE
+          REMOTE
 
       - name: 6. npm ci + build no Contabo (pode demorar alguns minutos)
         env:
