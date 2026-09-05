@@ -969,3 +969,20 @@ jobs:
               grep -n -B15 "Error fetching stats\|Error fetching companies\|Error fetching articles" "$f"
               echo ""
             done
+
+  le-topo-page:
+    name: le-topo-page
+    runs-on: ubuntu-latest
+    steps:
+      - name: Vê como app/[locale]/page.tsx cria o cliente supabase (só leitura)
+        uses: appleboy/ssh-action@v1.2.5
+        with:
+          host: ${{ secrets.CONTABO_HOST }}
+          username: root
+          password: ${{ secrets.CONTABO_ROOT_PASSWORD }}
+          command_timeout: 2m
+          script: |
+            set +e
+            APP=/opt/basededadosagro-site
+            echo "=== primeiras 35 linhas de app/[locale]/page.tsx ==="
+            sed -n '1,35p' "$APP/app/[locale]/page.tsx"
