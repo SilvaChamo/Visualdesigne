@@ -135,4 +135,11 @@ jobs:
               [ -f "$k" ] && echo "existe: $k"
             done
             echo "--- known_hosts tem o IP do Contabo? ---"
-            grep -c '169.58.148.144' /root/.ssh/known_hosts 2>/dev/null
+            grep -c '169.58.148.144' /root/.ssh/known_hosts 2>/dev/null || echo "0 (nao tem)"
+            echo
+            echo "===== PATH real do doveadm/dovecot ====="
+            command -v doveadm dovecot doveconf 2>&1
+            ls -la /usr/bin/doveadm /usr/sbin/dovecot /usr/local/bin/doveadm 2>&1
+            echo
+            echo "===== RECON HETZNER TERMINADA OK ====="
+            true
