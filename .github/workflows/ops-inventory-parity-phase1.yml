@@ -730,12 +730,21 @@ jobs:
             cd /opt/basededadosagro-site
             node --version
             npm --version
-            if [ -d .next ]; then
-              echo "já existe uma build (.next) — não repito npm ci/build (demora ~14min)."
-            else
-              if [ -f package-lock.json ]; then npm ci; else npm install; fi
-              npm run build
-            fi
+            # CAUSA RAIZ REAL do "permission denied" persistente (5 set, depois
+            # de confirmar BD e PostgREST 100% correctos por testes directos):
+            # esta app usa `export const revalidate = 60` na home — o Next.js
+            # PRÉ-GERA a página estática UMA VEZ durante o build e serve essa
+            # mesma versão até expirar. A única build bem-sucedida até agora
+            # aconteceu quando o schema ainda não estava exposto (erro "Invalid
+            # schema"), por isso a página ficou "cozida" com esse erro desde
+            # então — reiniciar o processo, limpar .next/cache, ou corrigir a
+            # BD nunca chegava a esta página já pré-gerada. A optimização de
+            # "saltar build se .next já existe" (poupar ~14min) estava, sem eu
+            # perceber, a impedir a correcção de sempre chegar aqui. Removida:
+            # com a app já estável, reconstruir sempre é o comportamento certo
+            # para esta app especificamente (ISR/revalidate estático).
+            if [ -f package-lock.json ]; then npm ci; else npm install; fi
+            npm run build
           '
 
       - name: 7. Confirma porta livre e arranca via pm2 (processo novo, não mexe nos existentes)
