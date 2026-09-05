@@ -812,3 +812,43 @@ jobs:
             echo "=== tabelas SEM RLS activo (se houver) ==="
             docker exec supabase-db psql -U postgres -d postgres -t -A -c "
               SELECT tablename FROM pg_tables WHERE schemaname='basededados' AND NOT rowsecurity;"
+
+  investiga-grants-contabo:
+    name: investiga-grants-contabo
+    runs-on: ubuntu-latest
+    steps:
+      - name: Estado real dos grants + roles no Contabo (só leitura)
+        uses: appleboy/ssh-action@v1.2.5
+        with:
+          host: ${{ secrets.CONTABO_HOST }}
+          username: root
+          password: ${{ secrets.CONTABO_ROOT_PASSWORD }}
+          command_timeout: 2m
+          script: |
+            set +e
+            echo "=== os 3 papéis existem mesmo no Contabo? ==="
+            docker exec supabase-db psql -U postgres -d postgres -t -A -c "SELECT rolname FROM pg_roles WHERE rolname IN ('anon','authenticated','service_role','authenticator');"
+            echo ""
+            echo "=== authenticator é membro de anon/authenticated/service_role? ==="
+            docker exec supabase-db psql -U postgres -d postgres -t -A -c "
+              SELECT r.rolname AS membro_de FROM pg_auth_members m
+              JOIN pg_roles r ON r.oid = m.roleid
+              JOIN pg_roles u ON u.oid = m.member
+              WHERE u.rolname='authenticator';"
+            echo ""
+            echo "=== grants actuais em basededados.market_prices (tabela de teste) ==="
+            docker exec supabase-db psql -U postgres -d postgres -t -A -F'|' -c "
+              SELECT grantee, privilege_type FROM information_schema.table_privileges
+              WHERE table_schema='basededados' AND table_name='market_prices' AND grantee IN ('anon','authenticated','service_role');"
+            echo ""
+            echo "=== USAGE no schema basededados, visto do lado do Contabo ==="
+            docker exec supabase-db psql -U postgres -d postgres -t -A -c "
+              SELECT r.rolname, has_schema_privilege(r.rolname, 'basededados', 'USAGE')
+              FROM pg_roles r WHERE r.rolname IN ('anon','authenticated','service_role');"
+            echo ""
+            echo "=== search_path e configuração do PostgREST agora ==="
+            docker exec supabase-rest env | grep -i PGRST
+            echo ""
+            echo "=== teste directo: consulta a market_prices como o papel anon veria ==="
+            docker exec supabase-db psql -U postgres -d postgres -t -A -c "
+              SET ROLE anon; SELECT count(*) FROM basededados.market_prices;" 2>&1
