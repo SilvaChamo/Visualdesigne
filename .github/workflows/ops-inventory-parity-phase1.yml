@@ -945,3 +945,27 @@ jobs:
             -H "apikey: $ANON_KEY" \
             -H "Authorization: Bearer $ANON_KEY" \
             "$CONTABO_SUPABASE_URL/rest/v1/companies?select=*&limit=1"
+
+  le-codigo-fetch-stats:
+    name: le-codigo-fetch-stats
+    runs-on: ubuntu-latest
+    steps:
+      - name: Encontra e lê o código exacto das 3 queries com erro (só leitura)
+        uses: appleboy/ssh-action@v1.2.5
+        with:
+          host: ${{ secrets.CONTABO_HOST }}
+          username: root
+          password: ${{ secrets.CONTABO_ROOT_PASSWORD }}
+          command_timeout: 2m
+          script: |
+            set +e
+            APP=/opt/basededadosagro-site
+            echo "=== ficheiros com 'Error fetching stats' ==="
+            grep -rln "Error fetching stats" "$APP" --exclude-dir=node_modules --exclude-dir=.next
+            echo ""
+            echo "=== contexto de cada ocorrência (15 linhas antes) ==="
+            for f in $(grep -rl "Error fetching stats\|Error fetching companies\|Error fetching articles" "$APP" --exclude-dir=node_modules --exclude-dir=.next | sort -u); do
+              echo "--- $f ---"
+              grep -n -B15 "Error fetching stats\|Error fetching companies\|Error fetching articles" "$f"
+              echo ""
+            done
