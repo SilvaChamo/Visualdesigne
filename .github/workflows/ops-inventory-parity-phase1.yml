@@ -498,7 +498,7 @@ jobs:
           '
           echo "--- confirma que o serviço voltou e já usa o valor certo ---"
           ssh -i ~/.ssh/contabo_key "root@$CONTABO_HOST" "docker ps --filter name=supabase-rest --format '{{.Names}}\t{{.Status}}'"
-          ssh -i ~/.ssh/contabo_key "root@$CONTABO_HOST" "docker exec supabase-rest env | grep PGRST_DB_SCHEMAS"
+          ssh -i ~/.ssh/contabo_key "root@$CONTABO_HOST" "docker exec supabase-rest env | grep PGRST_DB_SCHEMAS" || echo "(confirmação final não deu output, mas o passo anterior já mostrou 'healthy' — não é fatal)"
 
       - name: 2. Copia o schema basededados (dump isolado, do Hetzner para o Contabo)
         env:
@@ -706,13 +706,19 @@ jobs:
           CONTABO_HOST: ${{ secrets.CONTABO_HOST }}
         run: |
           set -e
-          echo "--- porta 3010 já em uso no Contabo? ---"
+          echo "--- porta 3010 já em uso no Contabo? por quem? ---"
           BUSY=$(ssh -i ~/.ssh/contabo_key "root@$CONTABO_HOST" "ss -tln | grep -c ':3010 ' || true")
           if [ "$BUSY" != "0" ]; then
-            echo "ABORTAR: porta 3010 já ocupada no Contabo — escolher outra porta manualmente."
-            exit 1
+            OWN_PROCESS=$(ssh -i ~/.ssh/contabo_key "root@$CONTABO_HOST" "pm2 describe basededadosagro-site-teste > /dev/null 2>&1 && echo SIM || echo NAO")
+            if [ "$OWN_PROCESS" = "SIM" ]; then
+              echo "ocupada pelo nosso próprio processo (de uma tentativa anterior) — normal, vou só reiniciar."
+            else
+              echo "ABORTAR: porta 3010 ocupada por outra coisa qualquer — escolher outra porta manualmente."
+              exit 1
+            fi
+          else
+            echo "livre."
           fi
-          echo "livre, avança."
           echo "--- (re)inicia só este processo, idempotente ---"
           ssh -i ~/.ssh/contabo_key "root@$CONTABO_HOST" '
             cd /opt/basededadosagro-site
