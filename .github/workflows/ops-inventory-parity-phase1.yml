@@ -534,6 +534,22 @@ jobs:
             echo "--- confirma ---"
             ssh -i ~/.ssh/contabo_key "root@$CONTABO_HOST" "docker exec supabase-db psql -U postgres -d postgres -t -A -c \"SELECT count(*) FROM pg_tables WHERE schemaname='basededados'\""
           fi
+          echo "--- garante GRANTs para anon/authenticated/service_role (idempotente, sempre corre) ---"
+          # Encontrado ao arrancar a app: expor o schema no PostgREST não chega -
+          # o Postgres também exige GRANT explícito de USAGE/SELECT/etc. para os
+          # três papéis que o Supabase usa (--no-privileges no pg_dump removeu de
+          # propósito os grants antigos, que nem fariam sentido aqui). RLS
+          # (já definida nas migrations do próprio projecto) continua a decidir
+          # QUE LINHAS cada papel vê - isto só abre a porta do schema/tabela.
+          ssh -i ~/.ssh/contabo_key "root@$CONTABO_HOST" "docker exec supabase-db psql -U postgres -d postgres -v ON_ERROR_STOP=1" <<'SQL'
+          GRANT USAGE ON SCHEMA basededados TO anon, authenticated, service_role;
+          GRANT ALL ON ALL TABLES IN SCHEMA basededados TO anon, authenticated, service_role;
+          GRANT ALL ON ALL SEQUENCES IN SCHEMA basededados TO anon, authenticated, service_role;
+          GRANT ALL ON ALL ROUTINES IN SCHEMA basededados TO anon, authenticated, service_role;
+          ALTER DEFAULT PRIVILEGES IN SCHEMA basededados GRANT ALL ON TABLES TO anon, authenticated, service_role;
+          ALTER DEFAULT PRIVILEGES IN SCHEMA basededados GRANT ALL ON SEQUENCES TO anon, authenticated, service_role;
+          ALTER DEFAULT PRIVILEGES IN SCHEMA basededados GRANT ALL ON ROUTINES TO anon, authenticated, service_role;
+          SQL
 
       - name: 3. Copia o código (tar do Hetzner, extrai numa pasta nova no Contabo)
         env:
