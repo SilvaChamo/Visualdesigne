@@ -672,6 +672,13 @@ jobs:
 
   configura-e-arranca-basededadosagro:
     name: configura-e-arranca-basededadosagro
+    # Sem isto, este job corria em paralelo com deploy-basededadosagro-contabo
+    # e por vezes arrancava a app + testava ANTES do GRANT+NOTIFY de lá
+    # terminar (corrida real observada 2x: 06:19:11 vs GRANT às 06:18:58 +
+    # NOTIFY sem timestamp visto; e de novo 06:25:32 vs NOTIFY às 06:25:34) —
+    # dava "permission denied" por pura questão de ordem, não porque a
+    # correcção estivesse errada.
+    needs: deploy-basededadosagro-contabo
     runs-on: ubuntu-latest
     steps:
       - name: 5. Escreve .env.local no Contabo (credenciais próprias do Contabo; M-Pesa/SMTP em branco de propósito)
