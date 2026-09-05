@@ -748,7 +748,7 @@ jobs:
           if [ "$BUSY" != "0" ]; then
             OWN_PROCESS=$(ssh -i ~/.ssh/contabo_key "root@$CONTABO_HOST" "pm2 describe basededadosagro-site-teste > /dev/null 2>&1 && echo SIM || echo NAO")
             if [ "$OWN_PROCESS" = "SIM" ]; then
-              echo "ocupada pelo nosso próprio processo (de uma tentativa anterior) — normal, vou só reiniciar."
+              echo "ocupada pelo nosso próprio processo (de uma tentativa anterior) — normal, vou recriar do zero."
             else
               echo "ABORTAR: porta 3010 ocupada por outra coisa qualquer — escolher outra porta manualmente."
               exit 1
@@ -756,10 +756,20 @@ jobs:
           else
             echo "livre."
           fi
-          echo "--- (re)inicia só este processo, idempotente ---"
+          echo "--- apaga e recria (não só reinicia) + limpa cache de fetch antiga ---"
+          # Confirmado por eliminação (5 set): a base de dados está correcta
+          # (teste directo via psql passou) e o PostgREST está correcto
+          # (teste directo por HTTP devolveu 200 com dados reais) — mesmo
+          # assim a app continuava a mostrar "permission denied", herdado de
+          # tentativas anteriores a quando o schema ainda não estava exposto.
+          # 'pm2 restart' não limpa a Data Cache do Next.js em disco
+          # (.next/cache/fetch-cache) — só 'pm2 delete' + arranque novo, com
+          # essa pasta apagada, garante que não há nada em cache de antes.
           ssh -i ~/.ssh/contabo_key "root@$CONTABO_HOST" '
             cd /opt/basededadosagro-site
-            pm2 describe basededadosagro-site-teste > /dev/null 2>&1 && pm2 restart basededadosagro-site-teste || pm2 start npm --name "basededadosagro-site-teste" -- run start -- -p 3010
+            pm2 delete basededadosagro-site-teste > /dev/null 2>&1 || true
+            rm -rf .next/cache
+            pm2 start npm --name "basededadosagro-site-teste" -- run start -- -p 3010
             pm2 save
           '
           sleep 5
