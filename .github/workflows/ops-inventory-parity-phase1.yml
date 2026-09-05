@@ -554,3 +554,26 @@ jobs:
           echo "--- portas node/pm2 já em uso no Contabo ---"
           ssh -i ~/.ssh/contabo_key "root@$CONTABO_HOST" "ss -tlnp 2>&1 | grep -i node || echo '(nenhuma)'"
           ssh -i ~/.ssh/contabo_key "root@$CONTABO_HOST" "pm2 jlist 2>&1 | grep -oE '\"name\":\"[^\"]*\"|-- \"-p\" \"[0-9]*\"' || echo '(pm2 vazio ou sem apps -p)'"
+
+  investiga-schema-selection:
+    name: investiga-schema-selection
+    runs-on: ubuntu-latest
+    steps:
+      - name: Como a app escolhe o schema basededados (só leitura, código já copiado)
+        uses: appleboy/ssh-action@v1.2.5
+        with:
+          host: ${{ secrets.CONTABO_HOST }}
+          username: root
+          password: ${{ secrets.CONTABO_ROOT_PASSWORD }}
+          command_timeout: 2m
+          script: |
+            set +e
+            APP=/opt/basededadosagro-site
+            echo "=== onde se cria o cliente Supabase (createClient) ==="
+            grep -rn "createClient" "$APP/src" 2>/dev/null | grep -v node_modules
+            echo ""
+            echo "=== opção 'schema' passada ao criar o cliente ==="
+            grep -rn -A3 -B3 "schema" "$APP/src/lib" 2>/dev/null | head -80
+            echo ""
+            echo "=== ficheiros que mencionam 'basededados' como string no código ==="
+            grep -rln "basededados" "$APP/src" 2>/dev/null | head -10
