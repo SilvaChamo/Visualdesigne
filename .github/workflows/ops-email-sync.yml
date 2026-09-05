@@ -144,8 +144,9 @@ jobs:
           HETZNER_HOST: ${{ secrets.HETZNER_HOST }}
           HETZNER_USER: ${{ secrets.HETZNER_USER }}
           CONTABO_HOST: ${{ secrets.CONTABO_HOST }}
+        shell: bash --noprofile --norc {0}
         run: |
-          set -u
+          set +e
           EXCL="--exclude=tmp/ --exclude=dovecot-uidlist --exclude=dovecot.index* --exclude=dovecot.list.index* --exclude=dovecot-keywords --exclude=dovecot.mailbox.log"
           COMMON="-o StrictHostKeyChecking=accept-new -o BatchMode=yes -o ConnectTimeout=20 -o ServerAliveInterval=15 -o ServerAliveCountMax=3"
           CM="-o ControlMaster=auto -o ControlPath=$HOME/.ssh/cm-%C -o ControlPersist=180"
