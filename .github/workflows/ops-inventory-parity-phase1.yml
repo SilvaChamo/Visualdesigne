@@ -441,3 +441,105 @@ jobs:
             echo ""
             echo "=== confirma estado actual do processo (baseline antes de mexer em qualquer coisa) ==="
             pm2 jlist 2>&1 | grep -A3 '"name":"basededadosagro-site"' | grep -E "pid|uptime|restart_time|status"
+
+  deploy-basededadosagro-contabo:
+    name: deploy-basededadosagro-contabo
+    runs-on: ubuntu-latest
+    steps:
+      - name: Prepara chaves SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.HETZNER_SSH_KEY }}" > ~/.ssh/hetzner_key
+          chmod 600 ~/.ssh/hetzner_key
+          ssh-keyscan -p "${{ secrets.HETZNER_PORT }}" "${{ secrets.HETZNER_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
+          echo "${{ secrets.CONTABO_SSH_KEY }}" > ~/.ssh/contabo_key
+          chmod 600 ~/.ssh/contabo_key
+          ssh-keyscan "${{ secrets.CONTABO_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
+          mkdir -p /tmp/agro
+
+      - name: 1. Expõe o schema basededados no PostgREST do Contabo (reinício breve, autorizado)
+        env:
+          CONTABO_HOST: ${{ secrets.CONTABO_HOST }}
+        run: |
+          set -e
+          echo "--- valor actual de PGRST_DB_SCHEMAS no Contabo ---"
+          ssh -i ~/.ssh/contabo_key "root@$CONTABO_HOST" "grep '^PGRST_DB_SCHEMAS=' /opt/supabase-contabo/docker/.env || echo '(não definido, usa o default do Supabase)'"
+          echo "--- adiciona basededados, só se ainda não lá estiver ---"
+          ssh -i ~/.ssh/contabo_key "root@$CONTABO_HOST" '
+            set -e
+            cd /opt/supabase-contabo/docker
+            CURRENT=$(grep "^PGRST_DB_SCHEMAS=" .env | cut -d= -f2-)
+            if echo "$CURRENT" | grep -q "basededados"; then
+              echo "já incluído, não mexo: $CURRENT"
+            else
+              NEW="${CURRENT},basededados"
+              grep -v "^PGRST_DB_SCHEMAS=" .env > .env.tmp
+              mv .env.tmp .env
+              echo "PGRST_DB_SCHEMAS=${NEW}" >> .env
+              echo "actualizado: ${CURRENT} -> ${NEW}"
+              docker compose restart rest
+              sleep 3
+            fi
+          '
+          echo "--- confirma que o serviço voltou (health check) ---"
+          ssh -i ~/.ssh/contabo_key "root@$CONTABO_HOST" "docker ps --filter name=supabase-rest --format '{{.Names}}\t{{.Status}}'"
+
+      - name: 2. Copia o schema basededados (dump isolado, do Hetzner para o Contabo)
+        env:
+          HETZNER_HOST: ${{ secrets.HETZNER_HOST }}
+          HETZNER_PORT: ${{ secrets.HETZNER_PORT }}
+          HETZNER_USER: ${{ secrets.HETZNER_USER }}
+          CONTABO_HOST: ${{ secrets.CONTABO_HOST }}
+        run: |
+          set -e
+          echo "--- confirma se o schema já existe no Contabo (idempotente) ---"
+          EXISTS=$(ssh -i ~/.ssh/contabo_key "root@$CONTABO_HOST" "docker exec supabase-db psql -U postgres -d postgres -t -A -c \"SELECT count(*) FROM information_schema.schemata WHERE schema_name='basededados'\"")
+          if [ "$EXISTS" = "1" ]; then
+            echo "schema basededados já existe no Contabo — não repito o dump."
+          else
+            echo "--- pg_dump do schema no Hetzner (estrutura + dados, sem dono/privilégios) ---"
+            ssh -i ~/.ssh/hetzner_key -p "$HETZNER_PORT" "$HETZNER_USER@$HETZNER_HOST" \
+              "docker exec supabase-db pg_dump -U postgres -d postgres --schema=basededados --no-owner --no-privileges" \
+              > /tmp/agro/basededados.sql
+            echo "tamanho do dump: $(du -h /tmp/agro/basededados.sql | cut -f1)"
+            echo "--- restaura no Contabo ---"
+            cat /tmp/agro/basededados.sql | ssh -i ~/.ssh/contabo_key "root@$CONTABO_HOST" "docker exec -i supabase-db psql -U postgres -d postgres -v ON_ERROR_STOP=1"
+            echo "--- confirma ---"
+            ssh -i ~/.ssh/contabo_key "root@$CONTABO_HOST" "docker exec supabase-db psql -U postgres -d postgres -t -A -c \"SELECT count(*) FROM pg_tables WHERE schemaname='basededados'\""
+          fi
+
+      - name: 3. Copia o código (tar do Hetzner, extrai numa pasta nova no Contabo)
+        env:
+          HETZNER_HOST: ${{ secrets.HETZNER_HOST }}
+          HETZNER_PORT: ${{ secrets.HETZNER_PORT }}
+          HETZNER_USER: ${{ secrets.HETZNER_USER }}
+          CONTABO_HOST: ${{ secrets.CONTABO_HOST }}
+        run: |
+          set -e
+          echo "--- confirma se já existe no Contabo (idempotente) ---"
+          EXISTS=$(ssh -i ~/.ssh/contabo_key "root@$CONTABO_HOST" "test -d /opt/basededadosagro-site && echo SIM || echo NAO")
+          if [ "$EXISTS" = "SIM" ]; then
+            echo "/opt/basededadosagro-site já existe no Contabo — não repito a cópia de código."
+          else
+            echo "--- confirma se a app usa .schema('basededados') no código (informativo) ---"
+            ssh -i ~/.ssh/hetzner_key -p "$HETZNER_PORT" "$HETZNER_USER@$HETZNER_HOST" \
+              "grep -rl \"schema(.basededados.)\" /opt/basededadosagro-site/src 2>/dev/null | head -5"
+            echo "--- tar no Hetzner (sem node_modules/.next/.git), transfere, extrai no Contabo ---"
+            ssh -i ~/.ssh/hetzner_key -p "$HETZNER_PORT" "$HETZNER_USER@$HETZNER_HOST" \
+              "tar -C /opt/basededadosagro-site --exclude=node_modules --exclude=.next --exclude=.git -czf - ." \
+              > /tmp/agro/code.tar.gz
+            echo "tamanho do tar: $(du -h /tmp/agro/code.tar.gz | cut -f1)"
+            ssh -i ~/.ssh/contabo_key "root@$CONTABO_HOST" "mkdir -p /opt/basededadosagro-site"
+            cat /tmp/agro/code.tar.gz | ssh -i ~/.ssh/contabo_key "root@$CONTABO_HOST" "tar -C /opt/basededadosagro-site -xzf -"
+            echo "--- confirma ---"
+            ssh -i ~/.ssh/contabo_key "root@$CONTABO_HOST" "ls /opt/basededadosagro-site/package.json && du -sh /opt/basededadosagro-site"
+          fi
+
+      - name: 4. Verifica portas livres no Contabo antes de escolher uma
+        env:
+          CONTABO_HOST: ${{ secrets.CONTABO_HOST }}
+        run: |
+          set -e
+          echo "--- portas node/pm2 já em uso no Contabo ---"
+          ssh -i ~/.ssh/contabo_key "root@$CONTABO_HOST" "ss -tlnp 2>&1 | grep -i node || echo '(nenhuma)'"
+          ssh -i ~/.ssh/contabo_key "root@$CONTABO_HOST" "pm2 jlist 2>&1 | grep -oE '\"name\":\"[^\"]*\"|-- \"-p\" \"[0-9]*\"' || echo '(pm2 vazio ou sem apps -p)'"
