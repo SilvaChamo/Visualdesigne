@@ -8,7 +8,7 @@ import { useAdminSectionChrome } from '@/components/admin/AdminSectionChrome';
 import { ProvisionClienteSection } from '@/app/dashboard/ProvisionClienteSection';
 import { consumeHostingAccountEdit } from '@/lib/panel-hosting-edit-nav';
 import type { DirectAdminPackage } from '@/lib/directadmin-api';
-import { panelBtnPrimary, panelBtnSecondary, panelField, panelTabList, panelTabBtn } from '@/lib/panel-ui';
+import { panelBtnPrimary, panelBtnSecondary, panelField } from '@/lib/panel-ui';
 import { PRIMARY_RESELLER_DA_USER, isPanelAdminAccount } from '@/lib/panel-contas-enrich';
 import { clearAllPanelClientCaches } from '@/lib/panel-session-cache-clear';
 import { Spinner } from '@/components/ui/spinner';
@@ -202,7 +202,6 @@ export function ClientesDaSection({
   const [search, setSearch] = useState('');
   const [view, setView] = useState<AccountsView>(initialView === 'create' ? 'create' : 'list');
   const [selectedUser, setSelectedUser] = useState<DaUserRow | null>(null);
-  const [activeTypeTab, setActiveTypeTab] = useState<'client' | 'professional' | 'reseller'>('client');
   const [editUser, setEditUser] = useState<DaUserRow | null>(null);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState('');
@@ -338,7 +337,6 @@ export function ClientesDaSection({
       if (initialView !== 'create') {
         setSelectedUser(null);
         setEditUser(null);
-        setActiveTypeTab('client');
       }
     }
   }, [isActive, initialView, listResetToken]);
@@ -361,18 +359,10 @@ export function ClientesDaSection({
     if (listFilter === 'client' && isDaReseller(u)) return false;
     if (listFilter === 'reseller' && !isDaReseller(u)) return false;
 
-    // Filtrar por Tab de Tipo de Conta
-    const acl = String(u.type || '').toLowerCase();
-    if (activeTypeTab === 'client') {
-      if (acl === 'reseller' || acl === 'manager') return false;
-      // A conta root/admin (ex.: "visualdesign") não é cliente de ninguém —
-      // sem isto, aparecia no separador Clientes por não bater com reseller/manager.
-      if (isPanelAdminAccount(u)) return false;
-    } else if (activeTypeTab === 'professional') {
-      if (acl !== 'manager') return false;
-    } else if (activeTypeTab === 'reseller') {
-      if (acl !== 'reseller') return false;
-    }
+    // Sem separadores: todas as contas de hospedagem numa só lista (como o
+    // Hestia mostra). Só a conta root/admin do próprio painel fica de fora —
+    // não é cliente de ninguém.
+    if (isPanelAdminAccount(u)) return false;
 
     const q = search.toLowerCase();
     return (
@@ -500,11 +490,7 @@ export function ClientesDaSection({
         <ProvisionClienteSection
           packages={packages}
           initialAccountType={
-            view === 'create'
-              ? activeTypeTab
-              : initialAccountType === 'admin'
-                ? 'professional'
-                : initialAccountType
+            initialAccountType === 'admin' ? 'professional' : initialAccountType
           }
           mode={view === 'edit' ? 'edit' : 'create'}
           editUser={view === 'edit' ? editUser ?? undefined : undefined}
@@ -641,30 +627,6 @@ export function ClientesDaSection({
             {syncing ? <Spinner className="h-4 w-4" /> : <RefreshCw className="h-4 w-4" />}
           </button>
         </div>
-      </div>
-
-      {/* Tabs de Tipos de Contas */}
-      <div className="w-full border-b border-gray-200 dark:border-zinc-800">
-        <nav className={panelTabList} aria-label="Tipos de conta">
-          {[
-            { id: 'client' as const, label: 'Clientes' },
-            { id: 'professional' as const, label: 'Profissional' },
-            { id: 'reseller' as const, label: 'Revendedores' },
-          ].map((tab) => (
-            <button
-              key={tab.id}
-              type="button"
-              onClick={() => setActiveTypeTab(tab.id)}
-              className={`${panelTabBtn} relative font-bold ${
-                activeTypeTab === tab.id
-                  ? 'z-10 border-b-red-600 text-red-600 dark:border-b-red-500 dark:text-red-400'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-zinc-400 dark:hover:text-zinc-200'
-              }`}
-            >
-              {tab.label}
-            </button>
-          ))}
-        </nav>
       </div>
 
       {msg ? (
