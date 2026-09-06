@@ -109,12 +109,17 @@ jobs:
           co "command -v php >/dev/null || ln -sf \$(ls -v /usr/bin/php8* /opt/php*/bin/php 2>/dev/null | tail -1) /usr/local/bin/php; php -v | head -1"
           co "test -s /usr/local/bin/wp || curl -fsSL -o /usr/local/bin/wp https://raw.githubusercontent.com/wp-cli/builds/gh-pages/phar/wp-cli.phar; chmod +x /usr/local/bin/wp; php /usr/local/bin/wp --info 2>&1 | head -4"
 
-          echo "== ler password da BD Contabo da copia actual (antes de a arrumar) =="
-          CDBP=$(co "grep -oP \"DB_PASSWORD',\s*'\K[^']+\" $D/wp-config.php" | tr -d '\r')
-          CDBN=$(co "grep -oP \"DB_NAME',\s*'\K[^']+\" $D/wp-config.php" | tr -d '\r')
-          CDBU=$(co "grep -oP \"DB_USER',\s*'\K[^']+\" $D/wp-config.php" | tr -d '\r')
-          echo "  contabo db=$CDBN user=$CDBU"
-          [ -z "$CDBN" ] && { echo "FALHOU ler wp-config do Contabo"; exit 1; }
+          echo "== BD do Contabo: definir password nova via Hestia (a copia nao tinha wp-config) =="
+          HB=/usr/local/hestia/bin
+          CDBN=$(co "$HB/v-list-databases aamihe plain | awk '{print \$1}' | grep -i aamihe | head -1")
+          CDBN=$(echo "$CDBN" | tr -d '\r')
+          [ -z "$CDBN" ] && CDBN="aamihe_aamihe_bd"
+          CDBU="$CDBN"
+          CDBP=$(head -c 24 /dev/urandom | base64 | tr -dc 'A-Za-z0-9' | cut -c1-24)
+          echo "  contabo db=$CDBN"
+          co "$HB/v-change-database-password aamihe '$CDBN' '$CDBP'" || co "$HB/v-change-database-user-password aamihe '$CDBN' '$CDBP'"
+          echo "  -- testar ligacao com a password nova --"
+          co "mysql -u'$CDBU' -p'$CDBP' -e 'SELECT 1;' '$CDBN'" || { echo "FALHOU ligar a BD do Contabo com a password nova"; exit 1; }
 
           echo "== arrumar a copia infectada (NAO apaga) =="
           co "mv $D ${D}.infected-$TS && mkdir -p $D && chown aamihe:aamihe $D"
