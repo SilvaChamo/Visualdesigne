@@ -115,6 +115,7 @@ const HESTIA_SUPPORTED_ACTIONS = new Set([
   'listEmails', 'createEmail', 'deleteEmail', 'suspendEmail', 'unsuspendEmail', 'changeEmailPassword', 'setEmailLimits',
   'listFTPAccounts', 'createFTPAccount', 'deleteFTPAccount',
   'deleteWebsite', 'suspendWebsite', 'unsuspendWebsite',
+  'issueSSL',
 ]);
 
 async function tryHestiaAction(
@@ -237,6 +238,22 @@ async function tryHestiaAction(
             : await hestiaAdapter.unsuspendWebDomain(owner, domain);
         if (result.ok) await patchMirrorSite(domain, { status: action === 'suspendWebsite' ? 'Suspended' : 'Active' });
         data = { success: result.ok, error: result.error };
+        break;
+      }
+      case 'issueSSL': {
+        // Hestia: emite Let's Encrypt + recarrega o nginx (o painel deixa o
+        // site com o certificado activo sem ninguém tocar no terminal). Se o
+        // domínio tiver WordPress, passa também os endereços para https.
+        const result = await hestiaAdapter.issueLetsEncrypt(owner, domain);
+        if (result.ok) {
+          try {
+            const { resolveWpInstall, switchWpToHttps } = await import('@/lib/wp-cli-server');
+            if (await resolveWpInstall(domain)) await switchWpToHttps(domain);
+          } catch {
+            /* best-effort — SSL já ficou emitido */
+          }
+        }
+        data = { success: result.ok, error: result.error, output: result.output };
         break;
       }
       default:

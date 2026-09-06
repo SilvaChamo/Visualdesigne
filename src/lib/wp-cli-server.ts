@@ -110,7 +110,38 @@ export async function installWordPressSite(input: {
     }
   }
 
+  // Passos pós-instalação que o painel deixa prontos para o cliente, para não
+  // ser preciso mexer no wp-cli à mão depois:
+  //  - ligações permanentes "bonitas" (/nome-do-artigo/). Usa-se
+  //    `option update permalink_structure` + `rewrite flush` de propósito:
+  //    `wp rewrite structure` rebenta com erro de subprocesso nalgumas versões.
+  // Best-effort: se algum falhar, a instalação continua válida na mesma.
+  for (const extra of [
+    `option update permalink_structure '/%postname%/'`,
+    'rewrite flush --hard',
+  ]) {
+    outputs.push(await runAsWpUser(site.user, wpPath, extra).catch(() => ''));
+  }
+
   return { ok: true, output: outputs.join('\n') || 'WordPress instalado com sucesso.' };
+}
+
+/**
+ * Depois de emitir SSL num domínio com WordPress: passa os endereços do site
+ * (home/siteurl) para https e regenera as regras de reescrita. Best-effort —
+ * nunca lança, para não fazer falhar a emissão de SSL em si.
+ */
+export async function switchWpToHttps(domain: string): Promise<void> {
+  const install = await resolveWpInstall(domain);
+  if (!install) return;
+  const base = `https://${domain.replace(/[^a-zA-Z0-9.-]/g, '')}`;
+  for (const args of [
+    `option update home ${shellQuote(base)}`,
+    `option update siteurl ${shellQuote(base)}`,
+    'rewrite flush --hard',
+  ]) {
+    await runAsWpUser(install.user, install.path, args).catch(() => undefined);
+  }
 }
 
 export async function resolveWpInstall(domain: string): Promise<WpInstallInfo | null> {
@@ -442,10 +473,28 @@ export async function deleteWpUser(
 
 export async function generateWpAutoLoginToken(
   domain: string,
-  username: string,
+  username?: string,
 ): Promise<{ success: boolean; url?: string; error?: string }> {
   const install = await resolveWpInstall(domain);
   if (!install) return { success: false, error: 'WordPress não encontrado neste domínio' };
+
+  // Sem utilizador indicado (botão "Painel do WordPress"): entra como o
+  // primeiro administrador do site.
+  let login = (username || '').trim();
+  if (!login) {
+    const raw = await runAsWpUser(
+      install.user,
+      install.path,
+      'user list --role=administrator --field=user_login --format=csv',
+    ).catch(() => '');
+    login = raw
+      .split('\n')
+      .map((l) => l.trim())
+      .filter((l) => l && !/^user_login$/i.test(l))[0] || '';
+    if (!login) {
+      return { success: false, error: 'Nenhum administrador encontrado neste WordPress.' };
+    }
+  }
 
   const token = crypto.randomUUID();
   const filename = `wp-login-${token}.php`;
@@ -455,7 +504,7 @@ export async function generateWpAutoLoginToken(
 // Autologin gerado pelo painel
 @unlink(__FILE__);
 require_once __DIR__ . '/wp-load.php';
-$user = get_user_by('login', '${username.replace(/'/g, "\\'")}');
+$user = get_user_by('login', '${login.replace(/'/g, "\\'")}');
 if ($user) {
     wp_clear_auth_cookie();
     wp_set_current_user($user->ID);

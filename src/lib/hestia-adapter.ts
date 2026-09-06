@@ -5,9 +5,33 @@
  */
 
 import { hestiaCall, hestiaCallJson } from '@/lib/hestia-client';
+import { executeServerCommand } from '@/lib/server-ssh-exec';
 
 function isAlreadyExistsError(error?: string): boolean {
   return (error || '').toLowerCase().includes('exists');
+}
+
+/**
+ * Emite/instala o certificado Let's Encrypt de um site Hestia e recarrega o
+ * nginx logo a seguir. O `v-add-letsencrypt-domain` nem sempre deixa o nginx
+ * a servir já o certificado novo; sem este reload o site fica com o
+ * certificado errado até ao próximo restart. O reload é best-effort — não
+ * faz falhar a emissão se não passar.
+ */
+export async function issueLetsEncrypt(
+  username: string,
+  domain: string,
+): Promise<{ ok: boolean; error?: string; output?: string }> {
+  const result = await hestiaCall('v-add-letsencrypt-domain', [username, domain]);
+  if (!result.ok && !isAlreadyExistsError(result.error)) {
+    return { ok: false, error: result.error };
+  }
+
+  const reload = await executeServerCommand(
+    'systemctl reload nginx 2>&1 || sudo systemctl reload nginx 2>&1 || true',
+  ).catch((e) => (e instanceof Error ? e.message : 'reload nginx falhou'));
+
+  return { ok: true, output: `Certificado SSL tratado. Reload nginx: ${reload || 'ok'}` };
 }
 
 export type HestiaPackage = { packageName: string };
